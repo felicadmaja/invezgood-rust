@@ -1,0 +1,3 @@
+[workspace]
+members = ["crate/create_database", "crate/portofolio"]
+resolver = "2"

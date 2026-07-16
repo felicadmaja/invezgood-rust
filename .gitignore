@@ -1,0 +1,5 @@
+/target/
+.env
+screenshots/
+browser_data/
+*.png

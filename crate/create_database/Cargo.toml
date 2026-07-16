@@ -1,0 +1,32 @@
+[package]
+name = "create_database"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "stockbit_ws"
+path = "../main.rs"
+
+[[bin]]
+name = "create_bandarmology"
+path = "src/bin/create_bandarmology.rs"
+
+[[bin]]
+name = "create_emiten_trending"
+path = "src/bin/create_emiten_trending.rs"
+
+[[bin]]
+name = "create_portofolio"
+path = "src/bin/create_portofolio.rs"
+
+[[bin]]
+name = "create_emiten_list"
+path = "src/bin/create_emiten_list.rs"
+
+[dependencies]
+chromiumoxide = "0.9"
+dotenvy = "0.15"
+futures = "0.3"
+rand = "0.8"
+scylla = "1.5"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs"] }

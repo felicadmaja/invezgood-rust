@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package portofolio;
+
+service Portofolio {
+  // Tanpa parameter request; mengembalikan semua baris dari tabel Scylla `portofolio`.
+  rpc GetAllPortofolio(GetAllPortofolioRequest) returns (GetAllPortofolioResponse);
+}
+
+message GetAllPortofolioRequest {}
+
+message PortofolioRow {
+  string id = 1;
+  string emiten_name = 2;
+  int64 balance_lot = 3;
+  int64 available_lot = 4;
+  double average_price = 5;
+  double current_price = 6;
+  double invested = 7;
+  double market_value = 8;
+  double potential_p_l = 9;
+  double percentage = 10;
+}
+
+message GetAllPortofolioResponse {
+  repeated PortofolioRow rows = 1;
+}
