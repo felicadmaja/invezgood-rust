@@ -1,3 +1,3 @@
 [workspace]
-members = ["crate/create_database", "crate/portofolio"]
+members = ["crate/create_database", "crate/portofolio", "crate/user"]
 resolver = "2"

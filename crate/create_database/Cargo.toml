@@ -23,10 +23,16 @@ path = "src/bin/create_portofolio.rs"
 name = "create_emiten_list"
 path = "src/bin/create_emiten_list.rs"
 
+[[bin]]
+name = "create_user"
+path = "src/bin/create_user.rs"
+
 [dependencies]
+bcrypt = "0.16"
 chromiumoxide = "0.9"
 dotenvy = "0.15"
 futures = "0.3"
 rand = "0.8"
 scylla = "1.5"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs"] }
+uuid = { version = "1", features = ["v4"] }

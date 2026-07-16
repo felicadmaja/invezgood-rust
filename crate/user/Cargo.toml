@@ -1,5 +1,5 @@
 [package]
-name = "portofolio"
+name = "user"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,17 +7,19 @@ edition = "2021"
 path = "src/lib.rs"
 
 [[bin]]
-name = "portofolio"
+name = "user"
 path = "src/main.rs"
 
 [dependencies]
+bcrypt = "0.16"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 dotenvy = "0.15"
-futures-util = "0.3"
+jsonwebtoken = "9"
 prost = { version = "0.13", features = ["std", "derive"] }
 scylla = "1.5"
+serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tonic = { version = "0.12", features = ["transport"] }
-user = { path = "../user" }
 uuid = { version = "1", features = ["v4", "serde"] }
 
 [build-dependencies]

@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package user;
+
+service User {
+  // Login dengan email + password; cocokkan ke tabel Scylla `user`.
+  // Mengembalikan JWT access_token untuk dipakai crate/service lain
+  // (header: Authorization: Bearer <token>).
+  rpc Login(LoginRequest) returns (LoginResponse);
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string access_token = 1;
+  int64 expires_in = 2;
+  string user_id = 3;
+  string name = 4;
+  string email = 5;
+}
