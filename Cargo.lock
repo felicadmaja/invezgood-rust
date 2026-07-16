@@ -337,10 +337,7 @@ name = "create_database"
 version = "0.1.0"
 dependencies = [
  "bcrypt",
- "chromiumoxide",
  "dotenvy",
- "futures",
- "rand 0.8.7",
  "scylla",
  "tokio",
  "uuid",
@@ -1218,6 +1215,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
+ "tonic-reflection",
  "user",
  "uuid",
 ]
@@ -1776,6 +1774,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "stockbit_ws"
+version = "0.1.0"
+dependencies = [
+ "dotenvy",
+ "portofolio",
+ "tokio",
+ "tonic",
+ "tonic-reflection",
+ "user",
+]
+
+[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1987,6 +1997,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tonic-reflection"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "878d81f52e7fcfd80026b7fdb6a9b578b3c3653ba987f87f0dce4b64043cba27"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+]
+
+[[package]]
 name = "tower"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2157,6 +2180,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
+ "tonic-reflection",
  "uuid",
 ]
 
@@ -2445,6 +2469,22 @@ name = "wit-bindgen"
 version = "0.57.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
+
+[[package]]
+name = "worker_scrapping"
+version = "0.1.0"
+dependencies = [
+ "chromiumoxide",
+ "chrono",
+ "dotenvy",
+ "futures",
+ "rand 0.8.7",
+ "scylla",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
 
 [[package]]
 name = "writeable"

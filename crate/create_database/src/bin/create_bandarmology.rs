@@ -4,10 +4,11 @@
 //! Buat keyspace `stockbit` (dari env `SCYLLA_KEYSPACE`), UDT bandarmology, dan tabel `bandarmology`.
 //! Re-run: DROP MV + DROP TABLE + DROP TYPE lalu buat ulang (data bandarmology hilang).
 //!
-//! Kolom tabel:
-//! - `id` uuid — partition key
-//! - `emiten_id` uuid
+//! Kolom tabel (tanpa uuid):
+//! - `agg_tahun_bulan_tanggal_emiten_name` text — partition key; diisi aplikasi:
+//!   `concat(tahun_bulan_tanggal, '_', emiten_name)` (contoh `2026-07-16_BBCA`)
 //! - `emiten_name` text
+//! - `tahun_bulan_tanggal` date
 //! - `d_1`, `d_2`, `d_7` frozen<bandarmology_day> — snapshot harian
 //! - `M_1`, `M_3`, `M_6`, `M_12` frozen<bandarmology_day> — snapshot bulanan
 //!
@@ -18,19 +19,19 @@ use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 
 const TABLE: &str = "bandarmology";
-const MV_BY_EMITEN_ID: &str = "bandarmology_by_emiten_id";
-const MV_BY_AGG: &str = "bandarmology_by_agg_tahun_bulan_tanggal_emiten_name";
+const MV_BY_EMITEN_NAME: &str = "bandarmology_by_emiten_name";
+/// MV lama (uuid-era) yang di-drop pada re-run.
+const LEGACY_MV_BY_EMITEN_ID: &str = "bandarmology_by_emiten_id";
+const LEGACY_MV_BY_AGG: &str = "bandarmology_by_agg_tahun_bulan_tanggal_emiten_name";
 const UDT_TOP_STATS: &str = "bandarmology_top_stats";
 const UDT_BROKER_BUY: &str = "bandarmology_broker_buy";
 const UDT_BROKER_SELL: &str = "bandarmology_broker_sell";
 const UDT_DAY: &str = "bandarmology_day";
 
 const BANDARMOLOGY_COLUMNS: &[&str] = &[
-    "id",
-    "emiten_id",
+    "agg_tahun_bulan_tanggal_emiten_name",
     "emiten_name",
     "tahun_bulan_tanggal",
-    "agg_tahun_bulan_tanggal_emiten_name",
     "d_1",
     "d_2",
     "d_7",
@@ -48,7 +49,6 @@ fn bandarmology_cql_output_path() -> std::path::PathBuf {
 
 fn bandarmology_scylla_type(col: &str) -> &'static str {
     match col {
-        "id" | "emiten_id" => "uuid",
         "tahun_bulan_tanggal" => "date",
         col if DAY_SNAPSHOT_COLUMNS.contains(&col) => "frozen<bandarmology_day>",
         _ => "text",
@@ -134,38 +134,12 @@ fn ddl_drop_materialized_view(keyspace: &str, mv: &str) -> String {
     format!("DROP MATERIALIZED VIEW IF EXISTS {}.{}", keyspace, mv)
 }
 
-fn ddl_create_mv_by_emiten_id(keyspace: &str) -> String {
-    format!(
-        "CREATE MATERIALIZED VIEW IF NOT EXISTS {}.{} AS \
-         SELECT \"emiten_id\", \"id\" FROM {}.{} \
-         WHERE \"emiten_id\" IS NOT NULL AND \"id\" IS NOT NULL \
-         PRIMARY KEY ((\"emiten_id\"), \"id\") \
-         WITH CLUSTERING ORDER BY (\"id\" ASC)",
-        keyspace, MV_BY_EMITEN_ID, keyspace, TABLE
-    )
-}
-
-fn ddl_create_mv_by_agg(keyspace: &str) -> String {
-    // Scylla: hanya satu kolom non-PK boleh masuk MV primary key — partition agg,
-    // clustering id (PK tabel dasar). emiten_id tidak bisa jadi clustering karena sudah ada agg.
-    format!(
-        "CREATE MATERIALIZED VIEW IF NOT EXISTS {}.{} AS \
-         SELECT \"agg_tahun_bulan_tanggal_emiten_name\", \"id\" FROM {}.{} \
-         WHERE \"agg_tahun_bulan_tanggal_emiten_name\" IS NOT NULL AND \"id\" IS NOT NULL \
-         PRIMARY KEY ((\"agg_tahun_bulan_tanggal_emiten_name\"), \"id\") \
-         WITH CLUSTERING ORDER BY (\"id\" ASC)",
-        keyspace, MV_BY_AGG, keyspace, TABLE
-    )
-}
-
 fn ddl_create_table(keyspace: &str) -> String {
     format!(
         "CREATE TABLE IF NOT EXISTS {}.{} (\
-            \"id\" uuid, \
-            \"emiten_id\" uuid, \
+            \"agg_tahun_bulan_tanggal_emiten_name\" text, \
             \"emiten_name\" text, \
             \"tahun_bulan_tanggal\" date, \
-            \"agg_tahun_bulan_tanggal_emiten_name\" text, \
             \"d_1\" frozen<{}>, \
             \"d_2\" frozen<{}>, \
             \"d_7\" frozen<{}>, \
@@ -173,7 +147,7 @@ fn ddl_create_table(keyspace: &str) -> String {
             \"M_3\" frozen<{}>, \
             \"M_6\" frozen<{}>, \
             \"M_12\" frozen<{}>, \
-            PRIMARY KEY ((\"id\"))\
+            PRIMARY KEY ((\"agg_tahun_bulan_tanggal_emiten_name\"))\
         )",
         keyspace,
         TABLE,
@@ -184,6 +158,17 @@ fn ddl_create_table(keyspace: &str) -> String {
         UDT_DAY,
         UDT_DAY,
         UDT_DAY
+    )
+}
+
+fn ddl_create_mv_by_emiten_name(keyspace: &str) -> String {
+    format!(
+        "CREATE MATERIALIZED VIEW IF NOT EXISTS {}.{} AS \
+         SELECT \"emiten_name\", \"agg_tahun_bulan_tanggal_emiten_name\" FROM {}.{} \
+         WHERE \"emiten_name\" IS NOT NULL AND \"agg_tahun_bulan_tanggal_emiten_name\" IS NOT NULL \
+         PRIMARY KEY ((\"emiten_name\"), \"agg_tahun_bulan_tanggal_emiten_name\") \
+         WITH CLUSTERING ORDER BY (\"agg_tahun_bulan_tanggal_emiten_name\" ASC)",
+        keyspace, MV_BY_EMITEN_NAME, keyspace, TABLE
     )
 }
 
@@ -226,12 +211,20 @@ fn format_bandarmology_schema_summary(keyspace: &str) -> String {
 
     let _ = writeln!(out, "--- Tabel dasar (base table) ---");
     let _ = writeln!(out, "Nama penuh: \"{}\".\"{}\"", keyspace, TABLE);
-    let _ = writeln!(out, "Primary key: ((\"id\")) — \"id\" uuid.");
+    let _ = writeln!(
+        out,
+        "Primary key: ((\"agg_tahun_bulan_tanggal_emiten_name\")) — text."
+    );
     let _ = writeln!(out, "Kolom dan tipe CQL:");
     for name in BANDARMOLOGY_COLUMNS {
         let ty = bandarmology_scylla_type(name);
-        if *name == "id" {
-            let _ = writeln!(out, "  \"{}\" {} — partition key", name, ty);
+        if *name == "agg_tahun_bulan_tanggal_emiten_name" {
+            let _ = writeln!(
+                out,
+                "  \"{}\" {} — partition key; diisi aplikasi sebagai \
+                 concat(tahun_bulan_tanggal, '_', emiten_name), contoh \"2026-07-16_BBCA\"",
+                name, ty
+            );
         } else {
             let _ = writeln!(out, "  \"{}\" {}", name, ty);
         }
@@ -268,53 +261,27 @@ fn format_bandarmology_schema_summary(keyspace: &str) -> String {
     let _ = writeln!(out);
 
     let _ = writeln!(out, "--- Materialized view (MV) ---");
-    let _ = writeln!(out, "(1) \"{}\".\"{}\"", keyspace, MV_BY_EMITEN_ID);
+    let _ = writeln!(out, "(1) \"{}\".\"{}\"", keyspace, MV_BY_EMITEN_NAME);
     let _ = writeln!(
         out,
-        "SELECT \"emiten_id\", \"id\" (hanya kolom primary key MV)."
+        "SELECT \"emiten_name\", \"agg_tahun_bulan_tanggal_emiten_name\" (hanya kolom primary key MV)."
     );
     let _ = writeln!(
         out,
-        "WHERE \"emiten_id\" IS NOT NULL AND \"id\" IS NOT NULL."
+        "WHERE \"emiten_name\" IS NOT NULL AND \"agg_tahun_bulan_tanggal_emiten_name\" IS NOT NULL."
     );
     let _ = writeln!(
         out,
-        "PRIMARY KEY: partition \"emiten_id\" (uuid); clustering \"id\" (uuid)."
-    );
-    let _ = writeln!(out, "WITH CLUSTERING ORDER BY (\"id\" ASC).");
-    let _ = writeln!(
-        out,
-        "Gunakan: daftar bandarmology per emiten_id (contoh WHERE emiten_id = ?); data lengkap lewat tabel dasar WHERE id = ?."
-    );
-    let _ = writeln!(out);
-    let _ = writeln!(out, "(2) \"{}\".\"{}\"", keyspace, MV_BY_AGG);
-    let _ = writeln!(
-        out,
-        "SELECT \"agg_tahun_bulan_tanggal_emiten_name\", \"id\" (hanya kolom primary key MV)."
+        "PRIMARY KEY: partition \"emiten_name\" (text); clustering \"agg_tahun_bulan_tanggal_emiten_name\" (text)."
     );
     let _ = writeln!(
         out,
-        "WHERE \"agg_tahun_bulan_tanggal_emiten_name\" IS NOT NULL AND \"id\" IS NOT NULL."
+        "WITH CLUSTERING ORDER BY (\"agg_tahun_bulan_tanggal_emiten_name\" ASC)."
     );
     let _ = writeln!(
         out,
-        "PRIMARY KEY: partition \"agg_tahun_bulan_tanggal_emiten_name\" (text); clustering \"id\" (uuid)."
-    );
-    let _ = writeln!(out, "WITH CLUSTERING ORDER BY (\"id\" ASC).");
-    let _ = writeln!(
-        out,
-        "Catatan Scylla: MV hanya boleh punya satu kolom non-PK di primary key; \
-         emiten_id tidak bisa clustering karena agg sudah memakai slot itu — gunakan id (PK tabel dasar)."
-    );
-    let _ = writeln!(
-        out,
-        "Kolom \"agg_tahun_bulan_tanggal_emiten_name\": text — diisi aplikasi sebagai \
-         concat(tahun_bulan_tanggal, '_', emiten_name), contoh \"2026-07-16_BBCA\"."
-    );
-    let _ = writeln!(
-        out,
-        "Gunakan: lookup per agg (contoh WHERE agg_tahun_bulan_tanggal_emiten_name = ?); \
-         data lengkap lewat tabel dasar WHERE id = ?."
+        "Gunakan: daftar bandarmology per emiten_name (contoh WHERE emiten_name = ?); \
+         data lengkap lewat tabel dasar WHERE agg_tahun_bulan_tanggal_emiten_name = ?."
     );
     let _ = writeln!(out);
     let _ = writeln!(out, "=== Akhir ringkasan struktur ===");
@@ -340,7 +307,8 @@ fn eprintln_bandarmology_schema_summary(keyspace: &str) {
         ),
         Err(e) => eprintln!(
             "Peringatan: gagal menulis {}: {}",
-            bandarmology_cql_output_path().display(), e
+            bandarmology_cql_output_path().display(),
+            e
         ),
     }
 }
@@ -358,7 +326,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     session.query_unpaged(ddl_keyspace.as_str(), &[]).await?;
     eprintln!("OK: CREATE KEYSPACE IF NOT EXISTS {keyspace}");
 
-    for mv in [MV_BY_EMITEN_ID, MV_BY_AGG] {
+    for mv in [LEGACY_MV_BY_EMITEN_ID, LEGACY_MV_BY_AGG, MV_BY_EMITEN_NAME] {
         let ddl_drop_mv = ddl_drop_materialized_view(&keyspace, mv);
         session.query_unpaged(ddl_drop_mv.as_str(), &[]).await?;
         eprintln!("OK: {ddl_drop_mv}");
@@ -394,13 +362,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     session.query_unpaged(ddl_table.as_str(), &[]).await?;
     eprintln!("OK: CREATE TABLE {keyspace}.{TABLE}");
 
-    let ddl_mv_emiten = ddl_create_mv_by_emiten_id(&keyspace);
+    let ddl_mv_emiten = ddl_create_mv_by_emiten_name(&keyspace);
     session.query_unpaged(ddl_mv_emiten.as_str(), &[]).await?;
-    eprintln!("OK: CREATE MATERIALIZED VIEW IF NOT EXISTS {keyspace}.{MV_BY_EMITEN_ID}");
-
-    let ddl_mv_agg = ddl_create_mv_by_agg(&keyspace);
-    session.query_unpaged(ddl_mv_agg.as_str(), &[]).await?;
-    eprintln!("OK: CREATE MATERIALIZED VIEW IF NOT EXISTS {keyspace}.{MV_BY_AGG}");
+    eprintln!("OK: CREATE MATERIALIZED VIEW IF NOT EXISTS {keyspace}.{MV_BY_EMITEN_NAME}");
 
     eprintln_bandarmology_schema_summary(&keyspace);
 

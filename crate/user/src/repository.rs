@@ -50,6 +50,14 @@ impl UserRepository {
             .await
     }
 
+    /// Preflight cache prepared statements — wajib di-await di binary utama sebelum serve.
+    pub async fn warm_prepared_statements(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.prepared().await?;
+        Ok(())
+    }
+
     pub async fn find_by_email(
         &self,
         email: &str,

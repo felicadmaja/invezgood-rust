@@ -17,6 +17,7 @@ prost = { version = "0.13", features = ["std", "derive"] }
 scylla = "1.5"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tonic = { version = "0.12", features = ["transport"] }
+tonic-reflection = "0.12"
 user = { path = "../user" }
 uuid = { version = "1", features = ["v4", "serde"] }
 

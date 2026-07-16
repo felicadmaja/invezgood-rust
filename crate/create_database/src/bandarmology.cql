@@ -4,13 +4,11 @@ Keyspace: "stockbit"
 
 --- Tabel dasar (base table) ---
 Nama penuh: "stockbit"."bandarmology"
-Primary key: (("id")) — "id" uuid.
+Primary key: (("agg_tahun_bulan_tanggal_emiten_name")) — text.
 Kolom dan tipe CQL:
-  "id" uuid — partition key
-  "emiten_id" uuid
+  "agg_tahun_bulan_tanggal_emiten_name" text — partition key; diisi aplikasi sebagai concat(tahun_bulan_tanggal, '_', emiten_name), contoh "2026-07-16_BBCA"
   "emiten_name" text
   "tahun_bulan_tanggal" date
-  "agg_tahun_bulan_tanggal_emiten_name" text
   "d_1" frozen<bandarmology_day>
   "d_2" frozen<bandarmology_day>
   "d_7" frozen<bandarmology_day>
@@ -27,20 +25,11 @@ Kolom dan tipe CQL:
 Mapping dari sumber UI: "BY"→broker_buy, "SL"→broker_sell.
 
 --- Materialized view (MV) ---
-(1) "stockbit"."bandarmology_by_emiten_id"
-SELECT "emiten_id", "id" (hanya kolom primary key MV).
-WHERE "emiten_id" IS NOT NULL AND "id" IS NOT NULL.
-PRIMARY KEY: partition "emiten_id" (uuid); clustering "id" (uuid).
-WITH CLUSTERING ORDER BY ("id" ASC).
-Gunakan: daftar bandarmology per emiten_id (contoh WHERE emiten_id = ?); data lengkap lewat tabel dasar WHERE id = ?.
-
-(2) "stockbit"."bandarmology_by_agg_tahun_bulan_tanggal_emiten_name"
-SELECT "agg_tahun_bulan_tanggal_emiten_name", "id" (hanya kolom primary key MV).
-WHERE "agg_tahun_bulan_tanggal_emiten_name" IS NOT NULL AND "id" IS NOT NULL.
-PRIMARY KEY: partition "agg_tahun_bulan_tanggal_emiten_name" (text); clustering "id" (uuid).
-WITH CLUSTERING ORDER BY ("id" ASC).
-Catatan Scylla: MV hanya boleh punya satu kolom non-PK di primary key; emiten_id tidak bisa clustering karena agg sudah memakai slot itu — gunakan id (PK tabel dasar).
-Kolom "agg_tahun_bulan_tanggal_emiten_name": text — diisi aplikasi sebagai concat(tahun_bulan_tanggal, '_', emiten_name), contoh "2026-07-16_BBCA".
-Gunakan: lookup per agg (contoh WHERE agg_tahun_bulan_tanggal_emiten_name = ?); data lengkap lewat tabel dasar WHERE id = ?.
+(1) "stockbit"."bandarmology_by_emiten_name"
+SELECT "emiten_name", "agg_tahun_bulan_tanggal_emiten_name" (hanya kolom primary key MV).
+WHERE "emiten_name" IS NOT NULL AND "agg_tahun_bulan_tanggal_emiten_name" IS NOT NULL.
+PRIMARY KEY: partition "emiten_name" (text); clustering "agg_tahun_bulan_tanggal_emiten_name" (text).
+WITH CLUSTERING ORDER BY ("agg_tahun_bulan_tanggal_emiten_name" ASC).
+Gunakan: daftar bandarmology per emiten_name (contoh WHERE emiten_name = ?); data lengkap lewat tabel dasar WHERE agg_tahun_bulan_tanggal_emiten_name = ?.
 
 === Akhir ringkasan struktur ===

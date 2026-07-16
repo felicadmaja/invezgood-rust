@@ -1,0 +1,16 @@
+[package]
+name = "stockbit_ws"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "stockbit_ws"
+path = "src/main.rs"
+
+[dependencies]
+dotenvy = "0.15"
+portofolio = { path = "../crate/portofolio" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tonic = { version = "0.12", features = ["transport"] }
+tonic-reflection = "0.12"
+user = { path = "../crate/user" }

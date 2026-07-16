@@ -1,5 +1,9 @@
+//! Kompilasi `portofolio.proto` + descriptor set (`portofolio_descriptor.bin`)
+//! untuk gRPC reflection — didaftarkan di `app` / bin via `portofolio::FILE_DESCRIPTOR_SET`.
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manifest_dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR")?);
+    let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR")?);
     let proto = manifest_dir.join("src/portofolio.proto");
     println!("cargo:rerun-if-changed={}", proto.display());
 
@@ -9,9 +13,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::set_var("PROTOC", &protoc_path);
     }
 
+    let descriptor_path = out_dir.join("portofolio_descriptor.bin");
     tonic_build::configure()
         .build_server(true)
         .build_client(false)
+        .file_descriptor_set_path(&descriptor_path)
         .compile_protos(&[proto], &[manifest_dir.join("src")])?;
     Ok(())
 }

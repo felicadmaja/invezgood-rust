@@ -1,5 +1,9 @@
 /target/
 .env
 screenshots/
+worker_scrapping/screenshots/
 browser_data/
+worker_scrapping/browser_data/
+logs/
 *.png
+*.log

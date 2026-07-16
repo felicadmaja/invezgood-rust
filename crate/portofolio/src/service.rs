@@ -19,6 +19,10 @@ impl PortofolioService {
             repo: PortofolioRepository::new(session),
         }
     }
+
+    pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.repo.warm_prepared().await
+    }
 }
 
 #[tonic::async_trait]

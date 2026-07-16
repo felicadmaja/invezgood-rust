@@ -48,6 +48,12 @@ impl PortofolioRepository {
             .await
     }
 
+    /// Preflight cache prepared statements — wajib di-await di binary utama sebelum serve.
+    pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.prepared().await?;
+        Ok(())
+    }
+
     pub async fn get_all(&self) -> Result<Vec<Portofolio>, Box<dyn std::error::Error + Send + Sync>> {
         let prepared = self.prepared().await?;
         let stmt = prepared.scan.clone();

@@ -19,6 +19,10 @@ impl UserService {
             repo: UserRepository::new(session),
         }
     }
+
+    pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.repo.warm_prepared_statements().await
+    }
 }
 
 #[tonic::async_trait]

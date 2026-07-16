@@ -6,6 +6,7 @@
 
 use portofolio::portofolio_server::PortofolioServer;
 use portofolio::PortofolioService;
+use tonic_reflection::server::Builder as ReflectionBuilder;
 use user::AuthInterceptor;
 
 #[tokio::main]
@@ -32,9 +33,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         AuthInterceptor,
     );
 
-    eprintln!("portofolio gRPC listening on {addr} (JWT required)");
+    let reflection_svc = ReflectionBuilder::configure()
+        .register_encoded_file_descriptor_set(portofolio::FILE_DESCRIPTOR_SET)
+        .build_v1()
+        .map_err(|e| format!("reflection: {e}"))?;
+
+    eprintln!("portofolio gRPC listening on {addr} (JWT required, reflection enabled)");
     tonic::transport::Server::builder()
         .add_service(svc)
+        .add_service(reflection_svc)
         .serve(addr)
         .await?;
 
