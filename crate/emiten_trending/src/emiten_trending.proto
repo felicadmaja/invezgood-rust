@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package emiten_trending;
+
+service EmitenTrending {
+  // Daftar trending per tanggal via MV `emiten_trending_by_tahun_bulan_tanggal`.
+  rpc GetAllEmitenTrending(GetAllEmitenTrendingRequest) returns (GetAllEmitenTrendingResponse);
+}
+
+message GetAllEmitenTrendingRequest {
+  // Format YYYY-MM-DD, contoh "2026-07-16".
+  string tahun_bulan_tanggal = 1;
+}
+
+message EmitenTrendingRow {
+  string agg_tahun_bulan_tanggal_emiten_name = 1;
+  string tahun_bulan_tanggal = 2;
+  string gainer_or_loser = 3;
+  string emiten_name = 4;
+  double price = 5;
+  double price_change = 6;
+  string value = 7;
+  string volume = 8;
+}
+
+message GetAllEmitenTrendingResponse {
+  repeated EmitenTrendingRow rows = 1;
+}

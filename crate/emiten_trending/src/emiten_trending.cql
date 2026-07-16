@@ -10,7 +10,8 @@ Kolom dan tipe CQL:
   "tahun_bulan_tanggal" date
   "gainer_or_loser" text
   "emiten_name" text
-  "price" text
+  "price" double
+  "price_change" double
   "value" text
   "volume" text
 Kolom "agg_tahun_bulan_tanggal_emiten_name": text — diisi aplikasi sebagai concat(tahun_bulan_tanggal, '_', emiten_name), contoh "2026-07-16_BBCA".

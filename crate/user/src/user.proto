@@ -7,6 +7,16 @@ service User {
   // Mengembalikan JWT access_token untuk dipakai crate/service lain
   // (header: Authorization: Bearer <token>).
   rpc Login(LoginRequest) returns (LoginResponse);
+
+  // Cek sesi Stockbit di /stream; login ulang bila perlu. Progres via server stream.
+  rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
+}
+
+message IsStockbitReadyRequest {}
+
+message IsStockbitReadyResponse {
+  bool ready = 1;
+  string message = 2;
 }
 
 message LoginRequest {

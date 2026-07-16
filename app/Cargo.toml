@@ -9,8 +9,10 @@ path = "src/main.rs"
 
 [dependencies]
 dotenvy = "0.15"
+emiten_trending = { path = "../crate/emiten_trending" }
 portofolio = { path = "../crate/portofolio" }
+tls = { path = "../crate/tls" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
-tonic = { version = "0.12", features = ["transport"] }
+tonic = { version = "0.12", features = ["transport", "tls"] }
 tonic-reflection = "0.12"
 user = { path = "../crate/user" }

@@ -12,12 +12,13 @@
 //! - `tahun_bulan_tanggal` date
 //! - `gainer_or_loser` text
 //! - `emiten_name` text
-//! - `price` text
+//! - `price` double
+//! - `price_change` double
 //! - `value` text
 //! - `volume` text
 //!
 //! Env: `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
-//! Di akhir sukses: ringkasan skema ke stderr dan ke **`src/emiten_trending.cql`**.
+//! Di akhir sukses: ringkasan skema ke stderr dan ke **`crate/emiten_trending/src/emiten_trending.cql`**.
 
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
@@ -34,17 +35,20 @@ const EMITEN_TRENDING_COLUMNS: &[&str] = &[
     "gainer_or_loser",
     "emiten_name",
     "price",
+    "price_change",
     "value",
     "volume",
 ];
 
 fn emiten_trending_cql_output_path() -> std::path::PathBuf {
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/emiten_trending.cql")
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../emiten_trending/src/emiten_trending.cql")
 }
 
 fn emiten_trending_scylla_type(col: &str) -> &'static str {
     match col {
         "tahun_bulan_tanggal" => "date",
+        "price" | "price_change" => "double",
         _ => "text",
     }
 }
@@ -71,7 +75,8 @@ fn ddl_create_table(keyspace: &str) -> String {
             \"tahun_bulan_tanggal\" date, \
             \"gainer_or_loser\" text, \
             \"emiten_name\" text, \
-            \"price\" text, \
+            \"price\" double, \
+            \"price_change\" double, \
             \"value\" text, \
             \"volume\" text, \
             PRIMARY KEY ((\"agg_tahun_bulan_tanggal_emiten_name\"))\
@@ -185,7 +190,11 @@ fn format_emiten_trending_schema_summary(keyspace: &str) -> String {
          data lengkap lewat tabel dasar WHERE agg_tahun_bulan_tanggal_emiten_name = ?."
     );
     let _ = writeln!(out);
-    let _ = writeln!(out, "(2) \"{}\".\"{}\"", keyspace, MV_BY_TAHUN_BULAN_TANGGAL);
+    let _ = writeln!(
+        out,
+        "(2) \"{}\".\"{}\"",
+        keyspace, MV_BY_TAHUN_BULAN_TANGGAL
+    );
     let _ = writeln!(
         out,
         "SELECT \"tahun_bulan_tanggal\", \"agg_tahun_bulan_tanggal_emiten_name\" (hanya kolom primary key MV)."
@@ -241,8 +250,8 @@ fn eprintln_emiten_trending_schema_summary(keyspace: &str) {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     load_dotenv();
 
-    let keyspace = std::env::var("SCYLLA_KEYSPACE")
-        .map_err(|_| "SCYLLA_KEYSPACE wajib diisi di .env")?;
+    let keyspace =
+        std::env::var("SCYLLA_KEYSPACE").map_err(|_| "SCYLLA_KEYSPACE wajib diisi di .env")?;
 
     let session = connect_session().await?;
 
@@ -250,7 +259,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     session.query_unpaged(ddl_keyspace.as_str(), &[]).await?;
     eprintln!("OK: CREATE KEYSPACE IF NOT EXISTS {keyspace}");
 
-    for mv in [LEGACY_MV_BY_AGG, MV_BY_EMITEN_NAME, MV_BY_TAHUN_BULAN_TANGGAL] {
+    for mv in [
+        LEGACY_MV_BY_AGG,
+        MV_BY_EMITEN_NAME,
+        MV_BY_TAHUN_BULAN_TANGGAL,
+    ] {
         let ddl_drop_mv = ddl_drop_materialized_view(&keyspace, mv);
         session.query_unpaged(ddl_drop_mv.as_str(), &[]).await?;
         eprintln!("OK: {ddl_drop_mv}");

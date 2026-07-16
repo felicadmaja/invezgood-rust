@@ -1,13 +1,16 @@
+use std::pin::Pin;
 use std::sync::Arc;
 
 use bcrypt::verify;
 use scylla::client::session::Session;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status};
 
 use crate::jwt;
 use crate::repository::UserRepository;
 use crate::user_server::User as UserRpc;
-use crate::{LoginRequest, LoginResponse};
+use crate::{IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest, LoginResponse};
 
 pub struct UserService {
     repo: UserRepository,
@@ -66,5 +69,36 @@ impl UserRpc for UserService {
             name: user.name,
             email: user.email,
         }))
+    }
+
+    type IsStockbitReadyStream =
+        Pin<Box<dyn Stream<Item = Result<IsStockbitReadyResponse, Status>> + Send>>;
+
+    async fn is_stockbit_ready(
+        &self,
+        _request: Request<IsStockbitReadyRequest>,
+    ) -> Result<Response<Self::IsStockbitReadyStream>, Status> {
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+
+        tokio::spawn(async move {
+            if let Err(e) = stockbit_browser::run_readiness_check(tx.clone()).await {
+                let message = format!("Error: {e}");
+                let _ = tx
+                    .send(stockbit_browser::ReadinessUpdate {
+                        ready: false,
+                        message,
+                    })
+                    .await;
+            }
+        });
+
+        let stream = ReceiverStream::new(rx).map(|update| {
+            Ok(IsStockbitReadyResponse {
+                ready: update.ready,
+                message: update.message,
+            })
+        });
+
+        Ok(Response::new(Box::pin(stream)))
     }
 }

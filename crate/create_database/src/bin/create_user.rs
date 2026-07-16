@@ -12,7 +12,7 @@
 //! - `password` text — bcrypt hash
 //!
 //! Env: `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
-//! Di akhir sukses: ringkasan skema ke stderr dan ke **`src/user.cql`**.
+//! Di akhir sukses: ringkasan skema ke stderr dan ke **`crate/user/src/user.cql`**.
 
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
@@ -28,7 +28,7 @@ const SEED_EMAIL: &str = "felic.admaja@gmail.com";
 const SEED_PASSWORD_PLAIN: &str = "12345678";
 
 fn user_cql_output_path() -> std::path::PathBuf {
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/user.cql")
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../user/src/user.cql")
 }
 
 fn user_scylla_type(col: &str) -> &'static str {

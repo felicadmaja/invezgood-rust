@@ -1,12 +1,11 @@
 //! ```bash
 //! cargo run -p create_database --bin create_emiten_list
 //! ```
-//! Buat keyspace `stockbit` (dari env `SCYLLA_KEYSPACE`), tabel `emiten_list`, dan MV `emiten_list_by_name`.
-//! Re-run: DROP MV + DROP TABLE + DROP TYPE lalu buat ulang (data emiten_list hilang).
+//! Buat keyspace `stockbit` (dari env `SCYLLA_KEYSPACE`) dan tabel `emiten_list`.
+//! Re-run: DROP legacy MV (jika ada) + DROP TABLE + DROP TYPE lalu buat ulang (data emiten_list hilang).
 //!
 //! Kolom tabel:
-//! - `id` uuid — partition key
-//! - `code_name` text
+//! - `code_name` text — partition key
 //! - `long_name` text
 //! - `key_stats` map<text, text>
 //! - `income_statement_ttm` map<text, frozen<map<text, text>>> — pos laporan laba rugi TTM per kuartal
@@ -15,21 +14,21 @@
 //! - `corporate_action` map<text, frozen<map<text, text>>> — aksi korporasi emiten
 //! - `shareholder` list<text>
 //! - `company_profile` frozen<company_profile> — profil perusahaan (UDT)
+//! - `update_at` timestamp — waktu terakhir data diperbarui
 //!
 //! Env: `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
-//! Di akhir sukses: ringkasan skema ke stderr dan ke **`src/emiten_list.cql`**.
+//! Di akhir sukses: ringkasan skema ke stderr dan ke **`crate/emiten_list/src/emiten_list.cql`**.
 
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 
 const TABLE: &str = "emiten_list";
-const MV_BY_NAME: &str = "emiten_list_by_name";
+const LEGACY_MV_BY_NAME: &str = "emiten_list_by_name";
 const UDT_SHAREHOLDER_GT1: &str = "emiten_shareholder_gt1";
 const UDT_SHAREHOLDER: &str = "emiten_shareholder";
 const UDT_COMPANY_PROFILE: &str = "company_profile";
 
 const EMITEN_LIST_COLUMNS: &[&str] = &[
-    "id",
     "code_name",
     "long_name",
     "key_stats",
@@ -39,15 +38,16 @@ const EMITEN_LIST_COLUMNS: &[&str] = &[
     "corporate_action",
     "shareholder",
     "company_profile",
+    "update_at",
 ];
 
 fn emiten_list_cql_output_path() -> std::path::PathBuf {
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/emiten_list.cql")
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../emiten_list/src/emiten_list.cql")
 }
 
 fn emiten_scylla_type(col: &str) -> &'static str {
     match col {
-        "id" => "uuid",
         "shareholder" => "list<text>",
         "key_stats" => "map<text, text>",
         "income_statement_ttm"
@@ -55,6 +55,7 @@ fn emiten_scylla_type(col: &str) -> &'static str {
         | "cash_flow_ttm"
         | "corporate_action" => "map<text, frozen<map<text, text>>>",
         "company_profile" => "frozen<company_profile>",
+        "update_at" => "timestamp",
         _ => "text",
     }
 }
@@ -113,7 +114,6 @@ fn ddl_drop_udt(keyspace: &str, type_name: &str) -> String {
 fn ddl_create_table(keyspace: &str) -> String {
     format!(
         "CREATE TABLE IF NOT EXISTS {}.{} (\
-            \"id\" uuid, \
             \"code_name\" text, \
             \"long_name\" text, \
             \"key_stats\" map<text, text>, \
@@ -123,7 +123,8 @@ fn ddl_create_table(keyspace: &str) -> String {
             \"corporate_action\" map<text, frozen<map<text, text>>>, \
             \"shareholder\" list<text>, \
             \"company_profile\" frozen<{}>, \
-            PRIMARY KEY ((\"id\"))\
+            \"update_at\" timestamp, \
+            PRIMARY KEY ((\"code_name\"))\
         )",
         keyspace, TABLE, UDT_COMPANY_PROFILE
     )
@@ -133,21 +134,10 @@ fn ddl_drop_table(keyspace: &str) -> String {
     format!("DROP TABLE IF EXISTS {}.{}", keyspace, TABLE)
 }
 
-fn ddl_drop_materialized_view(keyspace: &str) -> String {
+fn ddl_drop_legacy_materialized_view(keyspace: &str) -> String {
     format!(
         "DROP MATERIALIZED VIEW IF EXISTS {}.{}",
-        keyspace, MV_BY_NAME
-    )
-}
-
-fn ddl_create_mv_by_name(keyspace: &str) -> String {
-    format!(
-        "CREATE MATERIALIZED VIEW IF NOT EXISTS {}.{} AS \
-         SELECT \"code_name\", \"id\" FROM {}.{} \
-         WHERE \"code_name\" IS NOT NULL AND \"id\" IS NOT NULL \
-         PRIMARY KEY ((\"code_name\"), \"id\") \
-         WITH CLUSTERING ORDER BY (\"id\" ASC)",
-        keyspace, MV_BY_NAME, keyspace, TABLE
+        keyspace, LEGACY_MV_BY_NAME
     )
 }
 
@@ -195,12 +185,15 @@ fn format_emiten_list_schema_summary(keyspace: &str) -> String {
 
     let _ = writeln!(out, "--- Tabel dasar (base table) ---");
     let _ = writeln!(out, "Nama penuh: \"{}\".\"{}\"", keyspace, TABLE);
-    let _ = writeln!(out, "Primary key: ((\"id\")) — \"id\" uuid.");
+    let _ = writeln!(
+        out,
+        "Primary key: ((\"code_name\")) — \"code_name\" text."
+    );
     let _ = writeln!(out, "Tidak ada clustering key.");
     let _ = writeln!(out, "Kolom dan tipe CQL, kata demi kata:");
     for name in EMITEN_LIST_COLUMNS {
         let ty = emiten_scylla_type(name);
-        if *name == "id" {
+        if *name == "code_name" {
             let _ = writeln!(out, "  \"{}\" {} — partition key", name, ty);
         } else {
             let _ = writeln!(out, "  \"{}\" {}", name, ty);
@@ -255,34 +248,25 @@ fn format_emiten_list_schema_summary(keyspace: &str) -> String {
         "Kolom \"company_profile\": frozen<{}> — profil perusahaan (lihat UDT di bawah).",
         UDT_COMPANY_PROFILE
     );
+    let _ = writeln!(
+        out,
+        "Kolom \"update_at\": timestamp — waktu terakhir data emiten diperbarui."
+    );
     let _ = writeln!(out);
 
     let _ = writeln!(out, "--- Materialized view (MV) ---");
-    let _ = writeln!(out, "(1) \"{}\".\"{}\"", keyspace, MV_BY_NAME);
     let _ = writeln!(
         out,
-        "SELECT \"code_name\", \"id\" (hanya kolom primary key MV)."
-    );
-    let _ = writeln!(
-        out,
-        "WHERE \"code_name\" IS NOT NULL AND \"id\" IS NOT NULL."
-    );
-    let _ = writeln!(
-        out,
-        "PRIMARY KEY: partition \"code_name\" (text); clustering \"id\" (uuid)."
-    );
-    let _ = writeln!(out, "WITH CLUSTERING ORDER BY (\"id\" ASC).");
-    let _ = writeln!(
-        out,
-        "Gunakan: daftar emiten per code_name (contoh WHERE code_name = ?); data lengkap lewat tabel dasar WHERE id = ?."
+        "Tidak ada: MV \"{}\".\"{}\" (legacy) di-drop saat migrasi; lookup langsung lewat PRIMARY KEY ((\"code_name\")).",
+        keyspace, LEGACY_MV_BY_NAME
     );
     let _ = writeln!(out);
 
     let _ = writeln!(out, "--- Secondary index ---");
     let _ = writeln!(
         out,
-        "Tidak ada: tidak dibuat CREATE INDEX / SAI pada \"{}\".\"{}\"; akses lewat PRIMARY KEY ((\"id\")) atau MV \"{}\".\"{}\".",
-        keyspace, TABLE, keyspace, MV_BY_NAME
+        "Tidak ada: tidak dibuat CREATE INDEX / SAI pada \"{}\".\"{}\"; akses lewat PRIMARY KEY ((\"code_name\")).",
+        keyspace, TABLE
     );
     let _ = writeln!(out);
 
@@ -362,7 +346,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     session.query_unpaged(ddl_keyspace.as_str(), &[]).await?;
     eprintln!("OK: CREATE KEYSPACE IF NOT EXISTS {keyspace}");
 
-    let ddl_drop_mv = ddl_drop_materialized_view(&keyspace);
+    let ddl_drop_mv = ddl_drop_legacy_materialized_view(&keyspace);
     session.query_unpaged(ddl_drop_mv.as_str(), &[]).await?;
     eprintln!("OK: {ddl_drop_mv}");
 
@@ -392,10 +376,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let ddl_table = ddl_create_table(&keyspace);
     session.query_unpaged(ddl_table.as_str(), &[]).await?;
     eprintln!("OK: CREATE TABLE {keyspace}.{TABLE}");
-
-    let ddl_mv = ddl_create_mv_by_name(&keyspace);
-    session.query_unpaged(ddl_mv.as_str(), &[]).await?;
-    eprintln!("OK: CREATE MATERIALIZED VIEW IF NOT EXISTS {keyspace}.{MV_BY_NAME}");
 
     eprintln_emiten_list_schema_summary(&keyspace);
 

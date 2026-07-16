@@ -5,11 +5,10 @@ Replikasi (saat CREATE KEYSPACE): class SimpleStrategy, replication factor 1.
 
 --- Tabel dasar (base table) ---
 Nama penuh: "stockbit"."emiten_list"
-Primary key: (("id")) — "id" uuid.
+Primary key: (("code_name")) — "code_name" text.
 Tidak ada clustering key.
 Kolom dan tipe CQL, kata demi kata:
-  "id" uuid — partition key
-  "code_name" text
+  "code_name" text — partition key
   "long_name" text
   "key_stats" map<text, text>
   "income_statement_ttm" map<text, frozen<map<text, text>>>
@@ -18,6 +17,7 @@ Kolom dan tipe CQL, kata demi kata:
   "corporate_action" map<text, frozen<map<text, text>>>
   "shareholder" list<text>
   "company_profile" frozen<company_profile>
+  "update_at" timestamp
 Sumber: DDL bin create_emiten_list; diisi aplikasi pada INSERT.
 Kolom "code_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
@@ -28,17 +28,13 @@ Kolom "cash_flow_ttm": map<text, frozen<map<text, text>>> — pos arus kas TTM; 
 Kolom "corporate_action": map<text, frozen<map<text, text>>> — aksi korporasi; key luar = jenis/tanggal aksi (contoh "Dividen 2026-03-15"), key dalam = atribut (contoh "ex_date", "ratio"), value = nilai terformat.
 Kolom "shareholder": list<text> — daftar pemegang saham (ringkas).
 Kolom "company_profile": frozen<company_profile> — profil perusahaan (lihat UDT di bawah).
+Kolom "update_at": timestamp — waktu terakhir data emiten diperbarui.
 
 --- Materialized view (MV) ---
-(1) "stockbit"."emiten_list_by_name"
-SELECT "code_name", "id" (hanya kolom primary key MV).
-WHERE "code_name" IS NOT NULL AND "id" IS NOT NULL.
-PRIMARY KEY: partition "code_name" (text); clustering "id" (uuid).
-WITH CLUSTERING ORDER BY ("id" ASC).
-Gunakan: daftar emiten per code_name (contoh WHERE code_name = ?); data lengkap lewat tabel dasar WHERE id = ?.
+Tidak ada: MV "stockbit"."emiten_list_by_name" (legacy) di-drop saat migrasi; lookup langsung lewat PRIMARY KEY (("code_name")).
 
 --- Secondary index ---
-Tidak ada: tidak dibuat CREATE INDEX / SAI pada "stockbit"."emiten_list"; akses lewat PRIMARY KEY (("id")) atau MV "stockbit"."emiten_list_by_name".
+Tidak ada: tidak dibuat CREATE INDEX / SAI pada "stockbit"."emiten_list"; akses lewat PRIMARY KEY (("code_name")).
 
 --- User-defined type (UDT) ---
 (1) "stockbit"."emiten_shareholder_gt1" — pemegang saham >1%: name, type, location, domicile, scriples, scrip, total_shares, percentage (semua text).

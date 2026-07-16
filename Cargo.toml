@@ -1,3 +1,12 @@
 [workspace]
-members = ["app", "crate/create_database", "crate/portofolio", "crate/user", "worker_scrapping"]
+members = [
+    "app",
+    "crate/create_database",
+    "crate/emiten_trending",
+    "crate/portofolio",
+    "crate/stockbit_browser",
+    "crate/tls",
+    "crate/user",
+    "worker_scrapping",
+]
 resolver = "2"

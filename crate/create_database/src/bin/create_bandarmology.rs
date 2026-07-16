@@ -13,7 +13,7 @@
 //! - `M_1`, `M_3`, `M_6`, `M_12` frozen<bandarmology_day> — snapshot bulanan
 //!
 //! Env: `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
-//! Di akhir sukses: ringkasan skema ke stderr dan ke **`src/bandarmology.cql`**.
+//! Di akhir sukses: ringkasan skema ke stderr dan ke **`crate/bandarmology/src/bandarmology.cql`**.
 
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
@@ -44,7 +44,8 @@ const BANDARMOLOGY_COLUMNS: &[&str] = &[
 const DAY_SNAPSHOT_COLUMNS: &[&str] = &["d_1", "d_2", "d_7", "M_1", "M_3", "M_6", "M_12"];
 
 fn bandarmology_cql_output_path() -> std::path::PathBuf {
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/bandarmology.cql")
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../bandarmology/src/bandarmology.cql")
 }
 
 fn bandarmology_scylla_type(col: &str) -> &'static str {

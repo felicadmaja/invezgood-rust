@@ -18,7 +18,9 @@ jsonwebtoken = "9"
 prost = { version = "0.13", features = ["std", "derive"] }
 scylla = "1.5"
 serde = { version = "1", features = ["derive"] }
+stockbit_browser = { path = "../stockbit_browser" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio-stream = "0.1"
 tonic = { version = "0.12", features = ["transport"] }
 tonic-reflection = "0.12"
 uuid = { version = "1", features = ["v4", "serde"] }

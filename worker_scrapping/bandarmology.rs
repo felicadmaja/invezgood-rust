@@ -1,4 +1,4 @@
-//! Scrape Bandar Detector → insert `bandarmology` (kolom d_1..M_12).
+//! Scrape Bandar Detector → insert `bandarmology` (kolom d_7, M_1, dan M_3).
 
 use chrono::NaiveDate;
 use chromiumoxide::page::Page;
@@ -11,14 +11,13 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 const PERIODS: &[(&str, &str)] = &[
-    ("Latest", "d_1"),
-    ("Prev Day", "d_2"),
     ("Last 7D", "d_7"),
     ("Last 1M", "M_1"),
     ("Last 3M", "M_3"),
-    ("Last 6M", "M_6"),
-    ("Last 1Y", "M_12"),
 ];
+
+/// Jeda setelah klik tombol period (Last 7D / 1M / 3M) sebelum scrape tabel.
+const PERIOD_SCRAPE_WAIT_SECS: u64 = 5;
 
 #[derive(Debug, Clone, SerializeValue, Deserialize)]
 pub struct BandarmologyTopStats {
@@ -340,7 +339,6 @@ async fn click_period_button(
             .unwrap_or(false);
         if clicked {
             println!("Period '{label}' diklik (attempt {attempt}).");
-            sleep(Duration::from_secs(2)).await;
             // Tunggu trigger tanggal kembali (format single ATAU range).
             for _ in 0..20 {
                 let ready = page
@@ -515,9 +513,14 @@ async fn scrape_bandar_day(page: &Page) -> Result<BandarmologyDay, Box<dyn std::
 async fn scrape_period(
     page: &Page,
     period_label: &str,
+    col: &str,
 ) -> Result<BandarmologyDay, Box<dyn std::error::Error>> {
     open_datepicker(page).await?;
     click_period_button(page, period_label).await?;
+    println!(
+        "  {col} ({period_label}): tunggu {PERIOD_SCRAPE_WAIT_SECS} detik sebelum scrape..."
+    );
+    sleep(Duration::from_secs(PERIOD_SCRAPE_WAIT_SECS)).await;
     scrape_bandar_day(page).await
 }
 
@@ -542,13 +545,9 @@ async fn insert_bandarmology(
     keyspace: &str,
     today: NaiveDate,
     emiten: &str,
-    d_1: &BandarmologyDay,
-    d_2: &BandarmologyDay,
     d_7: &BandarmologyDay,
     m_1: &BandarmologyDay,
     m_3: &BandarmologyDay,
-    m_6: &BandarmologyDay,
-    m_12: &BandarmologyDay,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let agg = bandarmology_agg(today, emiten);
     let insert = session
@@ -557,32 +556,21 @@ async fn insert_bandarmology(
                 agg_tahun_bulan_tanggal_emiten_name, \
                 emiten_name, \
                 tahun_bulan_tanggal, \
-                d_1, d_2, d_7, \"M_1\", \"M_3\", \"M_6\", \"M_12\"\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                d_7, \"M_1\", \"M_3\"\
+            ) VALUES (?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
     session
         .execute_unpaged(
             &insert,
-            (
-                agg.as_str(),
-                emiten,
-                today,
-                d_1,
-                d_2,
-                d_7,
-                m_1,
-                m_3,
-                m_6,
-                m_12,
-            ),
+            (agg.as_str(), emiten, today, d_7, m_1, m_3),
         )
         .await?;
     Ok(())
 }
 
-/// Buka Bandar Detector, scrape semua period untuk setiap emiten, insert Scylla.
+/// Buka Bandar Detector, scrape period Last 7D + Last 1M + Last 3M untuk setiap emiten, insert Scylla.
 pub async fn scrape_and_insert_bandarmology(
     page: &Page,
     session: &Session,
@@ -644,7 +632,7 @@ pub async fn scrape_and_insert_bandarmology(
         let mut days: Vec<BandarmologyDay> = Vec::with_capacity(PERIODS.len());
         let mut period_failed = false;
         for (period_label, col) in PERIODS {
-            match scrape_period(page, period_label).await {
+            match scrape_period(page, period_label, col).await {
                 Ok(day) => {
                     println!(
                         "  {col} ({period_label}): net_volume={} brokers_buy={}",
@@ -659,7 +647,6 @@ pub async fn scrape_and_insert_bandarmology(
                     period_failed = true;
                 }
             }
-            sleep(Duration::from_secs(5)).await;
         }
 
         while days.len() < PERIODS.len() {
@@ -674,10 +661,6 @@ pub async fn scrape_and_insert_bandarmology(
             &days[0],
             &days[1],
             &days[2],
-            &days[3],
-            &days[4],
-            &days[5],
-            &days[6],
         )
         .await
         {
