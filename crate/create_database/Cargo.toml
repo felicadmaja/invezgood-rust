@@ -27,6 +27,10 @@ path = "src/bin/create_emiten_list.rs"
 name = "create_user"
 path = "src/bin/create_user.rs"
 
+[[bin]]
+name = "create_broker_name"
+path = "src/bin/create_broker_name.rs"
+
 [dependencies]
 bcrypt = "0.16"
 chromiumoxide = "0.9"
