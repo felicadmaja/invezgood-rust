@@ -1,4 +1,4 @@
-//! Scrape Key Stats + Corp. Action Stockbit → upsert `emiten_list`.
+//! Scrape Key Stats + Corp. Action + Profile Stockbit → upsert `emiten_list`.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -7,18 +7,53 @@ use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use chromiumoxide::page::Page;
 use rand::Rng;
 use scylla::client::session::Session;
-use scylla::DeserializeRow;
+use scylla::{DeserializeRow, SerializeValue};
+use serde::Deserialize;
 use tokio::time::sleep;
 
 const SEARCH_INPUT: &str = r#"[data-cy="top-navbar-search-input-desktop"]"#;
 const KEY_STATS_NAV: &str = r#"[data-cy="company-navigation-key-stats"]"#;
 const CORP_ACTION_NAV: &str = r#"[data-cy="company-navigation-corp.-action"]"#;
+const PROFILE_NAV: &str = r#"[data-cy="company-navigation-profile"]"#;
 const COMPANY_MORE_MENU: &str = r#"[data-cy="company-navbar-more-menu"]"#;
 const UPDATE_AT_FRESH_DAYS: i64 = 30;
 
 /// Bentuk Scylla `corporate_action`:
 /// `[{"Dividend":[{"Dividend":"Rp 209"},{"Cum Date":"..."},...]}, ...]`
 type CorporateAction = Vec<HashMap<String, Vec<HashMap<String, String>>>>;
+
+/// UDT `emiten_shareholder_gt1`.
+#[derive(Debug, Clone, SerializeValue, Deserialize)]
+struct EmitenShareholderGt1 {
+    pub name: String,
+    #[scylla(rename = "type")]
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub location: String,
+    pub domicile: String,
+    pub scriples: String,
+    pub scrip: String,
+    pub total_shares: String,
+    pub percentage: String,
+}
+
+/// UDT `emiten_shareholder`.
+#[derive(Debug, Clone, SerializeValue, Deserialize)]
+struct EmitenShareholder {
+    pub name: String,
+    pub value: String,
+    pub shares: String,
+}
+
+/// UDT `company_profile`.
+#[derive(Debug, Clone, SerializeValue, Deserialize)]
+struct CompanyProfile {
+    pub company_background: String,
+    pub sector: String,
+    pub shareholder_more_than_one_percent: Vec<EmitenShareholderGt1>,
+    pub shareholders: Vec<EmitenShareholder>,
+    pub ultimate_beneficial_owner: String,
+}
 
 fn format_elapsed(started: Instant) -> String {
     let ms = started.elapsed().as_millis();
@@ -508,6 +543,226 @@ async fn scrape_corporate_action(
     Ok(items)
 }
 
+async fn wait_for_profile_nav(
+    page: &Page,
+    timeout: Duration,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let started = Instant::now();
+    loop {
+        if page.find_element(PROFILE_NAV).await.is_ok() {
+            return Ok(());
+        }
+        if started.elapsed() >= timeout {
+            return Err("Timeout menunggu navigasi Profile".into());
+        }
+        sleep(Duration::from_millis(200)).await;
+    }
+}
+
+async fn click_profile(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    // Langsung klik bila link Profile sudah terlihat di navbar.
+    if page.find_element(PROFILE_NAV).await.is_ok() {
+        let link = page.find_element(PROFILE_NAV).await?;
+        link.click().await?;
+        wait_for_profile_page(page).await?;
+        return Ok(());
+    }
+
+    // Fallback: buka menu More lalu tunggu link Profile muncul.
+    wait_for_selector(page, COMPANY_MORE_MENU, Duration::from_secs(10)).await?;
+    let more = page.find_element(COMPANY_MORE_MENU).await?;
+    more.click().await?;
+    wait_for_profile_nav(page, Duration::from_secs(10)).await?;
+    let link = page.find_element(PROFILE_NAV).await?;
+    link.click().await?;
+    wait_for_profile_page(page).await?;
+    Ok(())
+}
+
+async fn wait_for_profile_page(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    let started = Instant::now();
+    loop {
+        let ready = page
+            .evaluate(
+                r#"(() => {
+                    const url = (window.location.href || '').toLowerCase();
+                    if (!url.includes('/profile')) return false;
+                    const cards = Array.from(
+                        document.querySelectorAll('[data-cy="component-background-card"]')
+                    );
+                    return cards.some((card) => {
+                        const title = (card.innerText || '').toLowerCase();
+                        return title.includes('company background');
+                    });
+                })()"#,
+            )
+            .await?
+            .into_value::<bool>()
+            .unwrap_or(false);
+        if ready {
+            sleep(Duration::from_millis(500)).await;
+            return Ok(());
+        }
+        if started.elapsed() >= Duration::from_secs(30) {
+            let url = page.url().await?.unwrap_or_default();
+            return Err(format!("Timeout menunggu halaman Profile (URL: {url})").into());
+        }
+        sleep(Duration::from_millis(250)).await;
+    }
+}
+
+/// Scrape Company Background, Sector, Shareholder >1%, Shareholders, UBO.
+async fn scrape_company_profile(
+    page: &Page,
+) -> Result<CompanyProfile, Box<dyn std::error::Error>> {
+    let json = page
+        .evaluate(
+            r#"(() => {
+                const textOf = (el) =>
+                    ((el && (el.innerText || el.textContent)) || '')
+                        .trim()
+                        .replace(/\s+/g, ' ');
+
+                // Company Background + Sector (index pertama di card).
+                let company_background = '';
+                let sector = '';
+                const bgCards = Array.from(
+                    document.querySelectorAll('[data-cy="component-background-card"]')
+                );
+                const bgCard = bgCards.find((c) =>
+                    textOf(c).toLowerCase().includes('company background')
+                );
+                if (bgCard) {
+                    const body = bgCard.querySelector('.ant-card-body');
+                    const p = body && body.querySelector('p');
+                    company_background = textOf(p);
+                    const firstIndex = bgCard.querySelector(
+                        'a[data-cy="component-link-indexes"]'
+                    );
+                    sector = firstIndex
+                        ? textOf(firstIndex.querySelector('span') || firstIndex)
+                        : '';
+                }
+
+                // Shareholder > 1%.
+                const gt1 = [];
+                const gt1Card = document.querySelector(
+                    '[data-cy="component-shareholder-gt1-card"]'
+                );
+                if (gt1Card) {
+                    const rows = Array.from(
+                        gt1Card.querySelectorAll(
+                            '.shareholder-gt1 tbody tr.ant-table-row'
+                        )
+                    );
+                    for (const tr of rows) {
+                        const cells = Array.from(tr.querySelectorAll('td')).map((td) => {
+                            const a = td.querySelector('a');
+                            const p = td.querySelector('p');
+                            return textOf(a || p || td);
+                        });
+                        if (cells.length < 8 || cells.every((c) => !c)) continue;
+                        gt1.push({
+                            name: cells[0] || '',
+                            type: cells[1] || '',
+                            location: cells[2] || '',
+                            domicile: cells[3] || '',
+                            scriples: cells[4] || '',
+                            scrip: cells[5] || '',
+                            total_shares: cells[6] || '',
+                            percentage: cells[7] || '',
+                        });
+                    }
+                }
+
+                // Shareholders (bukan "Number of Shareholders").
+                const shareholders = [];
+                const shCards = Array.from(
+                    document.querySelectorAll('[data-cy="component-shareholder-card"]')
+                );
+                const shCard = shCards.find((c) => {
+                    const t = textOf(c.querySelector('.ant-card-head-title')).toLowerCase();
+                    return (
+                        t.includes('shareholders') &&
+                        !t.includes('number of shareholders')
+                    );
+                });
+                if (shCard) {
+                    const rows = Array.from(
+                        shCard.querySelectorAll('tbody tr.ant-table-row')
+                    );
+                    for (const tr of rows) {
+                        const cells = Array.from(tr.querySelectorAll('td'));
+                        if (cells.length < 3) continue;
+                        const nameEl =
+                            cells[0].querySelector('.shareholder-name span') ||
+                            cells[0].querySelector('span') ||
+                            cells[0];
+                        const name = textOf(nameEl);
+                        const value = textOf(cells[1]);
+                        const shares = textOf(cells[2]);
+                        if (!name && !value && !shares) continue;
+                        shareholders.push({ name, value, shares });
+                    }
+                }
+
+                // Ultimate Beneficial / Beneficiary Owner.
+                let ultimate_beneficial_owner = '';
+                const uboTitle = Array.from(document.querySelectorAll('p')).find((p) => {
+                    const t = textOf(p).toLowerCase();
+                    return (
+                        t.includes('ultimate beneficial') ||
+                        t.includes('ultimate beneficiary')
+                    );
+                });
+                if (uboTitle) {
+                    const section =
+                        uboTitle.closest('.ant-card-body') ||
+                        uboTitle.parentElement ||
+                        uboTitle;
+                    // Tabel UBO biasanya tepat setelah judul.
+                    let table = null;
+                    let n = uboTitle.nextElementSibling;
+                    while (n && !table) {
+                        if (n.matches && n.matches('.ant-table-wrapper')) {
+                            table = n;
+                            break;
+                        }
+                        table = n.querySelector && n.querySelector('.ant-table-wrapper');
+                        n = n.nextElementSibling;
+                    }
+                    if (!table && section) {
+                        const wrappers = Array.from(
+                            section.querySelectorAll('.ant-table-wrapper')
+                        );
+                        table = wrappers.length ? wrappers[wrappers.length - 1] : null;
+                    }
+                    if (table) {
+                        const row = table.querySelector('tbody tr.ant-table-row td');
+                        ultimate_beneficial_owner = textOf(row);
+                    }
+                }
+
+                return JSON.stringify({
+                    company_background,
+                    sector,
+                    shareholder_more_than_one_percent: gt1,
+                    shareholders,
+                    ultimate_beneficial_owner,
+                });
+            })()"#,
+        )
+        .await?
+        .into_value::<String>()
+        .unwrap_or_else(|_| {
+            r#"{"company_background":"","sector":"","shareholder_more_than_one_percent":[],"shareholders":[],"ultimate_beneficial_owner":""}"#
+                .to_string()
+        });
+
+    let profile: CompanyProfile = serde_json::from_str(&json)?;
+    Ok(profile)
+}
+
 async fn upsert_emiten_list(
     session: &Session,
     keyspace: &str,
@@ -515,13 +770,14 @@ async fn upsert_emiten_list(
     long_name: &str,
     key_stats: &HashMap<String, String>,
     corporate_action: &CorporateAction,
+    company_profile: &CompanyProfile,
     update_at: DateTime<Utc>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.emiten_list (\
-                code_name, long_name, key_stats, corporate_action, update_at\
-            ) VALUES (?, ?, ?, ?, ?)"
+                code_name, long_name, key_stats, corporate_action, company_profile, update_at\
+            ) VALUES (?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
@@ -533,6 +789,7 @@ async fn upsert_emiten_list(
                 long_name,
                 key_stats,
                 corporate_action,
+                company_profile,
                 update_at,
             ),
         )
@@ -632,6 +889,13 @@ async fn scrape_one_emiten(
     click_corp_action(page).await?;
     let corporate_action = scrape_corporate_action(page).await?;
 
+    println!("Profile: buka halaman untuk {code}...");
+    click_profile(page).await?;
+    let company_profile = scrape_company_profile(page).await?;
+    if company_profile.company_background.trim().is_empty() {
+        return Err(format!("Profile {code}: Company Background kosong").into());
+    }
+
     upsert_emiten_list(
         session,
         keyspace,
@@ -639,20 +903,24 @@ async fn scrape_one_emiten(
         long_name,
         &key_stats,
         &corporate_action,
+        &company_profile,
         Utc::now(),
     )
     .await?;
 
     println!(
-        "OK: emiten_list {code} — {} key_stats, {} corporate_action ({})",
+        "OK: emiten_list {code} — {} key_stats, {} corporate_action, \
+         profile gt1={} shareholders={} ({})",
         key_stats.len(),
         corporate_action.len(),
+        company_profile.shareholder_more_than_one_percent.len(),
+        company_profile.shareholders.len(),
         format_elapsed(started)
     );
     Ok(true)
 }
 
-/// Navbar search → Key Stats → Corp. Action → upsert `emiten_list`.
+/// Navbar search → Key Stats → Corp. Action → Profile → upsert `emiten_list`.
 /// Skip emiten yang `update_at`-nya masih lebih baru dari 30 hari.
 pub async fn scrape_and_insert_key_stats(
     page: &Page,
@@ -760,6 +1028,47 @@ mod tests {
         assert_eq!(
             items[1]["RUPS"][0].get("Event Date").map(String::as_str),
             Some("10 Apr 26")
+        );
+    }
+
+    #[test]
+    fn company_profile_json_parses() {
+        let json = r#"{
+          "company_background": "PT Dian Swastatika Sentosa Tbk menjalankan kegiatan usaha utama.",
+          "sector": "Minyak, Gas & Batu Bara",
+          "shareholder_more_than_one_percent": [
+            {
+              "name": "SINAR MAS TUNGGAL",
+              "type": "Corporate",
+              "location": "Local",
+              "domicile": "INDONESIA",
+              "scriples": "0",
+              "scrip": "115,388,080,000",
+              "total_shares": "115,388,080,000",
+              "percentage": "59.90%"
+            }
+          ],
+          "shareholders": [
+            {
+              "name": "PT SINAR MAS TUNGGAL",
+              "value": "115.39 B",
+              "shares": "59.9%"
+            }
+          ],
+          "ultimate_beneficial_owner": "FRANKY OESMAN WIDJAJA"
+        }"#;
+        let profile: CompanyProfile = serde_json::from_str(json).unwrap();
+        assert!(profile.company_background.contains("Dian Swastatika"));
+        assert_eq!(profile.sector, "Minyak, Gas & Batu Bara");
+        assert_eq!(profile.shareholder_more_than_one_percent.len(), 1);
+        assert_eq!(
+            profile.shareholder_more_than_one_percent[0].type_,
+            "Corporate"
+        );
+        assert_eq!(profile.shareholders[0].name, "PT SINAR MAS TUNGGAL");
+        assert_eq!(
+            profile.ultimate_beneficial_owner,
+            "FRANKY OESMAN WIDJAJA"
         );
     }
 }
