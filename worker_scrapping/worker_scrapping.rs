@@ -3,6 +3,7 @@
 //! ```bash
 //! cargo run -p worker_scrapping
 //! ```
+//! Sebelum scrap: `pm2 stop stockbit_ws`. Setelah selesai (atau Ctrl+C): `pm2 start stockbit_ws`.
 //! Buka langsung https://stockbit.com/stream.
 //! Jika dialihkan ke https://stockbit.com/login (atau sesi habis), isi username/password natural,
 //! lalu kembali ke /stream, scrap Top Gainer/Loser, insert Scylla.
@@ -15,11 +16,11 @@
 //!
 //! Setelah movers → Top Gainer/Loser → insert `emiten_trending`.
 //! Lalu MV `emiten_trending_by_tahun_bulan_tanggal` (hari ini) → Key Stats + Corp. Action + Profile → insert `emiten_list`.
-//! Kemudian Bandar Detector → Last 7D / Last 1M / Last 3M → insert `bandarmology` (d_7, M_1, M_3).
+//! Kemudian Bandar Detector → Last 7D / Last 1M / Last 3M / Last 1Y → insert `bandarmology` (d_7, M_1, M_3, M_12).
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 
-mod bandarmology;
+mod bandarmology_worker;
 mod emiten_list_worker;
 mod emiten_trending_worker;
 
@@ -29,6 +30,8 @@ use chromiumoxide::page::{Page, ScreenshotParams};
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 use std::path::PathBuf;
+use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use stockbit_browser::{
@@ -36,6 +39,74 @@ use stockbit_browser::{
     STOCKBIT_STREAM_URL,
 };
 use tokio::time::sleep;
+
+const PM2_APP_NAME: &str = "stockbit_ws";
+
+fn run_pm2(args: &[&str]) -> Result<(), String> {
+    let output = Command::new("pm2")
+        .args(args)
+        .output()
+        .map_err(|e| format!("gagal menjalankan pm2 {}: {e}", args.join(" ")))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Err(format!(
+        "pm2 {} gagal (exit {:?}): {}{}",
+        args.join(" "),
+        output.status.code(),
+        stderr.trim(),
+        if stdout.trim().is_empty() {
+            String::new()
+        } else {
+            format!(" | {}", stdout.trim())
+        }
+    ))
+}
+
+fn pm2_stop_stockbit_ws() {
+    println!("PM2: stop {PM2_APP_NAME}...");
+    match run_pm2(&["stop", PM2_APP_NAME]) {
+        Ok(()) => println!("PM2: {PM2_APP_NAME} di-stop."),
+        Err(e) => eprintln!("Peringatan: {e}"),
+    }
+}
+
+fn pm2_start_stockbit_ws() {
+    println!("PM2: start {PM2_APP_NAME}...");
+    match run_pm2(&["start", PM2_APP_NAME]) {
+        Ok(()) => println!("PM2: {PM2_APP_NAME} di-start."),
+        Err(e) => eprintln!("Peringatan: {e}"),
+    }
+}
+
+/// Pastikan `pm2 start stockbit_ws` dijalankan sekali saat worker selesai / Ctrl+C.
+struct Pm2RestartGuard {
+    done: AtomicBool,
+}
+
+impl Pm2RestartGuard {
+    fn arm() -> Arc<Self> {
+        pm2_stop_stockbit_ws();
+        Arc::new(Self {
+            done: AtomicBool::new(false),
+        })
+    }
+
+    fn start_once(&self) {
+        if self.done.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        pm2_start_stockbit_ws();
+    }
+}
+
+impl Drop for Pm2RestartGuard {
+    fn drop(&mut self) {
+        self.start_once();
+    }
+}
 
 /// Root workspace. `CARGO_MANIFEST_DIR` = `worker_scrapping`.
 fn workspace_root() -> PathBuf {
@@ -115,6 +186,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         dotenvy::dotenv().ok();
     }
 
+    // Stop gRPC `stockbit_ws` selama scrap; start ulang saat selesai atau Ctrl+C.
+    let pm2_guard = Pm2RestartGuard::arm();
+    {
+        let guard = Arc::clone(&pm2_guard);
+        tokio::spawn(async move {
+            if tokio::signal::ctrl_c().await.is_ok() {
+                eprintln!("Ctrl+C diterima — start ulang PM2 {PM2_APP_NAME}...");
+                guard.start_once();
+                std::process::exit(130);
+            }
+        });
+    }
+
     let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
     let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
 
@@ -147,7 +231,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Query MV emiten_trending_by_tahun_bulan_tanggal untuk {}...",
         today.format("%Y-%m-%d")
     );
-    let emitens = bandarmology::fetch_today_emiten_names(&session, &ks, today).await?;
+    let emitens = bandarmology_worker::fetch_today_emiten_names(&session, &ks, today).await?;
     println!(
         "Ditemukan {} emiten unik hari ini (MV emiten_trending_by_tahun_bulan_tanggal).",
         emitens.len()
@@ -167,7 +251,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
     let bandar_ok =
-        bandarmology::scrape_and_insert_bandarmology(&page, &session, &ks, today, &emitens).await?;
+        bandarmology_worker::scrape_and_insert_bandarmology(&page, &session, &ks, today, &emitens)
+            .await?;
     println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");
     let screenshot_path = save_step_screenshot(&page, "09", "bandarmology").await?;
 
@@ -181,5 +266,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Selesai. Screenshot terakhir: {}",
         screenshot_path.display()
     );
+    pm2_guard.start_once();
     Ok(())
 }

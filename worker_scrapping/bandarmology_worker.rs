@@ -1,4 +1,4 @@
-//! Scrape Bandar Detector → insert `bandarmology` (kolom d_7, M_1, dan M_3).
+//! Scrape Bandar Detector → insert `bandarmology` (kolom d_7, M_1, M_3, dan M_12).
 
 use chrono::NaiveDate;
 use chromiumoxide::page::Page;
@@ -14,6 +14,7 @@ const PERIODS: &[(&str, &str)] = &[
     ("Last 7D", "d_7"),
     ("Last 1M", "M_1"),
     ("Last 3M", "M_3"),
+    ("Last 1Y", "M_12"),
 ];
 
 /// Rentang jeda acak setelah klik tombol period sebelum scrape tabel.
@@ -563,6 +564,7 @@ async fn insert_bandarmology(
     d_7: &BandarmologyDay,
     m_1: &BandarmologyDay,
     m_3: &BandarmologyDay,
+    m_12: &BandarmologyDay,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let agg = bandarmology_agg(today, emiten);
     let insert = session
@@ -571,21 +573,21 @@ async fn insert_bandarmology(
                 agg_tahun_bulan_tanggal_emiten_name, \
                 emiten_name, \
                 tahun_bulan_tanggal, \
-                d_7, \"M_1\", \"M_3\"\
-            ) VALUES (?, ?, ?, ?, ?, ?)"
+                d_7, \"M_1\", \"M_3\", \"M_12\"\
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
     session
         .execute_unpaged(
             &insert,
-            (agg.as_str(), emiten, today, d_7, m_1, m_3),
+            (agg.as_str(), emiten, today, d_7, m_1, m_3, m_12),
         )
         .await?;
     Ok(())
 }
 
-/// Buka Bandar Detector, scrape period Last 7D + Last 1M + Last 3M untuk setiap emiten, insert Scylla.
+/// Buka Bandar Detector, scrape period Last 7D + Last 1M + Last 3M + Last 1Y untuk setiap emiten, insert Scylla.
 pub async fn scrape_and_insert_bandarmology(
     page: &Page,
     session: &Session,
@@ -634,7 +636,7 @@ pub async fn scrape_and_insert_bandarmology(
     let mut ok = 0usize;
     for (idx, emiten) in todo.iter().enumerate() {
         println!(
-            "=== Bandarmology [{}/{}] emiten={} ===",
+            "\n=== Bandarmology [{}/{}] emiten={} ===",
             idx + 1,
             todo.len(),
             emiten
@@ -676,6 +678,7 @@ pub async fn scrape_and_insert_bandarmology(
             &days[0],
             &days[1],
             &days[2],
+            &days[3],
         )
         .await
         {

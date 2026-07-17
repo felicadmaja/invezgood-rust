@@ -9,10 +9,9 @@ use rand::Rng;
 use scylla::client::session::Session;
 use scylla::{DeserializeRow, SerializeValue};
 use serde::Deserialize;
+use stockbit_browser::goto_stockbit;
 use tokio::time::sleep;
 
-const SEARCH_INPUT: &str = r#"[data-cy="top-navbar-search-input-desktop"]"#;
-const KEY_STATS_NAV: &str = r#"[data-cy="company-navigation-key-stats"]"#;
 const CORP_ACTION_NAV: &str = r#"[data-cy="company-navigation-corp.-action"]"#;
 const PROFILE_NAV: &str = r#"[data-cy="company-navigation-profile"]"#;
 const COMPANY_MORE_MENU: &str = r#"[data-cy="company-navbar-more-menu"]"#;
@@ -69,39 +68,6 @@ struct EmitenUpdateAtRow {
     update_at: Option<DateTime<Utc>>,
 }
 
-async fn type_naturally(
-    page: &Page,
-    selector: &str,
-    value: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let element = page
-        .find_element(selector)
-        .await
-        .map_err(|_| format!("Elemen {selector} tidak ditemukan"))?;
-    element.click().await?;
-    sleep(Duration::from_millis(400)).await;
-
-    let _ = page
-        .evaluate(format!(
-            r#"(() => {{
-                const el = document.querySelector({selector_js});
-                if (!el) return false;
-                el.focus();
-                el.value = '';
-                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                return true;
-            }})()"#,
-            selector_js = serde_json::to_string(selector)?
-        ))
-        .await;
-
-    for ch in value.chars() {
-        sleep(Duration::from_millis(rand::thread_rng().gen_range(80..220))).await;
-        element.type_str(&ch.to_string()).await?;
-    }
-    Ok(())
-}
-
 async fn wait_for_selector(
     page: &Page,
     selector: &str,
@@ -119,89 +85,86 @@ async fn wait_for_selector(
     }
 }
 
-async fn wait_for_symbol_header(
-    page: &Page,
-    emiten: &str,
-    timeout: Duration,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let want = emiten.to_ascii_uppercase();
-    let want_js = serde_json::to_string(&want)?;
+/// Scroll card Current Valuation ke viewport sampai terlihat.
+async fn wait_scroll_current_valuation(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
     let started = Instant::now();
+    let mut scroll_y: i64 = 0;
     loop {
-        // Siap bila logo company-header-icon + h3 ticker sudah tampil di halaman symbol.
-        let ok = page
+        let found = page
             .evaluate(format!(
-                r#"((code) => {{
-                    const want = code.toUpperCase();
-                    const icon = document.querySelector('img.company-header-icon');
-                    const iconOk = !!icon && (
-                        (icon.getAttribute('alt') || '').trim().toUpperCase() === want ||
-                        (icon.getAttribute('src') || '').toUpperCase().includes('/' + want + '.')
+                r#"(() => {{
+                    window.scrollTo(0, {scroll_y});
+                    const cards = Array.from(
+                        document.querySelectorAll('[data-cy="card-title"]')
                     );
-                    const h3ok = Array.from(document.querySelectorAll('h3')).some(
-                        (h) => (h.innerText || h.textContent || '').trim().toUpperCase() === want
-                    );
-                    const url = window.location.href || '';
-                    const urlok = url.toUpperCase().includes('/SYMBOL/' + want);
-                    return iconOk && h3ok && urlok;
-                }})({want_js})"#,
+                    const card = cards.find((c) => {{
+                        const t = c.querySelector('.ant-card-head-title p');
+                        const title = t
+                            ? (t.innerText || t.textContent || '').trim().toLowerCase()
+                            : '';
+                        return title.includes('current valuation') || title === 'valuation';
+                    }});
+                    if (!card) return false;
+                    const rows = card.querySelectorAll('tbody tr.ant-table-row').length;
+                    if (rows === 0) return false;
+                    card.scrollIntoView({{ block: 'center', inline: 'nearest' }});
+                    return true;
+                }})()"#
             ))
             .await?
             .into_value::<bool>()
             .unwrap_or(false);
-        if ok {
+
+        if found {
+            sleep(Duration::from_millis(400)).await;
             return Ok(());
         }
-        if started.elapsed() >= timeout {
-            let url = page.url().await?.unwrap_or_default();
-            return Err(format!(
-                "Timeout menunggu halaman symbol {want} (URL: {url})"
-            )
-            .into());
-        }
-        sleep(Duration::from_millis(200)).await;
-    }
-}
 
-async fn search_emiten(page: &Page, emiten: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let code = emiten.trim().to_ascii_uppercase();
-    wait_for_selector(page, SEARCH_INPUT, Duration::from_secs(20)).await?;
-    type_naturally(page, SEARCH_INPUT, &code).await?;
-    sleep(Duration::from_millis(300)).await;
-
-    let input = page.find_element(SEARCH_INPUT).await?;
-    input.press_key("Enter").await?;
-    wait_for_symbol_header(page, &code, Duration::from_secs(30)).await?;
-    Ok(())
-}
-
-async fn click_key_stats(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    for attempt in 1..=10 {
-        if let Ok(link) = page.find_element(KEY_STATS_NAV).await {
-            link.click().await?;
-            // Tunggu card "Current Valuation" muncul (bukan sleep hardcode).
-            match wait_for_key_stats_cards(page).await {
-                Ok(()) => return Ok(()),
-                Err(e) => {
-                    let url = page.url().await?.unwrap_or_default();
-                    if url.contains("/keystats") {
-                        return Err(e);
-                    }
-                }
-            }
+        scroll_y = if scroll_y >= 1800 { 0 } else { scroll_y + 400 };
+        if started.elapsed() >= Duration::from_secs(30) {
+            return Err("Timeout menunggu card Current Valuation".into());
         }
         sleep(Duration::from_millis(300)).await;
-        if attempt == 10 {
-            return Err("Tombol Key Stats tidak ditemukan / card Current Valuation tidak muncul".into());
-        }
     }
+}
+
+/// Buka Key Stats lewat URL langsung: `/symbol/{CODE}/keystats`.
+async fn open_key_stats(page: &Page, code: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let url = format!("https://stockbit.com/symbol/{code}/keystats");
+    println!("Key Stats: buka {url}");
+    goto_stockbit(page, &url)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    sleep(Duration::from_millis(800)).await;
+    wait_scroll_current_valuation(page).await?;
+    wait_for_key_stats_cards(page).await?;
     Ok(())
 }
 
+/// Tunggu card Key Stats siap. Scroll berkala agar card lazy-load ikut ter-render.
 async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
     let started = Instant::now();
+    let mut scroll_y: i64 = 0;
     loop {
-        let ready = page
+        // Paksa render card di bawah fold (lazy SPA).
+        let _ = page
+            .evaluate(format!(
+                r#"(() => {{
+                    window.scrollTo(0, {scroll_y});
+                    const nodes = [
+                        ...document.querySelectorAll('[data-cy="card-title"]'),
+                        ...document.querySelectorAll('[data-cy="card-v2-recent-quarter-table"]'),
+                    ];
+                    for (const el of nodes) {{
+                        el.scrollIntoView({{ block: 'nearest', inline: 'nearest' }});
+                    }}
+                    return nodes.length;
+                }})()"#
+            ))
+            .await;
+        scroll_y = if scroll_y >= 2400 { 0 } else { scroll_y + 600 };
+
+        let status = page
             .evaluate(
                 r#"(() => {
                     const cards = Array.from(
@@ -217,62 +180,82 @@ async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error:
                         root.querySelectorAll('tbody tr.ant-table-row td:first-child p')
                     ).map((p) => (p.innerText || p.textContent || '').trim());
                     const hasAll = (labels, required) =>
-                        required.every((r) => labels.some((l) => l === r || l.includes(r)));
+                        required.every((r) =>
+                            labels.some((l) => l === r || l.includes(r) || r.includes(l))
+                        );
 
-                    const valuation = cards.find((c) => titleOf(c) === 'Current Valuation');
-                    const profitability = cards.find((c) => titleOf(c) === 'Profitability');
-                    const income = cards.find((c) => titleOf(c) === 'Income Statement');
-                    const solvency = cards.find((c) => titleOf(c) === 'Solvency');
-                    if (!valuation || valuation.querySelectorAll('tbody tr').length === 0) {
-                        return false;
-                    }
-                    if (!profitability || !income || !solvency) return false;
+                    const titles = cards.map(titleOf).filter(Boolean);
+                    const valuation = cards.find((c) =>
+                        titleOf(c).toLowerCase().includes('valuation')
+                    );
+                    const profitability = cards.find((c) =>
+                        titleOf(c).toLowerCase().includes('profitability')
+                    );
+                    const solvency = cards.find((c) =>
+                        titleOf(c).toLowerCase().includes('solvency')
+                    );
 
-                    const profitOk = hasAll(labelsOf(profitability), [
-                        'Gross Profit Margin',
-                        'Operating Profit Margin',
-                        'Net Profit Margin',
-                    ]);
-                    const incomeOk = hasAll(labelsOf(income), [
-                        'Revenue (TTM)',
-                        'Gross Profit (TTM)',
-                        'EBITDA (TTM)',
-                        'Net Income (TTM)',
-                    ]);
-                    const solvencyOk = hasAll(labelsOf(solvency), [
-                        'Current Ratio (Quarter)',
-                        'Quick Ratio (Quarter)',
-                        'Debt to Equity Ratio (Quarter)',
-                        'LT Debt/Equity (Quarter)',
-                        'Total Liabilities/Equity (Quarter)',
-                        'Total Debt/Total Assets (Quarter)',
-                        'Interest Coverage (TTM)',
-                    ]);
-                    if (!profitOk || !incomeOk || !solvencyOk) return false;
+                    const recent = document.querySelector(
+                        '[data-cy="card-v2-recent-quarter-table"]'
+                    );
+                    const recentLabels = recent ? labelsOf(recent) : [];
 
-                    // Tabel ringkasan kuartal terkini: Market Cap, Enterprise Value, dll.
-                    const recent = document.querySelector('[data-cy="card-v2-recent-quarter-table"]');
-                    if (!recent) return false;
-                    const recentLabels = labelsOf(recent);
-                    return recentLabels.includes('Market Cap')
-                        && recentLabels.includes('Enterprise Value')
-                        && recentLabels.includes('Current Share Outstanding')
-                        && recentLabels.includes('Free Float');
+                    const valuationOk =
+                        !!valuation && valuation.querySelectorAll('tbody tr').length > 0;
+                    const profitOk =
+                        !!profitability &&
+                        hasAll(labelsOf(profitability), [
+                            'Gross Profit Margin',
+                            'Operating Profit Margin',
+                            'Net Profit Margin',
+                        ]);
+                    // Income Statement tidak selalu ada di halaman Key Stats.
+                    const solvencyOk =
+                        !!solvency &&
+                        hasAll(labelsOf(solvency), [
+                            'Current Ratio',
+                            'Quick Ratio',
+                            'Debt to Equity',
+                            'Interest Coverage',
+                        ]);
+                    const marketOk =
+                        recentLabels.some((l) => l.includes('Market Cap')) &&
+                        recentLabels.some((l) => l.includes('Enterprise Value')) &&
+                        recentLabels.some((l) => l.includes('Current Share Outstanding')) &&
+                        recentLabels.some((l) => l.includes('Free Float'));
+
+                    const ready =
+                        valuationOk && profitOk && solvencyOk && marketOk;
+                    return {
+                        ready,
+                        titles,
+                        valuationOk,
+                        profitOk,
+                        solvencyOk,
+                        marketOk,
+                        url: window.location.href || '',
+                    };
                 })()"#,
             )
             .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if ready {
+            .into_value::<serde_json::Value>()
+            .unwrap_or_else(|_| serde_json::json!({ "ready": false }));
+
+        if status.get("ready").and_then(|v| v.as_bool()).unwrap_or(false) {
+            let _ = page
+                .evaluate("window.scrollTo(0, 0)")
+                .await;
             return Ok(());
         }
-        if started.elapsed() >= Duration::from_secs(45) {
-            return Err(
-                "Timeout menunggu Key Stats (Valuation + Profitability + Income Statement + Solvency + Market Cap)"
-                    .into(),
-            );
+
+        if started.elapsed() >= Duration::from_secs(60) {
+            let detail = status.to_string();
+            return Err(format!(
+                "Timeout menunggu Key Stats (Current Valuation + Profitability + Solvency + Market Cap). status={detail}"
+            )
+            .into());
         }
-        sleep(Duration::from_millis(200)).await;
+        sleep(Duration::from_millis(350)).await;
     }
 }
 
@@ -355,13 +338,6 @@ fn has_market_cap_block(stats: &HashMap<String, String>) -> bool {
         && stats.contains_key("Enterprise Value")
         && stats.contains_key("Current Share Outstanding")
         && stats.contains_key("Free Float")
-}
-
-fn has_income_statement_ttm(stats: &HashMap<String, String>) -> bool {
-    stats.contains_key("Revenue (TTM)")
-        && stats.contains_key("Gross Profit (TTM)")
-        && stats.contains_key("EBITDA (TTM)")
-        && stats.contains_key("Net Income (TTM)")
 }
 
 fn has_solvency_block(stats: &HashMap<String, String>) -> bool {
@@ -829,21 +805,23 @@ async fn scrape_one_emiten(
     session: &Session,
     keyspace: &str,
     emiten: &str,
+    index: usize,
+    total: usize,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let started = Instant::now();
     let code = emiten.trim().to_ascii_uppercase();
+    let progress = format!("{index}/{total}");
 
     if is_update_at_fresh(session, keyspace, &code).await? {
         println!(
-            "Key Stats: skip {code} — update_at belum melebihi {UPDATE_AT_FRESH_DAYS} hari ({})",
+            "Key Stats: skip {code} ({progress}) — update_at belum melebihi {UPDATE_AT_FRESH_DAYS} hari ({})",
             format_elapsed(started)
         );
         return Ok(false);
     }
 
-    println!("Key Stats: cari emiten {code}...");
-    search_emiten(page, &code).await?;
-    click_key_stats(page).await?;
+    println!("Key Stats: buka emiten {code} ({progress})...");
+    open_key_stats(page, &code).await?;
 
     let key_stats = scrape_key_stats(page).await?;
     if key_stats.is_empty() {
@@ -860,13 +838,6 @@ async fn scrape_one_emiten(
         return Err(format!(
             "Key Stats {code} belum berisi Market Cap / Enterprise Value / \
              Current Share Outstanding / Free Float"
-        )
-        .into());
-    }
-    if !has_income_statement_ttm(&key_stats) {
-        return Err(format!(
-            "Key Stats {code} belum berisi Income Statement \
-             (Revenue/Gross Profit/EBITDA/Net Income TTM)"
         )
         .into());
     }
@@ -909,7 +880,7 @@ async fn scrape_one_emiten(
     .await?;
 
     println!(
-        "OK: emiten_list {code} — {} key_stats, {} corporate_action, \
+        "OK: emiten_list {code} ({progress}) — {} key_stats, {} corporate_action, \
          profile gt1={} shareholders={} ({})",
         key_stats.len(),
         corporate_action.len(),
@@ -934,13 +905,29 @@ pub async fn scrape_and_insert_key_stats(
     }
 
     let mut ok = 0usize;
-    for emiten in emitens {
-        match scrape_one_emiten(page, session, keyspace, emiten).await {
-            Ok(true) => ok += 1,
-            Ok(false) => {}
-            Err(e) => eprintln!("Peringatan: emiten_list {emiten} gagal: {e}"),
+    let total = emitens.len();
+    for (i, emiten) in emitens.iter().enumerate() {
+        let index = i + 1;
+        let scraped = match scrape_one_emiten(page, session, keyspace, emiten, index, total).await
+        {
+            Ok(true) => {
+                ok += 1;
+                true
+            }
+            Ok(false) => false, // skip: data masih fresh — tanpa delay
+            Err(e) => {
+                eprintln!("Peringatan: emiten_list {emiten} ({index}/{total}) gagal: {e}");
+                true // sudah attempt scrape — tetap delay
+            }
+        };
+        if scraped && index < total {
+            let wait_secs = rand::thread_rng().gen_range(1u64..=10);
+            let wait_ms = wait_secs * 1000;
+            println!(
+                "Key Stats: jeda {wait_ms}ms ({wait_secs}s) sebelum emiten berikutnya..."
+            );
+            sleep(Duration::from_secs(wait_secs)).await;
         }
-        sleep(Duration::from_millis(500)).await;
     }
     Ok(ok)
 }
@@ -973,16 +960,6 @@ mod tests {
         map.insert("Current Share Outstanding".into(), "192.64 B".into());
         map.insert("Free Float".into(), "19.35%".into());
         assert!(has_market_cap_block(&map));
-    }
-
-    #[test]
-    fn income_statement_ttm_detected() {
-        let mut map = HashMap::new();
-        map.insert("Revenue (TTM)".into(), "45,589 B".into());
-        map.insert("Gross Profit (TTM)".into(), "14,952 B".into());
-        map.insert("EBITDA (TTM)".into(), "7,486 B".into());
-        map.insert("Net Income (TTM)".into(), "3,855 B".into());
-        assert!(has_income_statement_ttm(&map));
     }
 
     #[test]

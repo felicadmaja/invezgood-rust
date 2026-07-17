@@ -11,6 +11,8 @@ service User {
   // Status kesiapan sesi Stockbit dari background poller (cek web setiap 3600–7200s).
   // RPC tidak hit stockbit.com langsung — hanya mengembalikan hasil pooling terakhir.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
+
+
 }
 
 message IsStockbitReadyRequest {}

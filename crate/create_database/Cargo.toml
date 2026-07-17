@@ -27,6 +27,10 @@ path = "src/bin/create_user.rs"
 name = "create_broker_name"
 path = "src/bin/create_broker_name.rs"
 
+[[bin]]
+name = "create_rule"
+path = "src/bin/create_rule.rs"
+
 [dependencies]
 bcrypt = "0.16"
 dotenvy = "0.15"
