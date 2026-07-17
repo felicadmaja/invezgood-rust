@@ -24,9 +24,19 @@ message GetEmitenListByCodeNameResponse {
   EmitenListRow row = 1;
 }
 
-// Wrapper untuk map bersarang CQL: map<text, frozen<map<text, text>>>.
-message StringMap {
+// Satu pasangan atribut aksi korporasi, contoh {"Cum Date": "20 Apr 26"}.
+message CorporateActionKv {
   map<string, string> entries = 1;
+}
+
+// Detail satu jenis aksi, contoh list [{"Dividend":"Rp 209"}, {"Cum Date":"..."}, ...].
+message CorporateActionDetailList {
+  repeated CorporateActionKv items = 1;
+}
+
+// Satu elemen list corporate_action, contoh {"Dividend": [ ...details... ]}.
+message CorporateActionGroup {
+  map<string, CorporateActionDetailList> by_type = 1;
 }
 
 message EmitenShareholderGt1 {
@@ -58,14 +68,11 @@ message EmitenListRow {
   string code_name = 1;
   string long_name = 2;
   map<string, string> key_stats = 3;
-  map<string, StringMap> income_statement_ttm = 4;
-  map<string, StringMap> balance_sheet_quarterly = 5;
-  map<string, StringMap> cash_flow_ttm = 6;
-  map<string, StringMap> corporate_action = 7;
-  repeated string shareholder = 8;
-  CompanyProfile company_profile = 9;
+  // Bentuk: [{"Dividend":[{"Dividend":"Rp 209"},{"Cum Date":"..."},...]}, ...]
+  repeated CorporateActionGroup corporate_action = 4;
+  CompanyProfile company_profile = 5;
   // RFC3339 / ISO-8601 timestamp string (kosong bila null di Scylla).
-  string update_at = 10;
+  string update_at = 6;
 }
 
 message GetAllEmitenListResponse {

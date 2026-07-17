@@ -6,8 +6,9 @@ use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
 use std::collections::HashMap;
 
 use crate::{
-    CompanyProfile as ProtoCompanyProfile, EmitenListRow, EmitenShareholder as ProtoShareholder,
-    EmitenShareholderGt1 as ProtoShareholderGt1, StringMap,
+    CompanyProfile as ProtoCompanyProfile, CorporateActionDetailList, CorporateActionGroup,
+    CorporateActionKv, EmitenListRow, EmitenShareholder as ProtoShareholder,
+    EmitenShareholderGt1 as ProtoShareholderGt1,
 };
 
 /// UDT `emiten_shareholder_gt1` — pemegang saham >1%.
@@ -102,11 +103,27 @@ impl CompanyProfile {
     }
 }
 
-fn nested_map_to_proto(
-    m: HashMap<String, HashMap<String, String>>,
-) -> HashMap<String, StringMap> {
-    m.into_iter()
-        .map(|(k, v)| (k, StringMap { entries: v }))
+fn corporate_action_to_proto(
+    items: Vec<HashMap<String, Vec<HashMap<String, String>>>>,
+) -> Vec<CorporateActionGroup> {
+    items
+        .into_iter()
+        .map(|group| CorporateActionGroup {
+            by_type: group
+                .into_iter()
+                .map(|(action_type, details)| {
+                    (
+                        action_type,
+                        CorporateActionDetailList {
+                            items: details
+                                .into_iter()
+                                .map(|kv| CorporateActionKv { entries: kv })
+                                .collect(),
+                        },
+                    )
+                })
+                .collect(),
+        })
         .collect()
 }
 
@@ -120,16 +137,9 @@ pub struct EmitenList {
     pub long_name: String,
     #[scylla(default_when_null)]
     pub key_stats: HashMap<String, String>,
+    /// Bentuk: `[{"Dividend":[{"Dividend":"Rp 209"},{"Cum Date":"..."},...]}, ...]`
     #[scylla(default_when_null)]
-    pub income_statement_ttm: HashMap<String, HashMap<String, String>>,
-    #[scylla(default_when_null)]
-    pub balance_sheet_quarterly: HashMap<String, HashMap<String, String>>,
-    #[scylla(default_when_null)]
-    pub cash_flow_ttm: HashMap<String, HashMap<String, String>>,
-    #[scylla(default_when_null)]
-    pub corporate_action: HashMap<String, HashMap<String, String>>,
-    #[scylla(default_when_null)]
-    pub shareholder: Vec<String>,
+    pub corporate_action: Vec<HashMap<String, Vec<HashMap<String, String>>>>,
     pub company_profile: Option<CompanyProfile>,
     pub update_at: Option<DateTime<Utc>>,
 }
@@ -140,11 +150,7 @@ impl EmitenList {
             code_name: self.code_name,
             long_name: self.long_name,
             key_stats: self.key_stats,
-            income_statement_ttm: nested_map_to_proto(self.income_statement_ttm),
-            balance_sheet_quarterly: nested_map_to_proto(self.balance_sheet_quarterly),
-            cash_flow_ttm: nested_map_to_proto(self.cash_flow_ttm),
-            corporate_action: nested_map_to_proto(self.corporate_action),
-            shareholder: self.shareholder,
+            corporate_action: corporate_action_to_proto(self.corporate_action),
             company_profile: self.company_profile.map(CompanyProfile::into_proto),
             update_at: self
                 .update_at

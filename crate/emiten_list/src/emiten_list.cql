@@ -11,22 +11,14 @@ Kolom dan tipe CQL, kata demi kata:
   "code_name" text — partition key
   "long_name" text
   "key_stats" map<text, text>
-  "income_statement_ttm" map<text, frozen<map<text, text>>>
-  "balance_sheet_quarterly" map<text, frozen<map<text, text>>>
-  "cash_flow_ttm" map<text, frozen<map<text, text>>>
-  "corporate_action" map<text, frozen<map<text, text>>>
-  "shareholder" list<text>
+  "corporate_action" list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>>
   "company_profile" frozen<company_profile>
   "update_at" timestamp
 Sumber: DDL bin create_emiten_list; diisi aplikasi pada INSERT.
 Kolom "code_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
-Kolom "key_stats": map<text, text> — statistik kunci emiten (pasangan key-value).
-Kolom "income_statement_ttm": map<text, frozen<map<text, text>>> — pos laporan laba rugi TTM; key luar = nama pos (contoh "Total Pendapatan"), key dalam = periode kuartal (contoh "Q1 2026"), value = nilai terformat (contoh "3,890 B").
-Kolom "balance_sheet_quarterly": map<text, frozen<map<text, text>>> — pos neraca kuartalan; key luar = nama pos (contoh "Total Aset"), key dalam = periode kuartal (contoh "Q1 2026"), value = nilai terformat (contoh "3,890 B").
-Kolom "cash_flow_ttm": map<text, frozen<map<text, text>>> — pos arus kas TTM; key luar = nama pos (contoh "Arus Kas Operasi"), key dalam = periode kuartal (contoh "Q1 2026"), value = nilai terformat (contoh "3,890 B").
-Kolom "corporate_action": map<text, frozen<map<text, text>>> — aksi korporasi; key luar = jenis/tanggal aksi (contoh "Dividen 2026-03-15"), key dalam = atribut (contoh "ex_date", "ratio"), value = nilai terformat.
-Kolom "shareholder": list<text> — daftar pemegang saham (ringkas).
+Kolom "key_stats": map<text, text> — statistik kunci emiten (pasangan key-value); contoh dari UI Key Stats: "Market Cap", "Enterprise Value", "Current Share Outstanding", "Free Float", Income Statement ("Revenue (TTM)", "Gross Profit (TTM)", "EBITDA (TTM)", "Net Income (TTM)"), Solvency ("Current Ratio (Quarter)", "Debt to Equity Ratio (Quarter)", dll.), margin Profitability, dll.
+Kolom "corporate_action": list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>> — aksi korporasi sebagai list berurutan; tiap elemen map jenis aksi → list atribut; contoh [{ "Dividend": [{ "Dividend": "Rp 209" }, { "Cum Date": "20 Apr 26" }, { "Ex Date": "21 Apr 26" }, { "Recording Date": "22 Apr 26" }, { "Payment Date": "8 Mei 2026" }] }, ...].
 Kolom "company_profile": frozen<company_profile> — profil perusahaan (lihat UDT di bawah).
 Kolom "update_at": timestamp — waktu terakhir data emiten diperbarui.
 

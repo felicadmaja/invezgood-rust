@@ -1,4 +1,4 @@
-//! Scrape Key Stats Stockbit → upsert `emiten_list.key_stats`.
+//! Scrape Key Stats + Corp. Action Stockbit → upsert `emiten_list`.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -12,7 +12,13 @@ use tokio::time::sleep;
 
 const SEARCH_INPUT: &str = r#"[data-cy="top-navbar-search-input-desktop"]"#;
 const KEY_STATS_NAV: &str = r#"[data-cy="company-navigation-key-stats"]"#;
+const CORP_ACTION_NAV: &str = r#"[data-cy="company-navigation-corp.-action"]"#;
+const COMPANY_MORE_MENU: &str = r#"[data-cy="company-navbar-more-menu"]"#;
 const UPDATE_AT_FRESH_DAYS: i64 = 30;
+
+/// Bentuk Scylla `corporate_action`:
+/// `[{"Dividend":[{"Dividend":"Rp 209"},{"Cum Date":"..."},...]}, ...]`
+type CorporateAction = Vec<HashMap<String, Vec<HashMap<String, String>>>>;
 
 fn format_elapsed(started: Instant) -> String {
     let ms = started.elapsed().as_millis();
@@ -364,26 +370,171 @@ async fn scrape_long_name(page: &Page, emiten: &str) -> String {
     .unwrap_or_default()
 }
 
-async fn upsert_key_stats(
+async fn wait_for_corp_action_nav(
+    page: &Page,
+    timeout: Duration,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let started = Instant::now();
+    loop {
+        if page.find_element(CORP_ACTION_NAV).await.is_ok() {
+            return Ok(());
+        }
+        if started.elapsed() >= timeout {
+            return Err("Timeout menunggu navigasi Corp. Action".into());
+        }
+        sleep(Duration::from_millis(200)).await;
+    }
+}
+
+async fn click_corp_action(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    // Langsung klik bila link Corp. Action sudah terlihat di navbar.
+    if page.find_element(CORP_ACTION_NAV).await.is_ok() {
+        let link = page.find_element(CORP_ACTION_NAV).await?;
+        link.click().await?;
+        wait_for_corp_action_page(page).await?;
+        return Ok(());
+    }
+
+    // Fallback: buka menu More lalu tunggu link Corp. Action muncul.
+    wait_for_selector(page, COMPANY_MORE_MENU, Duration::from_secs(10)).await?;
+    let more = page.find_element(COMPANY_MORE_MENU).await?;
+    more.click().await?;
+    wait_for_corp_action_nav(page, Duration::from_secs(10)).await?;
+    let link = page.find_element(CORP_ACTION_NAV).await?;
+    link.click().await?;
+    wait_for_corp_action_page(page).await?;
+    Ok(())
+}
+
+async fn wait_for_corp_action_page(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    let started = Instant::now();
+    loop {
+        let ready = page
+            .evaluate(
+                r#"(() => {
+                    const wrap = document.querySelector('[data-cy="corpaction-all-wrapper"]');
+                    if (!wrap) return false;
+                    const url = window.location.href || '';
+                    if (!url.toLowerCase().includes('/corpaction')) return false;
+                    // Siap bila wrapper ada; tabel boleh kosong untuk emiten tanpa aksi.
+                    return true;
+                })()"#,
+            )
+            .await?
+            .into_value::<bool>()
+            .unwrap_or(false);
+        if ready {
+            // Beri waktu isi tabel dividend/rups ter-render.
+            sleep(Duration::from_millis(500)).await;
+            return Ok(());
+        }
+        if started.elapsed() >= Duration::from_secs(30) {
+            let url = page.url().await?.unwrap_or_default();
+            return Err(format!(
+                "Timeout menunggu halaman Corp. Action (URL: {url})"
+            )
+            .into());
+        }
+        sleep(Duration::from_millis(250)).await;
+    }
+}
+
+/// Scrape semua blok Dividend / RUPS / Right Issue / Stock Split di Corp. Action.
+async fn scrape_corporate_action(
+    page: &Page,
+) -> Result<CorporateAction, Box<dyn std::error::Error>> {
+    let json = page
+        .evaluate(
+            r#"(() => {
+                const wrap = document.querySelector('[data-cy="corpaction-all-wrapper"]');
+                if (!wrap) return '[]';
+                const out = [];
+                // Setiap blok aksi adalah child langsung wrapper.
+                const blocks = Array.from(wrap.children);
+                for (const block of blocks) {
+                    const titleEl = Array.from(block.querySelectorAll('p')).find(
+                        (p) => !p.closest('table')
+                    );
+                    const actionType = titleEl
+                        ? (titleEl.innerText || titleEl.textContent || '').trim()
+                        : '';
+                    if (!actionType) continue;
+
+                    const table =
+                        block.querySelector('[data-cy$="-table-wrapper"] table') ||
+                        block.querySelector('table');
+                    if (!table) continue;
+
+                    const headers = Array.from(table.querySelectorAll('thead th'))
+                        .map((th) => {
+                            const p = th.querySelector('p');
+                            return (p
+                                ? (p.innerText || p.textContent || '')
+                                : (th.innerText || '')
+                            ).trim();
+                        })
+                        .filter((t) => t);
+                    if (headers.length === 0) continue;
+
+                    const rows = Array.from(
+                        table.querySelectorAll('tbody tr.ant-table-row')
+                    );
+                    for (const tr of rows) {
+                        const cells = Array.from(tr.querySelectorAll('td')).map((td) => {
+                            const p = td.querySelector('p');
+                            return (p ? (p.innerText || p.textContent || '') : (td.innerText || ''))
+                                .trim()
+                                .replace(/\s+/g, ' ');
+                        });
+                        if (cells.every((c) => !c)) continue;
+
+                        const details = [];
+                        for (let i = 0; i < headers.length; i++) {
+                            const key = headers[i];
+                            const value = cells[i] || '';
+                            details.push({ [key]: value });
+                        }
+                        out.push({ [actionType]: details });
+                    }
+                }
+                return JSON.stringify(out);
+            })()"#,
+        )
+        .await?
+        .into_value::<String>()
+        .unwrap_or_else(|_| "[]".to_string());
+
+    let items: CorporateAction = serde_json::from_str(&json)?;
+    Ok(items)
+}
+
+async fn upsert_emiten_list(
     session: &Session,
     keyspace: &str,
     code_name: &str,
     long_name: &str,
     key_stats: &HashMap<String, String>,
+    corporate_action: &CorporateAction,
     update_at: DateTime<Utc>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.emiten_list (\
-                code_name, long_name, key_stats, update_at\
-            ) VALUES (?, ?, ?, ?)"
+                code_name, long_name, key_stats, corporate_action, update_at\
+            ) VALUES (?, ?, ?, ?, ?)"
         ))
         .await?;
 
     session
         .execute_unpaged(
             &insert,
-            (code_name, long_name, key_stats, update_at),
+            (
+                code_name,
+                long_name,
+                key_stats,
+                corporate_action,
+                update_at,
+            ),
         )
         .await?;
     Ok(())
@@ -477,25 +628,31 @@ async fn scrape_one_emiten(
         long_name.as_str()
     };
 
-    upsert_key_stats(
+    println!("Corp. Action: buka halaman untuk {code}...");
+    click_corp_action(page).await?;
+    let corporate_action = scrape_corporate_action(page).await?;
+
+    upsert_emiten_list(
         session,
         keyspace,
         &code,
         long_name,
         &key_stats,
+        &corporate_action,
         Utc::now(),
     )
     .await?;
 
     println!(
-        "OK: emiten_list {code} — {} key_stats ({})",
+        "OK: emiten_list {code} — {} key_stats, {} corporate_action ({})",
         key_stats.len(),
+        corporate_action.len(),
         format_elapsed(started)
     );
     Ok(true)
 }
 
-/// Navbar search → Key Stats → scrape card tables → upsert `emiten_list.key_stats`.
+/// Navbar search → Key Stats → Corp. Action → upsert `emiten_list`.
 /// Skip emiten yang `update_at`-nya masih lebih baru dari 30 hari.
 pub async fn scrape_and_insert_key_stats(
     page: &Page,
@@ -513,7 +670,7 @@ pub async fn scrape_and_insert_key_stats(
         match scrape_one_emiten(page, session, keyspace, emiten).await {
             Ok(true) => ok += 1,
             Ok(false) => {}
-            Err(e) => eprintln!("Peringatan: key_stats {emiten} gagal: {e}"),
+            Err(e) => eprintln!("Peringatan: emiten_list {emiten} gagal: {e}"),
         }
         sleep(Duration::from_millis(500)).await;
     }
@@ -571,5 +728,38 @@ mod tests {
         map.insert("Total Debt/Total Assets (Quarter)".into(), "0.35".into());
         map.insert("Interest Coverage (TTM)".into(), "4.82".into());
         assert!(has_solvency_block(&map));
+    }
+
+    #[test]
+    fn corporate_action_json_parses() {
+        let json = r#"[
+          {
+            "Dividend": [
+              {"Dividend": "Rp 209"},
+              {"Cum Date": "20 Apr 26"},
+              {"Ex Date": "21 Apr 26"},
+              {"Recording Date": "22 Apr 26"},
+              {"Payment Date": "8 Mei 26"}
+            ]
+          },
+          {
+            "RUPS": [
+              {"Event Date": "10 Apr 26"},
+              {"Time": "14:00"},
+              {"Eligible Date": "10 Mar 26"},
+              {"Venue": "Jakarta"}
+            ]
+          }
+        ]"#;
+        let items: CorporateAction = serde_json::from_str(json).unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(
+            items[0]["Dividend"][0].get("Dividend").map(String::as_str),
+            Some("Rp 209")
+        );
+        assert_eq!(
+            items[1]["RUPS"][0].get("Event Date").map(String::as_str),
+            Some("10 Apr 26")
+        );
     }
 }

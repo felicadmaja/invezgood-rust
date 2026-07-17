@@ -8,11 +8,8 @@
 //! - `code_name` text — partition key
 //! - `long_name` text
 //! - `key_stats` map<text, text>
-//! - `income_statement_ttm` map<text, frozen<map<text, text>>> — pos laporan laba rugi TTM per kuartal
-//! - `balance_sheet_quarterly` map<text, frozen<map<text, text>>> — pos neraca kuartalan per periode
-//! - `cash_flow_ttm` map<text, frozen<map<text, text>>> — pos arus kas TTM per kuartal
-//! - `corporate_action` map<text, frozen<map<text, text>>> — aksi korporasi emiten
-//! - `shareholder` list<text>
+//! - `corporate_action` list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>> —
+//!   aksi korporasi: `[{"Dividend":[{"Dividend":"Rp 209"},{"Cum Date":"..."},...]}, ...]`
 //! - `company_profile` frozen<company_profile> — profil perusahaan (UDT)
 //! - `update_at` timestamp — waktu terakhir data diperbarui
 //!
@@ -32,28 +29,19 @@ const EMITEN_LIST_COLUMNS: &[&str] = &[
     "code_name",
     "long_name",
     "key_stats",
-    "income_statement_ttm",
-    "balance_sheet_quarterly",
-    "cash_flow_ttm",
     "corporate_action",
-    "shareholder",
     "company_profile",
     "update_at",
 ];
 
 fn emiten_list_cql_output_path() -> std::path::PathBuf {
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../emiten_list/src/emiten_list.cql")
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../emiten_list/src/emiten_list.cql")
 }
 
 fn emiten_scylla_type(col: &str) -> &'static str {
     match col {
-        "shareholder" => "list<text>",
         "key_stats" => "map<text, text>",
-        "income_statement_ttm"
-        | "balance_sheet_quarterly"
-        | "cash_flow_ttm"
-        | "corporate_action" => "map<text, frozen<map<text, text>>>",
+        "corporate_action" => "list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>>",
         "company_profile" => "frozen<company_profile>",
         "update_at" => "timestamp",
         _ => "text",
@@ -117,11 +105,7 @@ fn ddl_create_table(keyspace: &str) -> String {
             \"code_name\" text, \
             \"long_name\" text, \
             \"key_stats\" map<text, text>, \
-            \"income_statement_ttm\" map<text, frozen<map<text, text>>>, \
-            \"balance_sheet_quarterly\" map<text, frozen<map<text, text>>>, \
-            \"cash_flow_ttm\" map<text, frozen<map<text, text>>>, \
-            \"corporate_action\" map<text, frozen<map<text, text>>>, \
-            \"shareholder\" list<text>, \
+            \"corporate_action\" list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>>, \
             \"company_profile\" frozen<{}>, \
             \"update_at\" timestamp, \
             PRIMARY KEY ((\"code_name\"))\
@@ -185,10 +169,7 @@ fn format_emiten_list_schema_summary(keyspace: &str) -> String {
 
     let _ = writeln!(out, "--- Tabel dasar (base table) ---");
     let _ = writeln!(out, "Nama penuh: \"{}\".\"{}\"", keyspace, TABLE);
-    let _ = writeln!(
-        out,
-        "Primary key: ((\"code_name\")) — \"code_name\" text."
-    );
+    let _ = writeln!(out, "Primary key: ((\"code_name\")) — \"code_name\" text.");
     let _ = writeln!(out, "Tidak ada clustering key.");
     let _ = writeln!(out, "Kolom dan tipe CQL, kata demi kata:");
     for name in EMITEN_LIST_COLUMNS {
@@ -222,31 +203,11 @@ fn format_emiten_list_schema_summary(keyspace: &str) -> String {
     );
     let _ = writeln!(
         out,
-        "Kolom \"income_statement_ttm\": map<text, frozen<map<text, text>>> — pos laporan laba rugi TTM; \
-         key luar = nama pos (contoh \"Total Pendapatan\"), key dalam = periode kuartal (contoh \"Q1 2026\"), \
-         value = nilai terformat (contoh \"3,890 B\")."
-    );
-    let _ = writeln!(
-        out,
-        "Kolom \"balance_sheet_quarterly\": map<text, frozen<map<text, text>>> — pos neraca kuartalan; \
-         key luar = nama pos (contoh \"Total Aset\"), key dalam = periode kuartal (contoh \"Q1 2026\"), \
-         value = nilai terformat (contoh \"3,890 B\")."
-    );
-    let _ = writeln!(
-        out,
-        "Kolom \"cash_flow_ttm\": map<text, frozen<map<text, text>>> — pos arus kas TTM; \
-         key luar = nama pos (contoh \"Arus Kas Operasi\"), key dalam = periode kuartal (contoh \"Q1 2026\"), \
-         value = nilai terformat (contoh \"3,890 B\")."
-    );
-    let _ = writeln!(
-        out,
-        "Kolom \"corporate_action\": map<text, frozen<map<text, text>>> — aksi korporasi; \
-         key luar = jenis/tanggal aksi (contoh \"Dividen 2026-03-15\"), key dalam = atribut (contoh \"ex_date\", \"ratio\"), \
-         value = nilai terformat."
-    );
-    let _ = writeln!(
-        out,
-        "Kolom \"shareholder\": list<text> — daftar pemegang saham (ringkas)."
+        "Kolom \"corporate_action\": list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>> — \
+         aksi korporasi sebagai list berurutan; tiap elemen map jenis aksi → list atribut; \
+         contoh [{{ \"Dividend\": [{{ \"Dividend\": \"Rp 209\" }}, {{ \"Cum Date\": \"20 Apr 26\" }}, \
+         {{ \"Ex Date\": \"21 Apr 26\" }}, {{ \"Recording Date\": \"22 Apr 26\" }}, \
+         {{ \"Payment Date\": \"8 Mei 2026\" }}] }}, ...]."
     );
     let _ = writeln!(
         out,
@@ -333,7 +294,8 @@ fn eprintln_emiten_list_schema_summary(keyspace: &str) {
         ),
         Err(e) => eprintln!(
             "Peringatan: gagal menulis {}: {}",
-            emiten_list_cql_output_path().display(), e
+            emiten_list_cql_output_path().display(),
+            e
         ),
     }
 }
@@ -342,8 +304,8 @@ fn eprintln_emiten_list_schema_summary(keyspace: &str) {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     load_dotenv();
 
-    let keyspace = std::env::var("SCYLLA_KEYSPACE")
-        .map_err(|_| "SCYLLA_KEYSPACE wajib diisi di .env")?;
+    let keyspace =
+        std::env::var("SCYLLA_KEYSPACE").map_err(|_| "SCYLLA_KEYSPACE wajib diisi di .env")?;
 
     let session = connect_session().await?;
 

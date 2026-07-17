@@ -4,16 +4,23 @@
 //!
 //! Env: `STOCKBIT_EMAIL`, `STOCKBIT_PASSWORD`, opsional `CHROME_EXECUTABLE_PATH`,
 //! `STOCKBIT_2FA_TIMEOUT_SECS`, `STOCKBIT_SESSION_CHECK_SECS` (default random 60–300 untuk
-//! `IsStockbitReady`; default 5 untuk worker), `STOCKBIT_BROWSER_DATA_DIR`.
+//! jendela cek di `/stream`; default 5 untuk worker), `STOCKBIT_BROWSER_DATA_DIR`,
+//! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 3600–7200 —
+//! interval background poller untuk `IsStockbitReady`).
 
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::page::Page;
 use futures::StreamExt;
 use rand::Rng;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, RwLock};
 use tokio::time::sleep;
+
+/// Interval default antar pengecekan web Stockbit (detik).
+pub const READY_POLL_MIN_SECS: u64 = 3600;
+pub const READY_POLL_MAX_SECS: u64 = 7200;
 
 pub const STOCKBIT_STREAM_URL: &str = "https://stockbit.com/stream";
 pub const STOCKBIT_LOGIN_URL: &str = "https://stockbit.com/login";
@@ -26,6 +33,96 @@ pub type StockbitError = Box<dyn std::error::Error + Send + Sync>;
 pub struct ReadinessUpdate {
     pub ready: bool,
     pub message: String,
+}
+
+fn poll_interval_range() -> (u64, u64) {
+    let min = std::env::var("STOCKBIT_READY_POLL_MIN_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(READY_POLL_MIN_SECS);
+    let max = std::env::var("STOCKBIT_READY_POLL_MAX_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(READY_POLL_MAX_SECS);
+    if min <= max {
+        (min, max)
+    } else {
+        (max, min)
+    }
+}
+
+fn next_poll_secs() -> u64 {
+    let (min, max) = poll_interval_range();
+    rand::thread_rng().gen_range(min..=max)
+}
+
+/// Background poller: cek stockbit.com setiap 3600–7200 detik.
+/// RPC `IsStockbitReady` hanya membaca status terakhir — tidak trigger cek langsung.
+#[derive(Clone)]
+pub struct ReadinessPoller {
+    latest: Arc<RwLock<Option<ReadinessUpdate>>>,
+}
+
+impl ReadinessPoller {
+    /// Mulai loop polling di background.
+    /// Cek pertama segera (bukan dari RPC); berikutnya setiap 3600–7200 detik.
+    pub fn start() -> Arc<Self> {
+        let poller = Arc::new(Self {
+            latest: Arc::new(RwLock::new(None)),
+        });
+        let runner = Arc::clone(&poller);
+        tokio::spawn(async move {
+            runner.run_loop().await;
+        });
+        poller
+    }
+
+    /// Status terakhir dari pooling (None = belum pernah dicek).
+    pub async fn latest(&self) -> Option<ReadinessUpdate> {
+        self.latest.read().await.clone()
+    }
+
+    async fn publish(&self, update: ReadinessUpdate) {
+        let mut guard = self.latest.write().await;
+        *guard = Some(update);
+    }
+
+    async fn run_loop(self: Arc<Self>) {
+        let mut first = true;
+        loop {
+            if first {
+                first = false;
+                println!("Stockbit readiness poller: cek awal (background, bukan dari RPC)");
+            } else {
+                let wait_secs = next_poll_secs();
+                let (min, max) = poll_interval_range();
+                println!(
+                    "Stockbit readiness poller: cek berikutnya dalam {wait_secs}s (interval {min}–{max}s)"
+                );
+                sleep(Duration::from_secs(wait_secs)).await;
+            }
+
+            let (tx, mut rx) = mpsc::channel::<ReadinessUpdate>(8);
+            let poller = Arc::clone(&self);
+            let forward = tokio::spawn(async move {
+                while let Some(update) = rx.recv().await {
+                    poller.publish(update).await;
+                }
+            });
+
+            match run_readiness_check(tx).await {
+                Ok(()) => {}
+                Err(e) => {
+                    self.publish(ReadinessUpdate {
+                        ready: false,
+                        message: format!("Error: {e}"),
+                    })
+                    .await;
+                }
+            }
+            let _ = forward.await;
+        }
+    }
 }
 
 fn is_login_url(url: &str) -> bool {

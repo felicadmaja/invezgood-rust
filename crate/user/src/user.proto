@@ -8,7 +8,8 @@ service User {
   // (header: Authorization: Bearer <token>).
   rpc Login(LoginRequest) returns (LoginResponse);
 
-  // Cek sesi Stockbit di /stream; login ulang bila perlu. Progres via server stream.
+  // Status kesiapan sesi Stockbit dari background poller (cek web setiap 3600–7200s).
+  // RPC tidak hit stockbit.com langsung — hanya mengembalikan hasil pooling terakhir.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 }
 
