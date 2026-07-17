@@ -73,6 +73,10 @@ message EmitenListRow {
   CompanyProfile company_profile = 5;
   // RFC3339 / ISO-8601 timestamp string (kosong bila null di Scylla).
   string update_at = 6;
+  // Path gcs object
+  string emiten_icon = 7;
+  // Default false
+  bool is_konglomerasi = 8;
 }
 
 message GetAllEmitenListResponse {

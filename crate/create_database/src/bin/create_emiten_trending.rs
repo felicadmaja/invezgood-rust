@@ -12,10 +12,13 @@
 //! - `tahun_bulan_tanggal` date
 //! - `gainer_or_loser` text
 //! - `emiten_name` text
+//! - `emiten_icon` text — path object GCS (`stoksaham/icon/{CODE}.ext`)
 //! - `price` double
 //! - `price_change` double
 //! - `value` text
 //! - `volume` text
+//! - `freq` text — frekuensi transaksi dari tabel Movers (kolom Freq)
+//! - `updated_at` timestamp — waktu terakhir baris di-upsert
 //!
 //! Env: `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
 //! Di akhir sukses: ringkasan skema ke stderr dan ke **`crate/emiten_trending/src/emiten_trending.cql`**.
@@ -34,10 +37,13 @@ const EMITEN_TRENDING_COLUMNS: &[&str] = &[
     "tahun_bulan_tanggal",
     "gainer_or_loser",
     "emiten_name",
+    "emiten_icon",
     "price",
     "price_change",
     "value",
     "volume",
+    "freq",
+    "updated_at",
 ];
 
 fn emiten_trending_cql_output_path() -> std::path::PathBuf {
@@ -49,6 +55,7 @@ fn emiten_trending_scylla_type(col: &str) -> &'static str {
     match col {
         "tahun_bulan_tanggal" => "date",
         "price" | "price_change" => "double",
+        "updated_at" => "timestamp",
         _ => "text",
     }
 }
@@ -75,10 +82,13 @@ fn ddl_create_table(keyspace: &str) -> String {
             \"tahun_bulan_tanggal\" date, \
             \"gainer_or_loser\" text, \
             \"emiten_name\" text, \
+            \"emiten_icon\" text, \
             \"price\" double, \
             \"price_change\" double, \
             \"value\" text, \
             \"volume\" text, \
+            \"freq\" text, \
+            \"updated_at\" timestamp, \
             PRIMARY KEY ((\"agg_tahun_bulan_tanggal_emiten_name\"))\
         )",
         keyspace, TABLE
@@ -163,6 +173,18 @@ fn format_emiten_trending_schema_summary(keyspace: &str) -> String {
         out,
         "Kolom \"agg_tahun_bulan_tanggal_emiten_name\": text — diisi aplikasi sebagai \
          concat(tahun_bulan_tanggal, '_', emiten_name), contoh \"2026-07-16_BBCA\"."
+    );
+    let _ = writeln!(
+        out,
+        "Kolom \"updated_at\": timestamp — waktu terakhir baris di-upsert."
+    );
+    let _ = writeln!(
+        out,
+        "Kolom \"emiten_icon\": text — path object GCS modul stoksaham (hasil upload icon Movers)."
+    );
+    let _ = writeln!(
+        out,
+        "Kolom \"freq\": text — frekuensi transaksi dari kolom Freq tabel Movers Stockbit."
     );
     let _ = writeln!(out);
 

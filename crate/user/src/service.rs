@@ -1,10 +1,13 @@
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use bcrypt::verify;
 use scylla::client::session::Session;
 use stockbit_browser::ReadinessPoller;
+use tokio::sync::mpsc;
+use tokio::time::sleep;
+use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 
@@ -13,6 +16,11 @@ use crate::jwt;
 use crate::repository::UserRepository;
 use crate::user_server::User as UserRpc;
 use crate::{IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest, LoginResponse};
+
+/// Interval cek cache poller untuk stream subscriber (detik).
+const READY_STREAM_CHECK_SECS: u64 = 2;
+/// Kirim ulang status yang sama setiap N tick (~30s) agar koneksi tetap “hidup”.
+const READY_STREAM_HEARTBEAT_TICKS: u64 = 15;
 
 pub struct UserService {
     repo: UserRepository,
@@ -24,7 +32,7 @@ impl UserService {
         Self {
             repo: UserRepository::new(session),
             // Background poller: cek stockbit.com setiap 3600–7200s.
-            // RPC hanya membaca cache — tidak hit web langsung.
+            // RPC stream hanya membaca cache — tidak hit web langsung.
             readiness: ReadinessPoller::start(),
         }
     }
@@ -92,32 +100,64 @@ impl UserRpc for UserService {
         &self,
         request: Request<IsStockbitReadyRequest>,
     ) -> Result<Response<Self::IsStockbitReadyStream>, Status> {
-        let started = Instant::now();
         let claims = require_auth(&request)?;
-        let user_name = claims.name.trim();
-        if user_name.is_empty() {
+        let user_name = claims.name.clone();
+        if user_name.trim().is_empty() {
             return Err(Status::unauthenticated("nama user tidak ada di JWT"));
         }
 
-        // Ikuti pola pooling: jangan hit stockbit.com dari RPC.
-        let update = self.readiness.latest().await.unwrap_or_else(|| {
-            stockbit_browser::ReadinessUpdate {
-                ready: false,
-                message: "Menunggu pengecekan berkala ke stockbit.com (interval 3600–7200s)"
-                    .to_string(),
+        let readiness = Arc::clone(&self.readiness);
+        let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(8);
+
+        println!("IsStockbitReady {user_name}: stream dibuka (subscribe)");
+
+        tokio::spawn(async move {
+            let mut last: Option<(bool, String)> = None;
+            let mut ticks_since_send: u64 = 0;
+
+            loop {
+                let update = readiness.latest().await.unwrap_or_else(|| {
+                    stockbit_browser::ReadinessUpdate {
+                        ready: false,
+                        message: "Menunggu pengecekan berkala ke stockbit.com (interval 3600–7200s)"
+                            .to_string(),
+                    }
+                });
+
+                let key = (update.ready, update.message.clone());
+                let changed = last.as_ref() != Some(&key);
+                let first = last.is_none();
+                let heartbeat = ticks_since_send >= READY_STREAM_HEARTBEAT_TICKS;
+
+                if first || changed || heartbeat {
+                    if first || changed {
+                        println!(
+                            "IsStockbitReady {user_name}: push ready={} msg={:?}",
+                            update.ready, update.message
+                        );
+                    }
+
+                    let ok = tx
+                        .send(Ok(IsStockbitReadyResponse {
+                            ready: update.ready,
+                            message: update.message,
+                        }))
+                        .await
+                        .is_ok();
+                    if !ok {
+                        println!("IsStockbitReady {user_name}: client disconnect — stream ditutup");
+                        break;
+                    }
+                    last = Some(key);
+                    ticks_since_send = 0;
+                } else {
+                    ticks_since_send += 1;
+                }
+
+                sleep(Duration::from_secs(READY_STREAM_CHECK_SECS)).await;
             }
         });
 
-        let stream = tokio_stream::once(Ok(IsStockbitReadyResponse {
-            ready: update.ready,
-            message: update.message,
-        }));
-
-        println!(
-            "IsStockbitReady {user_name} {}ms (from poller cache)",
-            started.elapsed().as_millis()
-        );
-
-        Ok(Response::new(Box::pin(stream)))
+        Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 }

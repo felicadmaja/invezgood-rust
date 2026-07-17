@@ -1,5 +1,17 @@
 //! Model Scylla untuk tabel `stockbit.emiten_list` + UDT terkait
 //! (`emiten_shareholder_gt1`, `emiten_shareholder`, `company_profile`).
+//! Lihat `emiten_list.cql`.
+//!
+//! | Kolom CQL         | Tipe CQL | Rust |
+//! |-------------------|----------|------|
+//! | code_name (PK)    | text     | String |
+//! | long_name         | text     | String |
+//! | emiten_icon       | text     | String |
+//! | key_stats         | map\<text, text\> | HashMap\<String, String\> |
+//! | corporate_action  | list\<frozen\<map\<...\>\>\> | Vec\<HashMap\<...\>\> |
+//! | company_profile   | frozen\<company_profile\> | Option\<CompanyProfile\> |
+//! | update_at         | timestamp | Option\<DateTime\<Utc\>\> |
+//! | is_konglomerasi   | boolean  | bool (default false) |
 
 use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
@@ -136,12 +148,16 @@ pub struct EmitenList {
     #[scylla(default_when_null)]
     pub long_name: String,
     #[scylla(default_when_null)]
+    pub emiten_icon: String,
+    #[scylla(default_when_null)]
     pub key_stats: HashMap<String, String>,
     /// Bentuk: `[{"Dividend":[{"Dividend":"Rp 209"},{"Cum Date":"..."},...]}, ...]`
     #[scylla(default_when_null)]
     pub corporate_action: Vec<HashMap<String, Vec<HashMap<String, String>>>>,
     pub company_profile: Option<CompanyProfile>,
     pub update_at: Option<DateTime<Utc>>,
+    #[scylla(default_when_null)]
+    pub is_konglomerasi: bool,
 }
 
 impl EmitenList {
@@ -149,6 +165,7 @@ impl EmitenList {
         EmitenListRow {
             code_name: self.code_name,
             long_name: self.long_name,
+            emiten_icon: self.emiten_icon,
             key_stats: self.key_stats,
             corporate_action: corporate_action_to_proto(self.corporate_action),
             company_profile: self.company_profile.map(CompanyProfile::into_proto),
@@ -156,6 +173,7 @@ impl EmitenList {
                 .update_at
                 .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
+            is_konglomerasi: self.is_konglomerasi,
         }
     }
 }

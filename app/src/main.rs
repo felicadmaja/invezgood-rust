@@ -16,6 +16,8 @@ use emiten_list::emiten_list_server::EmitenListServer;
 use emiten_list::EmitenListService;
 use emiten_trending::emiten_trending_server::EmitenTrendingServer;
 use emiten_trending::EmitenTrendingService;
+use gcs::gcs_server::GcsServer;
+use gcs::GcsGrpcService;
 use portofolio::portofolio_server::PortofolioServer;
 use portofolio::PortofolioService;
 use tonic_reflection::server::Builder as ReflectionBuilder;
@@ -44,6 +46,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let emiten_trending_svc = EmitenTrendingService::new(session.clone());
     let bandarmology_svc = BandarmologyService::new(session.clone());
     let emiten_list_svc = EmitenListService::new(session);
+    let gcs_svc = GcsGrpcService::from_env()
+        .map_err(|e| format!("GCS env: {e}"))?;
 
     // Semua warm_prepared harus selesai di sini — sebelum router.serve.
     // Binary utama wajib gagal startup bila warm/prepare gagal.
@@ -68,6 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         BandarmologyServer::with_interceptor(bandarmology_svc, AuthInterceptor);
     let emiten_list_svc =
         EmitenListServer::with_interceptor(emiten_list_svc, AuthInterceptor);
+    let gcs_svc = GcsServer::with_interceptor(gcs_svc, AuthInterceptor);
 
     let reflection_svc = ReflectionBuilder::configure()
         .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
@@ -75,6 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .register_encoded_file_descriptor_set(emiten_trending::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(bandarmology::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(emiten_list::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(gcs::FILE_DESCRIPTOR_SET)
         .build_v1()
         .map_err(|e| format!("reflection: {e}"))?;
 
@@ -97,6 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(emiten_trending_svc)
         .add_service(bandarmology_svc)
         .add_service(emiten_list_svc)
+        .add_service(gcs_svc)
         .add_service(reflection_svc)
         .serve_with_shutdown(addr, grpc_shutdown_signal())
         .await?;

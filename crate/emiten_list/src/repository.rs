@@ -36,8 +36,8 @@ impl EmitenListRepository {
     async fn prepared(&self) -> Result<&Prepared, Box<dyn std::error::Error + Send + Sync>> {
         self.prepared
             .get_or_try_init(|| async {
-                const COLUMNS: &str = "code_name, long_name, key_stats, corporate_action, \
-                     company_profile, update_at";
+                const COLUMNS: &str = "code_name, long_name, emiten_icon, key_stats, corporate_action, \
+                     company_profile, update_at, is_konglomerasi";
                 let q = format!(
                     "SELECT {COLUMNS} FROM {} \
                      WHERE token(code_name) >= ? AND token(code_name) <= ?",

@@ -41,7 +41,8 @@ impl EmitenTrendingRepository {
                 );
                 let base_q = format!(
                     "SELECT agg_tahun_bulan_tanggal_emiten_name, tahun_bulan_tanggal, \
-                     gainer_or_loser, emiten_name, price, price_change, value, volume \
+                     gainer_or_loser, emiten_name, emiten_icon, price, price_change, value, volume, \
+                     freq, updated_at \
                      FROM {} WHERE agg_tahun_bulan_tanggal_emiten_name = ?",
                     self.base_table
                 );

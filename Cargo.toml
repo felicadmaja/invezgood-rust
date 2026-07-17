@@ -5,6 +5,7 @@ members = [
     "crate/create_database",
     "crate/emiten_list",
     "crate/emiten_trending",
+    "crate/gcs",
     "crate/portofolio",
     "crate/stockbit_browser",
     "crate/tls",

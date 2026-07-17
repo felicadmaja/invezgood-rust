@@ -7,11 +7,13 @@
 //! Kolom tabel:
 //! - `code_name` text — partition key
 //! - `long_name` text
+//! - `emiten_icon` text — path object GCS (`stoksaham/icon/{CODE}.ext`)
 //! - `key_stats` map<text, text>
 //! - `corporate_action` list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>> —
 //!   aksi korporasi: `[{"Dividend":[{"Dividend":"Rp 209"},{"Cum Date":"..."},...]}, ...]`
 //! - `company_profile` frozen<company_profile> — profil perusahaan (UDT)
 //! - `update_at` timestamp — waktu terakhir data diperbarui
+//! - `is_konglomerasi` boolean — default false (aplikasi)
 //!
 //! Env: `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
 //! Di akhir sukses: ringkasan skema ke stderr dan ke **`crate/emiten_list/src/emiten_list.cql`**.
@@ -28,10 +30,12 @@ const UDT_COMPANY_PROFILE: &str = "company_profile";
 const EMITEN_LIST_COLUMNS: &[&str] = &[
     "code_name",
     "long_name",
+    "emiten_icon",
     "key_stats",
     "corporate_action",
     "company_profile",
     "update_at",
+    "is_konglomerasi",
 ];
 
 fn emiten_list_cql_output_path() -> std::path::PathBuf {
@@ -44,6 +48,7 @@ fn emiten_scylla_type(col: &str) -> &'static str {
         "corporate_action" => "list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>>",
         "company_profile" => "frozen<company_profile>",
         "update_at" => "timestamp",
+        "is_konglomerasi" => "boolean",
         _ => "text",
     }
 }
@@ -104,10 +109,12 @@ fn ddl_create_table(keyspace: &str) -> String {
         "CREATE TABLE IF NOT EXISTS {}.{} (\
             \"code_name\" text, \
             \"long_name\" text, \
+            \"emiten_icon\" text, \
             \"key_stats\" map<text, text>, \
             \"corporate_action\" list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>>, \
             \"company_profile\" frozen<{}>, \
             \"update_at\" timestamp, \
+            \"is_konglomerasi\" boolean, \
             PRIMARY KEY ((\"code_name\"))\
         )",
         keyspace, TABLE, UDT_COMPANY_PROFILE
@@ -194,6 +201,10 @@ fn format_emiten_list_schema_summary(keyspace: &str) -> String {
     );
     let _ = writeln!(
         out,
+        "Kolom \"emiten_icon\": text — path object GCS modul stoksaham (mis. stoksaham/icon/BBCA.png)."
+    );
+    let _ = writeln!(
+        out,
         "Kolom \"key_stats\": map<text, text> — statistik kunci emiten (pasangan key-value); \
          contoh dari UI Key Stats: \"Market Cap\", \"Enterprise Value\", \
          \"Current Share Outstanding\", \"Free Float\", \
@@ -217,6 +228,10 @@ fn format_emiten_list_schema_summary(keyspace: &str) -> String {
     let _ = writeln!(
         out,
         "Kolom \"update_at\": timestamp — waktu terakhir data emiten diperbarui."
+    );
+    let _ = writeln!(
+        out,
+        "Kolom \"is_konglomerasi\": boolean — true bila emiten termasuk konglomerasi; default false."
     );
     let _ = writeln!(out);
 

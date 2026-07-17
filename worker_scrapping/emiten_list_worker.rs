@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Local, Utc};
 use chromiumoxide::page::Page;
 use rand::Rng;
 use scylla::client::session::Session;
@@ -66,6 +66,14 @@ fn format_elapsed(started: Instant) -> String {
 #[derive(Debug, DeserializeRow)]
 struct EmitenUpdateAtRow {
     update_at: Option<DateTime<Utc>>,
+    #[scylla(default_when_null)]
+    emiten_icon: String,
+}
+
+#[derive(Debug, DeserializeRow)]
+struct EmitenIconRow {
+    #[scylla(default_when_null)]
+    emiten_icon: String,
 }
 
 async fn wait_for_selector(
@@ -744,16 +752,18 @@ async fn upsert_emiten_list(
     keyspace: &str,
     code_name: &str,
     long_name: &str,
+    emiten_icon: &str,
     key_stats: &HashMap<String, String>,
     corporate_action: &CorporateAction,
     company_profile: &CompanyProfile,
     update_at: DateTime<Utc>,
+    is_konglomerasi: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.emiten_list (\
-                code_name, long_name, key_stats, corporate_action, company_profile, update_at\
-            ) VALUES (?, ?, ?, ?, ?, ?)"
+                code_name, long_name, emiten_icon, key_stats, corporate_action, company_profile, update_at, is_konglomerasi\
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
@@ -763,10 +773,12 @@ async fn upsert_emiten_list(
             (
                 code_name,
                 long_name,
+                emiten_icon,
                 key_stats,
                 corporate_action,
                 company_profile,
                 update_at,
+                is_konglomerasi,
             ),
         )
         .await?;
@@ -781,7 +793,7 @@ async fn is_update_at_fresh(
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let q = session
         .prepare(format!(
-            "SELECT update_at FROM {keyspace}.emiten_list WHERE code_name = ?"
+            "SELECT update_at, emiten_icon FROM {keyspace}.emiten_list WHERE code_name = ?"
         ))
         .await?;
     let result = session
@@ -789,14 +801,40 @@ async fn is_update_at_fresh(
         .await?
         .into_rows_result()?;
 
-    let Some(EmitenUpdateAtRow { update_at: Some(ts) }) =
+    let Some(EmitenUpdateAtRow {
+        update_at: Some(ts),
+        emiten_icon,
+    }) =
         result.maybe_first_row::<EmitenUpdateAtRow>()?
     else {
         return Ok(false);
     };
 
     let age = Utc::now().signed_duration_since(ts);
-    Ok(age < ChronoDuration::days(UPDATE_AT_FRESH_DAYS))
+    Ok(age < ChronoDuration::days(UPDATE_AT_FRESH_DAYS) && !emiten_icon.trim().is_empty())
+}
+
+async fn fetch_emiten_icon_from_trending(
+    session: &Session,
+    keyspace: &str,
+    code_name: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let today = Local::now().date_naive();
+    let agg = format!("{}_{}", today.format("%Y-%m-%d"), code_name);
+    let q = session
+        .prepare(format!(
+            "SELECT emiten_icon FROM {keyspace}.emiten_trending \
+             WHERE agg_tahun_bulan_tanggal_emiten_name = ?"
+        ))
+        .await?;
+    let result = session
+        .execute_unpaged(&q, (agg.as_str(),))
+        .await?
+        .into_rows_result()?;
+    Ok(result
+        .maybe_first_row::<EmitenIconRow>()?
+        .map(|row| row.emiten_icon)
+        .unwrap_or_default())
 }
 
 /// Returns `Ok(true)` bila diinsert, `Ok(false)` bila di-skip (update_at masih < 30 hari).
@@ -867,15 +905,19 @@ async fn scrape_one_emiten(
         return Err(format!("Profile {code}: Company Background kosong").into());
     }
 
+    let emiten_icon = fetch_emiten_icon_from_trending(session, keyspace, &code).await?;
+
     upsert_emiten_list(
         session,
         keyspace,
         &code,
         long_name,
+        &emiten_icon,
         &key_stats,
         &corporate_action,
         &company_profile,
         Utc::now(),
+        false,
     )
     .await?;
 

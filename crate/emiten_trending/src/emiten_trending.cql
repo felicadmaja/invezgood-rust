@@ -10,11 +10,17 @@ Kolom dan tipe CQL:
   "tahun_bulan_tanggal" date
   "gainer_or_loser" text
   "emiten_name" text
+  "emiten_icon" text
   "price" double
   "price_change" double
   "value" text
   "volume" text
+  "freq" text
+  "updated_at" timestamp
 Kolom "agg_tahun_bulan_tanggal_emiten_name": text — diisi aplikasi sebagai concat(tahun_bulan_tanggal, '_', emiten_name), contoh "2026-07-16_BBCA".
+Kolom "updated_at": timestamp — waktu terakhir baris di-upsert.
+Kolom "emiten_icon": text — path object GCS modul stoksaham (hasil upload icon Movers).
+Kolom "freq": text — frekuensi transaksi dari kolom Freq tabel Movers Stockbit.
 
 --- Materialized view (MV) ---
 (1) "stockbit"."emiten_trending_by_emiten_name"

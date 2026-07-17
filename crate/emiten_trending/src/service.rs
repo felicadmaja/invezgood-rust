@@ -1,30 +1,47 @@
+use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use chrono::NaiveDate;
+use chrono::{Local, NaiveDate};
+use rand::Rng;
 use scylla::client::session::Session;
+use tokio::sync::mpsc;
+use tokio::time::sleep;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 use user::require_auth;
 
 use crate::emiten_trending_server::EmitenTrending as EmitenTrendingRpc;
 use crate::model::EmitenTrending;
 use crate::repository::EmitenTrendingRepository;
-use crate::{EmitenTrendingRow, GetAllEmitenTrendingRequest, GetAllEmitenTrendingResponse};
+use crate::{
+    EmitenTrendingRow, GetAllEmitenTrendingRequest, GetAllEmitenTrendingResponse,
+    GetLatestEmitenTrendingFromStockbitRequest,
+};
+
+/// Interval poll Stockbit untuk stream `GetLatestEmitenTrendingFromStockbit` (detik).
+const STOCKBIT_POLL_MIN_SECS: u64 = 10 * 60; // 10 menit
+const STOCKBIT_POLL_MAX_SECS: u64 = 15 * 60; // 15 menit
 
 pub struct EmitenTrendingService {
-    repo: EmitenTrendingRepository,
+    repo: Arc<EmitenTrendingRepository>,
 }
 
 impl EmitenTrendingService {
     pub fn new(session: Arc<Session>) -> Self {
         Self {
-            repo: EmitenTrendingRepository::new(session),
+            repo: Arc::new(EmitenTrendingRepository::new(session)),
         }
     }
 
     pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.repo.warm_prepared().await
     }
+}
+
+fn next_stockbit_poll_secs() -> u64 {
+    rand::thread_rng().gen_range(STOCKBIT_POLL_MIN_SECS..=STOCKBIT_POLL_MAX_SECS)
 }
 
 #[tonic::async_trait]
@@ -67,5 +84,64 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         Ok(Response::new(GetAllEmitenTrendingResponse {
             rows: proto_rows,
         }))
+    }
+
+    type GetLatestEmitenTrendingFromStockbitStream =
+        Pin<Box<dyn Stream<Item = Result<GetAllEmitenTrendingResponse, Status>> + Send>>;
+
+    async fn get_latest_emiten_trending_from_stockbit(
+        &self,
+        request: Request<GetLatestEmitenTrendingFromStockbitRequest>,
+    ) -> Result<Response<Self::GetLatestEmitenTrendingFromStockbitStream>, Status> {
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let _ = request.into_inner();
+        let repo = Arc::clone(&self.repo);
+
+        let (tx, rx) = mpsc::channel::<Result<GetAllEmitenTrendingResponse, Status>>(4);
+
+        tokio::spawn(async move {
+            let mut cycle: u64 = 0;
+            loop {
+                cycle += 1;
+                let started = Instant::now();
+
+                // TODO: scrape Stockbit (movers → emiten_trending → emiten_list → bandarmology)
+                // seperti `worker_scrapping/stockbit_scrapper_worker.rs`, lalu baca hasilnya.
+                // Sementara: kirim snapshot hari ini dari Scylla agar stream tetap hidup.
+                let today = Local::now().date_naive();
+                let payload = match repo.get_all_by_date(today).await {
+                    Ok(rows) => GetAllEmitenTrendingResponse {
+                        rows: rows.into_iter().map(EmitenTrending::into_proto).collect(),
+                    },
+                    Err(e) => {
+                        let _ = tx
+                            .send(Err(Status::internal(format!("Scylla query failed: {e}"))))
+                            .await;
+                        break;
+                    }
+                };
+
+                let n = payload.rows.len();
+                println!(
+                    "GetLatestEmitenTrendingFromStockbit {username} cycle={cycle} rows={n} {}ms",
+                    started.elapsed().as_millis()
+                );
+
+                if tx.send(Ok(payload)).await.is_err() {
+                    // Client disconnect — hentikan poll.
+                    break;
+                }
+
+                let wait_secs = next_stockbit_poll_secs();
+                println!(
+                    "GetLatestEmitenTrendingFromStockbit {username}: poll berikutnya dalam {wait_secs}s (10–15 menit)"
+                );
+                sleep(Duration::from_secs(wait_secs)).await;
+            }
+        });
+
+        let stream = ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(stream)))
     }
 }

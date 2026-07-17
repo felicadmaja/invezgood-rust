@@ -7,6 +7,8 @@
 //! jendela cek di `/stream`; default 5 untuk worker), `STOCKBIT_BROWSER_DATA_DIR`,
 //! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 3600–7200 —
 //! interval background poller untuk `IsStockbitReady`).
+//!
+//! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
 
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::page::Page;
@@ -21,6 +23,10 @@ use tokio::time::sleep;
 /// Interval default antar pengecekan web Stockbit (detik).
 pub const READY_POLL_MIN_SECS: u64 = 3600;
 pub const READY_POLL_MAX_SECS: u64 = 7200;
+
+/// Jeda acak antar retry login bila sesi habis / login gagal (detik).
+pub const LOGIN_RETRY_MIN_SECS: u64 = 10;
+pub const LOGIN_RETRY_MAX_SECS: u64 = 30;
 
 pub const STOCKBIT_STREAM_URL: &str = "https://stockbit.com/stream";
 pub const STOCKBIT_LOGIN_URL: &str = "https://stockbit.com/login";
@@ -561,6 +567,37 @@ async fn login_and_return_to_stream(
     Ok(())
 }
 
+/// Login ulang; bila gagal, retry terus dengan jeda acak 10–30 detik.
+async fn login_and_return_to_stream_with_retry(
+    page: &Page,
+    email: &str,
+    password: &str,
+    tx: &mpsc::Sender<ReadinessUpdate>,
+) -> Result<(), StockbitError> {
+    let mut attempt: u32 = 0;
+    loop {
+        attempt += 1;
+        match login_and_return_to_stream(page, email, password).await {
+            Ok(()) => {
+                if attempt > 1 {
+                    println!("Stockbit readiness: login berhasil setelah {attempt} percobaan");
+                }
+                return Ok(());
+            }
+            Err(e) => {
+                let wait_secs =
+                    rand::thread_rng().gen_range(LOGIN_RETRY_MIN_SECS..=LOGIN_RETRY_MAX_SECS);
+                let msg = format!(
+                    "Login gagal (percobaan {attempt}): {e}; retry dalam {wait_secs}s"
+                );
+                eprintln!("Stockbit readiness: {msg}");
+                send_update(tx, false, &msg).await;
+                sleep(Duration::from_secs(wait_secs)).await;
+            }
+        }
+    }
+}
+
 async fn send_update(tx: &mpsc::Sender<ReadinessUpdate>, ready: bool, message: &str) {
     let _ = tx
         .send(ReadinessUpdate {
@@ -624,18 +661,32 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
     }
 
     if need_login {
+        if email.trim().is_empty() || password.is_empty() {
+            return Err(
+                "Sesi Stockbit habis / perlu login, tapi STOCKBIT_EMAIL / STOCKBIT_PASSWORD kosong"
+                    .into(),
+            );
+        }
         if session_expired {
-            send_update(&tx, false, "Session expired").await;
+            send_update(&tx, false, "Session expired — login ulang").await;
+        } else {
+            send_update(&tx, false, "not authenticated — login ulang").await;
         }
         send_update(&tx, false, "Sedang login stockbit.com").await;
-        login_and_return_to_stream(&page, &email, &password).await?;
+        login_and_return_to_stream_with_retry(&page, &email, &password, &tx).await?;
     } else if !is_stream_url(&url) {
         goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
         sleep(Duration::from_secs(1)).await;
         let again = page.url().await?.unwrap_or_default();
         if is_login_url(&again) || has_login_form(&page).await {
+            if email.trim().is_empty() || password.is_empty() {
+                return Err(
+                    "Perlu login stockbit.com, tapi STOCKBIT_EMAIL / STOCKBIT_PASSWORD kosong"
+                        .into(),
+                );
+            }
             send_update(&tx, false, "Sedang login stockbit.com").await;
-            login_and_return_to_stream(&page, &email, &password).await?;
+            login_and_return_to_stream_with_retry(&page, &email, &password, &tx).await?;
         }
     }
 

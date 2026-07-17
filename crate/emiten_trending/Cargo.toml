@@ -7,10 +7,12 @@ edition = "2021"
 path = "src/lib.rs"
 
 [dependencies]
-chrono = { version = "0.4", default-features = false, features = ["std"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 prost = { version = "0.13", features = ["std", "derive"] }
+rand = "0.8"
 scylla = { version = "1.5", features = ["chrono-04"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync"] }
+tokio-stream = "0.1"
 tonic = { version = "0.12", features = ["transport"] }
 user = { path = "../user" }
 

@@ -9,7 +9,10 @@ service User {
   rpc Login(LoginRequest) returns (LoginResponse);
 
   // Status kesiapan sesi Stockbit dari background poller (cek web setiap 3600–7200s).
-  // RPC tidak hit stockbit.com langsung — hanya mengembalikan hasil pooling terakhir.
+  // Client cukup subscribe 1x — stream tetap terbuka; server push saat status berubah
+  // (dan heartbeat berkala). RPC tidak hit stockbit.com langsung.
+  // Jika poller mendeteksi sesi habis: login ulang otomatis; bila gagal, retry
+  // dengan jeda acak 10–30 detik sampai berhasil.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
 
