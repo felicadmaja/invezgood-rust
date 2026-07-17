@@ -104,7 +104,7 @@ async fn click_mover_tab(page: &Page, label: &str) -> Result<(), Box<dyn std::er
     Err(format!("Elemen '{label}' tidak ditemukan").into())
 }
 
-/// Scrape tabel movers di `#movers-table-wrapper` (Symbol / Price / Value / Volume).
+/// Scrape tabel movers di `#movers-table-wrapper` (Symbol / Price / Value / Volume / Freq).
 async fn scrape_movers_table(page: &Page) -> Result<Vec<MoversRow>, Box<dyn std::error::Error>> {
     // Tunggu sampai ada baris tbody di tabel movers.
     for _ in 0..20 {
@@ -148,20 +148,43 @@ async fn scrape_movers_table(page: &Page) -> Result<Vec<MoversRow>, Box<dyn std:
 
                 const table = document.querySelector('#movers-table-wrapper table');
                 if (!table) return '[]';
+
+                // Map header → index (termasuk Freq) agar tidak bergantung urutan tetap.
+                const headerCells = Array.from(table.querySelectorAll('thead th, thead td'));
+                const headerIndex = {};
+                headerCells.forEach((th, i) => {
+                    const label = (th.innerText || th.textContent || '').trim().toLowerCase();
+                    if (!label) return;
+                    if (label.includes('freq') || label.includes('frequency')) headerIndex.freq = i;
+                    else if (label.includes('volume') || label === 'vol') headerIndex.volume = i;
+                    else if (label.includes('value') || label === 'val') headerIndex.value = i;
+                    else if (label.includes('price') || label.includes('last') || label === 'chg') {
+                        if (headerIndex.price == null) headerIndex.price = i;
+                    } else if (label.includes('symbol') || label.includes('code')) {
+                        headerIndex.symbol = i;
+                    }
+                });
+
                 const rows = Array.from(table.querySelectorAll('tbody tr'));
                 const out = rows.map((tr) => {
                     const tds = Array.from(tr.querySelectorAll('td'));
-                    // Lewati kolom gap kosong: symbol, price, value, volume, freq, ...
-                    const cells = tds.filter((td) => {
-                        const text = (td.innerText || '').trim();
-                        return !!text;
-                    });
+                    // Fallback: lewati kolom gap kosong → symbol, price, value, volume, freq.
+                    const filled = tds.filter((td) => !!(td.innerText || '').trim());
+
+                    const cellAt = (key, fallbackFilledIdx) => {
+                        if (headerIndex[key] != null && tds[headerIndex[key]]) {
+                            return tds[headerIndex[key]];
+                        }
+                        return filled[fallbackFilledIdx] || null;
+                    };
+
                     const symbolEl = tr.querySelector('.symbol span[style*="font-weight"], .symbol span');
                     let symbol = symbolEl
                         ? (symbolEl.innerText || '').trim().split(/\s+/)[0]
                         : '';
-                    if (!symbol && cells[0]) {
-                        symbol = (cells[0].innerText || '').trim().split(/\s+/)[0];
+                    const symbolCell = cellAt('symbol', 0);
+                    if (!symbol && symbolCell) {
+                        symbol = (symbolCell.innerText || '').trim().split(/\s+/)[0];
                     }
                     const iconEl = tr.querySelector(
                         '.symbol img, td:first-child img, img'
@@ -169,10 +192,13 @@ async fn scrape_movers_table(page: &Page) -> Result<Vec<MoversRow>, Box<dyn std:
                     const emiten_icon = iconEl
                         ? (iconEl.currentSrc || iconEl.getAttribute('src') || '').trim()
                         : '';
-                    const { price, price_change } = parsePriceCell(cells[1] || null);
-                    const value = cells[2] ? (cells[2].innerText || '').trim() : '';
-                    const volume = cells[3] ? (cells[3].innerText || '').trim() : '';
-                    const freq = cells[4] ? (cells[4].innerText || '').trim() : '';
+                    const { price, price_change } = parsePriceCell(cellAt('price', 1));
+                    const valueCell = cellAt('value', 2);
+                    const volumeCell = cellAt('volume', 3);
+                    const freqCell = cellAt('freq', 4);
+                    const value = valueCell ? (valueCell.innerText || '').trim() : '';
+                    const volume = volumeCell ? (volumeCell.innerText || '').trim() : '';
+                    const freq = freqCell ? (freqCell.innerText || '').trim() : '';
                     return { symbol, emiten_icon, price, price_change, value, volume, freq };
                 }).filter((r) => r.symbol);
                 return JSON.stringify(out);
