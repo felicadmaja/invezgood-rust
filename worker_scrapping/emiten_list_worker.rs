@@ -1066,7 +1066,7 @@ pub async fn scrape_and_insert_key_stats(
             }
         };
         if scraped && index < total {
-            let wait_secs = rand::thread_rng().gen_range(1u64..=10);
+            let wait_secs = rand::thread_rng().gen_range(1u64..=5);
             let wait_ms = wait_secs * 1000;
             println!(
                 "Key Stats: jeda {wait_ms}ms ({wait_secs}s) sebelum emiten berikutnya..."
