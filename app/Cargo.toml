@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 dotenvy = "0.15"
+bandarmology = { path = "../crate/bandarmology" }
 emiten_trending = { path = "../crate/emiten_trending" }
 portofolio = { path = "../crate/portofolio" }
 tls = { path = "../crate/tls" }

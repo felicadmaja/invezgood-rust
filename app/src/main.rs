@@ -10,6 +10,8 @@
 //! TLS (opsional): `USE_TLS=true`, `TLS_CERT_DIR` (default folder certificate mrgs),
 //! `TLS_CERT_FILE`, `TLS_KEY_FILE`.
 
+use bandarmology::bandarmology_server::BandarmologyServer;
+use bandarmology::BandarmologyService;
 use emiten_trending::emiten_trending_server::EmitenTrendingServer;
 use emiten_trending::EmitenTrendingService;
 use portofolio::portofolio_server::PortofolioServer;
@@ -37,7 +39,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let user_svc = UserService::new(session.clone());
     let portofolio_svc = PortofolioService::new(session.clone());
-    let emiten_trending_svc = EmitenTrendingService::new(session);
+    let emiten_trending_svc = EmitenTrendingService::new(session.clone());
+    let bandarmology_svc = BandarmologyService::new(session);
 
     // Semua warm_prepared harus selesai di sini — sebelum router.serve.
     // Binary utama wajib gagal startup bila warm/prepare gagal.
@@ -45,20 +48,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         user_svc.warm_prepared(),
         portofolio_svc.warm_prepared(),
         emiten_trending_svc.warm_prepared(),
+        bandarmology_svc.warm_prepared(),
     )
     .map_err(|e| format!("Gagal memanaskan statement database: {e}"))?;
-    println!("OK: prepared statements siap (user, portofolio, emiten_trending)");
+    println!("OK: prepared statements siap (user, portofolio, emiten_trending, bandarmology)");
 
     let user_svc = UserServer::new(user_svc);
     let portofolio_svc =
         PortofolioServer::with_interceptor(portofolio_svc, AuthInterceptor);
     let emiten_trending_svc =
         EmitenTrendingServer::with_interceptor(emiten_trending_svc, AuthInterceptor);
+    let bandarmology_svc =
+        BandarmologyServer::with_interceptor(bandarmology_svc, AuthInterceptor);
 
     let reflection_svc = ReflectionBuilder::configure()
         .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(portofolio::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(emiten_trending::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(bandarmology::FILE_DESCRIPTOR_SET)
         .build_v1()
         .map_err(|e| format!("reflection: {e}"))?;
 
@@ -79,6 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(user_svc)
         .add_service(portofolio_svc)
         .add_service(emiten_trending_svc)
+        .add_service(bandarmology_svc)
         .add_service(reflection_svc)
         .serve_with_shutdown(addr, grpc_shutdown_signal())
         .await?;

@@ -18,7 +18,7 @@
 //! - `percentage` double
 //!
 //! Env: `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
-//! Di akhir sukses: ringkasan skema ke stderr dan ke **`src/portofolio.cql`**.
+//! Di akhir sukses: ringkasan skema ke stderr dan ke **`crate/portofolio/src/portofolio.cql`**.
 
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
@@ -40,7 +40,8 @@ const PORTOFOLIO_COLUMNS: &[&str] = &[
 ];
 
 fn portofolio_cql_output_path() -> std::path::PathBuf {
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/portofolio.cql")
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../portofolio/src/portofolio.cql")
 }
 
 fn portofolio_scylla_type(col: &str) -> &'static str {

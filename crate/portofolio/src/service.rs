@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
@@ -31,11 +32,9 @@ impl PortofolioRpc for PortofolioService {
         &self,
         request: Request<GetAllPortofolioRequest>,
     ) -> Result<Response<GetAllPortofolioResponse>, Status> {
+        let started = Instant::now();
         let claims = require_auth(&request)?;
-        eprintln!(
-            "GetAllPortofolio oleh user={} email={}",
-            claims.name, claims.email
-        );
+        let username = claims.name.clone();
 
         let rows: Vec<Portofolio> = self
             .repo
@@ -44,6 +43,12 @@ impl PortofolioRpc for PortofolioService {
             .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
 
         let proto_rows: Vec<PortofolioRow> = rows.into_iter().map(Portofolio::into_proto).collect();
+
+        println!(
+            "GetAllPortofolio {} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
 
         Ok(Response::new(GetAllPortofolioResponse {
             rows: proto_rows,

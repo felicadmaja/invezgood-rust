@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "app",
+    "crate/bandarmology",
     "crate/create_database",
     "crate/emiten_trending",
     "crate/portofolio",

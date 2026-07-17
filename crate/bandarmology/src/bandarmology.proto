@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package bandarmology;
+
+service Bandarmology {
+  // Lookup baris bandarmology via PK:
+  // agg_tahun_bulan_tanggal_emiten_name = tahun_bulan_tanggal + '_' + kode_emiten
+  rpc GetBandarmology(GetBandarmologyRequest) returns (GetBandarmologyResponse);
+}
+
+message GetBandarmologyRequest {
+  // Format YYYY-MM-DD, contoh "2026-07-16".
+  string tahun_bulan_tanggal = 1;
+  // Kode emiten / ticker, contoh "BBCA".
+  string kode_emiten = 2;
+}
+
+message BandarmologyTopStats {
+  int64 volume = 1;
+  double percent = 2;
+  int64 rp_b = 3;
+  string acc_dist = 4;
+}
+
+message BandarmologyBrokerBuy {
+  string broker_code = 1;
+  string buy_volume = 2;
+  string buy_lot = 3;
+  int64 buy_avg = 4;
+}
+
+message BandarmologyBrokerSell {
+  string broker_code = 1;
+  string sell_volume = 2;
+  string sell_lot = 3;
+  int64 sell_avg = 4;
+}
+
+message BandarmologyDay {
+  BandarmologyTopStats top_1 = 1;
+  BandarmologyTopStats top_3 = 2;
+  BandarmologyTopStats top_5 = 3;
+  BandarmologyTopStats average = 4;
+  int64 net_volume = 5;
+  string net_value = 6;
+  int64 average_rp = 7;
+  repeated BandarmologyBrokerBuy broker_buy = 8;
+  repeated BandarmologyBrokerSell broker_sell = 9;
+}
+
+message BandarmologyRow {
+  string agg_tahun_bulan_tanggal_emiten_name = 1;
+  string emiten_name = 2;
+  string tahun_bulan_tanggal = 3;
+  BandarmologyDay d_1 = 4;
+  BandarmologyDay d_2 = 5;
+  BandarmologyDay d_7 = 6;
+  BandarmologyDay m_1 = 7;
+  BandarmologyDay m_3 = 8;
+  BandarmologyDay m_6 = 9;
+  BandarmologyDay m_12 = 10;
+}
+
+message GetBandarmologyResponse {
+  BandarmologyRow row = 1;
+}

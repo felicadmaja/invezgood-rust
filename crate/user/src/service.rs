@@ -1,5 +1,6 @@
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Instant;
 
 use bcrypt::verify;
 use scylla::client::session::Session;
@@ -34,6 +35,7 @@ impl UserRpc for UserService {
         &self,
         request: Request<LoginRequest>,
     ) -> Result<Response<LoginResponse>, Status> {
+        let started = Instant::now();
         let req = request.into_inner();
         let email = req.email.trim().to_lowercase();
         let password = req.password;
@@ -62,6 +64,12 @@ impl UserRpc for UserService {
         let (access_token, expires_in) = jwt::encode_token(&user.id, &user.email, &user.name)
             .map_err(|e| Status::internal(format!("JWT encode gagal: {e}")))?;
 
+        println!(
+            "Login {} {}ms",
+            user.name,
+            started.elapsed().as_millis()
+        );
+
         Ok(Response::new(LoginResponse {
             access_token,
             expires_in,
@@ -78,6 +86,7 @@ impl UserRpc for UserService {
         &self,
         _request: Request<IsStockbitReadyRequest>,
     ) -> Result<Response<Self::IsStockbitReadyStream>, Status> {
+        let started = Instant::now();
         let (tx, rx) = tokio::sync::mpsc::channel(8);
 
         tokio::spawn(async move {
@@ -98,6 +107,11 @@ impl UserRpc for UserService {
                 message: update.message,
             })
         });
+
+        println!(
+            "IsStockbitReady anonymous {}ms",
+            started.elapsed().as_millis()
+        );
 
         Ok(Response::new(Box::pin(stream)))
     }

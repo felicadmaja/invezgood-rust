@@ -151,6 +151,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "bandarmology"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "scylla",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
+]
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1846,6 +1861,7 @@ dependencies = [
 name = "stockbit_ws"
 version = "0.1.0"
 dependencies = [
+ "bandarmology",
  "dotenvy",
  "emiten_trending",
  "portofolio",

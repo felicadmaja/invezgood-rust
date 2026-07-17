@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use chrono::NaiveDate;
 use scylla::client::session::Session;
@@ -32,7 +33,9 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         &self,
         request: Request<GetAllEmitenTrendingRequest>,
     ) -> Result<Response<GetAllEmitenTrendingResponse>, Status> {
+        let started = Instant::now();
         let claims = require_auth(&request)?;
+        let username = claims.name.clone();
         let req = request.into_inner();
         let date_str = req.tahun_bulan_tanggal.trim();
 
@@ -46,11 +49,6 @@ impl EmitenTrendingRpc for EmitenTrendingService {
             Status::invalid_argument("tahun_bulan_tanggal harus format YYYY-MM-DD")
         })?;
 
-        eprintln!(
-            "GetAllEmitenTrending oleh user={} email={} date={date_str}",
-            claims.name, claims.email
-        );
-
         let rows: Vec<EmitenTrending> = self
             .repo
             .get_all_by_date(date)
@@ -59,6 +57,12 @@ impl EmitenTrendingRpc for EmitenTrendingService {
 
         let proto_rows: Vec<EmitenTrendingRow> =
             rows.into_iter().map(EmitenTrending::into_proto).collect();
+
+        println!(
+            "GetAllEmitenTrending {} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
 
         Ok(Response::new(GetAllEmitenTrendingResponse {
             rows: proto_rows,
