@@ -166,15 +166,57 @@ async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error:
                     const cards = Array.from(
                         document.querySelectorAll('[data-cy="card-title"]')
                     );
-                    return cards.some((card) => {
+                    const titleOf = (card) => {
                         const title = card.querySelector('.ant-card-head-title p');
-                        const t = title
+                        return title
                             ? (title.innerText || title.textContent || '').trim()
                             : '';
-                        if (t !== 'Current Valuation') return false;
-                        // Pastikan baris tabel valuasi sudah ter-render.
-                        return card.querySelectorAll('tbody tr').length > 0;
-                    });
+                    };
+                    const labelsOf = (root) => Array.from(
+                        root.querySelectorAll('tbody tr.ant-table-row td:first-child p')
+                    ).map((p) => (p.innerText || p.textContent || '').trim());
+                    const hasAll = (labels, required) =>
+                        required.every((r) => labels.some((l) => l === r || l.includes(r)));
+
+                    const valuation = cards.find((c) => titleOf(c) === 'Current Valuation');
+                    const profitability = cards.find((c) => titleOf(c) === 'Profitability');
+                    const income = cards.find((c) => titleOf(c) === 'Income Statement');
+                    const solvency = cards.find((c) => titleOf(c) === 'Solvency');
+                    if (!valuation || valuation.querySelectorAll('tbody tr').length === 0) {
+                        return false;
+                    }
+                    if (!profitability || !income || !solvency) return false;
+
+                    const profitOk = hasAll(labelsOf(profitability), [
+                        'Gross Profit Margin',
+                        'Operating Profit Margin',
+                        'Net Profit Margin',
+                    ]);
+                    const incomeOk = hasAll(labelsOf(income), [
+                        'Revenue (TTM)',
+                        'Gross Profit (TTM)',
+                        'EBITDA (TTM)',
+                        'Net Income (TTM)',
+                    ]);
+                    const solvencyOk = hasAll(labelsOf(solvency), [
+                        'Current Ratio (Quarter)',
+                        'Quick Ratio (Quarter)',
+                        'Debt to Equity Ratio (Quarter)',
+                        'LT Debt/Equity (Quarter)',
+                        'Total Liabilities/Equity (Quarter)',
+                        'Total Debt/Total Assets (Quarter)',
+                        'Interest Coverage (TTM)',
+                    ]);
+                    if (!profitOk || !incomeOk || !solvencyOk) return false;
+
+                    // Tabel ringkasan kuartal terkini: Market Cap, Enterprise Value, dll.
+                    const recent = document.querySelector('[data-cy="card-v2-recent-quarter-table"]');
+                    if (!recent) return false;
+                    const recentLabels = labelsOf(recent);
+                    return recentLabels.includes('Market Cap')
+                        && recentLabels.includes('Enterprise Value')
+                        && recentLabels.includes('Current Share Outstanding')
+                        && recentLabels.includes('Free Float');
                 })()"#,
             )
             .await?
@@ -183,38 +225,73 @@ async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error:
         if ready {
             return Ok(());
         }
-        if started.elapsed() >= Duration::from_secs(30) {
-            return Err("Timeout menunggu card Key Stats (Current Valuation)".into());
+        if started.elapsed() >= Duration::from_secs(45) {
+            return Err(
+                "Timeout menunggu Key Stats (Valuation + Profitability + Income Statement + Solvency + Market Cap)"
+                    .into(),
+            );
         }
         sleep(Duration::from_millis(200)).await;
     }
 }
 
+/// Scroll semua card Key Stats + tabel recent-quarter ke viewport agar ter-render.
+async fn scroll_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    let _ = page
+        .evaluate(
+            r#"(() => {
+                const nodes = [
+                    ...document.querySelectorAll('[data-cy="card-title"]'),
+                    ...document.querySelectorAll('[data-cy="card-v2-recent-quarter-table"]'),
+                ];
+                for (const el of nodes) {
+                    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+                }
+                window.scrollTo(0, 0);
+                return nodes.length;
+            })()"#,
+        )
+        .await;
+    sleep(Duration::from_millis(300)).await;
+    Ok(())
+}
+
 async fn scrape_key_stats(page: &Page) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
     wait_for_key_stats_cards(page).await?;
+    scroll_key_stats_cards(page).await?;
     sleep(Duration::from_millis(400)).await;
 
     let json = page
         .evaluate(
             r#"(() => {
-                const cards = Array.from(document.querySelectorAll('[data-cy="card-title"]'));
                 const stats = {};
-                for (const card of cards) {
-                    const rows = card.querySelectorAll('tbody tr');
+                const ingestRows = (root) => {
+                    if (!root) return;
+                    const rows = root.querySelectorAll('tbody tr[data-row-key], tbody tr.ant-table-row');
                     for (const tr of rows) {
-                        const labelEl = tr.querySelector('td:first-child p');
-                        const valueEl = tr.querySelector('td:nth-child(2) p');
+                        const cells = tr.querySelectorAll('td');
+                        if (cells.length < 2) continue;
+                        const labelEl = cells[0].querySelector('p');
+                        const valueEl = cells[1].querySelector('p');
                         const label = labelEl
                             ? (labelEl.innerText || labelEl.textContent || '').trim()
                             : '';
                         const value = valueEl
                             ? (valueEl.innerText || valueEl.textContent || '').trim()
                             : '';
-                        if (label) {
-                            stats[label] = value;
-                        }
+                        // Abaikan baris kosong / label tahun / label kuartal tabel multi-kolom.
+                        if (!label || /^\d{4}$/.test(label) || /^Q[1-4]$/.test(label)) continue;
+                        stats[label] = value;
                     }
+                };
+
+                // Card Key Stats (Current Valuation, Profitability, dll.).
+                for (const card of document.querySelectorAll('[data-cy="card-title"]')) {
+                    ingestRows(card);
                 }
+                // Ringkasan: Market Cap, Enterprise Value, Current Share Outstanding, Free Float.
+                ingestRows(document.querySelector('[data-cy="card-v2-recent-quarter-table"]'));
+
                 return JSON.stringify(stats);
             })()"#,
         )
@@ -226,23 +303,59 @@ async fn scrape_key_stats(page: &Page) -> Result<HashMap<String, String>, Box<dy
     Ok(map)
 }
 
+fn has_profitability_margins(stats: &HashMap<String, String>) -> bool {
+    stats.contains_key("Gross Profit Margin (Quarter)")
+        && stats.contains_key("Operating Profit Margin (Quarter)")
+        && stats.contains_key("Net Profit Margin (Quarter)")
+}
+
+fn has_market_cap_block(stats: &HashMap<String, String>) -> bool {
+    stats.contains_key("Market Cap")
+        && stats.contains_key("Enterprise Value")
+        && stats.contains_key("Current Share Outstanding")
+        && stats.contains_key("Free Float")
+}
+
+fn has_income_statement_ttm(stats: &HashMap<String, String>) -> bool {
+    stats.contains_key("Revenue (TTM)")
+        && stats.contains_key("Gross Profit (TTM)")
+        && stats.contains_key("EBITDA (TTM)")
+        && stats.contains_key("Net Income (TTM)")
+}
+
+fn has_solvency_block(stats: &HashMap<String, String>) -> bool {
+    stats.contains_key("Current Ratio (Quarter)")
+        && stats.contains_key("Quick Ratio (Quarter)")
+        && stats.contains_key("Debt to Equity Ratio (Quarter)")
+        && stats.contains_key("LT Debt/Equity (Quarter)")
+        && stats.contains_key("Total Liabilities/Equity (Quarter)")
+        && stats.contains_key("Total Debt/Total Assets (Quarter)")
+        && stats.contains_key("Interest Coverage (TTM)")
+}
+
 async fn scrape_long_name(page: &Page, emiten: &str) -> String {
     let emiten_js = serde_json::to_string(&emiten.to_ascii_uppercase()).unwrap_or_default();
     page.evaluate(format!(
         r#"((code) => {{
+            // Prefer: section header ticker (h3) + nama lengkap di <h1>.
             const h3 = Array.from(document.querySelectorAll('h3')).find(
-                (h) => (h.innerText || '').trim().toUpperCase() === code
+                (h) => (h.innerText || h.textContent || '').trim().toUpperCase() === code
             );
-            if (!h3) return '';
-            let node = h3.parentElement;
-            for (let i = 0; i < 4 && node; i++) {{
-                node = node.parentElement;
+            if (h3) {{
+                const section = h3.closest('section') || h3.parentElement;
+                if (section) {{
+                    const h1 = section.querySelector('h1');
+                    const name = h1
+                        ? (h1.innerText || h1.textContent || '').trim()
+                        : '';
+                    if (name) return name;
+                }}
             }}
-            if (!node) return '';
-            const texts = Array.from(node.querySelectorAll('p, span'))
-                .map((el) => (el.innerText || el.textContent || '').trim())
-                .filter((t) => t && t.toUpperCase() !== code && t.length > code.length + 2);
-            return texts[0] || '';
+            // Fallback: h1 pertama yang bukan kode ticker.
+            const h1s = Array.from(document.querySelectorAll('h1'))
+                .map((h) => (h.innerText || h.textContent || '').trim())
+                .filter((t) => t && t.toUpperCase() !== code);
+            return h1s[0] || '';
         }})({emiten_js})"#
     ))
     .await
@@ -328,6 +441,34 @@ async fn scrape_one_emiten(
     if key_stats.is_empty() {
         return Err(format!("Key Stats kosong untuk {code}").into());
     }
+    if !has_profitability_margins(&key_stats) {
+        return Err(format!(
+            "Key Stats {code} belum berisi Profitability \
+             (Gross/Operating/Net Profit Margin Quarter)"
+        )
+        .into());
+    }
+    if !has_market_cap_block(&key_stats) {
+        return Err(format!(
+            "Key Stats {code} belum berisi Market Cap / Enterprise Value / \
+             Current Share Outstanding / Free Float"
+        )
+        .into());
+    }
+    if !has_income_statement_ttm(&key_stats) {
+        return Err(format!(
+            "Key Stats {code} belum berisi Income Statement \
+             (Revenue/Gross Profit/EBITDA/Net Income TTM)"
+        )
+        .into());
+    }
+    if !has_solvency_block(&key_stats) {
+        return Err(format!(
+            "Key Stats {code} belum berisi Solvency \
+             (Current/Quick/Debt ratios + Interest Coverage)"
+        )
+        .into());
+    }
 
     let long_name = scrape_long_name(page, &code).await;
     let long_name = if long_name.is_empty() {
@@ -388,5 +529,47 @@ mod tests {
         let json = r#"{"Current PE Ratio (TTM)":"74.08","Revenue (Quarter YoY Growth)":"-65.36%"}"#;
         let map: HashMap<String, String> = serde_json::from_str(json).unwrap();
         assert_eq!(map.get("Current PE Ratio (TTM)").map(String::as_str), Some("74.08"));
+    }
+
+    #[test]
+    fn profitability_margins_detected() {
+        let mut map = HashMap::new();
+        map.insert("Gross Profit Margin (Quarter)".into(), "35.63%".into());
+        map.insert("Operating Profit Margin (Quarter)".into(), "16.85%".into());
+        map.insert("Net Profit Margin (Quarter)".into(), "11.87%".into());
+        assert!(has_profitability_margins(&map));
+    }
+
+    #[test]
+    fn market_cap_block_detected() {
+        let mut map = HashMap::new();
+        map.insert("Market Cap".into(), "155,074 B".into());
+        map.insert("Enterprise Value".into(), "182,005 B".into());
+        map.insert("Current Share Outstanding".into(), "192.64 B".into());
+        map.insert("Free Float".into(), "19.35%".into());
+        assert!(has_market_cap_block(&map));
+    }
+
+    #[test]
+    fn income_statement_ttm_detected() {
+        let mut map = HashMap::new();
+        map.insert("Revenue (TTM)".into(), "45,589 B".into());
+        map.insert("Gross Profit (TTM)".into(), "14,952 B".into());
+        map.insert("EBITDA (TTM)".into(), "7,486 B".into());
+        map.insert("Net Income (TTM)".into(), "3,855 B".into());
+        assert!(has_income_statement_ttm(&map));
+    }
+
+    #[test]
+    fn solvency_block_detected() {
+        let mut map = HashMap::new();
+        map.insert("Current Ratio (Quarter)".into(), "2.26".into());
+        map.insert("Quick Ratio (Quarter)".into(), "2.11".into());
+        map.insert("Debt to Equity Ratio (Quarter)".into(), "0.85".into());
+        map.insert("LT Debt/Equity (Quarter)".into(), "0.71".into());
+        map.insert("Total Liabilities/Equity (Quarter)".into(), "1.18".into());
+        map.insert("Total Debt/Total Assets (Quarter)".into(), "0.35".into());
+        map.insert("Interest Coverage (TTM)".into(), "4.82".into());
+        assert!(has_solvency_block(&map));
     }
 }

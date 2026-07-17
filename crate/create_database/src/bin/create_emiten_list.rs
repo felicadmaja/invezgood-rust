@@ -213,7 +213,12 @@ fn format_emiten_list_schema_summary(keyspace: &str) -> String {
     );
     let _ = writeln!(
         out,
-        "Kolom \"key_stats\": map<text, text> — statistik kunci emiten (pasangan key-value)."
+        "Kolom \"key_stats\": map<text, text> — statistik kunci emiten (pasangan key-value); \
+         contoh dari UI Key Stats: \"Market Cap\", \"Enterprise Value\", \
+         \"Current Share Outstanding\", \"Free Float\", \
+         Income Statement (\"Revenue (TTM)\", \"Gross Profit (TTM)\", \"EBITDA (TTM)\", \"Net Income (TTM)\"), \
+         Solvency (\"Current Ratio (Quarter)\", \"Debt to Equity Ratio (Quarter)\", dll.), \
+         margin Profitability, dll."
     );
     let _ = writeln!(
         out,

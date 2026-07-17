@@ -20,7 +20,7 @@
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 
 mod bandarmology;
-mod emiten_list;
+mod emiten_list_worker;
 
 use chrono::Local;
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
@@ -397,7 +397,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let key_stats_ok =
-        emiten_list::scrape_and_insert_key_stats(&page, &session, &ks, &emitens).await?;
+        emiten_list_worker::scrape_and_insert_key_stats(&page, &session, &ks, &emitens).await?;
     println!("OK: {key_stats_ok} emiten key_stats diinsert ke emiten_list.");
 
     println!("Kembali ke /stream untuk bandarmology...");

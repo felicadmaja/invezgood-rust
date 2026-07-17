@@ -62,6 +62,7 @@ impl UserRpc for UserService {
             return Err(Status::unauthenticated("email atau password salah"));
         }
 
+        let email = user.email.trim().to_lowercase();
         let (access_token, expires_in) = jwt::encode_token(&user.id, &email, &user.name)
             .map_err(|e| Status::internal(format!("JWT encode gagal: {e}")))?;
 
