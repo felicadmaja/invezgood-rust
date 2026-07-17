@@ -3,14 +3,21 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use chromiumoxide::page::Page;
 use rand::Rng;
 use scylla::client::session::Session;
+use scylla::DeserializeRow;
 use tokio::time::sleep;
 
 const SEARCH_INPUT: &str = r#"[data-cy="top-navbar-search-input-desktop"]"#;
 const KEY_STATS_NAV: &str = r#"[data-cy="company-navigation-key-stats"]"#;
+const UPDATE_AT_FRESH_DAYS: i64 = 30;
+
+#[derive(Debug, DeserializeRow)]
+struct EmitenUpdateAtRow {
+    update_at: Option<DateTime<Utc>>,
+}
 
 async fn type_naturally(
     page: &Page,
@@ -243,13 +250,48 @@ async fn upsert_key_stats(
     Ok(())
 }
 
+/// `true` bila `update_at` masih < 30 hari (data masih fresh → skip scrape/insert).
+async fn is_update_at_fresh(
+    session: &Session,
+    keyspace: &str,
+    code_name: &str,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let q = session
+        .prepare(format!(
+            "SELECT update_at FROM {keyspace}.emiten_list WHERE code_name = ?"
+        ))
+        .await?;
+    let result = session
+        .execute_unpaged(&q, (code_name,))
+        .await?
+        .into_rows_result()?;
+
+    let Some(EmitenUpdateAtRow { update_at: Some(ts) }) =
+        result.maybe_first_row::<EmitenUpdateAtRow>()?
+    else {
+        return Ok(false);
+    };
+
+    let age = Utc::now().signed_duration_since(ts);
+    Ok(age < ChronoDuration::days(UPDATE_AT_FRESH_DAYS))
+}
+
+/// Returns `Ok(true)` bila diinsert, `Ok(false)` bila di-skip (update_at masih < 30 hari).
 async fn scrape_one_emiten(
     page: &Page,
     session: &Session,
     keyspace: &str,
     emiten: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<bool, Box<dyn std::error::Error>> {
     let code = emiten.trim().to_ascii_uppercase();
+
+    if is_update_at_fresh(session, keyspace, &code).await? {
+        println!(
+            "Key Stats: skip {code} — update_at belum melebihi {UPDATE_AT_FRESH_DAYS} hari"
+        );
+        return Ok(false);
+    }
+
     println!("Key Stats: cari emiten {code}...");
     search_emiten(page, &code).await?;
     click_key_stats(page).await?;
@@ -277,10 +319,11 @@ async fn scrape_one_emiten(
     .await?;
 
     println!("OK: emiten_list {code} — {} key_stats", key_stats.len());
-    Ok(())
+    Ok(true)
 }
 
 /// Navbar search → Key Stats → scrape card tables → upsert `emiten_list.key_stats`.
+/// Skip emiten yang `update_at`-nya masih lebih baru dari 30 hari.
 pub async fn scrape_and_insert_key_stats(
     page: &Page,
     session: &Session,
@@ -295,7 +338,8 @@ pub async fn scrape_and_insert_key_stats(
     let mut ok = 0usize;
     for emiten in emitens {
         match scrape_one_emiten(page, session, keyspace, emiten).await {
-            Ok(()) => ok += 1,
+            Ok(true) => ok += 1,
+            Ok(false) => {}
             Err(e) => eprintln!("Peringatan: key_stats {emiten} gagal: {e}"),
         }
         sleep(Duration::from_millis(800)).await;

@@ -5,13 +5,14 @@ package bandarmology;
 service Bandarmology {
   // Lookup baris bandarmology via PK:
   // agg_tahun_bulan_tanggal_emiten_name = tahun_bulan_tanggal + '_' + kode_emiten
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmology(GetBandarmologyRequest) returns (GetBandarmologyResponse);
 }
 
 message GetBandarmologyRequest {
-  // Format YYYY-MM-DD, contoh "2026-07-16".
+  // Wajib format YYYY-MM-DD (contoh "2026-07-16"); selain itu invalid_argument.
   string tahun_bulan_tanggal = 1;
-  // Kode emiten / ticker, contoh "BBCA".
+  // Kode emiten / ticker (4 huruf); di server di-capitalize ke uppercase (bbca → BBCA).
   string kode_emiten = 2;
 }
 

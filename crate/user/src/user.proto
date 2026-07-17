@@ -15,8 +15,8 @@ service User {
 message IsStockbitReadyRequest {}
 
 message IsStockbitReadyResponse {
-  bool ready = 1;
-  string message = 2;
+  bool ready = 1; // true/false
+  string message = 2; // status: "not authenticated", "authenticated"
 }
 
 message LoginRequest {

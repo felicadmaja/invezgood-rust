@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package emiten_list;
+
+service EmitenList {
+  // Tanpa parameter request; token-ring scan seluruh baris tabel Scylla `emiten_list`.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetAllEmitenList(GetAllEmitenListRequest) returns (GetAllEmitenListResponse);
+
+  // Lookup satu baris via PK base table: emiten_list.code_name = code_name.
+  // code_name di server di-capitalize ke uppercase (bbca → BBCA); jika tidak ada → NOT_FOUND.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetEmitenListByCodeName(GetEmitenListByCodeNameRequest) returns (GetEmitenListByCodeNameResponse);
+}
+
+message GetAllEmitenListRequest {}
+
+message GetEmitenListByCodeNameRequest {
+  // Kode emiten / ticker (contoh "BBCA").
+  string code_name = 1;
+}
+
+message GetEmitenListByCodeNameResponse {
+  EmitenListRow row = 1;
+}
+
+// Wrapper untuk map bersarang CQL: map<text, frozen<map<text, text>>>.
+message StringMap {
+  map<string, string> entries = 1;
+}
+
+message EmitenShareholderGt1 {
+  string name = 1;
+  string type = 2;
+  string location = 3;
+  string domicile = 4;
+  string scriples = 5;
+  string scrip = 6;
+  string total_shares = 7;
+  string percentage = 8;
+}
+
+message EmitenShareholder {
+  string name = 1;
+  string value = 2;
+  string shares = 3;
+}
+
+message CompanyProfile {
+  string company_background = 1;
+  string sector = 2;
+  repeated EmitenShareholderGt1 shareholder_more_than_one_percent = 3;
+  repeated EmitenShareholder shareholders = 4;
+  string ultimate_beneficial_owner = 5;
+}
+
+message EmitenListRow {
+  string code_name = 1;
+  string long_name = 2;
+  map<string, string> key_stats = 3;
+  map<string, StringMap> income_statement_ttm = 4;
+  map<string, StringMap> balance_sheet_quarterly = 5;
+  map<string, StringMap> cash_flow_ttm = 6;
+  map<string, StringMap> corporate_action = 7;
+  repeated string shareholder = 8;
+  CompanyProfile company_profile = 9;
+  // RFC3339 / ISO-8601 timestamp string (kosong bila null di Scylla).
+  string update_at = 10;
+}
+
+message GetAllEmitenListResponse {
+  repeated EmitenListRow rows = 1;
+}

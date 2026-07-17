@@ -475,6 +475,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 
 [[package]]
+name = "emiten_list"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures-util",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "scylla",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
+]
+
+[[package]]
 name = "emiten_trending"
 version = "0.1.0"
 dependencies = [
@@ -1863,6 +1879,7 @@ version = "0.1.0"
 dependencies = [
  "bandarmology",
  "dotenvy",
+ "emiten_list",
  "emiten_trending",
  "portofolio",
  "tls",
