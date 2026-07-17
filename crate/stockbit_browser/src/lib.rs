@@ -3,7 +3,8 @@
 //! Dipakai oleh `user` (RPC `IsStockbitReady`) dan `worker_scrapping`.
 //!
 //! Env: `STOCKBIT_EMAIL`, `STOCKBIT_PASSWORD`, opsional `CHROME_EXECUTABLE_PATH`,
-//! `STOCKBIT_2FA_TIMEOUT_SECS`, `STOCKBIT_SESSION_CHECK_SECS`, `STOCKBIT_BROWSER_DATA_DIR`.
+//! `STOCKBIT_2FA_TIMEOUT_SECS`, `STOCKBIT_SESSION_CHECK_SECS` (default random 60–300 untuk
+//! `IsStockbitReady`; default 5 untuk worker), `STOCKBIT_BROWSER_DATA_DIR`.
 
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::page::Page;
@@ -56,6 +57,7 @@ pub fn browser_data_dir() -> PathBuf {
 pub fn browser_config() -> Result<BrowserConfig, StockbitError> {
     let data_dir = browser_data_dir();
     std::fs::create_dir_all(&data_dir)?;
+    kill_stale_chrome_processes(&data_dir);
     clear_stale_chrome_locks(&data_dir);
 
     let mut builder = BrowserConfig::builder()
@@ -83,10 +85,54 @@ pub fn browser_config() -> Result<BrowserConfig, StockbitError> {
     Ok(builder.build()?)
 }
 
+/// Bunuh proses Chrome sisa run sebelumnya yang masih memegang profil `data_dir`,
+/// agar tidak muncul error "Failed to create SingletonLock: File exists (17)".
+fn kill_stale_chrome_processes(data_dir: &Path) {
+    // 1) PID dari symlink SingletonLock (target biasanya "hostname-<pid>").
+    let lock = data_dir.join("SingletonLock");
+    if let Ok(target) = std::fs::read_link(&lock) {
+        if let Some(pid) = target
+            .to_string_lossy()
+            .rsplit('-')
+            .next()
+            .and_then(|s| s.trim().parse::<i32>().ok())
+        {
+            kill_pid(pid);
+        }
+    }
+
+    // 2) Fallback: pkill chrome yang memakai profil ini.
+    // Pola tanpa awalan "--" agar tidak dianggap opsi pkill; "--" mengakhiri flags.
+    // stdout/stderr di-null supaya usage/help tidak muncul di terminal.
+    if let Some(dir) = data_dir.to_str() {
+        let pattern = format!("user-data-dir={dir}");
+        let _ = std::process::Command::new("pkill")
+            .args(["-9", "-f", "--", &pattern])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+
+    // Beri waktu OS melepas file lock sebelum relaunch.
+    std::thread::sleep(Duration::from_millis(300));
+}
+
+fn kill_pid(pid: i32) {
+    if pid <= 1 {
+        return;
+    }
+    let _ = std::process::Command::new("kill")
+        .args(["-9", &pid.to_string()])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+}
+
 fn clear_stale_chrome_locks(data_dir: &Path) {
     for name in ["SingletonLock", "SingletonSocket", "SingletonCookie"] {
         let p = data_dir.join(name);
-        if p.exists() {
+        // symlink_metadata agar symlink yatim (broken) tetap terhapus.
+        if p.exists() || std::fs::symlink_metadata(&p).is_ok() {
             let _ = std::fs::remove_file(&p);
         }
     }
@@ -438,10 +484,11 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
     sleep(Duration::from_secs(1)).await;
 
     let url = page.url().await?.unwrap_or_default();
+    // Durasi jendela + interval polling: random 60–300 detik (override: STOCKBIT_SESSION_CHECK_SECS).
     let wait_secs: u64 = std::env::var("STOCKBIT_SESSION_CHECK_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(5);
+        .unwrap_or_else(|| rand::thread_rng().gen_range(60u64..=300));
     let started = Instant::now();
     let mut need_login = is_login_url(&url) || has_login_form(&page).await;
     let mut session_expired = false;
@@ -461,7 +508,12 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
             need_login = true;
             break;
         }
-        sleep(Duration::from_millis(400)).await;
+        let remaining = wait_secs.saturating_sub(started.elapsed().as_secs());
+        if remaining == 0 {
+            break;
+        }
+        let poll_secs = rand::thread_rng().gen_range(60u64..=300).min(remaining);
+        sleep(Duration::from_secs(poll_secs)).await;
     }
 
     let url = page.url().await?.unwrap_or_default();

@@ -20,7 +20,7 @@ message IsStockbitReadyResponse {
 }
 
 message LoginRequest {
-  string email = 1;
+  string email = 1; // dinormalisasi ke lowercase di server
   string password = 2;
 }
 
@@ -29,5 +29,5 @@ message LoginResponse {
   int64 expires_in = 2;
   string user_id = 3;
   string name = 4;
-  string email = 5;
+  string email = 5; // selalu lowercase
 }

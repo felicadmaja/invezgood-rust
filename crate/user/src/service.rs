@@ -8,6 +8,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status};
 
+use crate::auth::require_auth;
 use crate::jwt;
 use crate::repository::UserRepository;
 use crate::user_server::User as UserRpc;
@@ -61,7 +62,7 @@ impl UserRpc for UserService {
             return Err(Status::unauthenticated("email atau password salah"));
         }
 
-        let (access_token, expires_in) = jwt::encode_token(&user.id, &user.email, &user.name)
+        let (access_token, expires_in) = jwt::encode_token(&user.id, &email, &user.name)
             .map_err(|e| Status::internal(format!("JWT encode gagal: {e}")))?;
 
         println!(
@@ -75,7 +76,7 @@ impl UserRpc for UserService {
             expires_in,
             user_id: user.id.to_string(),
             name: user.name,
-            email: user.email,
+            email,
         }))
     }
 
@@ -84,9 +85,15 @@ impl UserRpc for UserService {
 
     async fn is_stockbit_ready(
         &self,
-        _request: Request<IsStockbitReadyRequest>,
+        request: Request<IsStockbitReadyRequest>,
     ) -> Result<Response<Self::IsStockbitReadyStream>, Status> {
         let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let user_name = claims.name.trim();
+        if user_name.is_empty() {
+            return Err(Status::unauthenticated("nama user tidak ada di JWT"));
+        }
+
         let (tx, rx) = tokio::sync::mpsc::channel(8);
 
         tokio::spawn(async move {
@@ -109,7 +116,7 @@ impl UserRpc for UserService {
         });
 
         println!(
-            "IsStockbitReady anonymous {}ms",
+            "IsStockbitReady {user_name} {}ms",
             started.elapsed().as_millis()
         );
 

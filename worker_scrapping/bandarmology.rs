@@ -16,8 +16,17 @@ const PERIODS: &[(&str, &str)] = &[
     ("Last 3M", "M_3"),
 ];
 
-/// Jeda setelah klik tombol period (Last 7D / 1M / 3M) sebelum scrape tabel.
-const PERIOD_SCRAPE_WAIT_SECS: u64 = 5;
+/// Rentang jeda acak setelah klik tombol period sebelum scrape tabel.
+const PERIOD_SCRAPE_WAIT_MIN_MS: u64 = 800;
+const PERIOD_SCRAPE_WAIT_MAX_MS: u64 = 2000;
+
+fn format_wait_ms(ms: u64) -> String {
+    if ms >= 1000 {
+        format!("{:.1}s", ms as f64 / 1000.0)
+    } else {
+        format!("{ms}ms")
+    }
+}
 
 #[derive(Debug, Clone, SerializeValue, Deserialize)]
 pub struct BandarmologyTopStats {
@@ -227,12 +236,15 @@ async fn add_company(page: &Page, emiten: &str) -> Result<(), Box<dyn std::error
         .await;
 
     for ch in emiten.chars() {
-        let delay = rand::thread_rng().gen_range(60..160);
+        let delay = rand::thread_rng().gen_range(100u64..=400);
         sleep(Duration::from_millis(delay)).await;
         element.type_str(&ch.to_string()).await?;
     }
-    println!("Emiten {emiten} diketik; jeda 1 detik lalu Enter...");
-    sleep(Duration::from_secs(1)).await;
+    let enter_wait_ms = rand::thread_rng().gen_range(300u64..=800);
+    println!(
+        "Emiten {emiten} diketik (natural 100–400ms/karakter); jeda {enter_wait_ms} ms lalu Enter..."
+    );
+    sleep(Duration::from_millis(enter_wait_ms)).await;
     element.press_key("Enter").await?;
     sleep(Duration::from_secs(2)).await;
     Ok(())
@@ -517,10 +529,13 @@ async fn scrape_period(
 ) -> Result<BandarmologyDay, Box<dyn std::error::Error>> {
     open_datepicker(page).await?;
     click_period_button(page, period_label).await?;
+    let wait_ms =
+        rand::thread_rng().gen_range(PERIOD_SCRAPE_WAIT_MIN_MS..=PERIOD_SCRAPE_WAIT_MAX_MS);
     println!(
-        "  {col} ({period_label}): tunggu {PERIOD_SCRAPE_WAIT_SECS} detik sebelum scrape..."
+        "  {col} ({period_label}): tunggu {} sebelum scrape...",
+        format_wait_ms(wait_ms)
     );
-    sleep(Duration::from_secs(PERIOD_SCRAPE_WAIT_SECS)).await;
+    sleep(Duration::from_millis(wait_ms)).await;
     scrape_bandar_day(page).await
 }
 
@@ -678,8 +693,12 @@ pub async fn scrape_and_insert_bandarmology(
         }
 
         if idx + 1 < todo.len() {
-            println!("Jeda 10 detik sebelum emiten berikutnya...");
-            sleep(Duration::from_secs(10)).await;
+            let wait_ms = rand::thread_rng().gen_range(2000u64..=5000);
+            println!(
+                "Jeda {} sebelum emiten berikutnya...",
+                format_wait_ms(wait_ms)
+            );
+            sleep(Duration::from_millis(wait_ms)).await;
         }
     }
     Ok(ok)

@@ -14,6 +14,15 @@ const SEARCH_INPUT: &str = r#"[data-cy="top-navbar-search-input-desktop"]"#;
 const KEY_STATS_NAV: &str = r#"[data-cy="company-navigation-key-stats"]"#;
 const UPDATE_AT_FRESH_DAYS: i64 = 30;
 
+fn format_elapsed(started: Instant) -> String {
+    let ms = started.elapsed().as_millis();
+    if ms >= 1000 {
+        format!("{:.1}s", ms as f64 / 1000.0)
+    } else {
+        format!("{ms}ms")
+    }
+}
+
 #[derive(Debug, DeserializeRow)]
 struct EmitenUpdateAtRow {
     update_at: Option<DateTime<Utc>>,
@@ -78,16 +87,22 @@ async fn wait_for_symbol_header(
     let want_js = serde_json::to_string(&want)?;
     let started = Instant::now();
     loop {
+        // Siap bila logo company-header-icon + h3 ticker sudah tampil di halaman symbol.
         let ok = page
             .evaluate(format!(
                 r#"((code) => {{
                     const want = code.toUpperCase();
+                    const icon = document.querySelector('img.company-header-icon');
+                    const iconOk = !!icon && (
+                        (icon.getAttribute('alt') || '').trim().toUpperCase() === want ||
+                        (icon.getAttribute('src') || '').toUpperCase().includes('/' + want + '.')
+                    );
                     const h3ok = Array.from(document.querySelectorAll('h3')).some(
                         (h) => (h.innerText || h.textContent || '').trim().toUpperCase() === want
                     );
                     const url = window.location.href || '';
                     const urlok = url.toUpperCase().includes('/SYMBOL/' + want);
-                    return h3ok && urlok;
+                    return iconOk && h3ok && urlok;
                 }})({want_js})"#,
             ))
             .await?
@@ -103,7 +118,7 @@ async fn wait_for_symbol_header(
             )
             .into());
         }
-        sleep(Duration::from_millis(500)).await;
+        sleep(Duration::from_millis(200)).await;
     }
 }
 
@@ -111,12 +126,10 @@ async fn search_emiten(page: &Page, emiten: &str) -> Result<(), Box<dyn std::err
     let code = emiten.trim().to_ascii_uppercase();
     wait_for_selector(page, SEARCH_INPUT, Duration::from_secs(20)).await?;
     type_naturally(page, SEARCH_INPUT, &code).await?;
-    sleep(Duration::from_secs(1)).await;
+    sleep(Duration::from_millis(300)).await;
 
     let input = page.find_element(SEARCH_INPUT).await?;
     input.press_key("Enter").await?;
-    sleep(Duration::from_secs(2)).await;
-
     wait_for_symbol_header(page, &code, Duration::from_secs(30)).await?;
     Ok(())
 }
@@ -125,15 +138,20 @@ async fn click_key_stats(page: &Page) -> Result<(), Box<dyn std::error::Error>> 
     for attempt in 1..=10 {
         if let Ok(link) = page.find_element(KEY_STATS_NAV).await {
             link.click().await?;
-            sleep(Duration::from_secs(2)).await;
-            let url = page.url().await?.unwrap_or_default();
-            if url.contains("/keystats") {
-                return Ok(());
+            // Tunggu card "Current Valuation" muncul (bukan sleep hardcode).
+            match wait_for_key_stats_cards(page).await {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    let url = page.url().await?.unwrap_or_default();
+                    if url.contains("/keystats") {
+                        return Err(e);
+                    }
+                }
             }
         }
-        sleep(Duration::from_millis(500)).await;
+        sleep(Duration::from_millis(300)).await;
         if attempt == 10 {
-            return Err("Tombol Key Stats tidak ditemukan / navigasi gagal".into());
+            return Err("Tombol Key Stats tidak ditemukan / card Current Valuation tidak muncul".into());
         }
     }
     Ok(())
@@ -145,10 +163,18 @@ async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error:
         let ready = page
             .evaluate(
                 r#"(() => {
-                    const titles = Array.from(
-                        document.querySelectorAll('[data-cy="card-title"] .ant-card-head-title p')
-                    ).map((p) => (p.innerText || p.textContent || '').trim());
-                    return titles.includes('Current Valuation');
+                    const cards = Array.from(
+                        document.querySelectorAll('[data-cy="card-title"]')
+                    );
+                    return cards.some((card) => {
+                        const title = card.querySelector('.ant-card-head-title p');
+                        const t = title
+                            ? (title.innerText || title.textContent || '').trim()
+                            : '';
+                        if (t !== 'Current Valuation') return false;
+                        // Pastikan baris tabel valuasi sudah ter-render.
+                        return card.querySelectorAll('tbody tr').length > 0;
+                    });
                 })()"#,
             )
             .await?
@@ -160,13 +186,13 @@ async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error:
         if started.elapsed() >= Duration::from_secs(30) {
             return Err("Timeout menunggu card Key Stats (Current Valuation)".into());
         }
-        sleep(Duration::from_millis(500)).await;
+        sleep(Duration::from_millis(200)).await;
     }
 }
 
 async fn scrape_key_stats(page: &Page) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
     wait_for_key_stats_cards(page).await?;
-    sleep(Duration::from_secs(1)).await;
+    sleep(Duration::from_millis(400)).await;
 
     let json = page
         .evaluate(
@@ -283,11 +309,13 @@ async fn scrape_one_emiten(
     keyspace: &str,
     emiten: &str,
 ) -> Result<bool, Box<dyn std::error::Error>> {
+    let started = Instant::now();
     let code = emiten.trim().to_ascii_uppercase();
 
     if is_update_at_fresh(session, keyspace, &code).await? {
         println!(
-            "Key Stats: skip {code} — update_at belum melebihi {UPDATE_AT_FRESH_DAYS} hari"
+            "Key Stats: skip {code} — update_at belum melebihi {UPDATE_AT_FRESH_DAYS} hari ({})",
+            format_elapsed(started)
         );
         return Ok(false);
     }
@@ -318,7 +346,11 @@ async fn scrape_one_emiten(
     )
     .await?;
 
-    println!("OK: emiten_list {code} — {} key_stats", key_stats.len());
+    println!(
+        "OK: emiten_list {code} — {} key_stats ({})",
+        key_stats.len(),
+        format_elapsed(started)
+    );
     Ok(true)
 }
 
@@ -342,7 +374,7 @@ pub async fn scrape_and_insert_key_stats(
             Ok(false) => {}
             Err(e) => eprintln!("Peringatan: key_stats {emiten} gagal: {e}"),
         }
-        sleep(Duration::from_millis(800)).await;
+        sleep(Duration::from_millis(500)).await;
     }
     Ok(ok)
 }
