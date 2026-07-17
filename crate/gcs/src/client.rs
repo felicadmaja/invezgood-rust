@@ -118,14 +118,16 @@ fn load_gcs_signed_url_expires_secs_env() -> Result<u64, String> {
 }
 
 fn load_gcs_preview_url_expires_secs_env(signed_secs: u64) -> Result<u64, String> {
+    let _ = signed_secs;
+    // Default / maks. cache GeneratePreviewUrl: 7 hari (selaras batas GCS V4 signed URL).
+    const SEVEN_DAYS: u64 = 604_800;
     let v = std::env::var("GCS_PREVIEW_URL_EXPIRES_SECS")
         .ok()
         .and_then(|s| s.trim().parse::<u64>().ok())
-        .unwrap_or(signed_secs);
-    // TTL cache GeneratePreviewUrl — maks. 30 hari.
-    if !(1..=2_592_000).contains(&v) {
+        .unwrap_or(SEVEN_DAYS);
+    if !(1..=SEVEN_DAYS).contains(&v) {
         return Err(
-            "GCS_PREVIEW_URL_EXPIRES_SECS harus antara 1 dan 2592000 (30 hari, detik)".into(),
+            "GCS_PREVIEW_URL_EXPIRES_SECS harus antara 1 dan 604800 (7 hari, detik)".into(),
         );
     }
     Ok(v)
@@ -146,7 +148,7 @@ pub struct GcsSignedUrlRuntime {
     pub signed_url_expires_secs: u64,
     /// Masa berlaku signed GET yang di-sign (≤ 7 hari, batas GCS V4).
     pub preview_url_expires_secs: u64,
-    /// TTL cache in-process `GeneratePreviewUrl` per `object_path` (bisa sampai 30 hari).
+    /// TTL cache in-process `GeneratePreviewUrl` per `object_path` (7 hari / 604800).
     pub preview_url_cache_ttl_secs: u64,
     pub account: GcsServiceAccount,
 }
@@ -818,7 +820,7 @@ pub async fn download_and_upload_emiten_icon(
     Ok(object_path)
 }
 
-/// Cache signed preview URL per object_path (TTL hingga 30 hari).
+/// Cache signed preview URL per object_path (TTL 7 hari).
 pub struct PreviewUrlCache {
     inner: Cache<String, (String, i64)>,
 }

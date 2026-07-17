@@ -98,6 +98,8 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         let _ = request.into_inner();
         let repo = Arc::clone(&self.repo);
 
+        println!("GetLatestEmitenTrendingFromStockbit {username}");
+
         let (tx, rx) = mpsc::channel::<Result<GetAllEmitenTrendingResponse, Status>>(4);
 
         tokio::spawn(async move {
@@ -106,14 +108,22 @@ impl EmitenTrendingRpc for EmitenTrendingService {
                 cycle += 1;
                 let started = Instant::now();
 
-                // TODO: scrape Stockbit (movers → emiten_trending → emiten_list → bandarmology)
-                // seperti `worker_scrapping/stockbit_scrapper_worker.rs`, lalu baca hasilnya.
-                // Sementara: kirim snapshot hari ini dari Scylla agar stream tetap hidup.
+                // Scrape movers (Top Gainer/Loser + Freq → emiten_trending.freq) dijalankan
+                // oleh `worker_scrapping` (`emiten_trending_worker::scrape_and_insert_movers`).
+                // Stream ini mem-push snapshot hari ini dari Scylla (termasuk field `freq`).
                 let today = Local::now().date_naive();
                 let payload = match repo.get_all_by_date(today).await {
-                    Ok(rows) => GetAllEmitenTrendingResponse {
-                        rows: rows.into_iter().map(EmitenTrending::into_proto).collect(),
-                    },
+                    Ok(rows) => {
+                        let with_freq = rows.iter().filter(|r| !r.freq.trim().is_empty()).count();
+                        println!(
+                            "GetLatestEmitenTrendingFromStockbit {username} snapshot rows={} freq_terisi={}",
+                            rows.len(),
+                            with_freq
+                        );
+                        GetAllEmitenTrendingResponse {
+                            rows: rows.into_iter().map(EmitenTrending::into_proto).collect(),
+                        }
+                    }
                     Err(e) => {
                         let _ = tx
                             .send(Err(Status::internal(format!("Scylla query failed: {e}"))))
@@ -130,12 +140,13 @@ impl EmitenTrendingRpc for EmitenTrendingService {
 
                 if tx.send(Ok(payload)).await.is_err() {
                     // Client disconnect — hentikan poll.
+                    println!("GetLatestEmitenTrendingFromStockbit {username} stream closed");
                     break;
                 }
 
                 let wait_secs = next_stockbit_poll_secs();
                 println!(
-                    "GetLatestEmitenTrendingFromStockbit {username}: poll berikutnya dalam {wait_secs}s (10–15 menit)"
+                    "GetLatestEmitenTrendingFromStockbit {username} poll berikutnya dalam {wait_secs}s"
                 );
                 sleep(Duration::from_secs(wait_secs)).await;
             }

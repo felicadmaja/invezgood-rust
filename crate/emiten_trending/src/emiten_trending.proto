@@ -7,9 +7,8 @@ service EmitenTrending {
   rpc GetAllEmitenTrending(GetAllEmitenTrendingRequest) returns (GetAllEmitenTrendingResponse);
 
   // Subscribe stream data trending terbaru dari Stockbit.
-  // Server mem-poll Stockbit setiap 10–15 menit (acak), scrape movers → upsert
-  // `emiten_trending` (+ lanjut `emiten_list` / `bandarmology` seperti worker),
-  // lalu push `GetAllEmitenTrendingResponse` ke client. Aliran tetap terbuka.
+  // Server mem-poll setiap 10–15 menit (acak). Sumber data: hasil scrape movers
+  // (Top Gainer/Loser) — kolom Symbol, Price, Value, Volume, **Freq** di-upsert ke
   // Request kosong. Wajib Authorization: Bearer <JWT valid>.
   rpc GetLatestEmitenTrendingFromStockbit(GetLatestEmitenTrendingFromStockbitRequest)
       returns (stream GetAllEmitenTrendingResponse);

@@ -8,7 +8,10 @@ service EmitenList {
   rpc GetAllEmitenList(GetAllEmitenListRequest) returns (GetAllEmitenListResponse);
 
   // Lookup satu baris via PK base table: emiten_list.code_name = code_name.
-  // code_name di server di-capitalize ke uppercase (bbca → BBCA); jika tidak ada → NOT_FOUND.
+  // code_name di server di-capitalize ke uppercase (bbca → BBCA).
+  // Bila tidak ada di Scylla: scrape Key Stats + Profile ke emiten_list; bila
+  // bandarmology.agg_tahun_bulan_tanggal_emiten_name (YYYY-MM-DD_CODE) belum ada,
+  // scrape Bandar Detector seperti worker_scrapping. Lalu kembalikan baris terbaru.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetEmitenListByCodeName(GetEmitenListByCodeNameRequest) returns (GetEmitenListByCodeNameResponse);
 }

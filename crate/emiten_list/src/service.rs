@@ -4,6 +4,7 @@ use std::time::Instant;
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::require_auth;
+use worker_scrapping::on_demand;
 
 use crate::emiten_list_server::EmitenList as EmitenListRpc;
 use crate::model::EmitenList;
@@ -15,12 +16,15 @@ use crate::{
 
 pub struct EmitenListService {
     repo: EmitenListRepository,
+    session: Arc<Session>,
 }
 
 impl EmitenListService {
     pub fn new(session: Arc<Session>) -> Self {
+        let session_for_repo = session.clone();
         Self {
-            repo: EmitenListRepository::new(session),
+            repo: EmitenListRepository::new(session_for_repo),
+            session,
         }
     }
 
@@ -72,14 +76,31 @@ impl EmitenListRpc for EmitenListService {
             return Err(Status::invalid_argument("code_name wajib diisi"));
         }
 
-        let row: Option<EmitenList> = self
+        let mut row: Option<EmitenList> = self
             .repo
             .get_by_code_name(&code_name)
             .await
             .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
 
+        if row.is_none() {
+            println!(
+                "GetEmitenListByCodeName {username}: {code_name} tidak ada — on-demand scrape..."
+            );
+            on_demand::ensure_emiten_data_for_code(self.session.clone(), &code_name)
+                .await
+                .map_err(|e| Status::internal(format!("on-demand scrape gagal: {e}")))?;
+
+            row = self
+                .repo
+                .get_by_code_name(&code_name)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+        }
+
         let row = row.ok_or_else(|| {
-            Status::not_found(format!("emiten_list code_name={code_name} tidak ditemukan"))
+            Status::not_found(format!(
+                "emiten_list code_name={code_name} tidak ditemukan setelah scrape"
+            ))
         })?;
 
         println!(

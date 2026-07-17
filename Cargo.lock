@@ -552,10 +552,12 @@ dependencies = [
  "prost-build",
  "protoc-bin-vendored",
  "scylla",
+ "stockbit_browser",
  "tokio",
  "tonic",
  "tonic-build",
  "user",
+ "worker_scrapping",
 ]
 
 [[package]]
@@ -1505,7 +1507,6 @@ dependencies = [
  "tonic-build",
  "tonic-reflection",
  "user",
- "uuid",
 ]
 
 [[package]]

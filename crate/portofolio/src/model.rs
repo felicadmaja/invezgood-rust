@@ -1,27 +1,57 @@
-use uuid::Uuid;
+//! Model Scylla untuk tabel `stockbit.portofolio`.
+//! Skema: `portofolio.cql` (hasil `create_portofolio`).
+//!
+//! ## Tabel dasar `portofolio`
+//! PK: `(("emiten_name"))`
+//!
+//! | Kolom CQL      | Tipe CQL | Rust   |
+//! |----------------|----------|--------|
+//! | emiten_name (PK)| text    | String |
+//! | emiten_icon    | text     | String |
+//! | balance_lot    | bigint   | i64    |
+//! | available_lot  | bigint   | i64    |
+//! | average_price  | double   | f64    |
+//! | current_price  | double   | f64    |
+//! | invested       | double   | f64    |
+//! | market_value   | double   | f64    |
+//! | potential_p_l  | double   | f64    |
+//! | percentage     | double   | f64    |
 
 use crate::PortofolioRow;
 
+/// Baris tabel dasar `portofolio`.
+/// PK: `(("emiten_name"))`.
 #[derive(Debug, Clone, scylla::DeserializeRow)]
 pub struct Portofolio {
-    pub id: Uuid,
+    /// Partition key — kode emiten (contoh `BBCA`).
     #[scylla(default_when_null)]
     pub emiten_name: String,
+    /// Path object GCS modul `stoksaham` (hasil upload icon emiten).
+    #[scylla(default_when_null)]
+    pub emiten_icon: String,
+    #[scylla(default_when_null)]
     pub balance_lot: i64,
+    #[scylla(default_when_null)]
     pub available_lot: i64,
+    #[scylla(default_when_null)]
     pub average_price: f64,
+    #[scylla(default_when_null)]
     pub current_price: f64,
+    #[scylla(default_when_null)]
     pub invested: f64,
+    #[scylla(default_when_null)]
     pub market_value: f64,
+    #[scylla(default_when_null)]
     pub potential_p_l: f64,
+    #[scylla(default_when_null)]
     pub percentage: f64,
 }
 
 impl Portofolio {
     pub fn into_proto(self) -> PortofolioRow {
         PortofolioRow {
-            id: self.id.to_string(),
             emiten_name: self.emiten_name,
+            emiten_icon: self.emiten_icon,
             balance_lot: self.balance_lot,
             available_lot: self.available_lot,
             average_price: self.average_price,

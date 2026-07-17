@@ -544,6 +544,103 @@ fn bandarmology_agg(today: NaiveDate, emiten: &str) -> String {
     format!("{}_{emiten}", today.format("%Y-%m-%d"))
 }
 
+/// Kunci partition bandarmology hari ini untuk emiten, mis. `2026-07-17_BBCA`.
+pub fn bandarmology_agg_key(today: NaiveDate, emiten: &str) -> String {
+    bandarmology_agg(today, emiten.trim().to_ascii_uppercase().as_str())
+}
+
+/// `true` bila baris `bandarmology` untuk agg hari ini + emiten sudah ada.
+pub async fn bandarmology_exists_for_today(
+    session: &Session,
+    keyspace: &str,
+    today: NaiveDate,
+    emiten: &str,
+) -> Result<bool, String> {
+    let agg = bandarmology_agg_key(today, emiten);
+    let exists_stmt = session
+        .prepare(format!(
+            "SELECT agg_tahun_bulan_tanggal_emiten_name \
+             FROM {keyspace}.bandarmology \
+             WHERE agg_tahun_bulan_tanggal_emiten_name = ?"
+        ))
+        .await
+        .map_err(|e| e.to_string())?;
+    bandarmology_exists(session, &exists_stmt, &agg)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn scrape_bandarmology_days_for_emiten(
+    page: &Page,
+    emiten: &str,
+) -> Result<Vec<BandarmologyDay>, Box<dyn std::error::Error>> {
+    add_company(page, emiten).await?;
+
+    let mut days: Vec<BandarmologyDay> = Vec::with_capacity(PERIODS.len());
+    for (period_label, col) in PERIODS {
+        match scrape_period(page, period_label, col).await {
+            Ok(day) => {
+                println!(
+                    "  {col} ({period_label}): net_volume={} brokers_buy={}",
+                    day.net_volume,
+                    day.broker_buy.len()
+                );
+                days.push(day);
+            }
+            Err(e) => {
+                eprintln!("  Gagal scrape {col} ({period_label}) untuk {emiten}: {e}");
+                days.push(empty_day());
+            }
+        }
+    }
+    while days.len() < PERIODS.len() {
+        days.push(empty_day());
+    }
+    Ok(days)
+}
+
+/// Scrape Bandar Detector untuk satu emiten bila agg hari ini belum ada.
+/// Returns `Ok(true)` bila di-scrape+insert, `Ok(false)` bila sudah ada.
+pub async fn scrape_bandarmology_for_code_if_missing(
+    page: &Page,
+    session: &Session,
+    keyspace: &str,
+    today: NaiveDate,
+    emiten: &str,
+) -> Result<bool, String> {
+    let code = emiten.trim().to_ascii_uppercase();
+    if bandarmology_exists_for_today(session, keyspace, today, &code).await? {
+        let agg = bandarmology_agg_key(today, &code);
+        println!("Skip {code}: bandarmology sudah ada (agg={agg}).");
+        return Ok(false);
+    }
+
+    click_bandar_menu(page).await.map_err(|e| e.to_string())?;
+    sleep(Duration::from_secs(2)).await;
+    wait_for_company_search(page, Duration::from_secs(30))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    println!("\n=== Bandarmology on-demand emiten={code} ===");
+    let days = scrape_bandarmology_days_for_emiten(page, &code)
+        .await
+        .map_err(|e| e.to_string())?;
+    insert_bandarmology(
+        session,
+        keyspace,
+        today,
+        &code,
+        &days[0],
+        &days[1],
+        &days[2],
+        &days[3],
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    println!("OK: bandarmology insert {code} (on-demand).");
+    Ok(true)
+}
+
 async fn bandarmology_exists(
     session: &Session,
     exists_stmt: &scylla::statement::prepared::PreparedStatement,
@@ -641,34 +738,14 @@ pub async fn scrape_and_insert_bandarmology(
             todo.len(),
             emiten
         );
-        if let Err(e) = add_company(page, emiten).await {
-            eprintln!("Skip {emiten}: gagal add company ({e})");
-            continue;
-        }
 
-        let mut days: Vec<BandarmologyDay> = Vec::with_capacity(PERIODS.len());
-        let mut period_failed = false;
-        for (period_label, col) in PERIODS {
-            match scrape_period(page, period_label, col).await {
-                Ok(day) => {
-                    println!(
-                        "  {col} ({period_label}): net_volume={} brokers_buy={}",
-                        day.net_volume,
-                        day.broker_buy.len()
-                    );
-                    days.push(day);
-                }
-                Err(e) => {
-                    eprintln!("  Gagal scrape {col} ({period_label}) untuk {emiten}: {e}");
-                    days.push(empty_day());
-                    period_failed = true;
-                }
+        let days = match scrape_bandarmology_days_for_emiten(page, emiten).await {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("Skip {emiten}: gagal add company / scrape ({e})");
+                continue;
             }
-        }
-
-        while days.len() < PERIODS.len() {
-            days.push(empty_day());
-        }
+        };
 
         if let Err(e) = insert_bandarmology(
             session,
@@ -685,14 +762,7 @@ pub async fn scrape_and_insert_bandarmology(
             eprintln!("Gagal insert bandarmology {emiten}: {e}");
         } else {
             ok += 1;
-            println!(
-                "OK: bandarmology insert {emiten}{}",
-                if period_failed {
-                    " (sebagian period kosong)"
-                } else {
-                    ""
-                }
-            );
+            println!("OK: bandarmology insert {emiten}");
         }
 
         if idx + 1 < todo.len() {

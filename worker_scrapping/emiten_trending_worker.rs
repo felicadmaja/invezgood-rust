@@ -150,20 +150,51 @@ async fn scrape_movers_table(page: &Page) -> Result<Vec<MoversRow>, Box<dyn std:
                 if (!table) return '[]';
 
                 // Map header → index (termasuk Freq) agar tidak bergantung urutan tetap.
-                const headerCells = Array.from(table.querySelectorAll('thead th, thead td'));
+                const headerCells = Array.from(
+                    table.querySelectorAll(
+                        'thead th, thead td, [role="columnheader"], thead [class*="header"]'
+                    )
+                );
                 const headerIndex = {};
-                headerCells.forEach((th, i) => {
-                    const label = (th.innerText || th.textContent || '').trim().toLowerCase();
-                    if (!label) return;
-                    if (label.includes('freq') || label.includes('frequency')) headerIndex.freq = i;
-                    else if (label.includes('volume') || label === 'vol') headerIndex.volume = i;
-                    else if (label.includes('value') || label === 'val') headerIndex.value = i;
-                    else if (label.includes('price') || label.includes('last') || label === 'chg') {
+                const mapHeader = (label, i) => {
+                    const t = (label || '').trim().toLowerCase();
+                    if (!t) return;
+                    if (t.includes('freq') || t.includes('frequency') || t.includes('frekuensi')) {
+                        headerIndex.freq = i;
+                    } else if (t.includes('volume') || t === 'vol') {
+                        headerIndex.volume = i;
+                    } else if (t.includes('value') || t === 'val') {
+                        headerIndex.value = i;
+                    } else if (t.includes('price') || t.includes('last') || t === 'chg') {
                         if (headerIndex.price == null) headerIndex.price = i;
-                    } else if (label.includes('symbol') || label.includes('code')) {
+                    } else if (t.includes('symbol') || t.includes('code')) {
                         headerIndex.symbol = i;
                     }
+                };
+                headerCells.forEach((th, i) => {
+                    mapHeader(th.innerText || th.textContent || '', i);
+                    mapHeader(th.getAttribute('aria-label') || '', i);
+                    mapHeader(th.getAttribute('title') || '', i);
                 });
+                // Fallback: baris header di dalam wrapper bila thead kosong.
+                if (headerIndex.freq == null) {
+                    const wrap = document.querySelector('#movers-table-wrapper');
+                    const candidates = wrap
+                        ? Array.from(wrap.querySelectorAll('div, span, p, th, td')).slice(0, 80)
+                        : [];
+                    candidates.forEach((el) => {
+                        const t = (el.innerText || el.textContent || '').trim().toLowerCase();
+                        if (t === 'freq' || t === 'frequency' || t === 'frekuensi') {
+                            const cell = el.closest('th, td, [role="columnheader"]') || el;
+                            const row = cell.parentElement;
+                            if (row) {
+                                const kids = Array.from(row.children);
+                                const idx = kids.indexOf(cell);
+                                if (idx >= 0) headerIndex.freq = idx;
+                            }
+                        }
+                    });
+                }
 
                 const rows = Array.from(table.querySelectorAll('tbody tr'));
                 const out = rows.map((tr) => {
@@ -209,6 +240,18 @@ async fn scrape_movers_table(page: &Page) -> Result<Vec<MoversRow>, Box<dyn std:
         .unwrap_or_else(|_| "[]".to_string());
 
     let rows: Vec<MoversRow> = serde_json::from_str(&json)?;
+    let with_freq = rows.iter().filter(|r| !r.freq.trim().is_empty()).count();
+    println!(
+        "Movers scrape: {} baris, {} punya Freq (contoh: {:?})",
+        rows.len(),
+        with_freq,
+        rows.first().map(|r| (r.symbol.as_str(), r.freq.as_str()))
+    );
+    if !rows.is_empty() && with_freq == 0 {
+        eprintln!(
+            "Peringatan: kolom Freq kosong di semua baris movers — periksa header tabel Stockbit."
+        );
+    }
     Ok(rows)
 }
 

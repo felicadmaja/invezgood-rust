@@ -12,17 +12,19 @@
 //! Env opsional: `CHROME_EXECUTABLE_PATH` (mis. `/usr/bin/chromium-browser`).
 //! Env opsional: `STOCKBIT_2FA_TIMEOUT_SECS` (default 300 = 5 menit).
 //! Env opsional: `STOCKBIT_SESSION_CHECK_SECS` (default 5) — tunggu popup sesi habis di `/stream`.
-//! Env Scylla (insert `emiten_trending`, `emiten_list`, `bandarmology`): `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
+//! Env Scylla (insert `emiten_trending`, `emiten_list`, `bandarmology`, `portofolio`): `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
+//! Env Trading PIN: `STOCKBUT_PIN` (atau `STOCKBIT_PIN`).
 //!
 //! Setelah movers → Top Gainer/Loser → insert `emiten_trending`.
 //! Lalu MV `emiten_trending_by_tahun_bulan_tanggal` (hari ini) → Key Stats + Corp. Action + Profile → insert `emiten_list`.
 //! Kemudian Bandar Detector → Last 7D / Last 1M / Last 3M / Last 1Y → insert `bandarmology` (d_7, M_1, M_3, M_12).
+//! Lalu START TRADING (PIN) → Portfolio → insert `portofolio`.
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 
-mod bandarmology_worker;
-mod emiten_list_worker;
-mod emiten_trending_worker;
+use worker_scrapping::{
+    bandarmology_worker, emiten_list_worker, emiten_trending_worker, portofolio_worker,
+};
 
 use chrono::Local;
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
@@ -254,7 +256,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         bandarmology_worker::scrape_and_insert_bandarmology(&page, &session, &ks, today, &emitens)
             .await?;
     println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");
-    let screenshot_path = save_step_screenshot(&page, "09", "bandarmology").await?;
+    save_step_screenshot(&page, "09", "bandarmology").await?;
+
+    println!("Lanjut scrape portofolio (START TRADING → PIN → Portfolio)...");
+    let porto_ok = portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks).await?;
+    println!("OK: {porto_ok} baris diinsert ke portofolio.");
+    let screenshot_path = save_step_screenshot(&page, "10", "portofolio").await?;
 
     let final_url = page.url().await?.unwrap_or_default();
     let final_title = page.get_title().await?.unwrap_or_default();

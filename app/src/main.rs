@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let portofolio_svc = PortofolioService::new(session.clone());
     let emiten_trending_svc = EmitenTrendingService::new(session.clone());
     let bandarmology_svc = BandarmologyService::new(session.clone());
-    let emiten_list_svc = EmitenListService::new(session);
+    let emiten_list_svc = EmitenListService::new(session.clone());
     let gcs_svc = GcsGrpcService::from_env()
         .map_err(|e| format!("GCS env: {e}"))?;
 

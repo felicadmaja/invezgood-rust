@@ -846,11 +846,36 @@ async fn scrape_one_emiten(
     index: usize,
     total: usize,
 ) -> Result<bool, Box<dyn std::error::Error>> {
+    scrape_one_emiten_inner(page, session, keyspace, emiten, index, total, true).await
+}
+
+/// Scrape Key Stats + Corp. Action + Profile untuk satu `code_name` (tanpa skip fresh).
+pub async fn scrape_emiten_list_for_code(
+    page: &Page,
+    session: &Session,
+    keyspace: &str,
+    code_name: &str,
+) -> Result<(), String> {
+    scrape_one_emiten_inner(page, session, keyspace, code_name, 1, 1, false)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+async fn scrape_one_emiten_inner(
+    page: &Page,
+    session: &Session,
+    keyspace: &str,
+    emiten: &str,
+    index: usize,
+    total: usize,
+    skip_if_fresh: bool,
+) -> Result<bool, Box<dyn std::error::Error>> {
     let started = Instant::now();
     let code = emiten.trim().to_ascii_uppercase();
     let progress = format!("{index}/{total}");
 
-    if is_update_at_fresh(session, keyspace, &code).await? {
+    if skip_if_fresh && is_update_at_fresh(session, keyspace, &code).await? {
         println!(
             "Key Stats: skip {code} ({progress}) — update_at belum melebihi {UPDATE_AT_FRESH_DAYS} hari ({})",
             format_elapsed(started)

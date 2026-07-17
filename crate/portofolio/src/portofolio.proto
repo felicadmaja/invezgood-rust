@@ -10,8 +10,8 @@ service Portofolio {
 message GetAllPortofolioRequest {}
 
 message PortofolioRow {
-  string id = 1;
-  string emiten_name = 2;
+  string emiten_name = 1;
+  string emiten_icon = 2;
   int64 balance_lot = 3;
   int64 available_lot = 4;
   double average_price = 5;

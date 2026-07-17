@@ -4,10 +4,11 @@ Keyspace: "stockbit"
 
 --- Tabel dasar (base table) ---
 Nama penuh: "stockbit"."portofolio"
-Primary key: (("id")) — "id" uuid.
+Primary key: (("emiten_name")) — "emiten_name" text.
+Tidak ada clustering key.
 Kolom dan tipe CQL:
-  "id" uuid — partition key
-  "emiten_name" text
+  "emiten_name" text — partition key
+  "emiten_icon" text
   "balance_lot" bigint
   "available_lot" bigint
   "average_price" double
@@ -18,11 +19,6 @@ Kolom dan tipe CQL:
   "percentage" double
 
 --- Materialized view (MV) ---
-(1) "stockbit"."portofolio_by_emiten_name"
-SELECT "emiten_name", "id" (hanya kolom primary key MV).
-WHERE "emiten_name" IS NOT NULL AND "id" IS NOT NULL.
-PRIMARY KEY: partition "emiten_name" (text); clustering "id" (uuid).
-WITH CLUSTERING ORDER BY ("id" ASC).
-Gunakan: daftar portofolio per emiten_name (contoh WHERE emiten_name = ?); data lengkap lewat tabel dasar WHERE id = ?.
+Tidak ada: MV "stockbit"."portofolio_by_emiten_name" (legacy) di-drop saat migrasi; lookup langsung lewat PRIMARY KEY (("emiten_name")).
 
 === Akhir ringkasan struktur ===

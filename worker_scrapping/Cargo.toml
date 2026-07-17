@@ -3,6 +3,9 @@ name = "worker_scrapping"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+path = "lib.rs"
+
 [[bin]]
 name = "worker_scrapping"
 path = "stockbit_scrapper_worker.rs"
