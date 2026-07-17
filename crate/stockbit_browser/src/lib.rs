@@ -11,6 +11,7 @@
 //! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
 
 use chromiumoxide::browser::{Browser, BrowserConfig};
+use chromiumoxide::handler::viewport::Viewport;
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
 use chromiumoxide::page::{Page, ScreenshotParams};
 use futures::StreamExt;
@@ -164,10 +165,20 @@ pub fn browser_config() -> Result<BrowserConfig, StockbitError> {
     kill_stale_chrome_processes(&data_dir);
     clear_stale_chrome_locks(&data_dir);
 
+    let viewport = Viewport {
+        width: 1366,
+        height: 900,
+        device_scale_factor: Some(1.0),
+        emulating_mobile: false,
+        is_landscape: true,
+        has_touch: false,
+    };
+
     let mut builder = BrowserConfig::builder()
         .user_data_dir(&data_dir)
         .request_timeout(Duration::from_secs(120))
         .launch_timeout(Duration::from_secs(60))
+        .viewport(viewport)
         .args([
             "--headless=new",
             "--no-sandbox",
@@ -175,7 +186,7 @@ pub fn browser_config() -> Result<BrowserConfig, StockbitError> {
             "--disable-dev-shm-usage",
             "--disable-gpu",
             "--disable-blink-features=AutomationControlled",
-            "--window-size=1440,900",
+            "--window-size=1366,900",
             "--no-first-run",
             "--no-default-browser-check",
         ]);

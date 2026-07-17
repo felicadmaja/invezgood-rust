@@ -1,10 +1,12 @@
 //! Scrape Key Stats + Corp. Action + Profile Stockbit → upsert `emiten_list`.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Duration as ChronoDuration, Local, Utc};
-use chromiumoxide::page::Page;
+use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
+use chromiumoxide::page::{Page, ScreenshotParams};
 use rand::Rng;
 use scylla::client::session::Session;
 use scylla::{DeserializeRow, SerializeValue};
@@ -271,12 +273,59 @@ async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error:
 
         if started.elapsed() >= Duration::from_secs(60) {
             let detail = status.to_string();
+            let shot = save_key_stats_timeout_screenshot(page, &status).await;
+            let shot_info = shot
+                .as_ref()
+                .map(|p| format!(" | screenshot: {}", p.display()))
+                .unwrap_or_default();
             return Err(format!(
-                "Timeout menunggu Key Stats (Current Valuation + Profitability + Solvency + Cash Flow + Market Cap). status={detail}"
+                "Timeout menunggu Key Stats (Current Valuation + Profitability + Solvency + Cash Flow + Market Cap). status={detail}{shot_info}"
             )
             .into());
         }
         sleep(Duration::from_millis(350)).await;
+    }
+}
+
+async fn save_key_stats_timeout_screenshot(
+    page: &Page,
+    status: &serde_json::Value,
+) -> Option<PathBuf> {
+    let code = status
+        .get("url")
+        .and_then(|v| v.as_str())
+        .and_then(|url| {
+            url.split("/symbol/")
+                .nth(1)
+                .and_then(|rest| rest.split('/').next())
+                .map(|c| c.trim().to_uppercase())
+                .filter(|c| !c.is_empty())
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("screenshots");
+    if let Err(e) = tokio::fs::create_dir_all(&dir).await {
+        eprintln!("Peringatan: gagal membuat direktori screenshot: {e}");
+        return None;
+    }
+    let path = dir.join(format!("stockbit_error_keystats_timeout_{code}.png"));
+    match page
+        .save_screenshot(
+            ScreenshotParams::builder()
+                .format(CaptureScreenshotFormat::Png)
+                .build(),
+            &path,
+        )
+        .await
+    {
+        Ok(_) => {
+            eprintln!("Screenshot error Key Stats timeout [{code}]: {}", path.display());
+            Some(path)
+        }
+        Err(e) => {
+            eprintln!("Peringatan: gagal simpan screenshot Key Stats timeout [{code}]: {e}");
+            None
+        }
     }
 }
 
