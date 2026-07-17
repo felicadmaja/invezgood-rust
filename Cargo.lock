@@ -3103,6 +3103,7 @@ dependencies = [
  "chromiumoxide",
  "chrono",
  "dotenvy",
+ "futures-util",
  "gcs",
  "rand 0.8.7",
  "scylla",

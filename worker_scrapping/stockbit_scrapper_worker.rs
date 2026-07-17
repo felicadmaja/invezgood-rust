@@ -16,7 +16,7 @@
 //! Env Trading PIN: `STOCKBUT_PIN` (atau `STOCKBIT_PIN`).
 //!
 //! Setelah movers → Top Gainer/Loser → insert `emiten_trending`.
-//! Lalu MV `emiten_trending_by_tahun_bulan_tanggal` (hari ini) → Key Stats + Corp. Action + Profile → insert `emiten_list`.
+//! Lalu token-ring scan `emiten_list.code_name` → Key Stats + Corp. Action + Profile → upsert `emiten_list`.
 //! Kemudian Bandar Detector → Last 7D / Last 1M / Last 3M / Last 1Y → insert `bandarmology` (d_7, M_1, M_3, M_12).
 //! Lalu START TRADING (PIN bila perlu) → jeda 2s → https://stockbit.com/securities/portfolio → insert `portofolio`.
 //!
@@ -229,13 +229,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let today = Local::now().date_naive();
+    println!("Token-ring scan emiten_list.code_name...");
+    let emitens = bandarmology_worker::fetch_emiten_list_code_names(&session, &ks).await?;
     println!(
-        "Query MV emiten_trending_by_tahun_bulan_tanggal untuk {}...",
-        today.format("%Y-%m-%d")
-    );
-    let emitens = bandarmology_worker::fetch_today_emiten_names(&session, &ks, today).await?;
-    println!(
-        "Ditemukan {} emiten unik hari ini (MV emiten_trending_by_tahun_bulan_tanggal).",
+        "Ditemukan {} emiten (emiten_list token-ring scan).",
         emitens.len()
     );
 
