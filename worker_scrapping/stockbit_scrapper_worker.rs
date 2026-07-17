@@ -18,7 +18,7 @@
 //! Setelah movers → Top Gainer/Loser → insert `emiten_trending`.
 //! Lalu MV `emiten_trending_by_tahun_bulan_tanggal` (hari ini) → Key Stats + Corp. Action + Profile → insert `emiten_list`.
 //! Kemudian Bandar Detector → Last 7D / Last 1M / Last 3M / Last 1Y → insert `bandarmology` (d_7, M_1, M_3, M_12).
-//! Lalu START TRADING (PIN) → Portfolio → insert `portofolio`.
+//! Lalu START TRADING (PIN bila perlu) → jeda 2s → https://stockbit.com/securities/portfolio → insert `portofolio`.
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 
@@ -243,6 +243,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         emiten_list_worker::scrape_and_insert_key_stats(&page, &session, &ks, &emitens).await?;
     println!("OK: {key_stats_ok} emiten key_stats/profile diinsert ke emiten_list.");
 
+    // Screenshot Key Stats: buka ulang halaman keystats, jeda 3s, lalu capture.
+    if let Some(code) = emitens.first() {
+        let keystats_url = format!("https://stockbit.com/symbol/{code}/keystats");
+        println!("Key Stats screenshot: buka {keystats_url}");
+        goto_stockbit(&page, &keystats_url)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+        sleep(Duration::from_secs(3)).await;
+        save_step_screenshot(&page, "07", "keystats").await?;
+    }
+
     println!("Kembali ke /stream untuk bandarmology...");
     goto_stockbit(&page, STOCKBIT_STREAM_URL)
         .await
@@ -258,7 +269,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");
     save_step_screenshot(&page, "09", "bandarmology").await?;
 
-    println!("Lanjut scrape portofolio (START TRADING → PIN → Portfolio)...");
+    println!("Lanjut scrape portofolio (PIN bila perlu → /securities/portfolio)...");
     let porto_ok = portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks).await?;
     println!("OK: {porto_ok} baris diinsert ke portofolio.");
     let screenshot_path = save_step_screenshot(&page, "10", "portofolio").await?;

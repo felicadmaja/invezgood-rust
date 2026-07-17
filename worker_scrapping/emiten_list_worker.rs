@@ -202,6 +202,9 @@ async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error:
                     const solvency = cards.find((c) =>
                         titleOf(c).toLowerCase().includes('solvency')
                     );
+                    const cashFlow = cards.find((c) =>
+                        titleOf(c).toLowerCase().includes('cash flow')
+                    );
 
                     const recent = document.querySelector(
                         '[data-cy="card-v2-recent-quarter-table"]'
@@ -226,6 +229,15 @@ async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error:
                             'Debt to Equity',
                             'Interest Coverage',
                         ]);
+                    const cashFlowOk =
+                        !!cashFlow &&
+                        hasAll(labelsOf(cashFlow), [
+                            'Cash From Operations',
+                            'Cash From Investing',
+                            'Cash From Financing',
+                            'Capital expenditure',
+                            'Free cash flow',
+                        ]);
                     const marketOk =
                         recentLabels.some((l) => l.includes('Market Cap')) &&
                         recentLabels.some((l) => l.includes('Enterprise Value')) &&
@@ -233,13 +245,14 @@ async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error:
                         recentLabels.some((l) => l.includes('Free Float'));
 
                     const ready =
-                        valuationOk && profitOk && solvencyOk && marketOk;
+                        valuationOk && profitOk && solvencyOk && cashFlowOk && marketOk;
                     return {
                         ready,
                         titles,
                         valuationOk,
                         profitOk,
                         solvencyOk,
+                        cashFlowOk,
                         marketOk,
                         url: window.location.href || '',
                     };
@@ -259,7 +272,7 @@ async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error:
         if started.elapsed() >= Duration::from_secs(60) {
             let detail = status.to_string();
             return Err(format!(
-                "Timeout menunggu Key Stats (Current Valuation + Profitability + Solvency + Market Cap). status={detail}"
+                "Timeout menunggu Key Stats (Current Valuation + Profitability + Solvency + Cash Flow + Market Cap). status={detail}"
             )
             .into());
         }
@@ -317,7 +330,7 @@ async fn scrape_key_stats(page: &Page) -> Result<HashMap<String, String>, Box<dy
                     }
                 };
 
-                // Card Key Stats (Current Valuation, Profitability, dll.).
+                // Card Key Stats (Current Valuation, Profitability, Solvency, Cash Flow, dll.).
                 for (const card of document.querySelectorAll('[data-cy="card-title"]')) {
                     ingestRows(card);
                 }
@@ -356,6 +369,15 @@ fn has_solvency_block(stats: &HashMap<String, String>) -> bool {
         && stats.contains_key("Total Liabilities/Equity (Quarter)")
         && stats.contains_key("Total Debt/Total Assets (Quarter)")
         && stats.contains_key("Interest Coverage (TTM)")
+}
+
+/// Cash Flow Statement (TTM) dari card Key Stats.
+fn has_cash_flow_block(stats: &HashMap<String, String>) -> bool {
+    stats.contains_key("Cash From Operations (TTM)")
+        && stats.contains_key("Cash From Investing (TTM)")
+        && stats.contains_key("Cash From Financing (TTM)")
+        && stats.contains_key("Capital expenditure (TTM)")
+        && stats.contains_key("Free cash flow (TTM)")
 }
 
 async fn scrape_long_name(page: &Page, emiten: &str) -> String {
@@ -911,6 +933,13 @@ async fn scrape_one_emiten_inner(
         )
         .into());
     }
+    if !has_cash_flow_block(&key_stats) {
+        return Err(format!(
+            "Key Stats {code} belum berisi Cash Flow Statement \
+             (Cash From Operations/Investing/Financing, CapEx, Free cash flow TTM)"
+        )
+        .into());
+    }
 
     let long_name = scrape_long_name(page, &code).await;
     let long_name = if long_name.is_empty() {
@@ -1040,6 +1069,17 @@ mod tests {
         map.insert("Total Debt/Total Assets (Quarter)".into(), "0.35".into());
         map.insert("Interest Coverage (TTM)".into(), "4.82".into());
         assert!(has_solvency_block(&map));
+    }
+
+    #[test]
+    fn cash_flow_block_detected() {
+        let mut map = HashMap::new();
+        map.insert("Cash From Operations (TTM)".into(), "3,294 B".into());
+        map.insert("Cash From Investing (TTM)".into(), "(16,220 B)".into());
+        map.insert("Cash From Financing (TTM)".into(), "5,253 B".into());
+        map.insert("Capital expenditure (TTM)".into(), "(6,965 B)".into());
+        map.insert("Free cash flow (TTM)".into(), "(3,671 B)".into());
+        assert!(has_cash_flow_block(&map));
     }
 
     #[test]

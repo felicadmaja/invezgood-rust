@@ -9,9 +9,11 @@ service EmitenList {
 
   // Lookup satu baris via PK base table: emiten_list.code_name = code_name.
   // code_name di server di-capitalize ke uppercase (bbca → BBCA).
-  // Bila tidak ada di Scylla: scrape Key Stats + Profile ke emiten_list; bila
-  // bandarmology.agg_tahun_bulan_tanggal_emiten_name (YYYY-MM-DD_CODE) belum ada,
-  // scrape Bandar Detector seperti worker_scrapping. Lalu kembalikan baris terbaru.
+  // Bila tidak ada di Scylla: scrape Key Stats (termasuk Cash Flow Statement TTM:
+  //   Cash From Operations/Investing/Financing, Capital expenditure, Free cash flow)
+  // + Profile ke emiten_list; bila bandarmology.agg_tahun_bulan_tanggal_emiten_name
+  // (YYYY-MM-DD_CODE) belum ada, scrape Bandar Detector seperti worker_scrapping.
+  // Lalu kembalikan baris terbaru (key_stats map berisi pasangan label→nilai UI).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetEmitenListByCodeName(GetEmitenListByCodeNameRequest) returns (GetEmitenListByCodeNameResponse);
 }
@@ -70,6 +72,9 @@ message CompanyProfile {
 message EmitenListRow {
   string code_name = 1;
   string long_name = 2;
+  // map<label, value> dari UI Key Stats, termasuk Cash Flow Statement TTM:
+  // "Cash From Operations (TTM)", "Cash From Investing (TTM)",
+  // "Cash From Financing (TTM)", "Capital expenditure (TTM)", "Free cash flow (TTM)".
   map<string, string> key_stats = 3;
   // Bentuk: [{"Dividend":[{"Dividend":"Rp 209"},{"Cum Date":"..."},...]}, ...]
   repeated CorporateActionGroup corporate_action = 4;

@@ -1,16 +1,24 @@
 //! Scrape Portfolio Stockbit → upsert `portofolio`.
 //!
-//! Alur: START TRADING → input PIN (`STOCKBUT_PIN` / `STOCKBIT_PIN`) → Submit →
-//! navbar Portfolio → scrape tabel → INSERT Scylla (icon di-upload ke GCS modul `stoksaham`).
+//! Alur: bila tombol START TRADING masih ada → klik → input PIN (`STOCKBUT_PIN` / `STOCKBIT_PIN`) → Submit.
+//! Bila START TRADING sudah tidak ada → sudah mode trading, lewati PIN.
+//! Setelah PIN hilang (atau sudah trading): jeda 2 detik → buka
+//! https://stockbit.com/securities/portfolio → scrape tabel → INSERT Scylla
+//! (icon di-upload ke GCS modul `stoksaham`).
 
-use chromiumoxide::page::Page;
+use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
+use chromiumoxide::page::{Page, ScreenshotParams};
 use gcs::{download_and_upload_emiten_icon, GcsOAuthTokenCache, GcsSignedUrlRuntime};
 use rand::Rng;
 use scylla::client::session::Session;
 use serde::Deserialize;
+use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
+use stockbit_browser::goto_stockbit;
 use tokio::time::sleep;
+
+const STOCKBIT_PORTFOLIO_URL: &str = "https://stockbit.com/securities/portfolio";
 
 #[derive(Debug, Clone, Deserialize)]
 struct PortoRow {
@@ -84,6 +92,29 @@ async fn upload_emiten_icon_to_gcs(
     download_and_upload_emiten_icon(emiten, url, runtime, oauth).await
 }
 
+async fn is_start_trading_visible(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
+    let visible = page
+        .evaluate(
+            r#"(() => {
+                const btn = document.querySelector('[data-cy="top-navbar-button-start-trading"]');
+                if (btn) {
+                    const style = window.getComputedStyle(btn);
+                    if (style.display === 'none' || style.visibility === 'hidden') return false;
+                    return true;
+                }
+                const nodes = Array.from(document.querySelectorAll('p, button, div, a'));
+                return nodes.some((el) => {
+                    const t = (el.innerText || el.textContent || '').trim();
+                    return t === 'START TRADING' || t.includes('START TRADING');
+                });
+            })()"#,
+        )
+        .await?
+        .into_value::<bool>()
+        .unwrap_or(false);
+    Ok(visible)
+}
+
 async fn click_start_trading(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
     for attempt in 1..=20 {
         let clicked = page
@@ -111,6 +142,23 @@ async fn click_start_trading(page: &Page) -> Result<(), Box<dyn std::error::Erro
         sleep(Duration::from_millis(400)).await;
     }
     Err("Tombol START TRADING tidak ditemukan".into())
+}
+
+/// Masuk mode trading: klik START TRADING + PIN bila perlu; lewati bila tombol sudah hilang.
+async fn ensure_trading_session(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    if !is_start_trading_visible(page).await? {
+        println!("START TRADING tidak terlihat — sudah mode trading, lewati PIN.");
+        return Ok(());
+    }
+
+    println!("Portofolio: klik START TRADING...");
+    click_start_trading(page).await?;
+    let pin = trading_pin()?;
+    wait_for_pin_modal(page, Duration::from_secs(30)).await?;
+    type_pin_natural(page, &pin).await?;
+    click_pin_submit(page).await?;
+    wait_pin_modal_gone(page, Duration::from_secs(45)).await?;
+    Ok(())
 }
 
 async fn wait_for_pin_modal(page: &Page, timeout: Duration) -> Result<(), Box<dyn std::error::Error>> {
@@ -272,28 +320,21 @@ async fn wait_pin_modal_gone(page: &Page, timeout: Duration) -> Result<(), Box<d
     }
 }
 
-async fn click_navbar_portfolio(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    for attempt in 1..=20 {
-        let clicked = page
-            .evaluate(
-                r#"(() => {
-                    const btn = document.querySelector('[data-cy="navbar-portfolio"]');
-                    if (btn) { btn.click(); return true; }
-                    const link = document.querySelector('a[href="/securities/portfolio"]');
-                    if (link) { link.click(); return true; }
-                    return false;
-                })()"#,
-            )
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if clicked {
-            println!("Navbar Portfolio diklik (attempt {attempt}).");
-            return Ok(());
-        }
-        sleep(Duration::from_millis(400)).await;
-    }
-    Err("Navbar Portfolio tidak ditemukan".into())
+async fn save_portfolio_page_screenshot(
+    page: &Page,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("screenshots");
+    tokio::fs::create_dir_all(&dir).await?;
+    let path = dir.join("stockbit_10_portofolio_page.png");
+    page.save_screenshot(
+        ScreenshotParams::builder()
+            .format(CaptureScreenshotFormat::Png)
+            .build(),
+        &path,
+    )
+    .await?;
+    println!("Screenshot halaman Portfolio: {}", path.display());
+    Ok(path)
 }
 
 async fn wait_for_portfolio_ready(
@@ -430,25 +471,24 @@ async fn upsert_portofolio(
     Ok(n)
 }
 
-/// START TRADING → PIN → Portfolio → scrape tabel → upsert `portofolio`.
+/// START TRADING (opsional) → PIN (opsional) → /securities/portfolio → scrape → upsert.
 pub async fn scrape_and_insert_portofolio(
     page: &Page,
     session: &Session,
     keyspace: &str,
 ) -> Result<usize, Box<dyn std::error::Error>> {
-    let pin = trading_pin()?;
+    ensure_trading_session(page).await?;
 
-    println!("Portofolio: klik START TRADING...");
-    click_start_trading(page).await?;
-    wait_for_pin_modal(page, Duration::from_secs(30)).await?;
-    type_pin_natural(page, &pin).await?;
-    click_pin_submit(page).await?;
-    wait_pin_modal_gone(page, Duration::from_secs(45)).await?;
+    println!("Jeda 2 detik setelah PIN / mode trading siap...");
+    sleep(Duration::from_secs(2)).await;
 
-    println!("Portofolio: buka navbar Portfolio...");
-    click_navbar_portfolio(page).await?;
+    println!("Portofolio: buka {STOCKBIT_PORTFOLIO_URL}...");
+    goto_stockbit(page, STOCKBIT_PORTFOLIO_URL)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     wait_for_portfolio_ready(page, Duration::from_secs(45)).await?;
     sleep(Duration::from_secs(1)).await;
+    save_portfolio_page_screenshot(page).await?;
 
     let rows = scrape_portfolio_table(page).await?;
     println!("Portofolio: {} baris di-scrape.", rows.len());

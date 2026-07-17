@@ -11,7 +11,8 @@
 //! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
 
 use chromiumoxide::browser::{Browser, BrowserConfig};
-use chromiumoxide::page::Page;
+use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
+use chromiumoxide::page::{Page, ScreenshotParams};
 use futures::StreamExt;
 use rand::Rng;
 use std::path::{Path, PathBuf};
@@ -334,6 +335,43 @@ fn url_looks_navigated(current: &str) -> bool {
             || current.contains("/trusted-device"))
 }
 
+fn error_screenshot_dir() -> PathBuf {
+    // Prefer folder worker screenshots (workspace), fallback ke crate ini.
+    let from_crate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../worker_scrapping/screenshots");
+    from_crate
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("screenshots"))
+}
+
+/// Simpan screenshot debug saat error; path dicetak ke stderr.
+async fn save_error_screenshot(page: &Page, label: &str) -> Option<PathBuf> {
+    let dir = error_screenshot_dir();
+    if let Err(e) = tokio::fs::create_dir_all(&dir).await {
+        eprintln!("Peringatan: gagal buat folder screenshot error: {e}");
+        return None;
+    }
+    let path = dir.join(format!("stockbit_error_{label}.png"));
+    match page
+        .save_screenshot(
+            ScreenshotParams::builder()
+                .format(CaptureScreenshotFormat::Png)
+                .build(),
+            &path,
+        )
+        .await
+    {
+        Ok(_) => {
+            eprintln!("Screenshot error [{label}]: {}", path.display());
+            Some(path)
+        }
+        Err(e) => {
+            eprintln!("Peringatan: gagal simpan screenshot error [{label}]: {e}");
+            None
+        }
+    }
+}
+
 async fn wait_for_login_form(page: &Page, timeout: Duration) -> Result<(), StockbitError> {
     let started = Instant::now();
     while started.elapsed() < timeout {
@@ -342,7 +380,17 @@ async fn wait_for_login_form(page: &Page, timeout: Duration) -> Result<(), Stock
         }
         sleep(Duration::from_millis(400)).await;
     }
-    Err("Form login (#username) tidak muncul".into())
+    let url = page.url().await.ok().flatten().unwrap_or_default();
+    let title = page.get_title().await.ok().flatten().unwrap_or_default();
+    let shot = save_error_screenshot(page, "login_form_missing").await;
+    let shot_info = shot
+        .as_ref()
+        .map(|p| format!(" | screenshot: {}", p.display()))
+        .unwrap_or_default();
+    Err(format!(
+        "Form login (#username) tidak muncul (url={url:?} title={title:?}){shot_info}"
+    )
+    .into())
 }
 
 async fn click_session_expired_cta(page: &Page) -> Result<bool, StockbitError> {
@@ -545,6 +593,30 @@ async fn has_session_expired_modal(page: &Page) -> bool {
     .unwrap_or(false)
 }
 
+/// Sudah di `/stream` tanpa form login dan tanpa modal sesi habis → sesi aktif.
+async fn is_already_authenticated_on_stream(page: &Page) -> bool {
+    let url = page.url().await.ok().flatten().unwrap_or_default();
+    is_stream_url(&url)
+        && !has_login_form(page).await
+        && !has_session_expired_modal(page).await
+}
+
+/// Perlu login ulang hanya jika:
+/// - di-redirect ke `/login`, atau
+/// - modal "Sesi Kamu Sudah Habis", atau
+/// - form login muncul di luar halaman `/stream` (sudah login).
+async fn needs_relogin(page: &Page) -> bool {
+    if has_session_expired_modal(page).await {
+        return true;
+    }
+    let url = page.url().await.ok().flatten().unwrap_or_default();
+    if is_login_url(&url) {
+        return true;
+    }
+    // Form login di `/stream` tidak berarti perlu login — biasanya sudah terautentikasi.
+    has_login_form(page).await && !is_stream_url(&url)
+}
+
 async fn login_and_return_to_stream(
     page: &Page,
     email: &str,
@@ -556,8 +628,20 @@ async fn login_and_return_to_stream(
         }
     }
 
+    // Sudah di /stream tanpa form login → jangan paksa ke /login.
+    if is_already_authenticated_on_stream(page).await {
+        println!("Sesi aktif di /stream — skip login.");
+        return Ok(());
+    }
+
     if !has_login_form(page).await {
-        goto_stockbit_expect(page, STOCKBIT_LOGIN_URL, Some("/login")).await?;
+        // Jangan expect `/login` ketat: bila cookie masih valid, Stockbit redirect ke /stream.
+        goto_stockbit(page, STOCKBIT_LOGIN_URL).await?;
+        sleep(Duration::from_secs(2)).await;
+        if is_already_authenticated_on_stream(page).await {
+            println!("Akses /login di-redirect ke /stream — sesi masih aktif, skip login.");
+            return Ok(());
+        }
     }
 
     wait_for_login_form(page, Duration::from_secs(15)).await?;
@@ -624,7 +708,7 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
         .and_then(|v| v.parse().ok())
         .unwrap_or_else(|| rand::thread_rng().gen_range(60u64..=300));
     let started = Instant::now();
-    let mut need_login = is_login_url(&url) || has_login_form(&page).await;
+    let mut need_login = is_login_url(&url);
     let mut session_expired = false;
 
     while started.elapsed() < Duration::from_secs(wait_secs) {
@@ -638,8 +722,13 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
             break;
         }
         let u = page.url().await?.unwrap_or_default();
-        if is_login_url(&u) || has_login_form(&page).await {
+        if is_login_url(&u) {
+            // /stream di-redirect ke /login → perlu login ulang.
             need_login = true;
+            break;
+        }
+        if is_stream_url(&u) && !has_login_form(&page).await {
+            // Tetap di /stream tanpa form login → sudah login.
             break;
         }
         let remaining = wait_secs.saturating_sub(started.elapsed().as_secs());
@@ -652,9 +741,7 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
 
     let url = page.url().await?.unwrap_or_default();
     if !need_login {
-        need_login = is_login_url(&url)
-            || has_login_form(&page).await
-            || has_session_expired_modal(&page).await;
+        need_login = needs_relogin(&page).await;
         if has_session_expired_modal(&page).await {
             session_expired = true;
         }
@@ -674,11 +761,12 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
         }
         send_update(&tx, false, "Sedang login stockbit.com").await;
         login_and_return_to_stream_with_retry(&page, &email, &password, &tx).await?;
+    } else if is_already_authenticated_on_stream(&page).await {
+        send_update(&tx, false, "Sesi aktif di /stream — skip login").await;
     } else if !is_stream_url(&url) {
         goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
         sleep(Duration::from_secs(1)).await;
-        let again = page.url().await?.unwrap_or_default();
-        if is_login_url(&again) || has_login_form(&page).await {
+        if needs_relogin(&page).await {
             if email.trim().is_empty() || password.is_empty() {
                 return Err(
                     "Perlu login stockbit.com, tapi STOCKBIT_EMAIL / STOCKBIT_PASSWORD kosong"
@@ -704,7 +792,7 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
     Ok(())
 }
 
-/// Alur awal worker: akses `/stream`, login bila sesi habis, kembali ke `/stream`.
+/// Alur awal worker: akses `/stream`, login hanya bila di-redirect ke `/login` / sesi habis.
 pub async fn open_stream_or_login(
     page: &Page,
     email: &str,
@@ -713,46 +801,57 @@ pub async fn open_stream_or_login(
     goto_stockbit(page, STOCKBIT_STREAM_URL).await?;
     sleep(Duration::from_secs(1)).await;
 
-    let url = page.url().await?.unwrap_or_default();
     let wait_secs: u64 = std::env::var("STOCKBIT_SESSION_CHECK_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(5);
     let started = Instant::now();
-    let mut need_login = is_login_url(&url) || has_login_form(page).await;
 
+    // Tunggu sebentar: redirect ke /login, modal sesi habis, atau konfirmasi sudah di /stream.
     while started.elapsed() < Duration::from_secs(wait_secs) {
         if has_profile_avatar_modal(page).await {
             dismiss_profile_avatar_modal(page).await?;
             break;
         }
         if has_session_expired_modal(page).await {
-            need_login = true;
             break;
         }
         let u = page.url().await?.unwrap_or_default();
-        if is_login_url(&u) || has_login_form(page).await {
-            need_login = true;
+        if is_login_url(&u) {
+            // Akses /stream di-redirect ke /login → perlu login ulang.
+            break;
+        }
+        if is_stream_url(&u) && !has_login_form(page).await {
+            // Tetap di /stream tanpa form login → sudah login.
             break;
         }
         sleep(Duration::from_millis(400)).await;
     }
 
-    let url = page.url().await?.unwrap_or_default();
-    if !need_login {
-        need_login = is_login_url(&url)
-            || has_login_form(page).await
-            || has_session_expired_modal(page).await;
+    if has_profile_avatar_modal(page).await {
+        dismiss_profile_avatar_modal(page).await?;
     }
 
-    if need_login {
+    if needs_relogin(page).await {
+        println!("Perlu login ulang (redirect /login atau sesi habis)...");
         login_and_return_to_stream(page, email, password).await?;
-    } else if !is_stream_url(&url) {
+    } else if is_already_authenticated_on_stream(page).await {
+        println!("Sesi aktif di /stream — skip login, lanjut movers.");
+    } else {
+        // Belum jelas: coba /stream lagi.
         goto_stockbit(page, STOCKBIT_STREAM_URL).await?;
         sleep(Duration::from_secs(1)).await;
-        let again = page.url().await?.unwrap_or_default();
-        if is_login_url(&again) || has_login_form(page).await {
+        if needs_relogin(page).await {
+            println!("Perlu login ulang setelah re-cek /stream...");
             login_and_return_to_stream(page, email, password).await?;
+        } else if !is_already_authenticated_on_stream(page).await {
+            let url = page.url().await?.unwrap_or_default();
+            return Err(format!(
+                "Gagal memastikan sesi Stockbit (URL: {url})"
+            )
+            .into());
+        } else {
+            println!("Sesi aktif di /stream — skip login, lanjut movers.");
         }
     }
 

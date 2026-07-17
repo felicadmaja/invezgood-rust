@@ -20,7 +20,7 @@ Sumber: DDL bin create_emiten_list; diisi aplikasi pada INSERT.
 Kolom "code_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
 Kolom "emiten_icon": text — path object GCS modul stoksaham (mis. stoksaham/icon/BBCA.png).
-Kolom "key_stats": map<text, text> — statistik kunci emiten (pasangan key-value); contoh dari UI Key Stats: "Market Cap", "Enterprise Value", "Current Share Outstanding", "Free Float", Income Statement ("Revenue (TTM)", "Gross Profit (TTM)", "EBITDA (TTM)", "Net Income (TTM)"), Solvency ("Current Ratio (Quarter)", "Debt to Equity Ratio (Quarter)", dll.), margin Profitability, dll.
+Kolom "key_stats": map<text, text> — statistik kunci emiten (pasangan key-value); contoh dari UI Key Stats: "Market Cap", "Enterprise Value", "Current Share Outstanding", "Free Float", Income Statement ("Revenue (TTM)", "Gross Profit (TTM)", "EBITDA (TTM)", "Net Income (TTM)"), Solvency ("Current Ratio (Quarter)", "Debt to Equity Ratio (Quarter)", dll.), margin Profitability, Cash Flow Statement ("Cash From Operations (TTM)", "Cash From Investing (TTM)", "Cash From Financing (TTM)", "Capital expenditure (TTM)", "Free cash flow (TTM)"), dll.
 Kolom "corporate_action": list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>> — aksi korporasi sebagai list berurutan; tiap elemen map jenis aksi → list atribut; contoh [{ "Dividend": [{ "Dividend": "Rp 209" }, { "Cum Date": "20 Apr 26" }, { "Ex Date": "21 Apr 26" }, { "Recording Date": "22 Apr 26" }, { "Payment Date": "8 Mei 2026" }] }, ...].
 Kolom "company_profile": frozen<company_profile> — profil perusahaan (lihat UDT di bawah).
 Kolom "update_at": timestamp — waktu terakhir data emiten diperbarui.
