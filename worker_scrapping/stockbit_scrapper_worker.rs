@@ -26,7 +26,8 @@
 //! Kemudian Bandar Detector via API `exodus.stockbit.com/marketdetectors/{CODE}`
 //! (Bearer dari sesi login; `to` = kemarin; d_7/d_14/M_*/Y_* by from–to) → insert `bandarmology`.
 //! Throttle otomatis bila `x-rate-limit-remaining` hampir habis.
-//! Lalu START TRADING (PIN bila perlu) → jeda 2s → https://stockbit.com/securities/portfolio → insert `portofolio`.
+//! Lalu START TRADING (PIN bila perlu) → Bearer trading pasca-PIN →
+//! `GET carina.stockbit.com/portfolio/v2/list` → insert `portofolio`.
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 
@@ -43,11 +44,9 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 use stockbit_browser::{
-    dismiss_profile_avatar_modal, goto_stockbit, launch_page, open_stream_or_login,
+    dismiss_profile_avatar_modal, launch_page, open_stream_or_login,
 };
-use tokio::time::sleep;
 
 const PM2_APP_NAME: &str = "stockbit_ws";
 
@@ -230,7 +229,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (inserted_gainer, inserted_loser) =
         emiten_trending_worker::scrape_and_insert_movers(&page, &session, &ks).await?;
-    save_step_screenshot(&page, "06", "movers").await?;
     println!(
         "OK: emiten_trending gainer={inserted_gainer}, loser={inserted_loser}."
     );
@@ -251,26 +249,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         emiten_list_worker::scrape_and_insert_key_stats(&page, &session, &ks, &emitens).await?;
     println!("OK: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");
 
-    // Screenshot Key Stats: buka ulang halaman keystats, jeda 3s, lalu capture.
-    if let Some(code) = emitens.first() {
-        let keystats_url = format!("https://stockbit.com/symbol/{code}/keystats");
-        println!("Key Stats screenshot: buka {keystats_url}");
-        goto_stockbit(&page, &keystats_url)
-            .await
-            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-        sleep(Duration::from_secs(3)).await;
-        save_step_screenshot(&page, "07", "keystats").await?;
-    }
-
     println!("Bandarmology via marketdetectors API (Bearer dari sesi browser)...");
     let bandar_ok =
         bandarmology_worker::scrape_and_insert_bandarmology(&page, &session, &ks, today, &emitens)
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");
-    save_step_screenshot(&page, "09", "bandarmology").await?;
 
-    println!("Lanjut scrape portofolio (PIN bila perlu → /securities/portfolio)...");
+    println!("Lanjut portofolio (PIN bila perlu → API carina portfolio/v2/list)...");
     let porto_ok = portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks).await?;
     println!("OK: {porto_ok} baris diinsert ke portofolio.");
     let screenshot_path = save_step_screenshot(&page, "10", "portofolio").await?;

@@ -1,41 +1,41 @@
-//! Scrape Portfolio Stockbit → upsert `portofolio`.
+//! Portfolio via API `carina.stockbit.com/portfolio/v2/list` → upsert `portofolio`.
 //!
-//! Alur: bila tombol START TRADING masih ada → klik → input PIN (`STOCKBUT_PIN` / `STOCKBIT_PIN`) → Submit.
-//! Bila START TRADING sudah tidak ada → sudah mode trading, lewati PIN.
-//! Setelah PIN hilang (atau sudah trading): jeda 2 detik → buka
-//! https://stockbit.com/securities/portfolio → scrape tabel → INSERT Scylla
-//! (icon di-upload ke GCS modul `stoksaham`).
+//! Alur: bila tombol START TRADING masih ada → klik → input PIN (`STOCKBUT_PIN` /
+//! `STOCKBIT_PIN`) → Submit → tunggu modal hilang.
+//! Setelah itu ambil **Bearer trading** (pasca-PIN / `securitiesAccessToken`),
+//! **bukan** Bearer login web Exodus, lalu GET portfolio API.
 
-use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
-use chromiumoxide::page::{Page, ScreenshotParams};
+use chromiumoxide::page::Page;
 use gcs::{download_and_upload_emiten_icon, GcsOAuthTokenCache, GcsSignedUrlRuntime};
 use rand::Rng;
 use scylla::client::session::Session;
-use serde::Deserialize;
-use std::path::PathBuf;
+use serde_json::Value;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use stockbit_browser::goto_stockbit;
 use tokio::time::sleep;
 
+const PORTFOLIO_API_URL: &str = "https://carina.stockbit.com/portfolio/v2/list";
 const STOCKBIT_PORTFOLIO_URL: &str = "https://stockbit.com/securities/portfolio";
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+    (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 struct PortoRow {
     emiten_name: String,
     emiten_icon_url: String,
-    balance_lot: String,
-    available_lot: String,
-    average_price: String,
-    current_price: String,
-    invested: String,
-    market_value: String,
-    potential_p_l: String,
-    percentage: String,
+    balance_lot: i64,
+    available_lot: i64,
+    average_price: f64,
+    current_price: f64,
+    invested: f64,
+    market_value: f64,
+    potential_p_l: f64,
+    /// Persentase (gain API × 100), contoh `-1.9401`.
+    percentage: f64,
 }
 
 fn trading_pin() -> Result<String, Box<dyn std::error::Error>> {
-    // Prefer STOCKBUT_PIN (sesuai .env), fallback STOCKBIT_PIN.
     let pin = std::env::var("STOCKBUT_PIN")
         .or_else(|_| std::env::var("STOCKBIT_PIN"))
         .unwrap_or_default();
@@ -47,27 +47,6 @@ fn trading_pin() -> Result<String, Box<dyn std::error::Error>> {
         return Err("STOCKBUT_PIN harus berupa angka".into());
     }
     Ok(pin)
-}
-
-fn parse_i64_number(raw: &str) -> i64 {
-    let cleaned: String = raw
-        .chars()
-        .filter(|c| c.is_ascii_digit() || *c == '-')
-        .collect();
-    cleaned.parse().unwrap_or(0)
-}
-
-/// Hapus koma pemisah ribuan; pertahankan tanda `-` dan titik desimal.
-fn parse_f64_number(raw: &str) -> f64 {
-    let cleaned: String = raw
-        .chars()
-        .filter(|c| c.is_ascii_digit() || *c == '-' || *c == '.')
-        .collect();
-    cleaned.parse().unwrap_or(0.0)
-}
-
-fn parse_percentage(raw: &str) -> f64 {
-    parse_f64_number(&raw.replace('%', ""))
 }
 
 fn gcs_upload_ctx() -> Result<(&'static GcsSignedUrlRuntime, &'static GcsOAuthTokenCache), String> {
@@ -144,23 +123,6 @@ async fn click_start_trading(page: &Page) -> Result<(), Box<dyn std::error::Erro
     Err("Tombol START TRADING tidak ditemukan".into())
 }
 
-/// Masuk mode trading: klik START TRADING + PIN bila perlu; lewati bila tombol sudah hilang.
-async fn ensure_trading_session(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    if !is_start_trading_visible(page).await? {
-        println!("START TRADING tidak terlihat — sudah mode trading, lewati PIN.");
-        return Ok(());
-    }
-
-    println!("Portofolio: klik START TRADING...");
-    click_start_trading(page).await?;
-    let pin = trading_pin()?;
-    wait_for_pin_modal(page, Duration::from_secs(30)).await?;
-    type_pin_natural(page, &pin).await?;
-    click_pin_submit(page).await?;
-    wait_pin_modal_gone(page, Duration::from_secs(45)).await?;
-    Ok(())
-}
-
 async fn wait_for_pin_modal(page: &Page, timeout: Duration) -> Result<(), Box<dyn std::error::Error>> {
     let started = Instant::now();
     loop {
@@ -192,7 +154,6 @@ async fn wait_for_pin_modal(page: &Page, timeout: Duration) -> Result<(), Box<dy
 }
 
 async fn type_pin_natural(page: &Page, pin: &str) -> Result<(), Box<dyn std::error::Error>> {
-    // Fokus + clear input PIN.
     let focused = page
         .evaluate(
             r#"(() => {
@@ -214,7 +175,6 @@ async fn type_pin_natural(page: &Page, pin: &str) -> Result<(), Box<dyn std::err
         return Err("Input PIN tidak ditemukan".into());
     }
 
-    // Prefer type via element API bila selector stabil.
     let selector = r#".ant-modal-body input[pattern="\d*"], .ant-modal-body input.sc-916940df-2"#;
     let element = match page.find_element(selector).await {
         Ok(el) => Some(el),
@@ -270,7 +230,6 @@ async fn click_pin_submit(page: &Page) -> Result<(), Box<dyn std::error::Error>>
                     });
                     if (!submit) return false;
                     if (submit.disabled) {
-                        // Coba enable bila value sudah terisi.
                         const input = modal.querySelector('input[pattern="\\d*"], input.sc-916940df-2, input[type="text"]');
                         if (input && (input.value || '').length > 0) {
                             submit.disabled = false;
@@ -320,87 +279,138 @@ async fn wait_pin_modal_gone(page: &Page, timeout: Duration) -> Result<(), Box<d
     }
 }
 
-async fn save_portfolio_page_screenshot(
-    page: &Page,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("screenshots");
-    tokio::fs::create_dir_all(&dir).await?;
-    let path = dir.join("stockbit_10_portofolio_page.png");
-    page.save_screenshot(
-        ScreenshotParams::builder()
-            .format(CaptureScreenshotFormat::Png)
-            .build(),
-        &path,
-    )
-    .await?;
-    println!("Screenshot halaman Portfolio: {}", path.display());
-    Ok(path)
-}
-
-async fn wait_for_portfolio_ready(
-    page: &Page,
-    timeout: Duration,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let started = Instant::now();
-    loop {
-        let ready = page
-            .evaluate(
-                r#"(() => {
-                    const create = Array.from(document.querySelectorAll('div, span'))
-                        .some((el) => {
-                            const t = (el.innerText || el.textContent || '').trim();
-                            return t === 'Create New Portfolio' || t.includes('Create New Portfolio');
-                        });
-                    const rows = document.querySelectorAll('tr[data-cy="porto-list-row-table"]').length;
-                    return create || rows > 0;
-                })()"#,
-            )
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if ready {
-            println!("Halaman Portfolio siap (Create New Portfolio / baris tabel).");
-            return Ok(());
-        }
-        if started.elapsed() >= timeout {
-            return Err("Timeout menunggu halaman Portfolio".into());
-        }
-        sleep(Duration::from_millis(400)).await;
+/// Masuk mode trading: klik START TRADING + PIN bila perlu; lewati bila tombol sudah hilang.
+async fn ensure_trading_session(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    if !is_start_trading_visible(page).await? {
+        println!("START TRADING tidak terlihat — sudah mode trading, lewati PIN.");
+        return Ok(());
     }
+
+    println!("Portofolio: klik START TRADING...");
+    click_start_trading(page).await?;
+    let pin = trading_pin()?;
+    wait_for_pin_modal(page, Duration::from_secs(30)).await?;
+    type_pin_natural(page, &pin).await?;
+    click_pin_submit(page).await?;
+    wait_pin_modal_gone(page, Duration::from_secs(45)).await?;
+    Ok(())
 }
 
-async fn scrape_portfolio_table(page: &Page) -> Result<Vec<PortoRow>, Box<dyn std::error::Error>> {
-    let json = page
+fn ensure_auth_capture_js() -> &'static str {
+    r#"(() => {
+        try {
+            if (window.__sbCaptureAuthInstalled) {
+                return (window.__sbCapturedBearer || '').length;
+            }
+            window.__sbCaptureAuthInstalled = true;
+            window.__sbCapturedBearer = window.__sbCapturedBearer || '';
+            const remember = (v) => {
+                if (!v || typeof v !== 'string') return;
+                const t = v.replace(/^Bearer\s+/i, '').trim();
+                if (t.startsWith('eyJ')) window.__sbCapturedBearer = t;
+            };
+            const wrapHeaders = (headers) => {
+                if (!headers) return;
+                try {
+                    if (typeof headers.get === 'function') {
+                        remember(headers.get('Authorization') || headers.get('authorization'));
+                    } else if (Array.isArray(headers)) {
+                        for (const pair of headers) {
+                            if (pair && String(pair[0]).toLowerCase() === 'authorization') remember(pair[1]);
+                        }
+                    } else if (typeof headers === 'object') {
+                        remember(headers.Authorization || headers.authorization);
+                    }
+                } catch (_) {}
+            };
+            const ofetch = window.fetch;
+            window.fetch = function (input, init) {
+                try {
+                    if (init && init.headers) wrapHeaders(init.headers);
+                    if (input && typeof input === 'object' && input.headers) wrapHeaders(input.headers);
+                } catch (_) {}
+                return ofetch.apply(this, arguments);
+            };
+            const oSet = XMLHttpRequest.prototype.setRequestHeader;
+            XMLHttpRequest.prototype.setRequestHeader = function (k, v) {
+                try {
+                    if (String(k).toLowerCase() === 'authorization') remember(v);
+                } catch (_) {}
+                return oSet.apply(this, arguments);
+            };
+            return (window.__sbCapturedBearer || '').length;
+        } catch (_) { return 0; }
+    })()"#
+}
+
+async fn probe_trading_bearer(http: &reqwest::Client, token: &str) -> Result<u16, String> {
+    let resp = http
+        .get(PORTFOLIO_API_URL)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/json")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .header("Cache-Control", "no-cache")
+        .header("Pragma", "no-cache")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(resp.status().as_u16())
+}
+
+/// Bearer trading pasca-PIN (`securitiesAccessToken` / Authorization ke carina).
+/// Sengaja **tidak** memakai `extract_stockbit_bearer` (login Exodus).
+async fn extract_trading_bearer_after_pin(
+    page: &Page,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+    // Buang capture login web lama; nanti diisi ulang oleh SPA trading.
+    let _ = page
+        .evaluate(r#"(() => { window.__sbCapturedBearer = ''; return 0; })()"#)
+        .await;
+
+    println!("Portofolio: warm-up trading (buka {STOCKBIT_PORTFOLIO_URL}) agar Bearer carina tertangkap...");
+    goto_stockbit(page, STOCKBIT_PORTFOLIO_URL)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+
+    for _ in 0..25 {
+        sleep(Duration::from_millis(400)).await;
+        let n = page
+            .evaluate(r#"(() => (window.__sbCapturedBearer || '').length)()"#)
+            .await?
+            .into_value::<u64>()
+            .unwrap_or(0);
+        if n > 0 {
+            println!("Portofolio: network.capture trading siap (len={n}).");
+            break;
+        }
+    }
+
+    let scanned = page
         .evaluate(
             r#"(() => {
-                const rows = Array.from(document.querySelectorAll('tr[data-cy="porto-list-row-table"]'));
-                const out = rows.map((tr) => {
-                    const tds = Array.from(tr.querySelectorAll('td'));
-                    const cellText = (td) => (td ? (td.innerText || td.textContent || '').trim() : '');
-                    const nameEl = tr.querySelector('p.sc-94b72927-1, p[family="bold"]');
-                    let emiten_name = nameEl
-                        ? (nameEl.innerText || '').trim().split(/\s+/)[0]
-                        : '';
-                    if (!emiten_name && tds[0]) {
-                        emiten_name = cellText(tds[0]).split(/\s+/)[0] || '';
-                    }
-                    const img = tr.querySelector('img[src*="assets.stockbit.com/logos"], img[alt]');
-                    const emiten_icon_url = img
-                        ? (img.currentSrc || img.getAttribute('src') || '').trim()
-                        : '';
-                    return {
-                        emiten_name,
-                        emiten_icon_url,
-                        balance_lot: cellText(tds[1]),
-                        available_lot: cellText(tds[2]),
-                        average_price: cellText(tds[3]),
-                        current_price: cellText(tds[4]),
-                        invested: cellText(tds[5]),
-                        market_value: cellText(tds[6]),
-                        potential_p_l: cellText(tds[7]),
-                        percentage: cellText(tds[8]),
-                    };
-                }).filter((r) => r.emiten_name);
+                const hits = [];
+                const push = (token, source) => {
+                    if (!token || typeof token !== 'string') return;
+                    const t = token.replace(/^Bearer\s+/i, '').trim();
+                    if (!t.startsWith('eyJ')) return;
+                    hits.push({ token: t, source, len: t.length });
+                };
+                try { push(window.__sbCapturedBearer || '', 'network.capture'); } catch (_) {}
+                try {
+                    push(localStorage.getItem('securitiesAccessToken') || '', 'localStorage:securitiesAccessToken');
+                    push(sessionStorage.getItem('securitiesAccessToken') || '', 'sessionStorage:securitiesAccessToken');
+                } catch (_) {}
+                // Dedup by token, keep first (capture preferred).
+                const seen = new Set();
+                const out = [];
+                for (const h of hits) {
+                    if (seen.has(h.token)) continue;
+                    seen.add(h.token);
+                    out.push(h);
+                }
                 return JSON.stringify(out);
             })()"#,
         )
@@ -408,7 +418,163 @@ async fn scrape_portfolio_table(page: &Page) -> Result<Vec<PortoRow>, Box<dyn st
         .into_value::<String>()
         .unwrap_or_else(|_| "[]".to_string());
 
-    let rows: Vec<PortoRow> = serde_json::from_str(&json)?;
+    let candidates: Vec<Value> = serde_json::from_str(&scanned).unwrap_or_default();
+    {
+        let summary: Vec<String> = candidates
+            .iter()
+            .map(|h| {
+                format!(
+                    "{} len={}",
+                    h.get("source").and_then(|x| x.as_str()).unwrap_or("-"),
+                    h.get("len").and_then(|x| x.as_u64()).unwrap_or(0),
+                )
+            })
+            .collect();
+        println!(
+            "Portofolio trading bearer candidates ({}): {}",
+            summary.len(),
+            if summary.is_empty() {
+                "(none)".into()
+            } else {
+                summary.join(" | ")
+            }
+        );
+    }
+
+    let http = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(45))
+        .build()?;
+
+    let mut probe_log = Vec::new();
+    for h in &candidates {
+        let source = h.get("source").and_then(|x| x.as_str()).unwrap_or("-");
+        let token = h.get("token").and_then(|x| x.as_str()).unwrap_or("");
+        if !token.starts_with("eyJ") {
+            continue;
+        }
+        match probe_trading_bearer(&http, token).await {
+            Ok(status) => {
+                probe_log.push(format!("{source} len={} status={status}", token.len()));
+                if (200..300).contains(&status) {
+                    println!("Portofolio trading bearer probe: {}", probe_log.join(" | "));
+                    println!(
+                        "Portofolio trading bearer dipilih: source={source} len={}",
+                        token.len()
+                    );
+                    return Ok(token.to_string());
+                }
+            }
+            Err(e) => probe_log.push(format!("{source} len={} err={e}", token.len())),
+        }
+    }
+    if !probe_log.is_empty() {
+        println!("Portofolio trading bearer probe: {}", probe_log.join(" | "));
+    }
+    Err(
+        "Bearer trading untuk carina.stockbit.com/portfolio tidak ditemukan. \
+         Pastikan PIN sukses dan sesi trading aktif."
+            .into(),
+    )
+}
+
+fn json_f64(v: &Value, path: &[&str]) -> f64 {
+    let mut cur = v;
+    for p in path {
+        cur = match cur.get(*p) {
+            Some(x) => x,
+            None => return 0.0,
+        };
+    }
+    cur.as_f64()
+        .or_else(|| cur.as_i64().map(|n| n as f64))
+        .or_else(|| cur.as_u64().map(|n| n as f64))
+        .unwrap_or(0.0)
+}
+
+fn json_i64(v: &Value, path: &[&str]) -> i64 {
+    let mut cur = v;
+    for p in path {
+        cur = match cur.get(*p) {
+            Some(x) => x,
+            None => return 0,
+        };
+    }
+    cur.as_i64()
+        .or_else(|| cur.as_u64().map(|n| n as i64))
+        .or_else(|| cur.as_f64().map(|n| n as i64))
+        .unwrap_or(0)
+}
+
+fn parse_portfolio_list_json(v: &Value) -> Vec<PortoRow> {
+    let results = v
+        .pointer("/data/results")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut rows = Vec::with_capacity(results.len());
+    for item in results {
+        let symbol = item
+            .get("symbol")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_ascii_uppercase();
+        if symbol.is_empty() {
+            continue;
+        }
+        let icon = item
+            .pointer("/company/icon_url")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let gain = json_f64(&item, &["asset", "unrealised", "gain"]);
+        rows.push(PortoRow {
+            emiten_name: symbol,
+            emiten_icon_url: icon,
+            balance_lot: json_i64(&item, &["qty", "balance", "lot"]),
+            available_lot: json_i64(&item, &["qty", "available", "lot"]),
+            average_price: json_f64(&item, &["price", "average", "price"]),
+            current_price: json_f64(&item, &["price", "latest"]),
+            invested: json_f64(&item, &["asset", "amount_invested"]),
+            market_value: json_f64(&item, &["asset", "unrealised", "market_value"]),
+            potential_p_l: json_f64(&item, &["asset", "unrealised", "profit_loss"]),
+            percentage: gain * 100.0,
+        });
+    }
+    rows
+}
+
+async fn fetch_portfolio_list(
+    http: &reqwest::Client,
+    bearer: &str,
+) -> Result<Vec<PortoRow>, Box<dyn std::error::Error>> {
+    let resp = http
+        .get(PORTFOLIO_API_URL)
+        .header("Authorization", format!("Bearer {bearer}"))
+        .header("Accept", "application/json")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .header("Cache-Control", "no-cache")
+        .header("Pragma", "no-cache")
+        .send()
+        .await?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        let preview: String = body.chars().take(280).collect();
+        return Err(format!("portfolio/v2/list HTTP {status}: {preview}").into());
+    }
+
+    let v: Value = serde_json::from_str(&body)
+        .map_err(|e| format!("portfolio/v2/list JSON: {e}"))?;
+    let rows = parse_portfolio_list_json(&v);
+    if rows.is_empty() {
+        return Err("portfolio/v2/list: data.results kosong".into());
+    }
     Ok(rows)
 }
 
@@ -440,14 +606,6 @@ async fn upsert_portofolio(
                 String::new()
             }
         };
-        let balance_lot = parse_i64_number(&row.balance_lot);
-        let available_lot = parse_i64_number(&row.available_lot);
-        let average_price = parse_f64_number(&row.average_price);
-        let current_price = parse_f64_number(&row.current_price);
-        let invested = parse_f64_number(&row.invested);
-        let market_value = parse_f64_number(&row.market_value);
-        let potential_p_l = parse_f64_number(&row.potential_p_l);
-        let percentage = parse_percentage(&row.percentage);
 
         session
             .execute_unpaged(
@@ -455,23 +613,38 @@ async fn upsert_portofolio(
                 (
                     emiten.as_str(),
                     emiten_icon.as_str(),
-                    balance_lot,
-                    available_lot,
-                    average_price,
-                    current_price,
-                    invested,
-                    market_value,
-                    potential_p_l,
-                    percentage,
+                    row.balance_lot,
+                    row.available_lot,
+                    row.average_price,
+                    row.current_price,
+                    row.invested,
+                    row.market_value,
+                    row.potential_p_l,
+                    row.percentage,
                 ),
             )
             .await?;
         n += 1;
+        println!(
+            "Upsert portofolio [{n}/{}]: {emiten} \
+             balance_lot={} available_lot={} avg={:.4} last={} \
+             invested={:.2} mv={:.2} pl={:.2} pct={:.4}%",
+            rows.len(),
+            row.balance_lot,
+            row.available_lot,
+            row.average_price,
+            row.current_price,
+            row.invested,
+            row.market_value,
+            row.potential_p_l,
+            row.percentage,
+        );
     }
+    println!("Upsert portofolio selesai: {n}/{} baris.", rows.len());
     Ok(n)
 }
 
-/// START TRADING (opsional) → PIN (opsional) → /securities/portfolio → scrape → upsert.
+/// START TRADING (opsional) → PIN (opsional) → Bearer trading → portfolio API → upsert.
 pub async fn scrape_and_insert_portofolio(
     page: &Page,
     session: &Session,
@@ -482,19 +655,15 @@ pub async fn scrape_and_insert_portofolio(
     println!("Jeda 2 detik setelah PIN / mode trading siap...");
     sleep(Duration::from_secs(2)).await;
 
-    println!("Portofolio: buka {STOCKBIT_PORTFOLIO_URL}...");
-    goto_stockbit(page, STOCKBIT_PORTFOLIO_URL)
-        .await
-        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-    wait_for_portfolio_ready(page, Duration::from_secs(45)).await?;
-    sleep(Duration::from_secs(1)).await;
-    save_portfolio_page_screenshot(page).await?;
+    let bearer = extract_trading_bearer_after_pin(page).await?;
+    let http = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(60))
+        .build()?;
 
-    let rows = scrape_portfolio_table(page).await?;
-    println!("Portofolio: {} baris di-scrape.", rows.len());
-    if rows.is_empty() {
-        return Err("Tabel portofolio kosong / tidak terbaca".into());
-    }
+    println!("Portofolio API: GET {PORTFOLIO_API_URL}...");
+    let rows = fetch_portfolio_list(&http, &bearer).await?;
+    println!("Portofolio: {} baris dari API.", rows.len());
 
     let n = upsert_portofolio(session, keyspace, &rows).await?;
     println!("OK: {n} baris diinsert ke portofolio.");
@@ -503,16 +672,47 @@ pub async fn scrape_and_insert_portofolio(
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_f64_number, parse_i64_number, parse_percentage};
+    use super::*;
 
     #[test]
-    fn parse_numbers_from_portfolio_ui() {
-        assert_eq!(parse_i64_number("24"), 24);
-        assert_eq!(parse_f64_number("1,361.41"), 1361.41);
-        assert_eq!(parse_f64_number("1,335"), 1335.0);
-        assert_eq!(parse_f64_number("3,267,393"), 3_267_393.0);
-        assert_eq!(parse_f64_number("-63,393"), -63_393.0);
-        assert_eq!(parse_percentage("-1.94%"), -1.94);
-        assert_eq!(parse_percentage("+4.72%"), 4.72);
+    fn parse_portfolio_maps_lots_and_gain_percent() {
+        let v: Value = serde_json::from_str(
+            r#"{
+                "data": {
+                    "results": [
+                        {
+                            "symbol": "AMRT",
+                            "company": { "icon_url": "https://assets.stockbit.com/logos/companies/AMRT.png" },
+                            "qty": {
+                                "available": { "lot": 24 },
+                                "balance": { "lot": 24 }
+                            },
+                            "price": {
+                                "latest": 1335,
+                                "average": { "price": 1361.414 }
+                            },
+                            "asset": {
+                                "amount_invested": 3267393.6,
+                                "unrealised": {
+                                    "market_value": 3204000,
+                                    "profit_loss": -63393.6,
+                                    "gain": -0.019401
+                                }
+                            }
+                        }
+                    ]
+                }
+            }"#,
+        )
+        .unwrap();
+        let rows = parse_portfolio_list_json(&v);
+        assert_eq!(rows.len(), 1);
+        let r = &rows[0];
+        assert_eq!(r.emiten_name, "AMRT");
+        assert_eq!(r.balance_lot, 24);
+        assert_eq!(r.available_lot, 24);
+        assert!((r.average_price - 1361.414).abs() < 1e-6);
+        assert!((r.current_price - 1335.0).abs() < 1e-9);
+        assert!((r.percentage - (-1.9401)).abs() < 1e-6);
     }
 }

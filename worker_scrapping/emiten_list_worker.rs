@@ -8,13 +8,11 @@ use std::time::{Duration, Instant};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use chromiumoxide::page::Page;
 use gcs::{download_and_upload_emiten_icon, GcsOAuthTokenCache, GcsSignedUrlRuntime};
-use rand::Rng;
 use scylla::client::session::Session;
 use scylla::{DeserializeRow, SerializeValue};
 use serde::Deserialize;
 use serde_json::Value;
 use stockbit_browser::extract_stockbit_bearer;
-use tokio::time::sleep;
 
 const KEYSTATS_RATIO_URL: &str = "https://exodus.stockbit.com/keystats/ratio/v1";
 const KEYSTATS_YEAR_LIMIT: u32 = 10;
@@ -1118,32 +1116,16 @@ pub async fn scrape_and_insert_key_stats(
     let total = emitens.len();
     for (i, emiten) in emitens.iter().enumerate() {
         let index = i + 1;
-        let scraped = match scrape_one_emiten(
+        match scrape_one_emiten(
             page, &http, &bearer, session, keyspace, emiten, index, total,
         )
         .await
         {
-            Ok(true) => {
-                ok += 1;
-                true
-            }
-            Ok(false) => false, // skip: data masih fresh — tanpa delay
+            Ok(true) => ok += 1,
+            Ok(false) => {}
             Err(e) => {
                 eprintln!("Peringatan: emiten_list {emiten} ({index}/{total}) gagal: {e}");
-                true // sudah attempt scrape — tetap delay
             }
-        };
-        if scraped && index < total {
-            let wait_ms = rand::thread_rng().gen_range(0u64..=3000);
-            let wait_label = if wait_ms >= 1000 {
-                format!("{:.1}s", wait_ms as f64 / 1000.0)
-            } else {
-                format!("{wait_ms}ms")
-            };
-            println!(
-                "Key Stats: jeda {wait_ms}ms ({wait_label}) sebelum emiten berikutnya..."
-            );
-            sleep(Duration::from_millis(wait_ms)).await;
         }
     }
     Ok(ok)

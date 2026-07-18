@@ -846,10 +846,98 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
     Ok(())
 }
 
-/// Ambil Bearer JWT Stockbit (`iss=STOCKBIT`) dari sesi browser setelah login.
-/// Mengabaikan token EIPO/securities. Juga memindai cookie CDP (nilai plain dari Chrome).
+const BEARER_PROBE_URL: &str = "https://exodus.stockbit.com/order-trade/market-mover?\
+mover_type=MOVER_TYPE_TOP_GAINER&filter_stocks=FILTER_STOCKS_TYPE_MAIN_BOARD";
+
+fn ensure_auth_capture_js() -> &'static str {
+    r#"(() => {
+        try {
+            if (window.__sbCaptureAuthInstalled) {
+                return (window.__sbCapturedBearer || '').length;
+            }
+            window.__sbCaptureAuthInstalled = true;
+            window.__sbCapturedBearer = window.__sbCapturedBearer || '';
+            const remember = (v) => {
+                if (!v || typeof v !== 'string') return;
+                const t = v.replace(/^Bearer\s+/i, '').trim();
+                if (t.startsWith('eyJ')) window.__sbCapturedBearer = t;
+            };
+            const wrapHeaders = (headers) => {
+                if (!headers) return;
+                try {
+                    if (typeof headers.get === 'function') {
+                        remember(headers.get('Authorization') || headers.get('authorization'));
+                    } else if (Array.isArray(headers)) {
+                        for (const pair of headers) {
+                            if (pair && String(pair[0]).toLowerCase() === 'authorization') remember(pair[1]);
+                        }
+                    } else if (typeof headers === 'object') {
+                        remember(headers.Authorization || headers.authorization);
+                    }
+                } catch (_) {}
+            };
+            const ofetch = window.fetch;
+            window.fetch = function (input, init) {
+                try {
+                    if (init && init.headers) wrapHeaders(init.headers);
+                    if (input && typeof input === 'object' && input.headers) wrapHeaders(input.headers);
+                } catch (_) {}
+                return ofetch.apply(this, arguments);
+            };
+            const oSet = XMLHttpRequest.prototype.setRequestHeader;
+            XMLHttpRequest.prototype.setRequestHeader = function (k, v) {
+                try {
+                    if (String(k).toLowerCase() === 'authorization') remember(v);
+                } catch (_) {}
+                return oSet.apply(this, arguments);
+            };
+            return (window.__sbCapturedBearer || '').length;
+        } catch (_) { return 0; }
+    })()"#
+}
+
+async fn probe_bearer_ok(http: &reqwest::Client, token: &str) -> Result<u16, String> {
+    let resp = http
+        .get(BEARER_PROBE_URL)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/json, text/plain, */*")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .header("x-platform", "web")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(resp.status().as_u16())
+}
+
+/// Ambil Bearer JWT untuk API `exodus.stockbit.com`.
+///
+/// Warm-up halaman symbol agar SPA mengirim `Authorization` (network.capture),
+/// lalu probe kandidat via HTTP dari Rust (bukan `fetch` di page — CORS status=0).
+/// Abaikan securities* / EIPO / refresh.
 pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitError> {
-    // Kumpulkan cookie plain dari Chrome, lalu scan JWT di JS bersama localStorage.
+    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+
+    println!("Stockbit bearer: warm-up SPA (buka keystats agar Authorization tertangkap)...");
+    // Reset capture sebelum navigasi supaya token baru dari SPA yang dipakai.
+    let _ = page
+        .evaluate(r#"(() => { window.__sbCapturedBearer = ''; return 0; })()"#)
+        .await;
+    goto_stockbit(page, "https://stockbit.com/symbol/BBCA/keystats").await?;
+    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+    for _ in 0..25 {
+        sleep(Duration::from_millis(400)).await;
+        let n = page
+            .evaluate(r#"(() => (window.__sbCapturedBearer || '').length)()"#)
+            .await?
+            .into_value::<u64>()
+            .unwrap_or(0);
+        if n > 0 {
+            println!("Stockbit bearer: network.capture siap (len={n}).");
+            break;
+        }
+    }
+
     let mut cookie_blob = String::new();
     if let Ok(cookies) = page.get_cookies().await {
         for c in cookies {
@@ -861,7 +949,7 @@ pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitErro
     }
 
     let cookie_js = serde_json::to_string(&cookie_blob).unwrap_or_else(|_| "\"\"".into());
-    let picked = page
+    let scanned = page
         .evaluate(format!(
             r#"((cookieBlob) => {{
                 const hits = [];
@@ -901,41 +989,44 @@ pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitErro
                 addToken(cookieBlob || '', 'cdp.cookies');
                 try {{
                     if (window.__sbCapturedBearer) {{
-                        addToken(window.__sbCapturedBearer, 'network.capture');
+                        // Selalu push capture dulu (jangan ter-dedupe ke sumber lain).
+                        hits.unshift({{
+                            token: window.__sbCapturedBearer,
+                            source: 'network.capture',
+                            iss: (() => {{
+                                const p = b64url(window.__sbCapturedBearer.split('.')[1] || '');
+                                return (p && p.iss) ? String(p.iss) : '';
+                            }})(),
+                            token_type: '',
+                        }});
                     }}
                 }} catch (_) {{}}
 
                 const seen = new Set();
                 const uniq = [];
                 for (const h of hits) {{
-                    if (seen.has(h.token)) continue;
-                    seen.add(h.token);
+                    const key = h.source + '|' + h.token;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
                     uniq.push(h);
                 }}
-
-                const stockbit = uniq.find((h) => (h.iss || '').toUpperCase() === 'STOCKBIT');
-                const chosen = stockbit || null;
-                return JSON.stringify({{
-                    candidates: uniq.map((h) => ({{
-                        source: h.source,
-                        iss: h.iss,
-                        token_type: h.token_type,
-                        len: (h.token || '').length,
-                    }})),
-                    token: chosen ? chosen.token : '',
-                    chosen_source: chosen ? chosen.source : '',
-                    chosen_iss: chosen ? chosen.iss : '',
-                    chosen_type: chosen ? chosen.token_type : '',
-                }});
+                return JSON.stringify(uniq.map((h) => ({{
+                    token: h.token,
+                    source: h.source,
+                    iss: h.iss,
+                    token_type: h.token_type,
+                    len: (h.token || '').length,
+                }})));
             }})({cookie_js})"#
         ))
         .await?
         .into_value::<String>()
-        .unwrap_or_else(|_| "{}".to_string());
+        .unwrap_or_else(|_| "[]".to_string());
 
-    let v: serde_json::Value = serde_json::from_str(&picked).unwrap_or_default();
-    if let Some(arr) = v.get("candidates").and_then(|x| x.as_array()) {
-        let summary: Vec<String> = arr
+    let candidates: Vec<serde_json::Value> =
+        serde_json::from_str(&scanned).unwrap_or_default();
+    {
+        let summary: Vec<String> = candidates
             .iter()
             .map(|h| {
                 format!(
@@ -958,27 +1049,68 @@ pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitErro
         );
     }
 
-    let token = v
-        .get("token")
-        .and_then(|x| x.as_str())
-        .unwrap_or("")
-        .trim()
-        .to_string();
-    if token.starts_with("eyJ") {
-        println!(
-            "Stockbit bearer dipilih: source={} iss={} type={} len={}",
-            v.get("chosen_source").and_then(|x| x.as_str()).unwrap_or("-"),
-            v.get("chosen_iss").and_then(|x| x.as_str()).unwrap_or("-"),
-            v.get("chosen_type").and_then(|x| x.as_str()).unwrap_or("-"),
-            token.len()
-        );
-        return Ok(token);
+    let mut ordered: Vec<(String, String, String)> = Vec::new();
+    for h in &candidates {
+        let source = h.get("source").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let token = h.get("token").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let iss = h.get("iss").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let token_type = h.get("token_type").and_then(|x| x.as_str()).unwrap_or("");
+        if !token.starts_with("eyJ") {
+            continue;
+        }
+        if source == "network.capture" {
+            ordered.insert(0, (source, token, iss));
+            continue;
+        }
+        if token_type.to_uppercase().contains("EIPO") || source.to_lowercase().contains("eipo") {
+            continue;
+        }
+        if source.to_lowercase().contains("refresh") {
+            continue;
+        }
+        if source.to_lowercase().contains("securities") {
+            continue;
+        }
+        // cookie / lainnya dengan iss STOCKBIT (atau iss kosong dari capture-like)
+        if iss.to_uppercase() == "STOCKBIT" || source.contains("cookie") {
+            ordered.push((source, token, iss));
+        }
+    }
+
+    // Dedup by token, keep first (network.capture preferred).
+    let mut seen_tok = std::collections::HashSet::new();
+    ordered.retain(|(_, tok, _)| seen_tok.insert(tok.clone()));
+
+    let http = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| StockbitError::from(e.to_string()))?;
+
+    let mut probe_log = Vec::new();
+    for (source, token, iss) in &ordered {
+        match probe_bearer_ok(&http, token).await {
+            Ok(status) => {
+                probe_log.push(format!("{source} len={} status={status}", token.len()));
+                if (200..300).contains(&status) {
+                    println!("Stockbit bearer probe: {}", probe_log.join(" | "));
+                    println!(
+                        "Stockbit bearer dipilih: source={source} iss={iss} len={}",
+                        token.len()
+                    );
+                    return Ok(token.clone());
+                }
+            }
+            Err(e) => probe_log.push(format!("{source} len={} err={e}", token.len())),
+        }
+    }
+    if !probe_log.is_empty() {
+        println!("Stockbit bearer probe: {}", probe_log.join(" | "));
     }
 
     Err(
-        "Bearer iss=STOCKBIT tidak ditemukan di localStorage/sessionStorage/cookie. \
-         Token EIPO/securities diabaikan (akan 401 di marketdetectors). \
-         Pastikan sesi login web Stockbit aktif di Chrome worker."
+        "Tidak ada Bearer yang lolos probe market-mover. \
+         Sesi web mungkin habis — login ulang di Chrome worker."
             .into(),
     )
 }
