@@ -16,6 +16,7 @@ use crate::{
     UpdateEmitenListCatatanRequest, UpdateEmitenListCatatanResponse,
     UpdateEmitenListFundamentalRequest, UpdateEmitenListFundamentalResponse,
     UpdateEmitenListKonglomerasiRequest, UpdateEmitenListKonglomerasiResponse,
+    UpdateEmitenListOwnerRequest, UpdateEmitenListOwnerResponse,
     UpdateEmitenListSectorRequest, UpdateEmitenListSectorResponse,
 };
 
@@ -376,6 +377,55 @@ impl EmitenListRpc for EmitenListService {
         );
 
         Ok(Response::new(UpdateEmitenListCatatanResponse {
+            success,
+            message,
+        }))
+    }
+
+    async fn update_emiten_list_owner(
+        &self,
+        request: Request<UpdateEmitenListOwnerRequest>,
+    ) -> Result<Response<UpdateEmitenListOwnerResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let code_name = req.code_name.trim().to_ascii_uppercase();
+        if code_name.is_empty() {
+            return Ok(Response::new(UpdateEmitenListOwnerResponse {
+                success: false,
+                message: "code_name wajib diisi".to_string(),
+            }));
+        }
+
+        let catatan_owner = req.catatan_owner.trim().to_string();
+        let foto_owner = req.foto_owner_gcs_path.trim().to_string();
+        let updated = self
+            .repo
+            .update_owner(&code_name, &catatan_owner, &foto_owner)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
+
+        let (success, message) = if updated {
+            (
+                true,
+                format!("catatan_owner/foto_owner untuk {code_name} berhasil diupdate"),
+            )
+        } else {
+            (
+                false,
+                format!("emiten_list code_name={code_name} tidak ditemukan"),
+            )
+        };
+
+        println!(
+            "UpdateEmitenListOwner {} {code_name} success={success} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(UpdateEmitenListOwnerResponse {
             success,
             message,
         }))

@@ -844,7 +844,8 @@ impl PreviewUrlCache {
     }
 
     /// Cache hit bila `expires_at_unix` masih > now; bila URL kedaluwarsa → re-sign.
-    pub fn get_or_load<F>(&self, object_path: &str, load: F) -> Result<(String, i64), Status>
+    /// Return ketiga: `true` bila diambil dari cache.
+    pub fn get_or_load<F>(&self, object_path: &str, load: F) -> Result<(String, i64, bool), Status>
     where
         F: FnOnce() -> Result<(String, i64), Status>,
     {
@@ -852,13 +853,13 @@ impl PreviewUrlCache {
         let now = Self::unix_now();
         if let Some(v) = self.inner.get(&key) {
             if v.1 > now {
-                return Ok(v);
+                return Ok((v.0, v.1, true));
             }
             self.inner.invalidate(&key);
         }
         let v = load()?;
         self.inner.insert(key, v.clone());
-        Ok(v)
+        Ok((v.0, v.1, false))
     }
 }
 

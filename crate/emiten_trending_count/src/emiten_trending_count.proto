@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package emiten_trending_count;
+
+service EmitenTrendingCount {
+  // Top 10 emiten paling sering trending sepanjang waktu.
+  // Logic: token-ring scan `emiten_trending_count_by_name`,
+  // filter hanya `appearance_count >= 10`, urutkan descending, ambil 10 teratas.
+  // Request kosong. Wajib Authorization: Bearer <JWT valid>.
+  rpc GetMostTrendingEmiten(GetMostTrendingEmitenRequest)
+      returns (GetMostTrendingEmitenResponse);
+}
+
+message GetMostTrendingEmitenRequest {}
+
+message EmitenTrendingCountByNameRow {
+  string emiten_name = 1;
+  int64 appearance_count = 2;
+  // Format YYYY-MM-DD (kosong bila null di Scylla).
+  string last_tahun_bulan_tanggal = 3;
+  // RFC3339 / ISO-8601 timestamp string (kosong bila null di Scylla).
+  string updated_at = 4;
+}
+
+message GetMostTrendingEmitenResponse {
+  repeated EmitenTrendingCountByNameRow rows = 1;
+}

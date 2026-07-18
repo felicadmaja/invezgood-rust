@@ -16,6 +16,8 @@
 //! | is_fundamental_solid   | boolean  | bool (default false) |
 //! | is_blue_chip           | boolean  | bool (default false) |
 //! | catatan                | text     | String |
+//! | catatan_owner          | text     | String |
+//! | foto_owner             | text     | String |
 
 use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
@@ -173,6 +175,12 @@ pub struct EmitenList {
     pub is_blue_chip: bool,
     #[scylla(default_when_null)]
     pub catatan: String,
+    /// Pemilik/penulis catatan.
+    #[scylla(default_when_null)]
+    pub catatan_owner: String,
+    /// Path/URL foto pemilik catatan.
+    #[scylla(default_when_null)]
+    pub foto_owner: String,
 }
 
 impl EmitenList {

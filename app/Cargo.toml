@@ -13,6 +13,7 @@ bandarmology = { path = "../crate/bandarmology" }
 broker = { path = "../crate/broker" }
 emiten_list = { path = "../crate/emiten_list" }
 emiten_trending = { path = "../crate/emiten_trending" }
+emiten_trending_count = { path = "../crate/emiten_trending_count" }
 gcs = { path = "../crate/gcs" }
 portofolio = { path = "../crate/portofolio" }
 tls = { path = "../crate/tls" }

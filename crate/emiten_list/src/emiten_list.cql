@@ -20,7 +20,9 @@ Kolom dan tipe CQL, kata demi kata:
   "is_fundamental_solid" boolean
   "is_blue_chip" boolean
   "catatan" text
-Sumber: DDL bin create_emiten_list + ALTER TABLE (sector, is_fundamental_solid, is_blue_chip, catatan); diisi aplikasi pada INSERT/UPDATE.
+  "catatan_owner" text
+  "foto_owner" text
+Sumber: DDL bin create_emiten_list + ALTER TABLE (sector, is_fundamental_solid, is_blue_chip, catatan, catatan_owner, foto_owner); diisi aplikasi pada INSERT/UPDATE.
 Kolom "code_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
 Kolom "emiten_icon": text — path object GCS modul stoksaham (mis. stoksaham/icon/BBCA.png).
@@ -33,6 +35,8 @@ Kolom "sector": tinyint — kode sektor emiten (`EmitenSector` proto, 0 = UNSPEC
 Kolom "is_fundamental_solid": boolean — true bila fundamental solid; default false.
 Kolom "is_blue_chip": boolean — true bila blue chip; default false.
 Kolom "catatan": text — catatan manual untuk emiten (kosong bila belum di-set).
+Kolom "catatan_owner": text — pemilik/penulis catatan (kosong bila belum di-set).
+Kolom "foto_owner": text — path/URL foto pemilik catatan (kosong bila belum di-set).
 
 --- Materialized view (MV) ---
 Tidak ada: MV "stockbit"."emiten_list_by_name" (legacy) di-drop saat migrasi; lookup langsung lewat PRIMARY KEY (("code_name")).

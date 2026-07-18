@@ -593,6 +593,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "emiten_trending_count"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures-util",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "scylla",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1511,7 +1527,6 @@ checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
 name = "portofolio"
 version = "0.1.0"
 dependencies = [
- "dotenvy",
  "futures-util",
  "prost",
  "prost-build",
@@ -1520,7 +1535,6 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
- "tonic-reflection",
  "user",
 ]
 
@@ -2345,6 +2359,7 @@ dependencies = [
  "dotenvy",
  "emiten_list",
  "emiten_trending",
+ "emiten_trending_count",
  "gcs",
  "portofolio",
  "tls",
@@ -2791,7 +2806,6 @@ version = "0.1.0"
 dependencies = [
  "bcrypt",
  "chrono",
- "dotenvy",
  "jsonwebtoken",
  "prost",
  "prost-build",
@@ -2803,7 +2817,6 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "tonic-build",
- "tonic-reflection",
  "uuid",
 ]
 

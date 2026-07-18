@@ -5,6 +5,7 @@ package gcs;
 service Gcs {
   // Signed POST GCS — path `{module}/...` (`gcs_new_object_path`).
   // Klien (Flutter/web) upload langsung setelah dapat link.
+  // nama object di gcs menggunakan uuid v7
   rpc GetStorageUrl(GetStorageUrlRequest) returns (GetStorageUrlResponse);
 
   // Hapus object GCS (HTTP DELETE dengan OAuth service account).

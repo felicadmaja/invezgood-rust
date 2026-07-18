@@ -45,10 +45,11 @@ impl GcsGrpcService {
     }
 
     /// Signed GET preview tanpa auth — pemanggil internal sudah auth sendiri.
+    /// Return kedua: `from_cache`.
     pub fn generate_preview_url_for_object_path(
         &self,
         object_path: &str,
-    ) -> Result<GeneratePreviewUrlResponse, Status> {
+    ) -> Result<(GeneratePreviewUrlResponse, bool), Status> {
         let path = object_path.trim();
         if path.is_empty() {
             return Err(Status::invalid_argument("object_path wajib diisi"));
@@ -59,7 +60,7 @@ impl GcsGrpcService {
 
         let runtime = self.runtime.clone();
         let path_owned = path.to_string();
-        let (get_url, expires_at_unix) =
+        let (get_url, expires_at_unix, from_cache) =
             self.preview_cache
                 .get_or_load(path_owned.as_str(), || {
                     gcs_signed_get_url_for_stored_object_preview(
@@ -70,10 +71,13 @@ impl GcsGrpcService {
                     )
                 })?;
 
-        Ok(GeneratePreviewUrlResponse {
-            get_url,
-            expires_at_unix,
-        })
+        Ok((
+            GeneratePreviewUrlResponse {
+                get_url,
+                expires_at_unix,
+            },
+            from_cache,
+        ))
     }
 }
 
@@ -102,6 +106,8 @@ impl GcsRpc for GcsGrpcService {
         request: Request<GetStorageUrlRequest>,
     ) -> Result<Response<GetStorageUrlResponse>, Status> {
         let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        println!("GetStorageUrl {username}");
         let req = request.into_inner();
         let (ext, _, _) = gcs_upload_extension(req.file_extension.as_str())?;
         let module = validate_gcs_module(req.module.as_str())?;
@@ -138,7 +144,8 @@ impl GcsRpc for GcsGrpcService {
         &self,
         request: Request<GcsDeleteObjectRequest>,
     ) -> Result<Response<GcsDeleteObjectResponse>, Status> {
-        let _claims = require_auth(&request)?;
+        let claims = require_auth(&request)?;
+        println!("GcsDeleteObject {}", claims.name);
         let req = request.into_inner();
         let wire = gcs_object_wire_path(self.runtime.bucket.as_str(), req.path.as_str())
             .ok_or_else(|| Status::invalid_argument("path object tidak valid"))?;
@@ -166,9 +173,16 @@ impl GcsRpc for GcsGrpcService {
         &self,
         request: Request<GeneratePreviewUrlRequest>,
     ) -> Result<Response<GeneratePreviewUrlResponse>, Status> {
-        let _claims = require_auth(&request)?;
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
         let req = request.into_inner();
-        let out = self.generate_preview_url_for_object_path(req.object_path.as_str())?;
+        let (out, from_cache) =
+            self.generate_preview_url_for_object_path(req.object_path.as_str())?;
+        if from_cache {
+            println!("GeneratePreviewUrl {username} from cache");
+        } else {
+            println!("GeneratePreviewUrl {username}");
+        }
         Ok(Response::new(out))
     }
 }

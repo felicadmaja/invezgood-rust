@@ -33,6 +33,11 @@ service EmitenList {
   // Update kolom `catatan` untuk satu emiten (PK code_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListCatatan(UpdateEmitenListCatatanRequest) returns (UpdateEmitenListCatatanResponse);
+
+  // Update kolom `catatan_owner` dan `foto_owner` untuk satu emiten (PK code_name).
+  // Request field `foto_owner_gcs_path` disimpan ke kolom Scylla `foto_owner`.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateEmitenListOwner(UpdateEmitenListOwnerRequest) returns (UpdateEmitenListOwnerResponse);
 }
 
 // Kode sektor emiten; disimpan di Scylla `emiten_list.sector` sebagai tinyint.
@@ -146,6 +151,19 @@ message UpdateEmitenListCatatanRequest {
 }
 
 message UpdateEmitenListCatatanResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateEmitenListOwnerRequest {
+  // Kode emiten / ticker (contoh "BBCA"); di-capitalize ke uppercase di server.
+  string code_name = 1;
+  string catatan_owner = 2;
+  // Path object GCS; disimpan ke kolom Scylla `foto_owner`.
+  string foto_owner_gcs_path = 3;
+}
+
+message UpdateEmitenListOwnerResponse {
   bool success = 1;
   string message = 2;
 }

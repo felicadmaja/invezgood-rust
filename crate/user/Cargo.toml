@@ -6,14 +6,9 @@ edition = "2021"
 [lib]
 path = "src/lib.rs"
 
-[[bin]]
-name = "user"
-path = "src/main.rs"
-
 [dependencies]
 bcrypt = "0.16"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-dotenvy = "0.15"
 jsonwebtoken = "9"
 prost = { version = "0.13", features = ["std", "derive"] }
 scylla = "1.5"
@@ -22,7 +17,6 @@ stockbit_browser = { path = "../stockbit_browser" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync"] }
 tokio-stream = "0.1"
 tonic = { version = "0.12", features = ["transport"] }
-tonic-reflection = "0.12"
 uuid = { version = "1", features = ["v4", "serde"] }
 
 [build-dependencies]

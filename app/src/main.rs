@@ -18,6 +18,8 @@ use emiten_list::emiten_list_server::EmitenListServer;
 use emiten_list::EmitenListService;
 use emiten_trending::emiten_trending_server::EmitenTrendingServer;
 use emiten_trending::EmitenTrendingService;
+use emiten_trending_count::emiten_trending_count_server::EmitenTrendingCountServer;
+use emiten_trending_count::EmitenTrendingCountService;
 use gcs::gcs_server::GcsServer;
 use gcs::GcsGrpcService;
 use portofolio::portofolio_server::PortofolioServer;
@@ -46,6 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let user_svc = UserService::new(session.clone());
     let portofolio_svc = PortofolioService::new(session.clone());
     let emiten_trending_svc = EmitenTrendingService::new(session.clone());
+    let emiten_trending_count_svc = EmitenTrendingCountService::new(session.clone());
     let bandarmology_svc = BandarmologyService::new(session.clone());
     let emiten_list_svc = EmitenListService::new(session.clone());
     let broker_svc = BrokerService::new(session.clone());
@@ -58,13 +61,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         user_svc.warm_prepared(),
         portofolio_svc.warm_prepared(),
         emiten_trending_svc.warm_prepared(),
+        emiten_trending_count_svc.warm_prepared(),
         bandarmology_svc.warm_prepared(),
         emiten_list_svc.warm_prepared(),
         broker_svc.warm_prepared(),
     )
     .map_err(|e| format!("Gagal memanaskan statement database: {e}"))?;
     println!(
-        "OK: prepared statements siap (user, portofolio, emiten_trending, bandarmology, emiten_list, broker)"
+        "OK: prepared statements siap (user, portofolio, emiten_trending, emiten_trending_count, bandarmology, emiten_list, broker)"
     );
 
     let user_svc = UserServer::new(user_svc);
@@ -72,6 +76,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         PortofolioServer::with_interceptor(portofolio_svc, AuthInterceptor);
     let emiten_trending_svc =
         EmitenTrendingServer::with_interceptor(emiten_trending_svc, AuthInterceptor);
+    let emiten_trending_count_svc =
+        EmitenTrendingCountServer::with_interceptor(emiten_trending_count_svc, AuthInterceptor);
     let bandarmology_svc =
         BandarmologyServer::with_interceptor(bandarmology_svc, AuthInterceptor);
     let emiten_list_svc =
@@ -83,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(portofolio::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(emiten_trending::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(emiten_trending_count::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(bandarmology::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(emiten_list::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(broker::FILE_DESCRIPTOR_SET)
@@ -107,6 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(user_svc)
         .add_service(portofolio_svc)
         .add_service(emiten_trending_svc)
+        .add_service(emiten_trending_count_svc)
         .add_service(bandarmology_svc)
         .add_service(emiten_list_svc)
         .add_service(broker_svc)
