@@ -17,10 +17,18 @@ use chromiumoxide::page::{Page, ScreenshotParams};
 use futures::StreamExt;
 use rand::Rng;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::time::sleep;
+
+/// Mutex global: satu Chrome profil — readiness poller dan on-demand scrape
+/// tidak boleh `launch_page` bersamaan (`kill_stale` akan bunuh yang lain).
+static BROWSER_SESSION_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+pub fn browser_session_lock() -> &'static Mutex<()> {
+    BROWSER_SESSION_LOCK.get_or_init(|| Mutex::new(()))
+}
 
 /// Interval default antar pengecekan web Stockbit (detik).
 pub const READY_POLL_MIN_SECS: u64 = 5 * 60;
@@ -747,6 +755,8 @@ async fn send_update(tx: &mpsc::Sender<ReadinessUpdate>, ready: bool, message: &
 
 /// Cek `/stream`, login bila perlu, kirim progres lewat channel.
 pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<(), StockbitError> {
+    let _browser_guard = browser_session_lock().lock().await;
+
     let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
     let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
 

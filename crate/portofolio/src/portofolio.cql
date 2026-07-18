@@ -8,6 +8,7 @@ Primary key: (("emiten_name")) — "emiten_name" text.
 Tidak ada clustering key.
 Kolom dan tipe CQL:
   "emiten_name" text — partition key
+  "long_name" text — nama perusahaan panjang (dari emiten_list / API)
   "emiten_icon" text
   "balance_lot" bigint
   "available_lot" bigint

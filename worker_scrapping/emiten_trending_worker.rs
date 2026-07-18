@@ -153,6 +153,10 @@ async fn fetch_market_mover(
         .await?;
 
     let status = resp.status();
+    crate::http_abort::abort_app_if_http_4xx(
+        status,
+        &format!("market-mover {mover_type}"),
+    );
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();

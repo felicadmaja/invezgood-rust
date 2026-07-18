@@ -297,7 +297,11 @@ struct ApiBrokerBuy {
     #[serde(default)]
     blot: String,
     #[serde(default)]
+    #[allow(dead_code)]
     blotv: String,
+    /// Nilai beli — dipakai untuk `buy_volume` di DB.
+    #[serde(default)]
+    bval: String,
     #[serde(default)]
     netbs_buy_avg_price: String,
 }
@@ -321,6 +325,12 @@ fn amount_to_rp_b(amount: f64) -> i64 {
 
 fn parse_avg_price(s: &str) -> i64 {
     s.trim().parse::<f64>().unwrap_or(0.0).round() as i64
+}
+
+/// Parse `"2.349649e+08"` (atau angka biasa) → string integer `"234964900"`.
+fn parse_sci_to_int_string(s: &str) -> String {
+    let n = s.trim().parse::<f64>().unwrap_or(0.0).round() as i64;
+    n.to_string()
 }
 
 fn map_top(stats: Option<&ApiTopStats>) -> BandarmologyTopStats {
@@ -369,7 +379,7 @@ fn map_api_day(data: &ApiData) -> BandarmologyDay {
             .filter(|r| !r.netbs_broker_code.trim().is_empty())
             .map(|r| BandarmologyBrokerBuy {
                 broker_code: r.netbs_broker_code.trim().to_string(),
-                buy_volume: r.blotv.clone(),
+                buy_volume: parse_sci_to_int_string(&r.bval),
                 buy_lot: r.blot.clone(),
                 buy_avg: parse_avg_price(&r.netbs_buy_avg_price),
             })
@@ -456,7 +466,8 @@ const API_TIMEOUT_MAX_RETRIES: u32 = 5;
 const BANDARMOLOGY_EMITEN_CONCURRENCY: usize = 2;
 
 fn is_retryable_http_status(code: u16) -> bool {
-    matches!(code, 408 | 425 | 429 | 500 | 502 | 503 | 504 | 522 | 524)
+    // Hanya 5xx / network-ish server errors. Semua 4xx → abort app (hindari blokir).
+    matches!(code, 500 | 502 | 503 | 504 | 522 | 524)
 }
 
 fn timeout_retry_wait_secs(retry_n: u32) -> u64 {
@@ -479,7 +490,6 @@ async fn fetch_marketdetector_day(
     );
 
     let mut timeout_retries = 0u32;
-    let mut rate_limit_attempt = 0u32;
     loop {
         let resp = match client
             .get(&url)
@@ -517,29 +527,11 @@ async fn fetch_marketdetector_day(
         let rate = RateLimitState::from_headers(resp.headers());
         println!("  API {emiten} {from}..{to} → HTTP {status} | {}", rate.log_line());
 
-        if status.as_u16() == 401 || status.as_u16() == 403 {
-            let body = resp.text().await.unwrap_or_default();
-            return Err(format!(
-                "unauthorized marketdetectors {emiten}: {status} {body}"
-            )
-            .into());
-        }
-
-        if status.as_u16() == 429 {
-            rate_limit_attempt += 1;
-            let wait = rate
-                .reset_secs
-                .max(timeout_retry_wait_secs(rate_limit_attempt));
-            eprintln!(
-                "Bandarmology API 429 untuk {emiten} {from}..{to} — retry setelah {wait}s (attempt {rate_limit_attempt}) | {}",
-                rate.log_line()
-            );
-            sleep(StdDuration::from_secs(wait)).await;
-            if rate_limit_attempt >= API_TIMEOUT_MAX_RETRIES {
-                return Err(format!("rate limit terus untuk {emiten} {from}..{to}").into());
-            }
-            continue;
-        }
+        // Semua 4xx (termasuk 401/403/429): hentikan worker + resume PM2.
+        crate::http_abort::abort_app_if_http_4xx(
+            status,
+            &format!("marketdetectors {emiten} {from}..{to}"),
+        );
 
         if is_retryable_http_status(status.as_u16()) && !status.is_success() {
             timeout_retries += 1;
@@ -861,5 +853,12 @@ mod tests {
         let to = NaiveDate::from_ymd_opt(2026, 7, 17).unwrap();
         let (from, _) = period_from_to(to, PeriodKind::Days(14));
         assert_eq!(from, NaiveDate::from_ymd_opt(2026, 7, 3).unwrap());
+    }
+
+    #[test]
+    fn parse_bval_scientific_to_int_string() {
+        assert_eq!(parse_sci_to_int_string("2.349649e+08"), "234964900");
+        assert_eq!(parse_sci_to_int_string("12345"), "12345");
+        assert_eq!(parse_sci_to_int_string(""), "0");
     }
 }

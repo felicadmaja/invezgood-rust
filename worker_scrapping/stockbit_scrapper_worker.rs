@@ -26,8 +26,11 @@
 //! Kemudian Bandar Detector via API `exodus.stockbit.com/marketdetectors/{CODE}`
 //! (Bearer dari sesi login; `to` = kemarin; d_7/d_14/M_*/Y_* by from–to) → insert `bandarmology`.
 //! Throttle otomatis bila `x-rate-limit-remaining` hampir habis.
+//! Jika API mengembalikan HTTP 4xx: worker dihentikan segera + `pm2 resume stockbit_ws`
+//! (hindari diblokir server).
 //! Lalu START TRADING (PIN bila perlu) → Bearer trading pasca-PIN →
-//! `GET carina.stockbit.com/portfolio/v2/list` → insert `portofolio`.
+//! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list + bandarmology
+//! → insert `portofolio` (termasuk `long_name` dari emiten_list / company.name).
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 
@@ -256,7 +259,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");
 
-    println!("Lanjut portofolio (PIN bila perlu → API carina portfolio/v2/list)...");
+    println!("Lanjut portofolio (PIN bila perlu → API → emiten_list + bandarmology → upsert)...");
     let porto_ok = portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks).await?;
     println!("OK: {porto_ok} baris diinsert ke portofolio.");
     let screenshot_path = save_step_screenshot(&page, "10", "portofolio").await?;

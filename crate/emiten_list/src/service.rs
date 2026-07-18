@@ -97,9 +97,12 @@ impl EmitenListRpc for EmitenListService {
             println!(
                 "GetEmitenListByCodeName {username}: {code_name} tidak ada — on-demand scrape..."
             );
-            on_demand::ensure_emiten_data_for_code(self.session.clone(), &code_name)
-                .await
-                .map_err(|e| Status::internal(format!("on-demand scrape gagal: {e}")))?;
+            if let Err(e) =
+                on_demand::ensure_emiten_data_for_code(self.session.clone(), &code_name).await
+            {
+                eprintln!("GetEmitenListByCodeName {username}: on-demand gagal {code_name}: {e}");
+                return Err(Status::internal(format!("on-demand scrape gagal: {e}")));
+            }
 
             row = self
                 .repo

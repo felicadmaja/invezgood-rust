@@ -36,8 +36,8 @@ impl PortofolioRepository {
         self.prepared
             .get_or_try_init(|| async {
                 let q = format!(
-                    "SELECT emiten_name, emiten_icon, balance_lot, available_lot, average_price, \
-                     current_price, invested, market_value, potential_p_l, percentage \
+                    "SELECT emiten_name, long_name, emiten_icon, balance_lot, available_lot, \
+                     average_price, current_price, invested, market_value, potential_p_l, percentage \
                      FROM {} WHERE token(emiten_name) >= ? AND token(emiten_name) <= ?",
                     self.table
                 );

@@ -223,6 +223,7 @@ async fn fetch_keystats_ratio(
         .await?;
 
     let status = resp.status();
+    crate::http_abort::abort_app_if_http_4xx(status, &format!("keystats/ratio {code}"));
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
@@ -488,6 +489,7 @@ async fn fetch_corpaction(
         .await?;
 
     let status = resp.status();
+    crate::http_abort::abort_app_if_http_4xx(status, &format!("corpaction {code}"));
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
@@ -647,6 +649,7 @@ async fn fetch_company_profile(
         .await?;
 
     let status = resp.status();
+    crate::http_abort::abort_app_if_http_4xx(status, &format!("emitten profile {code}"));
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
@@ -668,8 +671,7 @@ struct EmitenLongNameRow {
     long_name: String,
 }
 
-/// `long_name` dari search API: `data.company[].desc` untuk match kode emiten.
-/// Fallback: nilai DB yang sudah ada, lalu kode emiten.
+/// `long_name`: Redis (TTL 1 tahun) → search API (lalu cache) → DB `emiten_list` → kode.
 async fn resolve_long_name(
     http: &reqwest::Client,
     bearer: &str,
@@ -677,17 +679,26 @@ async fn resolve_long_name(
     keyspace: &str,
     code: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    match fetch_long_name_from_search(http, bearer, code).await {
-        Ok(name) if !name.is_empty() => {
-            println!("long_name {code}: {name} (search API)");
-            return Ok(name);
-        }
+    if let Some(cached) = crate::redis_long_name::get_long_name(code).await {
+        println!("long_name {code}: {cached} (redis)");
+        return Ok(cached);
+    }
+
+    let api_name = match fetch_long_name_from_search(http, bearer, code).await {
+        Ok(name) if !name.is_empty() => Some(name),
         Ok(_) => {
             eprintln!("Peringatan: search API {code} tidak menemukan desc — coba DB/fallback");
+            None
         }
         Err(e) => {
             eprintln!("Peringatan: search API long_name {code}: {e}");
+            None
         }
+    };
+    if let Some(name) = api_name {
+        println!("long_name {code}: {name} (search API)");
+        crate::redis_long_name::set_long_name(code, &name).await;
+        return Ok(name);
     }
 
     let stmt = session
@@ -769,6 +780,7 @@ async fn fetch_long_name_from_search(
         .await?;
 
     let status = resp.status();
+    crate::http_abort::abort_app_if_http_4xx(status, &format!("search {code}"));
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();

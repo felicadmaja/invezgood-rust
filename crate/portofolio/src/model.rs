@@ -7,6 +7,7 @@
 //! | Kolom CQL      | Tipe CQL | Rust   |
 //! |----------------|----------|--------|
 //! | emiten_name (PK)| text    | String |
+//! | long_name      | text     | String |
 //! | emiten_icon    | text     | String |
 //! | balance_lot    | bigint   | i64    |
 //! | available_lot  | bigint   | i64    |
@@ -26,6 +27,9 @@ pub struct Portofolio {
     /// Partition key — kode emiten (contoh `BBCA`).
     #[scylla(default_when_null)]
     pub emiten_name: String,
+    /// Nama perusahaan panjang (contoh `Bank Central Asia Tbk`).
+    #[scylla(default_when_null)]
+    pub long_name: String,
     /// Path object GCS modul `stoksaham` (hasil upload icon emiten).
     #[scylla(default_when_null)]
     pub emiten_icon: String,
@@ -51,6 +55,7 @@ impl Portofolio {
     pub fn into_proto(self) -> PortofolioRow {
         PortofolioRow {
             emiten_name: self.emiten_name,
+            long_name: self.long_name,
             emiten_icon: self.emiten_icon,
             balance_lot: self.balance_lot,
             available_lot: self.available_lot,

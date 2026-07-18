@@ -4,16 +4,24 @@
 //! `STOCKBIT_PIN`) → Submit → tunggu modal hilang.
 //! Setelah itu ambil **Bearer trading** (pasca-PIN / `securitiesAccessToken`),
 //! **bukan** Bearer login web Exodus, lalu GET portfolio API.
+//!
+//! Sebelum upsert `portofolio`: pastikan `emiten_list` + `bandarmology` terisi
+//! (scrape bila belum ada). Icon: reuse `emiten_list.emiten_icon` bila sudah ada;
+//! download GCS hanya bila belum ada.
 
+use chrono::Local;
 use chromiumoxide::page::Page;
 use gcs::{download_and_upload_emiten_icon, GcsOAuthTokenCache, GcsSignedUrlRuntime};
 use rand::Rng;
 use scylla::client::session::Session;
+use scylla::DeserializeRow;
 use serde_json::Value;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use stockbit_browser::goto_stockbit;
 use tokio::time::sleep;
+
+use crate::{bandarmology_worker, emiten_list_worker};
 
 const PORTFOLIO_API_URL: &str = "https://carina.stockbit.com/portfolio/v2/list";
 const STOCKBIT_PORTFOLIO_URL: &str = "https://stockbit.com/securities/portfolio";
@@ -23,6 +31,8 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 #[derive(Debug, Clone)]
 struct PortoRow {
     emiten_name: String,
+    /// Dari API `company.name` / `company.company_name` (fallback).
+    long_name: String,
     emiten_icon_url: String,
     balance_lot: i64,
     available_lot: i64,
@@ -69,6 +79,114 @@ async fn upload_emiten_icon_to_gcs(
     }
     let (runtime, oauth) = gcs_upload_ctx()?;
     download_and_upload_emiten_icon(emiten, url, runtime, oauth).await
+}
+
+#[derive(Debug, DeserializeRow)]
+struct EmitenIconRow {
+    #[scylla(default_when_null)]
+    emiten_icon: String,
+}
+
+#[derive(Debug, DeserializeRow)]
+struct EmitenLongNameRow {
+    #[scylla(default_when_null)]
+    long_name: String,
+}
+
+/// Path GCS dari `emiten_list.emiten_icon` bila sudah terisi.
+async fn emiten_list_icon(
+    session: &Session,
+    keyspace: &str,
+    code: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let stmt = session
+        .prepare(format!(
+            "SELECT emiten_icon FROM {keyspace}.emiten_list WHERE code_name = ?"
+        ))
+        .await?;
+    let result = session
+        .execute_unpaged(&stmt, (code,))
+        .await?
+        .into_rows_result()?;
+    if let Some(row) = result.maybe_first_row::<EmitenIconRow>()? {
+        let path = row.emiten_icon.trim().to_string();
+        if !path.is_empty() {
+            return Ok(path);
+        }
+    }
+    Ok(String::new())
+}
+
+/// `long_name` dari `emiten_list` bila sudah terisi.
+async fn emiten_list_long_name(
+    session: &Session,
+    keyspace: &str,
+    code: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let stmt = session
+        .prepare(format!(
+            "SELECT long_name FROM {keyspace}.emiten_list WHERE code_name = ?"
+        ))
+        .await?;
+    let result = session
+        .execute_unpaged(&stmt, (code,))
+        .await?
+        .into_rows_result()?;
+    if let Some(row) = result.maybe_first_row::<EmitenLongNameRow>()? {
+        let name = row.long_name.trim().to_string();
+        if !name.is_empty() {
+            return Ok(name);
+        }
+    }
+    Ok(String::new())
+}
+
+/// Prefer Redis → `emiten_list.long_name` → nama dari API portfolio (lalu cache Redis).
+async fn resolve_portofolio_long_name(
+    session: &Session,
+    keyspace: &str,
+    emiten: &str,
+    api_long_name: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    if let Some(cached) = crate::redis_long_name::get_long_name(emiten).await {
+        return Ok(cached);
+    }
+
+    let from_list = emiten_list_long_name(session, keyspace, emiten).await?;
+    if !from_list.is_empty() {
+        return Ok(from_list);
+    }
+
+    let from_api = api_long_name.trim().to_string();
+    if !from_api.is_empty() {
+        crate::redis_long_name::set_long_name(emiten, &from_api).await;
+    }
+    Ok(from_api)
+}
+
+/// Reuse icon dari `emiten_list`; download ke GCS hanya bila belum ada.
+async fn resolve_portofolio_icon(
+    session: &Session,
+    keyspace: &str,
+    emiten: &str,
+    icon_url: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let existing = emiten_list_icon(session, keyspace, emiten).await?;
+    if !existing.is_empty() {
+        return Ok(existing);
+    }
+    match upload_emiten_icon_to_gcs(emiten, icon_url).await {
+        Ok(path) => {
+            if !path.is_empty() {
+                println!("Portofolio: icon {emiten} di-upload GCS (belum ada di emiten_list) → {path}");
+            }
+            Ok(path)
+        }
+        Err(e) => {
+            eprintln!("Peringatan: gagal upload icon GCS {emiten}: {e}");
+            Ok(String::new())
+        }
+    }
 }
 
 async fn is_start_trading_visible(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
@@ -530,9 +648,17 @@ fn parse_portfolio_list_json(v: &Value) -> Vec<PortoRow> {
             .unwrap_or("")
             .trim()
             .to_string();
+        let long_name = item
+            .pointer("/company/name")
+            .or_else(|| item.pointer("/company/company_name"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
         let gain = json_f64(&item, &["asset", "unrealised", "gain"]);
         rows.push(PortoRow {
             emiten_name: symbol,
+            long_name,
             emiten_icon_url: icon,
             balance_lot: json_i64(&item, &["qty", "balance", "lot"]),
             available_lot: json_i64(&item, &["qty", "available", "lot"]),
@@ -563,6 +689,7 @@ async fn fetch_portfolio_list(
         .await?;
 
     let status = resp.status();
+    crate::http_abort::abort_app_if_http_4xx(status, "portfolio/v2/list");
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
@@ -586,10 +713,10 @@ async fn upsert_portofolio(
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.portofolio (\
-                emiten_name, emiten_icon, balance_lot, available_lot, \
+                emiten_name, long_name, emiten_icon, balance_lot, available_lot, \
                 average_price, current_price, invested, market_value, \
                 potential_p_l, percentage\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
@@ -599,19 +726,17 @@ async fn upsert_portofolio(
         if emiten.is_empty() {
             continue;
         }
-        let emiten_icon = match upload_emiten_icon_to_gcs(&emiten, &row.emiten_icon_url).await {
-            Ok(path) => path,
-            Err(e) => {
-                eprintln!("Peringatan: gagal upload icon GCS {emiten}: {e}");
-                String::new()
-            }
-        };
+        let emiten_icon =
+            resolve_portofolio_icon(session, keyspace, &emiten, &row.emiten_icon_url).await?;
+        let long_name =
+            resolve_portofolio_long_name(session, keyspace, &emiten, &row.long_name).await?;
 
         session
             .execute_unpaged(
                 &insert,
                 (
                     emiten.as_str(),
+                    long_name.as_str(),
                     emiten_icon.as_str(),
                     row.balance_lot,
                     row.available_lot,
@@ -626,9 +751,9 @@ async fn upsert_portofolio(
             .await?;
         n += 1;
         println!(
-            "Upsert portofolio [{n}/{}]: {emiten} \
+            "Upsert portofolio [{n}/{}]: {emiten} ({long_name}) \
              balance_lot={} available_lot={} avg={:.4} last={} \
-             invested={:.2} mv={:.2} pl={:.2} pct={:.4}%",
+             invested={:.2} mv={:.2} pl={:.2} pct={:.4}%{}",
             rows.len(),
             row.balance_lot,
             row.available_lot,
@@ -638,16 +763,22 @@ async fn upsert_portofolio(
             row.market_value,
             row.potential_p_l,
             row.percentage,
+            if emiten_icon.is_empty() {
+                String::new()
+            } else {
+                format!(" icon={emiten_icon}")
+            },
         );
     }
     println!("Upsert portofolio selesai: {n}/{} baris.", rows.len());
     Ok(n)
 }
 
-/// START TRADING (opsional) → PIN (opsional) → Bearer trading → portfolio API → upsert.
+/// START TRADING (opsional) → PIN (opsional) → Bearer trading → portfolio API
+/// → pastikan `emiten_list` + `bandarmology` → upsert `portofolio`.
 pub async fn scrape_and_insert_portofolio(
     page: &Page,
-    session: &Session,
+    session: &Arc<Session>,
     keyspace: &str,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     ensure_trading_session(page).await?;
@@ -665,7 +796,38 @@ pub async fn scrape_and_insert_portofolio(
     let rows = fetch_portfolio_list(&http, &bearer).await?;
     println!("Portofolio: {} baris dari API.", rows.len());
 
-    let n = upsert_portofolio(session, keyspace, &rows).await?;
+    let mut codes: Vec<String> = rows
+        .iter()
+        .map(|r| r.emiten_name.trim().to_ascii_uppercase())
+        .filter(|c| !c.is_empty())
+        .collect();
+    codes.sort();
+    codes.dedup();
+
+    if !codes.is_empty() {
+        println!(
+            "Portofolio: pastikan emiten_list untuk {} kode (skip bila update_at masih fresh)...",
+            codes.len()
+        );
+        let list_ok =
+            emiten_list_worker::scrape_and_insert_key_stats(page, session.as_ref(), keyspace, &codes)
+                .await?;
+        println!("Portofolio: emiten_list upsert/scrape OK={list_ok}.");
+
+        let today = Local::now().date_naive();
+        println!(
+            "Portofolio: pastikan bandarmology untuk {} kode (skip bila agg hari ini ada)...",
+            codes.len()
+        );
+        let bandar_ok = bandarmology_worker::scrape_and_insert_bandarmology(
+            page, session, keyspace, today, &codes,
+        )
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+        println!("Portofolio: bandarmology insert OK={bandar_ok}.");
+    }
+
+    let n = upsert_portofolio(session.as_ref(), keyspace, &rows).await?;
     println!("OK: {n} baris diinsert ke portofolio.");
     Ok(n)
 }
@@ -682,7 +844,10 @@ mod tests {
                     "results": [
                         {
                             "symbol": "AMRT",
-                            "company": { "icon_url": "https://assets.stockbit.com/logos/companies/AMRT.png" },
+                            "company": {
+                                "name": "Sumber Alfaria Trijaya Tbk",
+                                "icon_url": "https://assets.stockbit.com/logos/companies/AMRT.png"
+                            },
                             "qty": {
                                 "available": { "lot": 24 },
                                 "balance": { "lot": 24 }
@@ -709,6 +874,7 @@ mod tests {
         assert_eq!(rows.len(), 1);
         let r = &rows[0];
         assert_eq!(r.emiten_name, "AMRT");
+        assert_eq!(r.long_name, "Sumber Alfaria Trijaya Tbk");
         assert_eq!(r.balance_lot, 24);
         assert_eq!(r.available_lot, 24);
         assert!((r.average_price - 1361.414).abs() < 1e-6);

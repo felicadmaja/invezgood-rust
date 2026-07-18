@@ -1,20 +1,26 @@
 //! On-demand scrape Stockbit untuk satu emiten (dipanggil dari gRPC `GetEmitenListByCodeName`).
+//!
+//! Scrape dijalankan di `tokio::spawn` + single-flight per `code_name`, supaya
+//! cancel/timeout di sisi gRPC client **tidak** membatalkan scrape yang sedang jalan
+//! (pola log: login OK → client retry berulang sebelum bearer warm-up selesai).
 
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use chrono::Local;
 use scylla::client::session::Session;
 use stockbit_browser::{
-    dismiss_profile_avatar_modal, launch_page, open_stream_or_login,
+    browser_session_lock, launch_page, open_stream_or_login,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, watch};
 
 use crate::{bandarmology_worker, emiten_list_worker};
 
-static ON_DEMAND_SCRAPE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+static INFLIGHT_EMITEN: OnceLock<Mutex<HashMap<String, watch::Receiver<Option<Result<(), String>>>>>> =
+    OnceLock::new();
 
-fn scrape_lock() -> &'static Mutex<()> {
-    ON_DEMAND_SCRAPE_LOCK.get_or_init(|| Mutex::new(()))
+fn inflight_map() -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<(), String>>>>> {
+    INFLIGHT_EMITEN.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn keyspace() -> String {
@@ -23,6 +29,9 @@ fn keyspace() -> String {
 
 /// Bila `emiten_list` belum ada: Key Stats + Corp.Action + Profile API → upsert `emiten_list`.
 /// Lalu bila `bandarmology` agg hari ini (`YYYY-MM-DD_CODE`) belum ada: scrape bandarmology.
+///
+/// Aman terhadap cancel RPC: scrape tetap jalan di background; panggilan berikutnya
+/// untuk code yang sama menunggu hasil yang sama.
 pub async fn ensure_emiten_data_for_code(
     session: Arc<Session>,
     code_name: &str,
@@ -32,6 +41,48 @@ pub async fn ensure_emiten_data_for_code(
         return Err("code_name kosong".into());
     }
 
+    let mut rx = {
+        let mut map = inflight_map().lock().await;
+        if let Some(existing) = map.get(&code) {
+            println!("On-demand: {code} sudah berjalan — menunggu hasil (single-flight)...");
+            existing.clone()
+        } else {
+            let (tx, rx) = watch::channel::<Option<Result<(), String>>>(None);
+            map.insert(code.clone(), rx.clone());
+            let session = Arc::clone(&session);
+            let code_spawn = code.clone();
+            tokio::spawn(async move {
+                let result = run_ensure_emiten_scrape(session, &code_spawn).await;
+                match &result {
+                    Ok(()) => println!("On-demand scrape selesai untuk {code_spawn}."),
+                    Err(e) => eprintln!("On-demand scrape GAGAL {code_spawn}: {e}"),
+                }
+                let _ = tx.send(Some(result));
+                inflight_map().lock().await.remove(&code_spawn);
+            });
+            rx
+        }
+    };
+
+    loop {
+        {
+            let guard = rx.borrow();
+            if let Some(result) = guard.as_ref() {
+                return result.clone();
+            }
+        }
+        if rx.changed().await.is_err() {
+            return Err(format!(
+                "on-demand scrape {code}: channel ditutup sebelum ada hasil"
+            ));
+        }
+    }
+}
+
+async fn run_ensure_emiten_scrape(
+    session: Arc<Session>,
+    code: &str,
+) -> Result<(), String> {
     let email = std::env::var("STOCKBIT_EMAIL")
         .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk on-demand scrape".to_string())?;
     let password = std::env::var("STOCKBIT_PASSWORD")
@@ -40,7 +91,7 @@ pub async fn ensure_emiten_data_for_code(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _guard = scrape_lock().lock().await;
+    let _browser_guard = browser_session_lock().lock().await;
     let ks = keyspace();
     let today = Local::now().date_naive();
 
@@ -54,11 +105,11 @@ pub async fn ensure_emiten_data_for_code(
         open_stream_or_login(&page, email.trim(), password.trim())
             .await
             .map_err(|e| format!("login Stockbit: {e}"))?;
-        dismiss_profile_avatar_modal(&page)
-            .await
-            .map_err(|e| format!("dismiss modal: {e}"))?;
+        // open_stream_or_login sudah dismiss modal bila ada — jangan loop 8× lagi
+        // (membuang ~4s; sering kena timeout client gRPC ~10s).
 
-        emiten_list_worker::scrape_emiten_list_for_code(&page, session.as_ref(), &ks, &code)
+        println!("On-demand: ambil bearer + API keystats/corpaction/profile untuk {code}...");
+        emiten_list_worker::scrape_emiten_list_for_code(&page, session.as_ref(), &ks, code)
             .await?;
 
         println!("On-demand: bandarmology API untuk {code}...");
@@ -67,7 +118,7 @@ pub async fn ensure_emiten_data_for_code(
             session.as_ref(),
             &ks,
             today,
-            &code,
+            code,
         )
         .await?;
 
@@ -79,9 +130,7 @@ pub async fn ensure_emiten_data_for_code(
         eprintln!("Peringatan: gagal menutup browser: {e}");
     }
 
-    result?;
-    println!("On-demand scrape selesai untuk {code}.");
-    Ok(())
+    result
 }
 
 /// On-demand scrape Top Gainer/Loser (movers) → upsert `emiten_trending`.
@@ -96,7 +145,7 @@ pub async fn scrape_emiten_trending_movers(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _guard = scrape_lock().lock().await;
+    let _browser_guard = browser_session_lock().lock().await;
     let ks = keyspace();
 
     println!("On-demand: emiten_trending via market-mover API (Top Gainer/Loser)...");
@@ -109,9 +158,6 @@ pub async fn scrape_emiten_trending_movers(
         open_stream_or_login(&page, email.trim(), password.trim())
             .await
             .map_err(|e| format!("login Stockbit: {e}"))?;
-        dismiss_profile_avatar_modal(&page)
-            .await
-            .map_err(|e| format!("dismiss modal: {e}"))?;
 
         crate::emiten_trending_worker::scrape_and_insert_movers(
             &page,
