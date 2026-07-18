@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package broker;
+
+service Broker {
+  // Tanpa parameter request; token-ring scan seluruh baris tabel Scylla `broker`.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetAllBroker(GetAllBrokerRequest) returns (GetAllBrokerResponse);
+
+  // Lookup satu baris via PK: `broker.broker_code = broker_code`.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetBrokerByBrokerCode(GetBrokerByBrokerCodeRequest) returns (GetBrokerByBrokerCodeResponse);
+
+  // Insert satu baris ke tabel `broker` (PK broker_code).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc InsertBroker(InsertBrokerRequest) returns (InsertBrokerResponse);
+
+  // Update satu baris `broker` (PK broker_code); kolom non-PK saja yang di-update.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateBroker(UpdateBrokerRequest) returns (UpdateBrokerResponse);
+
+  // Hapus satu baris `broker` (PK broker_code).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc DeleteBroker(DeleteBrokerRequest) returns (DeleteBrokerResponse);
+}
+
+message GetAllBrokerRequest {}
+
+message BrokerRow {
+  string broker_code = 1;
+  string name = 2;
+  string tipe = 3;
+  string asosiasi = 4;
+  string catatan = 5;
+}
+
+message GetAllBrokerResponse {
+  repeated BrokerRow rows = 1;
+}
+
+message GetBrokerByBrokerCodeRequest {
+  string broker_code = 1;
+}
+
+message GetBrokerByBrokerCodeResponse {
+  BrokerRow broker = 1;
+}
+
+message InsertBrokerRequest {
+  BrokerRow broker = 1;
+}
+
+message InsertBrokerResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateBrokerRequest {
+  BrokerRow broker = 1;
+}
+
+message UpdateBrokerResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteBrokerRequest {
+  string broker_code = 1;
+}
+
+message DeleteBrokerResponse {
+  bool success = 1;
+  string message = 2;
+}

@@ -15,6 +15,11 @@ const PAGE_SIZE: i32 = 100;
 struct Prepared {
     scan: PreparedStatement,
     by_code_name: PreparedStatement,
+    update_fundamental_solid: PreparedStatement,
+    update_sector: PreparedStatement,
+    update_konglomerasi: PreparedStatement,
+    update_blue_chip: PreparedStatement,
+    update_catatan: PreparedStatement,
 }
 
 pub struct EmitenListRepository {
@@ -37,7 +42,7 @@ impl EmitenListRepository {
         self.prepared
             .get_or_try_init(|| async {
                 const COLUMNS: &str = "code_name, long_name, emiten_icon, key_stats, corporate_action, \
-                     company_profile, update_at, is_konglomerasi";
+                     company_profile, update_at, is_konglomerasi, sector, is_fundamental_solid, is_blue_chip, catatan";
                 let q = format!(
                     "SELECT {COLUMNS} FROM {} \
                      WHERE token(code_name) >= ? AND token(code_name) <= ?",
@@ -49,7 +54,45 @@ impl EmitenListRepository {
                 let q = format!("SELECT {COLUMNS} FROM {} WHERE code_name = ?", self.table);
                 let by_code_name = self.session.prepare(q).await?;
 
-                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared { scan, by_code_name })
+                let q = format!(
+                    "UPDATE {} SET is_fundamental_solid = ? WHERE code_name = ?",
+                    self.table
+                );
+                let update_fundamental_solid = self.session.prepare(q).await?;
+
+                let q = format!(
+                    "UPDATE {} SET sector = ? WHERE code_name = ?",
+                    self.table
+                );
+                let update_sector = self.session.prepare(q).await?;
+
+                let q = format!(
+                    "UPDATE {} SET is_konglomerasi = ? WHERE code_name = ?",
+                    self.table
+                );
+                let update_konglomerasi = self.session.prepare(q).await?;
+
+                let q = format!(
+                    "UPDATE {} SET is_blue_chip = ? WHERE code_name = ?",
+                    self.table
+                );
+                let update_blue_chip = self.session.prepare(q).await?;
+
+                let q = format!(
+                    "UPDATE {} SET catatan = ? WHERE code_name = ?",
+                    self.table
+                );
+                let update_catatan = self.session.prepare(q).await?;
+
+                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared {
+                    scan,
+                    by_code_name,
+                    update_fundamental_solid,
+                    update_sector,
+                    update_konglomerasi,
+                    update_blue_chip,
+                    update_catatan,
+                })
             })
             .await
     }
@@ -100,6 +143,97 @@ impl EmitenListRepository {
             .await?
             .into_rows_result()?;
         Ok(result.maybe_first_row::<EmitenList>()?)
+    }
+
+    /// Update `is_fundamental_solid`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    pub async fn update_fundamental_solid(
+        &self,
+        code_name: &str,
+        is_fundamental_solid: bool,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if self.get_by_code_name(code_name).await?.is_none() {
+            return Ok(false);
+        }
+
+        let prepared = self.prepared().await?;
+        self.session
+            .execute_unpaged(
+                &prepared.update_fundamental_solid,
+                (is_fundamental_solid, code_name),
+            )
+            .await?;
+        Ok(true)
+    }
+
+    /// Update `sector` (tinyint). Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    pub async fn update_sector(
+        &self,
+        code_name: &str,
+        sector: i8,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if self.get_by_code_name(code_name).await?.is_none() {
+            return Ok(false);
+        }
+
+        let prepared = self.prepared().await?;
+        self.session
+            .execute_unpaged(&prepared.update_sector, (sector, code_name))
+            .await?;
+        Ok(true)
+    }
+
+    /// Update `is_konglomerasi`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    pub async fn update_konglomerasi(
+        &self,
+        code_name: &str,
+        is_konglomerasi: bool,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if self.get_by_code_name(code_name).await?.is_none() {
+            return Ok(false);
+        }
+
+        let prepared = self.prepared().await?;
+        self.session
+            .execute_unpaged(
+                &prepared.update_konglomerasi,
+                (is_konglomerasi, code_name),
+            )
+            .await?;
+        Ok(true)
+    }
+
+    /// Update `is_blue_chip`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    pub async fn update_blue_chip(
+        &self,
+        code_name: &str,
+        is_blue_chip: bool,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if self.get_by_code_name(code_name).await?.is_none() {
+            return Ok(false);
+        }
+
+        let prepared = self.prepared().await?;
+        self.session
+            .execute_unpaged(&prepared.update_blue_chip, (is_blue_chip, code_name))
+            .await?;
+        Ok(true)
+    }
+
+    /// Update `catatan`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    pub async fn update_catatan(
+        &self,
+        code_name: &str,
+        catatan: &str,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if self.get_by_code_name(code_name).await?.is_none() {
+            return Ok(false);
+        }
+
+        let prepared = self.prepared().await?;
+        self.session
+            .execute_unpaged(&prepared.update_catatan, (catatan, code_name))
+            .await?;
+        Ok(true)
     }
 }
 

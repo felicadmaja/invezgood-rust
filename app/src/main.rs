@@ -12,6 +12,8 @@
 
 use bandarmology::bandarmology_server::BandarmologyServer;
 use bandarmology::BandarmologyService;
+use broker::broker_server::BrokerServer;
+use broker::BrokerService;
 use emiten_list::emiten_list_server::EmitenListServer;
 use emiten_list::EmitenListService;
 use emiten_trending::emiten_trending_server::EmitenTrendingServer;
@@ -46,6 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let emiten_trending_svc = EmitenTrendingService::new(session.clone());
     let bandarmology_svc = BandarmologyService::new(session.clone());
     let emiten_list_svc = EmitenListService::new(session.clone());
+    let broker_svc = BrokerService::new(session.clone());
     let gcs_svc = GcsGrpcService::from_env()
         .map_err(|e| format!("GCS env: {e}"))?;
 
@@ -57,10 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         emiten_trending_svc.warm_prepared(),
         bandarmology_svc.warm_prepared(),
         emiten_list_svc.warm_prepared(),
+        broker_svc.warm_prepared(),
     )
     .map_err(|e| format!("Gagal memanaskan statement database: {e}"))?;
     println!(
-        "OK: prepared statements siap (user, portofolio, emiten_trending, bandarmology, emiten_list)"
+        "OK: prepared statements siap (user, portofolio, emiten_trending, bandarmology, emiten_list, broker)"
     );
 
     let user_svc = UserServer::new(user_svc);
@@ -72,6 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         BandarmologyServer::with_interceptor(bandarmology_svc, AuthInterceptor);
     let emiten_list_svc =
         EmitenListServer::with_interceptor(emiten_list_svc, AuthInterceptor);
+    let broker_svc = BrokerServer::with_interceptor(broker_svc, AuthInterceptor);
     let gcs_svc = GcsServer::with_interceptor(gcs_svc, AuthInterceptor);
 
     let reflection_svc = ReflectionBuilder::configure()
@@ -80,6 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .register_encoded_file_descriptor_set(emiten_trending::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(bandarmology::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(emiten_list::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(broker::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(gcs::FILE_DESCRIPTOR_SET)
         .build_v1()
         .map_err(|e| format!("reflection: {e}"))?;
@@ -103,6 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(emiten_trending_svc)
         .add_service(bandarmology_svc)
         .add_service(emiten_list_svc)
+        .add_service(broker_svc)
         .add_service(gcs_svc)
         .add_service(reflection_svc)
         .serve_with_shutdown(addr, grpc_shutdown_signal())

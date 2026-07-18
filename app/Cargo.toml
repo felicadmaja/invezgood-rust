@@ -10,6 +10,7 @@ path = "src/main.rs"
 [dependencies]
 dotenvy = "0.15"
 bandarmology = { path = "../crate/bandarmology" }
+broker = { path = "../crate/broker" }
 emiten_list = { path = "../crate/emiten_list" }
 emiten_trending = { path = "../crate/emiten_trending" }
 gcs = { path = "../crate/gcs" }

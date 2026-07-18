@@ -19,8 +19,8 @@ const PERIODS: &[(&str, &str)] = &[
 ];
 
 /// Rentang jeda acak setelah klik tombol period sebelum scrape tabel.
-const PERIOD_SCRAPE_WAIT_MIN_MS: u64 = 800;
-const PERIOD_SCRAPE_WAIT_MAX_MS: u64 = 2000;
+const PERIOD_SCRAPE_WAIT_MIN_MS: u64 = 0;
+const PERIOD_SCRAPE_WAIT_MAX_MS: u64 = 300;
 
 fn format_wait_ms(ms: u64) -> String {
     if ms >= 1000 {
@@ -254,7 +254,7 @@ async fn add_company(page: &Page, emiten: &str) -> Result<(), Box<dyn std::error
         sleep(Duration::from_millis(delay)).await;
         element.type_str(&ch.to_string()).await?;
     }
-    let enter_wait_ms = rand::thread_rng().gen_range(300u64..=800);
+    let enter_wait_ms = rand::thread_rng().gen_range(100u64..=300);
     println!(
         "Emiten {emiten} diketik (natural 100–400ms/karakter); jeda {enter_wait_ms} ms lalu Enter..."
     );
@@ -779,7 +779,7 @@ pub async fn scrape_and_insert_bandarmology(
         }
 
         if idx + 1 < todo.len() {
-            let wait_ms = rand::thread_rng().gen_range(2000u64..=5000);
+            let wait_ms = rand::thread_rng().gen_range(0u64..=2000);
             println!(
                 "Jeda {} sebelum emiten berikutnya...",
                 format_wait_ms(wait_ms)

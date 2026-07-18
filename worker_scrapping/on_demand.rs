@@ -94,3 +94,49 @@ pub async fn ensure_emiten_data_for_code(
     println!("On-demand scrape selesai untuk {code}.");
     Ok(())
 }
+
+/// On-demand scrape Top Gainer/Loser (movers) → upsert `emiten_trending`.
+pub async fn scrape_emiten_trending_movers(
+    session: Arc<Session>,
+) -> Result<(usize, usize), String> {
+    let email = std::env::var("STOCKBIT_EMAIL")
+        .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk scrape movers".to_string())?;
+    let password = std::env::var("STOCKBIT_PASSWORD")
+        .map_err(|_| "STOCKBIT_PASSWORD wajib diisi untuk scrape movers".to_string())?;
+    if email.trim().is_empty() || password.trim().is_empty() {
+        return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
+    }
+
+    let _guard = scrape_lock().lock().await;
+    let ks = keyspace();
+
+    println!("On-demand scrape: emiten_trending movers (Top Gainer/Loser)...");
+
+    let (mut browser, page) = launch_page()
+        .await
+        .map_err(|e| format!("launch Chrome: {e}"))?;
+
+    let result = async {
+        open_stream_or_login(&page, email.trim(), password.trim())
+            .await
+            .map_err(|e| format!("login Stockbit: {e}"))?;
+        dismiss_profile_avatar_modal(&page)
+            .await
+            .map_err(|e| format!("dismiss modal: {e}"))?;
+
+        crate::emiten_trending_worker::scrape_and_insert_movers(
+            &page,
+            session.as_ref(),
+            &ks,
+        )
+        .await
+        .map_err(|e| e.to_string())
+    }
+    .await;
+
+    if let Err(e) = browser.close().await {
+        eprintln!("Peringatan: gagal menutup browser: {e}");
+    }
+
+    result
+}

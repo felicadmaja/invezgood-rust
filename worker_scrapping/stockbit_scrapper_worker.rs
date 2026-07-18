@@ -16,7 +16,10 @@
 //! Env Trading PIN: `STOCKBUT_PIN` (atau `STOCKBIT_PIN`).
 //!
 //! Setelah movers → Top Gainer/Loser → insert `emiten_trending`.
-//! Lalu token-ring scan `emiten_list.code_name` → Key Stats + Corp. Action + Profile → upsert `emiten_list`.
+//! Bila PK hari ini baru (insert murni), upsert juga `emiten_trending_count_by_name`
+//! (`appearance_count + 1`, `last_tahun_bulan_tanggal` = hari ini, `updated_at` = now).
+//! Lalu token-ring scan `emiten_list.code_name` → Key Stats + Corp. Action + Profile → upsert `emiten_list`
+//! (hanya kolom scrape; tidak mengubah `is_konglomerasi`, `sector`, `is_fundamental_solid`, `is_blue_chip`).
 //! Kemudian Bandar Detector → Last 7D / Last 1M / Last 3M / Last 1Y → insert `bandarmology` (d_7, M_1, M_3, M_12).
 //! Lalu START TRADING (PIN bila perlu) → jeda 2s → https://stockbit.com/securities/portfolio → insert `portofolio`.
 //!
@@ -236,9 +239,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         emitens.len()
     );
 
+    // Upsert scrape-only: kolom manual emiten_list (is_konglomerasi, sector, flags) tidak ditimpa.
     let key_stats_ok =
         emiten_list_worker::scrape_and_insert_key_stats(&page, &session, &ks, &emitens).await?;
-    println!("OK: {key_stats_ok} emiten key_stats/profile diinsert ke emiten_list.");
+    println!("OK: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");
 
     // Screenshot Key Stats: buka ulang halaman keystats, jeda 3s, lalu capture.
     if let Some(code) = emitens.first() {

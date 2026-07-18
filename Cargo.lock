@@ -216,6 +216,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "broker"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "scylla",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -568,13 +583,13 @@ dependencies = [
  "prost",
  "prost-build",
  "protoc-bin-vendored",
- "rand 0.8.7",
  "scylla",
  "tokio",
  "tokio-stream",
  "tonic",
  "tonic-build",
  "user",
+ "worker_scrapping",
 ]
 
 [[package]]
@@ -2326,6 +2341,7 @@ name = "stockbit_ws"
 version = "0.1.0"
 dependencies = [
  "bandarmology",
+ "broker",
  "dotenvy",
  "emiten_list",
  "emiten_trending",

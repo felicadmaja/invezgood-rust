@@ -16,7 +16,11 @@ Kolom dan tipe CQL, kata demi kata:
   "company_profile" frozen<company_profile>
   "update_at" timestamp
   "is_konglomerasi" boolean
-Sumber: DDL bin create_emiten_list; diisi aplikasi pada INSERT.
+  "sector" tinyint
+  "is_fundamental_solid" boolean
+  "is_blue_chip" boolean
+  "catatan" text
+Sumber: DDL bin create_emiten_list + ALTER TABLE (sector, is_fundamental_solid, is_blue_chip, catatan); diisi aplikasi pada INSERT/UPDATE.
 Kolom "code_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
 Kolom "emiten_icon": text — path object GCS modul stoksaham (mis. stoksaham/icon/BBCA.png).
@@ -25,6 +29,10 @@ Kolom "corporate_action": list<frozen<map<text, frozen<list<frozen<map<text, tex
 Kolom "company_profile": frozen<company_profile> — profil perusahaan (lihat UDT di bawah).
 Kolom "update_at": timestamp — waktu terakhir data emiten diperbarui.
 Kolom "is_konglomerasi": boolean — true bila emiten termasuk konglomerasi; default false.
+Kolom "sector": tinyint — kode sektor emiten (`EmitenSector` proto, 0 = UNSPECIFIED); null dibaca sebagai 0.
+Kolom "is_fundamental_solid": boolean — true bila fundamental solid; default false.
+Kolom "is_blue_chip": boolean — true bila blue chip; default false.
+Kolom "catatan": text — catatan manual untuk emiten (kosong bila belum di-set).
 
 --- Materialized view (MV) ---
 Tidak ada: MV "stockbit"."emiten_list_by_name" (legacy) di-drop saat migrasi; lookup langsung lewat PRIMARY KEY (("code_name")).

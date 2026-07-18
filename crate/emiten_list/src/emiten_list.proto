@@ -9,13 +9,79 @@ service EmitenList {
 
   // Lookup satu baris via PK base table: emiten_list.code_name = code_name.
   // code_name di server di-capitalize ke uppercase (bbca → BBCA).
-  // Bila tidak ada di Scylla: scrape Key Stats (termasuk Cash Flow Statement TTM:
-  //   Cash From Operations/Investing/Financing, Capital expenditure, Free cash flow)
-  // + Profile ke emiten_list; bila bandarmology.agg_tahun_bulan_tanggal_emiten_name
-  // (YYYY-MM-DD_CODE) belum ada, scrape Bandar Detector seperti worker_scrapping.
-  // Lalu kembalikan baris terbaru (key_stats map berisi pasangan label→nilai UI).
+  // Bila tidak ada di Scylla: scrape Key Stats (+ emiten_icon dari header / trending → GCS),
+  // Corporate Action, Profile; upsert lalu UPDATE update_at = now().
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetEmitenListByCodeName(GetEmitenListByCodeNameRequest) returns (GetEmitenListByCodeNameResponse);
+
+  // Update kolom `is_fundamental_solid` untuk satu emiten (PK code_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateEmitenListFundamental(UpdateEmitenListFundamentalRequest) returns (UpdateEmitenListFundamentalResponse);
+
+  // Update kolom `sector` untuk satu emiten (PK code_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateEmitenListSector(UpdateEmitenListSectorRequest) returns (UpdateEmitenListSectorResponse);
+
+  // Update kolom `is_konglomerasi` untuk satu emiten (PK code_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateEmitenListKonglomerasi(UpdateEmitenListKonglomerasiRequest) returns (UpdateEmitenListKonglomerasiResponse);
+
+  // Update kolom `is_blue_chip` untuk satu emiten (PK code_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateEmitenListBlueChip(UpdateEmitenListBlueChipRequest) returns (UpdateEmitenListBlueChipResponse);
+
+  // Update kolom `catatan` untuk satu emiten (PK code_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateEmitenListCatatan(UpdateEmitenListCatatanRequest) returns (UpdateEmitenListCatatanResponse);
+}
+
+// Kode sektor emiten; disimpan di Scylla `emiten_list.sector` sebagai tinyint.
+enum EmitenSector {
+  EMITEN_SECTOR_UNSPECIFIED = 0;
+  TAMBANG_BATUBARA = 1;
+  TAMBANG_MINYAK_GAS = 2;
+  PETROKIMIA = 3;
+  EMAS_TEMBAGA = 4;
+  NIKEL = 5;
+  TIMAH = 6;
+  INFRASTRUKTUR_TAMBANG = 7;
+  LOGISTIK_TAMBANG = 8;
+  DISTRIBUSI_TAMBANG = 9;
+  BANK = 10;
+  MULTIFINANCE = 11;
+  ASURANSI = 12;
+  JASA_INVESTASI = 13;
+  KAYU_KERTAS = 14;
+  PERKEBUNAN_SAWIT = 15;
+  PERKEBUNAN_TEBU = 16;
+  PERKEBUNAN_LAIN = 17;
+  PERTANIAN = 18;
+  RUMAH_SAKIT = 19;
+  LABORATORIUM_KESEHATAN = 20;
+  ALAT_KESEHATAN = 21;
+  PRODUSEN_OBAT = 22;
+  PRODUSEN_MAKANAN = 23;
+  PRODUSEN_PRODUK_RUMAH_TANGGA = 24;
+  PRODUSEN_ROKOK = 25;
+  DISTRIBUTOR_BARANG_PRIMER = 26;
+  RETAIL_BARANG_PRIMER = 27;
+  POULTRY = 28;
+  TELEKOMUNIKASI = 29;
+  INFRASTRUKTUR_TELEKOMUNIKASI = 30;
+  TEKNOLOGI = 31;
+  PROPERTY = 32;
+  KONSTRUKSI = 33;
+  SEMEN = 34;
+  PELABUHAN_PELAYARAN = 35;
+  PRODUSEN_OTOMOTIF = 36;
+  DISTRIBUTOR_OTOMOTIF = 37;
+  RETAIL_OTOMOTIF = 38;
+  PLASTIK = 39;
+  MEDIA = 40;
+  UTILITAS_PUBLIK = 41;
+  LOGISTIK_PENGANTARAN = 42;
+  HOLDING_COMPANY = 43;
+  JASA_PERINDUSTRIAN = 44;
 }
 
 message GetAllEmitenListRequest {}
@@ -27,6 +93,61 @@ message GetEmitenListByCodeNameRequest {
 
 message GetEmitenListByCodeNameResponse {
   EmitenListRow row = 1;
+}
+
+message UpdateEmitenListFundamentalRequest {
+  // Kode emiten / ticker (contoh "BBCA"); di-capitalize ke uppercase di server.
+  string code_name = 1;
+  bool is_fundamental_solid = 2;
+}
+
+message UpdateEmitenListFundamentalResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateEmitenListSectorRequest {
+  // Kode emiten / ticker (contoh "BBCA"); di-capitalize ke uppercase di server.
+  string code_name = 1;
+  EmitenSector sector = 2;
+}
+
+message UpdateEmitenListSectorResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateEmitenListKonglomerasiRequest {
+  // Kode emiten / ticker (contoh "BBCA"); di-capitalize ke uppercase di server.
+  string code_name = 1;
+  bool is_konglomerasi = 2;
+}
+
+message UpdateEmitenListKonglomerasiResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateEmitenListBlueChipRequest {
+  // Kode emiten / ticker (contoh "BBCA"); di-capitalize ke uppercase di server.
+  string code_name = 1;
+  bool is_blue_chip = 2;
+}
+
+message UpdateEmitenListBlueChipResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateEmitenListCatatanRequest {
+  // Kode emiten / ticker (contoh "BBCA"); di-capitalize ke uppercase di server.
+  string code_name = 1;
+  string catatan = 2;
+}
+
+message UpdateEmitenListCatatanResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 // Satu pasangan atribut aksi korporasi, contoh {"Cum Date": "20 Apr 26"}.
@@ -85,8 +206,21 @@ message EmitenListRow {
   string emiten_icon = 7;
   // Default false
   bool is_konglomerasi = 8;
+  // Nilai enum ↔ kolom Scylla `sector` (tinyint).
+  EmitenSector sector = 9;
+  bool is_fundamental_solid = 10;
+  bool is_blue_chip = 11;
+}
+
+message EmitenListSingkatRow {
+  string code_name = 1;
+  string emiten_icon = 2;
+  bool is_konglomerasi = 3;
+  EmitenSector sector = 4;
+  bool is_fundamental_solid = 5;
+  bool is_blue_chip = 6;
 }
 
 message GetAllEmitenListResponse {
-  repeated EmitenListRow rows = 1;
+  repeated EmitenListSingkatRow rows = 1;
 }

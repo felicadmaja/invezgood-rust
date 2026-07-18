@@ -2,11 +2,13 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Duration as ChronoDuration, Local, Utc};
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
 use chromiumoxide::page::{Page, ScreenshotParams};
+use gcs::{download_and_upload_emiten_icon, GcsOAuthTokenCache, GcsSignedUrlRuntime};
 use rand::Rng;
 use scylla::client::session::Session;
 use scylla::{DeserializeRow, SerializeValue};
@@ -818,6 +820,8 @@ async fn scrape_company_profile(
     Ok(profile)
 }
 
+/// Upsert kolom hasil scrape saja; tidak menyentuh `is_konglomerasi`, `sector`,
+/// `is_fundamental_solid`, `is_blue_chip` (di-set manual / aplikasi lain).
 async fn upsert_emiten_list(
     session: &Session,
     keyspace: &str,
@@ -827,14 +831,12 @@ async fn upsert_emiten_list(
     key_stats: &HashMap<String, String>,
     corporate_action: &CorporateAction,
     company_profile: &CompanyProfile,
-    update_at: DateTime<Utc>,
-    is_konglomerasi: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.emiten_list (\
-                code_name, long_name, emiten_icon, key_stats, corporate_action, company_profile, update_at, is_konglomerasi\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                code_name, long_name, emiten_icon, key_stats, corporate_action, company_profile\
+            ) VALUES (?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
@@ -848,15 +850,28 @@ async fn upsert_emiten_list(
                 key_stats,
                 corporate_action,
                 company_profile,
-                update_at,
-                is_konglomerasi,
             ),
         )
         .await?;
+
+    touch_emiten_list_update_at(session, keyspace, code_name).await
+}
+
+async fn touch_emiten_list_update_at(
+    session: &Session,
+    keyspace: &str,
+    code_name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let update = session
+        .prepare(format!(
+            "UPDATE {keyspace}.emiten_list SET update_at = toTimestamp(now()) WHERE code_name = ?"
+        ))
+        .await?;
+    session.execute_unpaged(&update, (code_name,)).await?;
     Ok(())
 }
 
-/// `true` bila `update_at` masih < 30 hari (data masih fresh → skip scrape/insert).
+/// `true` bila `update_at` masih < 30 hari dan `emiten_icon` sudah terisi (skip scrape/insert).
 async fn is_update_at_fresh(
     session: &Session,
     keyspace: &str,
@@ -875,14 +890,53 @@ async fn is_update_at_fresh(
     let Some(EmitenUpdateAtRow {
         update_at: Some(ts),
         emiten_icon,
-    }) =
-        result.maybe_first_row::<EmitenUpdateAtRow>()?
+    }) = result.maybe_first_row::<EmitenUpdateAtRow>()?
     else {
         return Ok(false);
     };
 
     let age = Utc::now().signed_duration_since(ts);
     Ok(age < ChronoDuration::days(UPDATE_AT_FRESH_DAYS) && !emiten_icon.trim().is_empty())
+}
+
+fn gcs_upload_ctx() -> Result<(&'static GcsSignedUrlRuntime, &'static GcsOAuthTokenCache), String> {
+    static RUNTIME: OnceLock<Result<GcsSignedUrlRuntime, String>> = OnceLock::new();
+    static OAUTH: OnceLock<GcsOAuthTokenCache> = OnceLock::new();
+    let runtime = match RUNTIME.get_or_init(gcs::load_gcs_signed_url_runtime) {
+        Ok(r) => r,
+        Err(e) => return Err(e.clone()),
+    };
+    let oauth = OAUTH.get_or_init(GcsOAuthTokenCache::new);
+    Ok((runtime, oauth))
+}
+
+async fn upload_emiten_icon_to_gcs(
+    emiten: &str,
+    url: &str,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    if url.trim().is_empty() {
+        return Ok(String::new());
+    }
+    let (runtime, oauth) = gcs_upload_ctx()?;
+    download_and_upload_emiten_icon(emiten, url, runtime, oauth).await
+}
+
+/// Ambil URL icon dari header Key Stats (`img.company-header-icon`).
+async fn scrape_emiten_icon_url_from_page(
+    page: &Page,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let url = page
+        .evaluate(
+            r#"(() => {
+                const img = document.querySelector('img.company-header-icon');
+                if (!img) return '';
+                return (img.getAttribute('src') || img.src || '').trim();
+            })()"#,
+        )
+        .await?
+        .into_value::<String>()
+        .unwrap_or_default();
+    Ok(url)
 }
 
 async fn fetch_emiten_icon_from_trending(
@@ -906,6 +960,37 @@ async fn fetch_emiten_icon_from_trending(
         .maybe_first_row::<EmitenIconRow>()?
         .map(|row| row.emiten_icon)
         .unwrap_or_default())
+}
+
+/// Trending hari ini bila ada; jika tidak, scrape `img.company-header-icon` di Key Stats → upload GCS.
+async fn resolve_emiten_icon(
+    page: &Page,
+    session: &Session,
+    keyspace: &str,
+    code: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let from_trending = fetch_emiten_icon_from_trending(session, keyspace, code).await?;
+    if !from_trending.trim().is_empty() {
+        return Ok(from_trending);
+    }
+
+    let url = scrape_emiten_icon_url_from_page(page).await?;
+    if url.is_empty() {
+        return Ok(String::new());
+    }
+
+    match upload_emiten_icon_to_gcs(code, &url).await {
+        Ok(path) => {
+            if !path.is_empty() {
+                println!("Key Stats: icon {code} dari header → GCS {path}");
+            }
+            Ok(path)
+        }
+        Err(e) => {
+            eprintln!("Peringatan: GCS icon {code} ({url}): {e}");
+            Ok(String::new())
+        }
+    }
 }
 
 /// Returns `Ok(true)` bila diinsert, `Ok(false)` bila di-skip (update_at masih < 30 hari).
@@ -956,6 +1041,7 @@ async fn scrape_one_emiten_inner(
 
     println!("Key Stats: buka emiten {code} ({progress})...");
     open_key_stats(page, &code).await?;
+    let emiten_icon = resolve_emiten_icon(page, session, keyspace, &code).await?;
 
     let key_stats = scrape_key_stats(page).await?;
     if key_stats.is_empty() {
@@ -1008,8 +1094,6 @@ async fn scrape_one_emiten_inner(
         return Err(format!("Profile {code}: Company Background kosong").into());
     }
 
-    let emiten_icon = fetch_emiten_icon_from_trending(session, keyspace, &code).await?;
-
     upsert_emiten_list(
         session,
         keyspace,
@@ -1019,18 +1103,21 @@ async fn scrape_one_emiten_inner(
         &key_stats,
         &corporate_action,
         &company_profile,
-        Utc::now(),
-        false,
     )
     .await?;
 
     println!(
         "OK: emiten_list {code} ({progress}) — {} key_stats, {} corporate_action, \
-         profile gt1={} shareholders={} ({})",
+         profile gt1={} shareholders={}{} ({})",
         key_stats.len(),
         corporate_action.len(),
         company_profile.shareholder_more_than_one_percent.len(),
         company_profile.shareholders.len(),
+        if emiten_icon.is_empty() {
+            String::new()
+        } else {
+            format!(", icon={emiten_icon}")
+        },
         format_elapsed(started)
     );
     Ok(true)
@@ -1066,12 +1153,16 @@ pub async fn scrape_and_insert_key_stats(
             }
         };
         if scraped && index < total {
-            let wait_secs = rand::thread_rng().gen_range(1u64..=5);
-            let wait_ms = wait_secs * 1000;
+            let wait_ms = rand::thread_rng().gen_range(0u64..=3000);
+            let wait_label = if wait_ms >= 1000 {
+                format!("{:.1}s", wait_ms as f64 / 1000.0)
+            } else {
+                format!("{wait_ms}ms")
+            };
             println!(
-                "Key Stats: jeda {wait_ms}ms ({wait_secs}s) sebelum emiten berikutnya..."
+                "Key Stats: jeda {wait_ms}ms ({wait_label}) sebelum emiten berikutnya..."
             );
-            sleep(Duration::from_secs(wait_secs)).await;
+            sleep(Duration::from_millis(wait_ms)).await;
         }
     }
     Ok(ok)

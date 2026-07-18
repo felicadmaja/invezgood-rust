@@ -1,16 +1,16 @@
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use chrono::{Local, NaiveDate};
-use rand::Rng;
+use chrono::Local;
 use scylla::client::session::Session;
-use tokio::sync::mpsc;
-use tokio::time::sleep;
+use tokio::sync::{mpsc, Mutex};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 use user::require_auth;
+use worker_scrapping::on_demand;
 
 use crate::emiten_trending_server::EmitenTrending as EmitenTrendingRpc;
 use crate::model::EmitenTrending;
@@ -20,28 +20,48 @@ use crate::{
     GetLatestEmitenTrendingFromStockbitRequest,
 };
 
-/// Interval poll Stockbit untuk stream `GetLatestEmitenTrendingFromStockbit` (detik).
-const STOCKBIT_POLL_MIN_SECS: u64 = 10 * 60; // 10 menit
-const STOCKBIT_POLL_MAX_SECS: u64 = 15 * 60; // 15 menit
+/// Cooldown antar invoke `GetLatestEmitenTrendingFromStockbit` (on-demand scrape movers).
+const MOVERS_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
+
+static LAST_MOVERS_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+
+fn movers_scrape_gate() -> &'static Mutex<Option<Instant>> {
+    LAST_MOVERS_SCRAPE.get_or_init(|| Mutex::new(None))
+}
+
+/// Izinkan invoke scrape movers; tolak dengan failed precondition jika < 5 menit sejak invoke terakhir.
+async fn acquire_movers_scrape_slot() -> Result<(), Status> {
+    let mut last = movers_scrape_gate().lock().await;
+    if let Some(at) = *last {
+        let elapsed = at.elapsed();
+        if elapsed < MOVERS_SCRAPE_COOLDOWN {
+            let remaining_secs = (MOVERS_SCRAPE_COOLDOWN - elapsed).as_secs();
+            let remaining_mins = remaining_secs.div_ceil(60).max(1);
+            return Err(Status::failed_precondition(format!(
+                "Tunggu {remaining_mins} menit lagi"
+            )));
+        }
+    }
+    *last = Some(Instant::now());
+    Ok(())
+}
 
 pub struct EmitenTrendingService {
     repo: Arc<EmitenTrendingRepository>,
+    session: Arc<Session>,
 }
 
 impl EmitenTrendingService {
     pub fn new(session: Arc<Session>) -> Self {
         Self {
-            repo: Arc::new(EmitenTrendingRepository::new(session)),
+            repo: Arc::new(EmitenTrendingRepository::new(Arc::clone(&session))),
+            session,
         }
     }
 
     pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.repo.warm_prepared().await
     }
-}
-
-fn next_stockbit_poll_secs() -> u64 {
-    rand::thread_rng().gen_range(STOCKBIT_POLL_MIN_SECS..=STOCKBIT_POLL_MAX_SECS)
 }
 
 #[tonic::async_trait]
@@ -62,7 +82,7 @@ impl EmitenTrendingRpc for EmitenTrendingService {
             ));
         }
 
-        let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
+        let date = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
             Status::invalid_argument("tahun_bulan_tanggal harus format YYYY-MM-DD")
         })?;
 
@@ -96,63 +116,38 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
         let _ = request.into_inner();
-        let repo = Arc::clone(&self.repo);
 
-        println!("GetLatestEmitenTrendingFromStockbit {username}");
+        acquire_movers_scrape_slot().await?;
 
-        let (tx, rx) = mpsc::channel::<Result<GetAllEmitenTrendingResponse, Status>>(4);
+        println!("GetLatestEmitenTrendingFromStockbit {username}: on-demand scrape movers...");
+        let started = Instant::now();
 
-        tokio::spawn(async move {
-            let mut cycle: u64 = 0;
-            loop {
-                cycle += 1;
-                let started = Instant::now();
+        on_demand::scrape_emiten_trending_movers(Arc::clone(&self.session))
+            .await
+            .map_err(|e| Status::internal(format!("Scrape movers gagal: {e}")))?;
 
-                // Scrape movers (Top Gainer/Loser + Freq → emiten_trending.freq) dijalankan
-                // oleh `worker_scrapping` (`emiten_trending_worker::scrape_and_insert_movers`).
-                // Stream ini mem-push snapshot hari ini dari Scylla (termasuk field `freq`).
-                let today = Local::now().date_naive();
-                let payload = match repo.get_all_by_date(today).await {
-                    Ok(rows) => {
-                        let with_freq = rows.iter().filter(|r| !r.freq.trim().is_empty()).count();
-                        println!(
-                            "GetLatestEmitenTrendingFromStockbit {username} snapshot rows={} freq_terisi={}",
-                            rows.len(),
-                            with_freq
-                        );
-                        GetAllEmitenTrendingResponse {
-                            rows: rows.into_iter().map(EmitenTrending::into_proto).collect(),
-                        }
-                    }
-                    Err(e) => {
-                        let _ = tx
-                            .send(Err(Status::internal(format!("Scylla query failed: {e}"))))
-                            .await;
-                        break;
-                    }
-                };
+        let today = Local::now().date_naive();
+        let rows = self
+            .repo
+            .get_all_by_date(today)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
 
-                let n = payload.rows.len();
-                println!(
-                    "GetLatestEmitenTrendingFromStockbit {username} cycle={cycle} rows={n} {}ms",
-                    started.elapsed().as_millis()
-                );
+        let with_freq = rows.iter().filter(|r| !r.freq.trim().is_empty()).count();
+        let payload = GetAllEmitenTrendingResponse {
+            rows: rows.into_iter().map(EmitenTrending::into_proto).collect(),
+        };
+        let n = payload.rows.len();
+        println!(
+            "GetLatestEmitenTrendingFromStockbit {username} rows={n} freq_terisi={with_freq} {}ms",
+            started.elapsed().as_millis()
+        );
 
-                if tx.send(Ok(payload)).await.is_err() {
-                    // Client disconnect — hentikan poll.
-                    println!("GetLatestEmitenTrendingFromStockbit {username} stream closed");
-                    break;
-                }
+        let (tx, rx) = mpsc::channel(1);
+        if tx.send(Ok(payload)).await.is_err() {
+            return Err(Status::internal("stream closed before send"));
+        }
 
-                let wait_secs = next_stockbit_poll_secs();
-                println!(
-                    "GetLatestEmitenTrendingFromStockbit {username} poll berikutnya dalam {wait_secs}s"
-                );
-                sleep(Duration::from_secs(wait_secs)).await;
-            }
-        });
-
-        let stream = ReceiverStream::new(rx);
-        Ok(Response::new(Box::pin(stream)))
+        Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 }

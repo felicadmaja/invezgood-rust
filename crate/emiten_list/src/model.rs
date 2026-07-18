@@ -10,8 +10,12 @@
 //! | key_stats         | map\<text, text\> | HashMap\<String, String\> |
 //! | corporate_action  | list\<frozen\<map\<...\>\>\> | Vec\<HashMap\<...\>\> |
 //! | company_profile   | frozen\<company_profile\> | Option\<CompanyProfile\> |
-//! | update_at         | timestamp | Option\<DateTime\<Utc\>\> |
-//! | is_konglomerasi   | boolean  | bool (default false) |
+//! | update_at              | timestamp | Option\<DateTime\<Utc\>\> |
+//! | is_konglomerasi        | boolean  | bool (default false) |
+//! | sector                 | tinyint  | Option\<i8\> |
+//! | is_fundamental_solid   | boolean  | bool (default false) |
+//! | is_blue_chip           | boolean  | bool (default false) |
+//! | catatan                | text     | String |
 
 use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
@@ -19,9 +23,13 @@ use std::collections::HashMap;
 
 use crate::{
     CompanyProfile as ProtoCompanyProfile, CorporateActionDetailList, CorporateActionGroup,
-    CorporateActionKv, EmitenListRow, EmitenShareholder as ProtoShareholder,
+    CorporateActionKv, EmitenListRow, EmitenListSingkatRow, EmitenShareholder as ProtoShareholder,
     EmitenShareholderGt1 as ProtoShareholderGt1,
 };
+
+fn sector_to_proto(sector: Option<i8>) -> i32 {
+    sector.unwrap_or(0).max(0) as i32
+}
 
 /// UDT `emiten_shareholder_gt1` — pemegang saham >1%.
 #[derive(Debug, Clone, DeserializeValue, SerializeValue)]
@@ -158,6 +166,13 @@ pub struct EmitenList {
     pub update_at: Option<DateTime<Utc>>,
     #[scylla(default_when_null)]
     pub is_konglomerasi: bool,
+    pub sector: Option<i8>,
+    #[scylla(default_when_null)]
+    pub is_fundamental_solid: bool,
+    #[scylla(default_when_null)]
+    pub is_blue_chip: bool,
+    #[scylla(default_when_null)]
+    pub catatan: String,
 }
 
 impl EmitenList {
@@ -174,6 +189,20 @@ impl EmitenList {
                 .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
             is_konglomerasi: self.is_konglomerasi,
+            sector: sector_to_proto(self.sector),
+            is_fundamental_solid: self.is_fundamental_solid,
+            is_blue_chip: self.is_blue_chip,
+        }
+    }
+
+    pub fn into_singkat_proto(self) -> EmitenListSingkatRow {
+        EmitenListSingkatRow {
+            code_name: self.code_name,
+            emiten_icon: self.emiten_icon,
+            is_konglomerasi: self.is_konglomerasi,
+            sector: sector_to_proto(self.sector),
+            is_fundamental_solid: self.is_fundamental_solid,
+            is_blue_chip: self.is_blue_chip,
         }
     }
 }

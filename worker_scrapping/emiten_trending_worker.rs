@@ -1,13 +1,23 @@
 //! Scrape Top Gainer / Top Loser (movers) Stockbit → insert `emiten_trending`.
+//! Bila baris hari ini benar-benar baru (belum ada PK), ikut upsert
+//! `emiten_trending_count_by_name` (`appearance_count + 1`).
 
-use chrono::Local;
+use chrono::{Local, NaiveDate, Utc};
 use chromiumoxide::page::Page;
 use gcs::{download_and_upload_emiten_icon, GcsOAuthTokenCache, GcsSignedUrlRuntime};
+use rand::Rng;
 use scylla::client::session::Session;
+use scylla::DeserializeRow;
 use serde::Deserialize;
 use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::time::sleep;
+
+#[derive(Debug, DeserializeRow)]
+struct TrendingCountRow {
+    #[scylla(default_when_null)]
+    appearance_count: i64,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 struct MoversRow {
@@ -255,6 +265,42 @@ async fn scrape_movers_table(page: &Page) -> Result<Vec<MoversRow>, Box<dyn std:
     Ok(rows)
 }
 
+async fn emiten_trending_exists_today(
+    session: &Session,
+    exists_stmt: &scylla::statement::prepared::PreparedStatement,
+    agg: &str,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let result = session
+        .execute_unpaged(exists_stmt, (agg,))
+        .await?
+        .into_rows_result()?;
+    Ok(result.rows_num() > 0)
+}
+
+/// Upsert count hanya dipanggil saat baris `emiten_trending` hari ini baru (insert murni).
+async fn upsert_emiten_trending_count(
+    session: &Session,
+    select_count: &scylla::statement::prepared::PreparedStatement,
+    upsert_count: &scylla::statement::prepared::PreparedStatement,
+    emiten_name: &str,
+    today: NaiveDate,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let result = session
+        .execute_unpaged(select_count, (emiten_name,))
+        .await?
+        .into_rows_result()?;
+    let prev = result
+        .maybe_first_row::<TrendingCountRow>()?
+        .map(|r| r.appearance_count)
+        .unwrap_or(0);
+    let next = prev.saturating_add(1);
+    let now = Utc::now();
+    session
+        .execute_unpaged(upsert_count, (emiten_name, next, today, now))
+        .await?;
+    Ok(())
+}
+
 async fn insert_emiten_trending(
     session: &Session,
     keyspace: &str,
@@ -263,6 +309,13 @@ async fn insert_emiten_trending(
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let today = Local::now().date_naive();
     let date_str = today.format("%Y-%m-%d").to_string();
+
+    let exists_stmt = session
+        .prepare(format!(
+            "SELECT agg_tahun_bulan_tanggal_emiten_name FROM {keyspace}.emiten_trending \
+             WHERE agg_tahun_bulan_tanggal_emiten_name = ?"
+        ))
+        .await?;
 
     let insert = session
         .prepare(format!(
@@ -282,13 +335,31 @@ async fn insert_emiten_trending(
         ))
         .await?;
 
+    let select_count = session
+        .prepare(format!(
+            "SELECT appearance_count FROM {keyspace}.emiten_trending_count_by_name \
+             WHERE emiten_name = ?"
+        ))
+        .await?;
+    let upsert_count = session
+        .prepare(format!(
+            "INSERT INTO {keyspace}.emiten_trending_count_by_name (\
+                emiten_name, appearance_count, last_tahun_bulan_tanggal, updated_at\
+            ) VALUES (?, ?, ?, ?)"
+        ))
+        .await?;
+
     let mut n = 0usize;
+    let mut new_count_bumps = 0usize;
     for row in rows {
         let emiten = normalize_emiten_name(&row.symbol);
         if emiten.is_empty() {
             continue;
         }
         let agg = format!("{date_str}_{emiten}");
+        // Hanya baris hari ini yang belum ada yang dihitung sebagai insert murni.
+        let is_new_today = !emiten_trending_exists_today(session, &exists_stmt, &agg).await?;
+
         let price_change = parse_price_change(&row.price_change);
         let price = parse_price(&row.price);
         let emiten_icon = match upload_emiten_icon_to_gcs(&emiten, &row.emiten_icon).await {
@@ -316,8 +387,35 @@ async fn insert_emiten_trending(
             )
             .await?;
         n += 1;
+
+        if is_new_today {
+            if let Err(e) = upsert_emiten_trending_count(
+                session,
+                &select_count,
+                &upsert_count,
+                &emiten,
+                today,
+            )
+            .await
+            {
+                eprintln!(
+                    "Peringatan: gagal upsert emiten_trending_count_by_name {emiten}: {e}"
+                );
+            } else {
+                new_count_bumps += 1;
+            }
+        }
+    }
+    if new_count_bumps > 0 {
+        println!(
+            "emiten_trending_count_by_name: +{new_count_bumps} emiten baru ({gainer_or_loser}) untuk {date_str}"
+        );
     }
     Ok(n)
+}
+
+fn random_ms(min: u64, max: u64) -> u64 {
+    rand::thread_rng().gen_range(min..=max)
 }
 
 /// Klik movers → Top Gainer + Top Loser → insert `emiten_trending`.
@@ -330,14 +428,15 @@ pub async fn scrape_and_insert_movers(
     println!("Mengklik right-menu-movers...");
     if let Ok(btn) = page.find_element(r#"[data-cy="right-menu-movers"]"#).await {
         btn.click().await?;
-        sleep(Duration::from_secs(2)).await;
+        let wait_ms = random_ms(500, 800);
+        sleep(Duration::from_millis(wait_ms)).await;
     } else {
         return Err("Error: Tombol [data-cy=\"right-menu-movers\"] tidak ditemukan!".into());
     }
 
     println!("Mengklik Top Gainer...");
     click_mover_tab(page, "Top Gainer").await?;
-    sleep(Duration::from_secs(2)).await;
+    sleep(Duration::from_millis(random_ms(300, 500))).await;
 
     let gainer_rows = scrape_movers_table(page).await?;
     println!("Top Gainer: {} baris di-scrape.", gainer_rows.len());
@@ -351,7 +450,7 @@ pub async fn scrape_and_insert_movers(
 
     println!("Mengklik Top Loser...");
     click_mover_tab(page, "Top Loser").await?;
-    sleep(Duration::from_secs(2)).await;
+    sleep(Duration::from_millis(random_ms(500, 800))).await;
 
     let loser_rows = scrape_movers_table(page).await?;
     println!("Top Loser: {} baris di-scrape.", loser_rows.len());

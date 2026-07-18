@@ -6,9 +6,14 @@ service EmitenTrending {
   // Daftar trending per tanggal via MV `emiten_trending_by_tahun_bulan_tanggal`.
   rpc GetAllEmitenTrending(GetAllEmitenTrendingRequest) returns (GetAllEmitenTrendingResponse);
 
-  // Subscribe stream data trending terbaru dari Stockbit.
-  // Server mem-poll setiap 10–15 menit (acak). Sumber data: hasil scrape movers
-  // (Top Gainer/Loser) — kolom Symbol, Price, Value, Volume, **Freq** di-upsert ke
+  // On-demand scrape movers Stockbit (Top Gainer/Loser + Freq) lalu stream snapshot hari ini.
+  // Hanya jalan saat RPC dipanggil. Maksimal 1× per 5 menit (failed precondition jika terlalu cepat).
+  // Saat insert ke `emiten_trending`: bila PK hari ini
+  // (`agg_tahun_bulan_tanggal_emiten_name` = `YYYY-MM-DD_EMITEN`) belum ada (insert murni,
+  // bukan update baris yang sudah ada), server juga upsert
+  // `emiten_trending_count_by_name`: appearance_count += 1,
+  // last_tahun_bulan_tanggal = hari ini, updated_at = now.
+  // Emiten yang sudah trending di tanggal yang sama tidak menambah count lagi.
   // Request kosong. Wajib Authorization: Bearer <JWT valid>.
   rpc GetLatestEmitenTrendingFromStockbit(GetLatestEmitenTrendingFromStockbitRequest)
       returns (stream GetAllEmitenTrendingResponse);

@@ -4,22 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "create_bandarmology"
-path = "src/bin/create_bandarmology.rs"
-
-[[bin]]
-name = "create_emiten_trending"
-path = "src/bin/create_emiten_trending.rs"
-
-[[bin]]
-name = "create_portofolio"
-path = "src/bin/create_portofolio.rs"
-
-[[bin]]
-name = "create_emiten_list"
-path = "src/bin/create_emiten_list.rs"
-
-[[bin]]
 name = "create_user"
 path = "src/bin/create_user.rs"
 
