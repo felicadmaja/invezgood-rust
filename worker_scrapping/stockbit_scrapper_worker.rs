@@ -40,8 +40,6 @@ use worker_scrapping::{
 };
 
 use chrono::Local;
-use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
-use chromiumoxide::page::{Page, ScreenshotParams};
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
 use std::path::PathBuf;
@@ -128,52 +126,6 @@ fn workspace_root() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."))
 }
 
-fn screenshot_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("screenshots")
-}
-
-async fn clear_screenshot_dir() -> Result<(), Box<dyn std::error::Error>> {
-    let dir = screenshot_dir();
-    tokio::fs::create_dir_all(&dir).await?;
-    let mut entries = match tokio::fs::read_dir(&dir).await {
-        Ok(entries) => entries,
-        Err(_) => return Ok(()),
-    };
-    let mut removed = 0usize;
-    while let Some(entry) = entries.next_entry().await? {
-        if entry.file_type().await?.is_file() {
-            tokio::fs::remove_file(entry.path()).await?;
-            removed += 1;
-        }
-    }
-    if removed > 0 {
-        println!(
-            "Screenshot lama dihapus: {removed} file dari {}",
-            dir.display()
-        );
-    }
-    Ok(())
-}
-
-async fn save_step_screenshot(
-    page: &Page,
-    step: &str,
-    label: &str,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let dir = screenshot_dir();
-    tokio::fs::create_dir_all(&dir).await?;
-    let path = dir.join(format!("stockbit_{step}_{label}.png"));
-    page.save_screenshot(
-        ScreenshotParams::builder()
-            .format(CaptureScreenshotFormat::Png)
-            .build(),
-        &path,
-    )
-    .await?;
-    println!("Screenshot [{step} {label}]: {}", path.display());
-    Ok(path)
-}
-
 fn keyspace() -> String {
     std::env::var("SCYLLA_KEYSPACE").unwrap_or_else(|_| "stockbit".to_string())
 }
@@ -213,8 +165,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
     let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
-
-    clear_screenshot_dir().await?;
 
     let (mut browser, page) = launch_page().await.map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
@@ -263,7 +213,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Lanjut portofolio (PIN bila perlu → API → emiten_list + bandarmology → upsert)...");
     let porto_ok = portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks).await?;
     println!("OK: {porto_ok} baris diinsert ke portofolio.");
-    let screenshot_path = save_step_screenshot(&page, "10", "portofolio").await?;
 
     let final_url = page.url().await?.unwrap_or_default();
     let final_title = page.get_title().await?.unwrap_or_default();
@@ -271,10 +220,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     browser.close().await?;
 
-    println!(
-        "Selesai. Screenshot terakhir: {}",
-        screenshot_path.display()
-    );
+    println!("Selesai.");
     pm2_guard.start_once();
     Ok(())
 }
