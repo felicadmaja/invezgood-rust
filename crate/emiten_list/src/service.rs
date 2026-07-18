@@ -20,7 +20,7 @@ use crate::{
     UpdateEmitenListSectorRequest, UpdateEmitenListSectorResponse,
 };
 
-const MAX_EMITEN_SECTOR: i32 = 44;
+const MAX_EMITEN_SECTOR: i32 = 46;
 
 pub struct EmitenListService {
     repo: EmitenListRepository,

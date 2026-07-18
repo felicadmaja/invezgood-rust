@@ -10,6 +10,7 @@
 //! | tahun_bulan_tanggal                     | date      | NaiveDate                    |
 //! | gainer_or_loser                         | text      | String                       |
 //! | emiten_name                             | text      | String                       |
+//! | long_name                               | text      | String                       |
 //! | emiten_icon                             | text      | String                       |
 //! | price                                   | double    | f64                          |
 //! | price_change                            | double    | f64                          |
@@ -40,6 +41,9 @@ pub struct EmitenTrending {
     pub gainer_or_loser: String,
     #[scylla(default_when_null)]
     pub emiten_name: String,
+    /// Nama perusahaan panjang.
+    #[scylla(default_when_null)]
+    pub long_name: String,
     /// Path object GCS modul `stoksaham` (hasil upload icon Movers).
     #[scylla(default_when_null)]
     pub emiten_icon: String,
@@ -65,6 +69,7 @@ impl EmitenTrending {
             tahun_bulan_tanggal: self.tahun_bulan_tanggal.format("%Y-%m-%d").to_string(),
             gainer_or_loser: self.gainer_or_loser,
             emiten_name: self.emiten_name,
+            long_name: self.long_name,
             emiten_icon: self.emiten_icon,
             price: self.price,
             price_change: self.price_change,

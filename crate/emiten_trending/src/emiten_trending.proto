@@ -41,6 +41,8 @@ message EmitenTrendingRow {
   string emiten_icon = 10;
   // Frekuensi transaksi (kolom Freq Movers).
   string freq = 11;
+  // Nama perusahaan panjang.
+  string long_name = 12;
 }
 
 message GetAllEmitenTrendingResponse {

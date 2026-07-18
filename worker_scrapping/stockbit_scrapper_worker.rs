@@ -13,10 +13,11 @@
 //! Env opsional: `STOCKBIT_2FA_TIMEOUT_SECS` (default 300 = 5 menit).
 //! Env opsional: `STOCKBIT_SESSION_CHECK_SECS` (default 5) — tunggu popup sesi habis di `/stream`.
 //! Env Scylla (insert `emiten_trending`, `emiten_list`, `bandarmology`, `portofolio`): `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
+//! Env Redis (cache `long_name`, TTL 1 tahun): `REDIS_URL`.
 //! Env Trading PIN: `STOCKBUT_PIN` (atau `STOCKBIT_PIN`).
 //!
 //! Setelah movers via API `order-trade/market-mover` (TOP_GAINER / TOP_LOSER)
-//! → insert `emiten_trending`.
+//! → insert `emiten_trending` (termasuk `long_name`: Redis → `emiten_list` → API movers).
 //! Bila PK hari ini baru (insert murni), upsert juga `emiten_trending_count_by_name`
 //! (`appearance_count + 1`, `last_tahun_bulan_tanggal` = hari ini, `updated_at` = now).
 //! Lalu token-ring scan `emiten_list.code_name` → Key Stats + Corp. Action + Profile API
@@ -30,7 +31,7 @@
 //! (hindari diblokir server).
 //! Lalu START TRADING (PIN bila perlu) → Bearer trading pasca-PIN →
 //! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list + bandarmology
-//! → insert `portofolio` (termasuk `long_name` dari emiten_list / company.name).
+//! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name).
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 
@@ -233,7 +234,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (inserted_gainer, inserted_loser) =
         emiten_trending_worker::scrape_and_insert_movers(&page, &session, &ks).await?;
     println!(
-        "OK: emiten_trending gainer={inserted_gainer}, loser={inserted_loser}."
+        "OK: emiten_trending gainer={inserted_gainer}, loser={inserted_loser} (dengan long_name)."
     );
 
     let today = Local::now().date_naive();

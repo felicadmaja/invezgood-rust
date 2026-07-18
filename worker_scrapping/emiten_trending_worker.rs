@@ -31,6 +31,8 @@ struct TrendingCountRow {
 #[derive(Debug, Clone, Deserialize)]
 struct MoversRow {
     symbol: String,
+    /// Dari API `stock_detail.name` / `company_name` (opsional).
+    long_name: String,
     emiten_icon: String,
     price: String,
     price_change: String,
@@ -93,6 +95,12 @@ struct EmitenListIconRow {
     emiten_icon: String,
 }
 
+#[derive(Debug, DeserializeRow)]
+struct EmitenListLongNameRow {
+    #[scylla(default_when_null)]
+    long_name: String,
+}
+
 /// Ambil `emiten_list.emiten_icon` bila sudah terisi (hindari download/upload GCS ulang).
 async fn fetch_emiten_icon_from_list(
     session: &Session,
@@ -109,6 +117,49 @@ async fn fetch_emiten_icon_from_list(
         .unwrap_or_default()
         .trim()
         .to_string())
+}
+
+async fn fetch_emiten_long_name_from_list(
+    session: &Session,
+    stmt: &scylla::statement::prepared::PreparedStatement,
+    emiten: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let result = session
+        .execute_unpaged(stmt, (emiten,))
+        .await?
+        .into_rows_result()?;
+    Ok(result
+        .maybe_first_row::<EmitenListLongNameRow>()?
+        .map(|r| r.long_name)
+        .unwrap_or_default()
+        .trim()
+        .to_string())
+}
+
+/// Prefer Redis → `emiten_list.long_name` → nama dari API movers (lalu cache Redis).
+async fn resolve_trending_long_name(
+    session: &Session,
+    list_long_name_stmt: &scylla::statement::prepared::PreparedStatement,
+    emiten: &str,
+    api_long_name: &str,
+) -> String {
+    if let Some(cached) = crate::redis_long_name::get_long_name(emiten).await {
+        return cached;
+    }
+    match fetch_emiten_long_name_from_list(session, list_long_name_stmt, emiten).await {
+        Ok(name) if !name.is_empty() && name.to_ascii_uppercase() != emiten => {
+            return name;
+        }
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("Peringatan: baca emiten_list.long_name {emiten}: {e}");
+        }
+    }
+    let from_api = api_long_name.trim().to_string();
+    if !from_api.is_empty() {
+        crate::redis_long_name::set_long_name(emiten, &from_api).await;
+    }
+    from_api
 }
 
 /// Prefer icon dari `emiten_list`; fallback download
@@ -188,6 +239,13 @@ async fn fetch_market_mover(
             .unwrap_or("")
             .trim()
             .to_string();
+        let long_name = item
+            .pointer("/stock_detail/name")
+            .or_else(|| item.pointer("/stock_detail/company_name"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
         let price = match item.get("price") {
             Some(Value::Number(n)) => n.to_string(),
             Some(Value::String(s)) => s.trim().to_string(),
@@ -219,6 +277,7 @@ async fn fetch_market_mover(
 
         rows.push(MoversRow {
             symbol,
+            long_name,
             emiten_icon,
             price,
             price_change,
@@ -289,6 +348,7 @@ async fn insert_emiten_trending(
                 tahun_bulan_tanggal, \
                 gainer_or_loser, \
                 emiten_name, \
+                long_name, \
                 emiten_icon, \
                 price, \
                 price_change, \
@@ -296,7 +356,7 @@ async fn insert_emiten_trending(
                 volume, \
                 freq, \
                 updated_at\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, toTimestamp(now()))"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, toTimestamp(now()))"
         ))
         .await?;
 
@@ -317,6 +377,11 @@ async fn insert_emiten_trending(
     let list_icon_stmt = session
         .prepare(format!(
             "SELECT emiten_icon FROM {keyspace}.emiten_list WHERE code_name = ?"
+        ))
+        .await?;
+    let list_long_name_stmt = session
+        .prepare(format!(
+            "SELECT long_name FROM {keyspace}.emiten_list WHERE code_name = ?"
         ))
         .await?;
 
@@ -340,6 +405,13 @@ async fn insert_emiten_trending(
             &row.emiten_icon,
         )
         .await;
+        let long_name = resolve_trending_long_name(
+            session,
+            &list_long_name_stmt,
+            &emiten,
+            &row.long_name,
+        )
+        .await;
         session
             .execute_unpaged(
                 &insert,
@@ -348,6 +420,7 @@ async fn insert_emiten_trending(
                     today,
                     gainer_or_loser,
                     emiten.as_str(),
+                    long_name.as_str(),
                     emiten_icon.as_str(),
                     price,
                     price_change,
@@ -358,7 +431,7 @@ async fn insert_emiten_trending(
             )
             .await?;
         println!(
-            "\nemiten_trending insert {emiten} ({gainer_or_loser}): \
+            "\nemiten_trending insert {emiten} ({long_name}) ({gainer_or_loser}): \
              price={price} change={price_change} value={} volume={} freq={}",
             row.value, row.volume, row.freq
         );
