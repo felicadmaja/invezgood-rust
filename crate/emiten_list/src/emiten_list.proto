@@ -40,6 +40,10 @@ service EmitenList {
   // Request field `foto_owner_gcs_path` disimpan ke kolom Scylla `foto_owner`.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListOwner(UpdateEmitenListOwnerRequest) returns (UpdateEmitenListOwnerResponse);
+
+  // Update kolom `is_plan_to_trade` untuk satu emiten (PK code_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateEmitenListPlanToTrade(UpdateEmitenListPlanToTradeRequest) returns (UpdateEmitenListPlanToTradeResponse);
 }
 
 // Kode sektor emiten; disimpan di Scylla `emiten_list.sector` sebagai tinyint.
@@ -113,6 +117,7 @@ message UpdateEmitenListFundamentalRequest {
 message UpdateEmitenListFundamentalResponse {
   bool success = 1;
   string message = 2;
+  EmitenListRow row = 3;
 }
 
 message UpdateEmitenListSectorRequest {
@@ -124,6 +129,7 @@ message UpdateEmitenListSectorRequest {
 message UpdateEmitenListSectorResponse {
   bool success = 1;
   string message = 2;
+  EmitenListRow row = 3;
 }
 
 message UpdateEmitenListKonglomerasiRequest {
@@ -135,6 +141,7 @@ message UpdateEmitenListKonglomerasiRequest {
 message UpdateEmitenListKonglomerasiResponse {
   bool success = 1;
   string message = 2;
+  EmitenListRow row = 3;
 }
 
 message UpdateEmitenListBlueChipRequest {
@@ -146,17 +153,32 @@ message UpdateEmitenListBlueChipRequest {
 message UpdateEmitenListBlueChipResponse {
   bool success = 1;
   string message = 2;
+  EmitenListRow row = 3;
+}
+
+message UpdateEmitenListPlanToTradeRequest {
+  // Kode emiten / ticker (contoh "BBCA"); di-capitalize ke uppercase di server.
+  string code_name = 1;
+  bool is_plan_to_trade = 2;
+}
+
+message UpdateEmitenListPlanToTradeResponse {
+  bool success = 1;
+  string message = 2;
+  EmitenListRow row = 3;
 }
 
 message UpdateEmitenListCatatanRequest {
   // Kode emiten / ticker (contoh "BBCA"); di-capitalize ke uppercase di server.
   string code_name = 1;
   string catatan = 2;
+  
 }
 
 message UpdateEmitenListCatatanResponse {
   bool success = 1;
   string message = 2;
+  EmitenListRow row = 3;
 }
 
 message UpdateEmitenListOwnerRequest {
@@ -170,6 +192,7 @@ message UpdateEmitenListOwnerRequest {
 message UpdateEmitenListOwnerResponse {
   bool success = 1;
   string message = 2;
+  EmitenListRow row = 3;
 }
 
 // Satu pasangan atribut aksi korporasi, contoh {"Cum Date": "20 Apr 26"}.

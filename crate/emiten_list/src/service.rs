@@ -17,6 +17,7 @@ use crate::{
     UpdateEmitenListFundamentalRequest, UpdateEmitenListFundamentalResponse,
     UpdateEmitenListKonglomerasiRequest, UpdateEmitenListKonglomerasiResponse,
     UpdateEmitenListOwnerRequest, UpdateEmitenListOwnerResponse,
+    UpdateEmitenListPlanToTradeRequest, UpdateEmitenListPlanToTradeResponse,
     UpdateEmitenListSectorRequest, UpdateEmitenListSectorResponse,
 };
 
@@ -143,6 +144,7 @@ impl EmitenListRpc for EmitenListService {
             return Ok(Response::new(UpdateEmitenListFundamentalResponse {
                 success: false,
                 message: "code_name wajib diisi".to_string(),
+                row: None,
             }));
         }
 
@@ -152,18 +154,26 @@ impl EmitenListRpc for EmitenListService {
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
-        let (success, message) = if updated {
+        let (success, message, row) = if updated {
+            let row = self
+                .repo
+                .get_by_code_name(&code_name)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+                .map(EmitenList::into_proto);
             (
                 true,
                 format!(
                     "is_fundamental_solid={} untuk {code_name} berhasil diupdate",
                     req.is_fundamental_solid
                 ),
+                row,
             )
         } else {
             (
                 false,
                 format!("emiten_list code_name={code_name} tidak ditemukan"),
+                None,
             )
         };
 
@@ -176,6 +186,7 @@ impl EmitenListRpc for EmitenListService {
         Ok(Response::new(UpdateEmitenListFundamentalResponse {
             success,
             message,
+            row,
         }))
     }
 
@@ -193,6 +204,7 @@ impl EmitenListRpc for EmitenListService {
             return Ok(Response::new(UpdateEmitenListSectorResponse {
                 success: false,
                 message: "code_name wajib diisi".to_string(),
+                row: None,
             }));
         }
 
@@ -203,6 +215,7 @@ impl EmitenListRpc for EmitenListService {
                     "sector tidak valid ({}); gunakan nilai EmitenSector 0–{MAX_EMITEN_SECTOR}",
                     req.sector
                 ),
+                row: None,
             }));
         }
 
@@ -213,15 +226,23 @@ impl EmitenListRpc for EmitenListService {
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
-        let (success, message) = if updated {
+        let (success, message, row) = if updated {
+            let row = self
+                .repo
+                .get_by_code_name(&code_name)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+                .map(EmitenList::into_proto);
             (
                 true,
                 format!("sector={sector} untuk {code_name} berhasil diupdate"),
+                row,
             )
         } else {
             (
                 false,
                 format!("emiten_list code_name={code_name} tidak ditemukan"),
+                None,
             )
         };
 
@@ -234,6 +255,7 @@ impl EmitenListRpc for EmitenListService {
         Ok(Response::new(UpdateEmitenListSectorResponse {
             success,
             message,
+            row,
         }))
     }
 
@@ -251,6 +273,7 @@ impl EmitenListRpc for EmitenListService {
             return Ok(Response::new(UpdateEmitenListKonglomerasiResponse {
                 success: false,
                 message: "code_name wajib diisi".to_string(),
+                row: None,
             }));
         }
 
@@ -260,18 +283,26 @@ impl EmitenListRpc for EmitenListService {
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
-        let (success, message) = if updated {
+        let (success, message, row) = if updated {
+            let row = self
+                .repo
+                .get_by_code_name(&code_name)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+                .map(EmitenList::into_proto);
             (
                 true,
                 format!(
                     "is_konglomerasi={} untuk {code_name} berhasil diupdate",
                     req.is_konglomerasi
                 ),
+                row,
             )
         } else {
             (
                 false,
                 format!("emiten_list code_name={code_name} tidak ditemukan"),
+                None,
             )
         };
 
@@ -284,6 +315,7 @@ impl EmitenListRpc for EmitenListService {
         Ok(Response::new(UpdateEmitenListKonglomerasiResponse {
             success,
             message,
+            row,
         }))
     }
 
@@ -301,6 +333,7 @@ impl EmitenListRpc for EmitenListService {
             return Ok(Response::new(UpdateEmitenListBlueChipResponse {
                 success: false,
                 message: "code_name wajib diisi".to_string(),
+                row: None,
             }));
         }
 
@@ -310,18 +343,26 @@ impl EmitenListRpc for EmitenListService {
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
-        let (success, message) = if updated {
+        let (success, message, row) = if updated {
+            let row = self
+                .repo
+                .get_by_code_name(&code_name)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+                .map(EmitenList::into_proto);
             (
                 true,
                 format!(
                     "is_blue_chip={} untuk {code_name} berhasil diupdate",
                     req.is_blue_chip
                 ),
+                row,
             )
         } else {
             (
                 false,
                 format!("emiten_list code_name={code_name} tidak ditemukan"),
+                None,
             )
         };
 
@@ -334,6 +375,67 @@ impl EmitenListRpc for EmitenListService {
         Ok(Response::new(UpdateEmitenListBlueChipResponse {
             success,
             message,
+            row,
+        }))
+    }
+
+    async fn update_emiten_list_plan_to_trade(
+        &self,
+        request: Request<UpdateEmitenListPlanToTradeRequest>,
+    ) -> Result<Response<UpdateEmitenListPlanToTradeResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let code_name = req.code_name.trim().to_ascii_uppercase();
+        if code_name.is_empty() {
+            return Ok(Response::new(UpdateEmitenListPlanToTradeResponse {
+                success: false,
+                message: "code_name wajib diisi".to_string(),
+                row: None,
+            }));
+        }
+
+        let updated = self
+            .repo
+            .update_plan_to_trade(&code_name, req.is_plan_to_trade)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
+
+        let (success, message, row) = if updated {
+            let row = self
+                .repo
+                .get_by_code_name(&code_name)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+                .map(EmitenList::into_proto);
+            (
+                true,
+                format!(
+                    "is_plan_to_trade={} untuk {code_name} berhasil diupdate",
+                    req.is_plan_to_trade
+                ),
+                row,
+            )
+        } else {
+            (
+                false,
+                format!("emiten_list code_name={code_name} tidak ditemukan"),
+                None,
+            )
+        };
+
+        println!(
+            "UpdateEmitenListPlanToTrade {} {code_name} success={success} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(UpdateEmitenListPlanToTradeResponse {
+            success,
+            message,
+            row,
         }))
     }
 
@@ -351,6 +453,7 @@ impl EmitenListRpc for EmitenListService {
             return Ok(Response::new(UpdateEmitenListCatatanResponse {
                 success: false,
                 message: "code_name wajib diisi".to_string(),
+                row: None,
             }));
         }
 
@@ -361,15 +464,23 @@ impl EmitenListRpc for EmitenListService {
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
-        let (success, message) = if updated {
+        let (success, message, row) = if updated {
+            let row = self
+                .repo
+                .get_by_code_name(&code_name)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+                .map(EmitenList::into_proto);
             (
                 true,
                 format!("catatan untuk {code_name} berhasil diupdate"),
+                row,
             )
         } else {
             (
                 false,
                 format!("emiten_list code_name={code_name} tidak ditemukan"),
+                None,
             )
         };
 
@@ -382,6 +493,7 @@ impl EmitenListRpc for EmitenListService {
         Ok(Response::new(UpdateEmitenListCatatanResponse {
             success,
             message,
+            row,
         }))
     }
 
@@ -399,6 +511,7 @@ impl EmitenListRpc for EmitenListService {
             return Ok(Response::new(UpdateEmitenListOwnerResponse {
                 success: false,
                 message: "code_name wajib diisi".to_string(),
+                row: None,
             }));
         }
 
@@ -410,15 +523,23 @@ impl EmitenListRpc for EmitenListService {
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
-        let (success, message) = if updated {
+        let (success, message, row) = if updated {
+            let row = self
+                .repo
+                .get_by_code_name(&code_name)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+                .map(EmitenList::into_proto);
             (
                 true,
                 format!("catatan_owner/foto_owner untuk {code_name} berhasil diupdate"),
+                row,
             )
         } else {
             (
                 false,
                 format!("emiten_list code_name={code_name} tidak ditemukan"),
+                None,
             )
         };
 
@@ -431,6 +552,7 @@ impl EmitenListRpc for EmitenListService {
         Ok(Response::new(UpdateEmitenListOwnerResponse {
             success,
             message,
+            row,
         }))
     }
 }

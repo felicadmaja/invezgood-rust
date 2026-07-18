@@ -19,6 +19,7 @@ struct Prepared {
     update_sector: PreparedStatement,
     update_konglomerasi: PreparedStatement,
     update_blue_chip: PreparedStatement,
+    update_plan_to_trade: PreparedStatement,
     update_catatan: PreparedStatement,
     update_owner: PreparedStatement,
 }
@@ -81,6 +82,12 @@ impl EmitenListRepository {
                 let update_blue_chip = self.session.prepare(q).await?;
 
                 let q = format!(
+                    "UPDATE {} SET is_plan_to_trade = ? WHERE code_name = ?",
+                    self.table
+                );
+                let update_plan_to_trade = self.session.prepare(q).await?;
+
+                let q = format!(
                     "UPDATE {} SET catatan = ? WHERE code_name = ?",
                     self.table
                 );
@@ -99,6 +106,7 @@ impl EmitenListRepository {
                     update_sector,
                     update_konglomerasi,
                     update_blue_chip,
+                    update_plan_to_trade,
                     update_catatan,
                     update_owner,
                 })
@@ -224,6 +232,26 @@ impl EmitenListRepository {
         let prepared = self.prepared().await?;
         self.session
             .execute_unpaged(&prepared.update_blue_chip, (is_blue_chip, code_name))
+            .await?;
+        Ok(true)
+    }
+
+    /// Update `is_plan_to_trade`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    pub async fn update_plan_to_trade(
+        &self,
+        code_name: &str,
+        is_plan_to_trade: bool,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if self.get_by_code_name(code_name).await?.is_none() {
+            return Ok(false);
+        }
+
+        let prepared = self.prepared().await?;
+        self.session
+            .execute_unpaged(
+                &prepared.update_plan_to_trade,
+                (is_plan_to_trade, code_name),
+            )
             .await?;
         Ok(true)
     }
