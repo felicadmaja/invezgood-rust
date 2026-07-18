@@ -39,7 +39,8 @@ Kolom "catatan_owner": text — pemilik/penulis catatan (kosong bila belum di-se
 Kolom "foto_owner": text — path/URL foto pemilik catatan (kosong bila belum di-set).
 
 --- Materialized view (MV) ---
-Tidak ada: MV "stockbit"."emiten_list_by_name" (legacy) di-drop saat migrasi; lookup langsung lewat PRIMARY KEY (("code_name")).
+(1) "stockbit"."emiten_list_by_is_blue_chip" — base "emiten_list"; PRIMARY KEY (("is_blue_chip"), "code_name"); CLUSTERING ORDER BY ("code_name" ASC); SELECT *; WHERE is_blue_chip IS NOT NULL AND code_name IS NOT NULL. Lookup daftar blue chip: WHERE is_blue_chip = true.
+Legacy "emiten_list_by_name" di-drop saat migrasi; lookup by ticker tetap lewat PRIMARY KEY base (("code_name")).
 
 --- Secondary index ---
 Tidak ada: tidak dibuat CREATE INDEX / SAI pada "stockbit"."emiten_list"; akses lewat PRIMARY KEY (("code_name")).
