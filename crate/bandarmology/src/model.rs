@@ -123,6 +123,7 @@ pub struct Bandarmology {
     pub d_1: Option<BandarmologyDay>,
     pub d_2: Option<BandarmologyDay>,
     pub d_7: Option<BandarmologyDay>,
+    pub d_14: Option<BandarmologyDay>,
     #[scylla(rename = "M_1")]
     pub m_1: Option<BandarmologyDay>,
     #[scylla(rename = "M_3")]
@@ -131,6 +132,14 @@ pub struct Bandarmology {
     pub m_6: Option<BandarmologyDay>,
     #[scylla(rename = "M_12")]
     pub m_12: Option<BandarmologyDay>,
+    #[scylla(rename = "Y_3")]
+    pub y_3: Option<BandarmologyDay>,
+    #[scylla(rename = "Y_5")]
+    pub y_5: Option<BandarmologyDay>,
+    #[scylla(rename = "Y_10")]
+    pub y_10: Option<BandarmologyDay>,
+    #[scylla(rename = "Y_15")]
+    pub y_15: Option<BandarmologyDay>,
 }
 
 impl Bandarmology {
@@ -142,10 +151,15 @@ impl Bandarmology {
             d_1: self.d_1.map(BandarmologyDay::into_proto),
             d_2: self.d_2.map(BandarmologyDay::into_proto),
             d_7: self.d_7.map(BandarmologyDay::into_proto),
+            d_14: self.d_14.map(BandarmologyDay::into_proto),
             m_1: self.m_1.map(BandarmologyDay::into_proto),
             m_3: self.m_3.map(BandarmologyDay::into_proto),
             m_6: self.m_6.map(BandarmologyDay::into_proto),
             m_12: self.m_12.map(BandarmologyDay::into_proto),
+            y_3: self.y_3.map(BandarmologyDay::into_proto),
+            y_5: self.y_5.map(BandarmologyDay::into_proto),
+            y_10: self.y_10.map(BandarmologyDay::into_proto),
+            y_15: self.y_15.map(BandarmologyDay::into_proto),
         }
     }
 }

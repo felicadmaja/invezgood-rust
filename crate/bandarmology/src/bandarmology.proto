@@ -56,10 +56,15 @@ message BandarmologyRow {
   BandarmologyDay d_1 = 4;
   BandarmologyDay d_2 = 5;
   BandarmologyDay d_7 = 6;
+  BandarmologyDay d_14 = 15;
   BandarmologyDay m_1 = 7;
   BandarmologyDay m_3 = 8;
   BandarmologyDay m_6 = 9;
   BandarmologyDay m_12 = 10;
+  BandarmologyDay y_3 = 12;
+  BandarmologyDay y_5 = 13;
+  BandarmologyDay y_10 = 14;
+  BandarmologyDay y_15 = 11;
 }
 
 message GetBandarmologyResponse {

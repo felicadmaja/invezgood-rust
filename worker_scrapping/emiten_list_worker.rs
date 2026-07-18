@@ -1,29 +1,37 @@
-//! Scrape Key Stats + Corp. Action + Profile Stockbit → upsert `emiten_list`.
+//! Key Stats + Corp. Action + Profile via API → upsert `emiten_list`.
+//! Bearer dari sesi browser setelah login (Chrome hanya untuk token).
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use chrono::{DateTime, Duration as ChronoDuration, Local, Utc};
-use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
-use chromiumoxide::page::{Page, ScreenshotParams};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use chromiumoxide::page::Page;
 use gcs::{download_and_upload_emiten_icon, GcsOAuthTokenCache, GcsSignedUrlRuntime};
 use rand::Rng;
 use scylla::client::session::Session;
 use scylla::{DeserializeRow, SerializeValue};
 use serde::Deserialize;
-use stockbit_browser::goto_stockbit;
+use serde_json::Value;
+use stockbit_browser::extract_stockbit_bearer;
 use tokio::time::sleep;
 
-const CORP_ACTION_NAV: &str = r#"[data-cy="company-navigation-corp.-action"]"#;
-const PROFILE_NAV: &str = r#"[data-cy="company-navigation-profile"]"#;
-const COMPANY_MORE_MENU: &str = r#"[data-cy="company-navbar-more-menu"]"#;
+const KEYSTATS_RATIO_URL: &str = "https://exodus.stockbit.com/keystats/ratio/v1";
+const KEYSTATS_YEAR_LIMIT: u32 = 10;
+const CORPACTION_URL: &str = "https://exodus.stockbit.com/corpaction";
+const CORPACTION_LIMIT: u32 = 30;
+const PROFILE_URL: &str = "https://exodus.stockbit.com/emitten";
+const SEARCH_URL: &str = "https://exodus.stockbit.com/search";
+const EMITEN_ICON_ASSETS_BASE: &str = "https://assets.stockbit.com/logos/companies";
+
 const UPDATE_AT_FRESH_DAYS: i64 = 30;
 
 /// Bentuk Scylla `corporate_action`:
 /// `[{"Dividend":[{"Dividend":"Rp 209"},{"Cum Date":"..."},...]}, ...]`
 type CorporateAction = Vec<HashMap<String, Vec<HashMap<String, String>>>>;
+
+/// Bentuk Scylla `net_income`: tahun → periode → nilai (`map<text, frozen<map<text, text>>>`).
+type NetIncome = HashMap<String, HashMap<String, String>>;
 
 /// UDT `emiten_shareholder_gt1`.
 #[derive(Debug, Clone, SerializeValue, Deserialize)]
@@ -80,323 +88,156 @@ struct EmitenIconRow {
     emiten_icon: String,
 }
 
-async fn wait_for_selector(
-    page: &Page,
-    selector: &str,
-    timeout: Duration,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let started = Instant::now();
-    loop {
-        if page.find_element(selector).await.is_ok() {
-            return Ok(());
-        }
-        if started.elapsed() >= timeout {
-            return Err(format!("Timeout menunggu {selector}").into());
-        }
-        sleep(Duration::from_millis(400)).await;
+struct KeyStatsApiResult {
+    key_stats: HashMap<String, String>,
+    net_income: NetIncome,
+}
+
+fn map_stats_field(stats: &Value, api_key: &str, label: &str, out: &mut HashMap<String, String>) {
+    if let Some(v) = stats.get(api_key).and_then(|x| x.as_str()) {
+        out.insert(label.to_string(), v.trim().to_string());
     }
 }
 
-/// Scroll card Current Valuation ke viewport sampai terlihat.
-async fn wait_scroll_current_valuation(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    let started = Instant::now();
-    let mut scroll_y: i64 = 0;
-    loop {
-        let found = page
-            .evaluate(format!(
-                r#"(() => {{
-                    window.scrollTo(0, {scroll_y});
-                    const cards = Array.from(
-                        document.querySelectorAll('[data-cy="card-title"]')
-                    );
-                    const card = cards.find((c) => {{
-                        const t = c.querySelector('.ant-card-head-title p');
-                        const title = t
-                            ? (t.innerText || t.textContent || '').trim().toLowerCase()
-                            : '';
-                        return title.includes('current valuation') || title === 'valuation';
-                    }});
-                    if (!card) return false;
-                    const rows = card.querySelectorAll('tbody tr.ant-table-row').length;
-                    if (rows === 0) return false;
-                    card.scrollIntoView({{ block: 'center', inline: 'nearest' }});
-                    return true;
-                }})()"#
-            ))
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
+/// Parse response keystats/ratio → `key_stats` map + `net_income` (Period IDR / Net Income).
+fn parse_keystats_ratio_json(v: &Value) -> KeyStatsApiResult {
+    let mut key_stats = HashMap::new();
 
-        if found {
-            sleep(Duration::from_millis(400)).await;
-            return Ok(());
-        }
-
-        scroll_y = if scroll_y >= 1800 { 0 } else { scroll_y + 400 };
-        if started.elapsed() >= Duration::from_secs(30) {
-            return Err("Timeout menunggu card Current Valuation".into());
-        }
-        sleep(Duration::from_millis(300)).await;
-    }
-}
-
-/// Buka Key Stats lewat URL langsung: `/symbol/{CODE}/keystats`.
-async fn open_key_stats(page: &Page, code: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let url = format!("https://stockbit.com/symbol/{code}/keystats");
-    println!("Key Stats: buka {url}");
-    goto_stockbit(page, &url)
-        .await
-        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-    sleep(Duration::from_millis(800)).await;
-    wait_scroll_current_valuation(page).await?;
-    wait_for_key_stats_cards(page).await?;
-    Ok(())
-}
-
-/// Tunggu card Key Stats siap. Scroll berkala agar card lazy-load ikut ter-render.
-async fn wait_for_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    let started = Instant::now();
-    let mut scroll_y: i64 = 0;
-    loop {
-        // Paksa render card di bawah fold (lazy SPA).
-        let _ = page
-            .evaluate(format!(
-                r#"(() => {{
-                    window.scrollTo(0, {scroll_y});
-                    const nodes = [
-                        ...document.querySelectorAll('[data-cy="card-title"]'),
-                        ...document.querySelectorAll('[data-cy="card-v2-recent-quarter-table"]'),
-                    ];
-                    for (const el of nodes) {{
-                        el.scrollIntoView({{ block: 'nearest', inline: 'nearest' }});
-                    }}
-                    return nodes.length;
-                }})()"#
-            ))
-            .await;
-        scroll_y = if scroll_y >= 2400 { 0 } else { scroll_y + 600 };
-
-        let status = page
-            .evaluate(
-                r#"(() => {
-                    const cards = Array.from(
-                        document.querySelectorAll('[data-cy="card-title"]')
-                    );
-                    const titleOf = (card) => {
-                        const title = card.querySelector('.ant-card-head-title p');
-                        return title
-                            ? (title.innerText || title.textContent || '').trim()
-                            : '';
-                    };
-                    const labelsOf = (root) => Array.from(
-                        root.querySelectorAll('tbody tr.ant-table-row td:first-child p')
-                    ).map((p) => (p.innerText || p.textContent || '').trim());
-                    const hasAll = (labels, required) =>
-                        required.every((r) =>
-                            labels.some((l) => l === r || l.includes(r) || r.includes(l))
-                        );
-
-                    const titles = cards.map(titleOf).filter(Boolean);
-                    const valuation = cards.find((c) =>
-                        titleOf(c).toLowerCase().includes('valuation')
-                    );
-                    const profitability = cards.find((c) =>
-                        titleOf(c).toLowerCase().includes('profitability')
-                    );
-                    const solvency = cards.find((c) =>
-                        titleOf(c).toLowerCase().includes('solvency')
-                    );
-                    const cashFlow = cards.find((c) =>
-                        titleOf(c).toLowerCase().includes('cash flow')
-                    );
-
-                    const recent = document.querySelector(
-                        '[data-cy="card-v2-recent-quarter-table"]'
-                    );
-                    const recentLabels = recent ? labelsOf(recent) : [];
-
-                    const valuationOk =
-                        !!valuation && valuation.querySelectorAll('tbody tr').length > 0;
-                    const profitOk =
-                        !!profitability &&
-                        hasAll(labelsOf(profitability), [
-                            'Gross Profit Margin',
-                            'Operating Profit Margin',
-                            'Net Profit Margin',
-                        ]);
-                    // Income Statement tidak selalu ada di halaman Key Stats.
-                    const solvencyOk =
-                        !!solvency &&
-                        hasAll(labelsOf(solvency), [
-                            'Current Ratio',
-                            'Quick Ratio',
-                            'Debt to Equity',
-                            'Interest Coverage',
-                        ]);
-                    const cashFlowOk =
-                        !!cashFlow &&
-                        hasAll(labelsOf(cashFlow), [
-                            'Cash From Operations',
-                            'Cash From Investing',
-                            'Cash From Financing',
-                            'Capital expenditure',
-                            'Free cash flow',
-                        ]);
-                    const marketOk =
-                        recentLabels.some((l) => l.includes('Market Cap')) &&
-                        recentLabels.some((l) => l.includes('Enterprise Value')) &&
-                        recentLabels.some((l) => l.includes('Current Share Outstanding')) &&
-                        recentLabels.some((l) => l.includes('Free Float'));
-
-                    const ready =
-                        valuationOk && profitOk && solvencyOk && cashFlowOk && marketOk;
-                    return {
-                        ready,
-                        titles,
-                        valuationOk,
-                        profitOk,
-                        solvencyOk,
-                        cashFlowOk,
-                        marketOk,
-                        url: window.location.href || '',
-                    };
-                })()"#,
-            )
-            .await?
-            .into_value::<serde_json::Value>()
-            .unwrap_or_else(|_| serde_json::json!({ "ready": false }));
-
-        if status.get("ready").and_then(|v| v.as_bool()).unwrap_or(false) {
-            let _ = page
-                .evaluate("window.scrollTo(0, 0)")
-                .await;
-            return Ok(());
-        }
-
-        if started.elapsed() >= Duration::from_secs(60) {
-            let detail = status.to_string();
-            let shot = save_key_stats_timeout_screenshot(page, &status).await;
-            let shot_info = shot
-                .as_ref()
-                .map(|p| format!(" | screenshot: {}", p.display()))
-                .unwrap_or_default();
-            return Err(format!(
-                "Timeout menunggu Key Stats (Current Valuation + Profitability + Solvency + Cash Flow + Market Cap). status={detail}{shot_info}"
-            )
-            .into());
-        }
-        sleep(Duration::from_millis(350)).await;
-    }
-}
-
-async fn save_key_stats_timeout_screenshot(
-    page: &Page,
-    status: &serde_json::Value,
-) -> Option<PathBuf> {
-    let code = status
-        .get("url")
-        .and_then(|v| v.as_str())
-        .and_then(|url| {
-            url.split("/symbol/")
-                .nth(1)
-                .and_then(|rest| rest.split('/').next())
-                .map(|c| c.trim().to_uppercase())
-                .filter(|c| !c.is_empty())
-        })
-        .unwrap_or_else(|| "unknown".to_string());
-
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("screenshots");
-    if let Err(e) = tokio::fs::create_dir_all(&dir).await {
-        eprintln!("Peringatan: gagal membuat direktori screenshot: {e}");
-        return None;
-    }
-    let path = dir.join(format!("stockbit_error_keystats_timeout_{code}.png"));
-    match page
-        .save_screenshot(
-            ScreenshotParams::builder()
-                .format(CaptureScreenshotFormat::Png)
-                .build(),
-            &path,
-        )
-        .await
+    if let Some(groups) = v
+        .pointer("/data/closure_fin_items_results")
+        .and_then(|x| x.as_array())
     {
-        Ok(_) => {
-            eprintln!("Screenshot error Key Stats timeout [{code}]: {}", path.display());
-            Some(path)
+        for group in groups {
+            let Some(items) = group.get("fin_name_results").and_then(|x| x.as_array()) else {
+                continue;
+            };
+            for item in items {
+                let name = item
+                    .pointer("/fitem/name")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim();
+                if name.is_empty() {
+                    continue;
+                }
+                let value = item
+                    .pointer("/fitem/value")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                key_stats.insert(name.to_string(), value);
+            }
         }
-        Err(e) => {
-            eprintln!("Peringatan: gagal simpan screenshot Key Stats timeout [{code}]: {e}");
-            None
+    }
+
+    if let Some(stats) = v.pointer("/data/stats") {
+        map_stats_field(stats, "market_cap", "Market Cap", &mut key_stats);
+        map_stats_field(stats, "enterprise_value", "Enterprise Value", &mut key_stats);
+        map_stats_field(
+            stats,
+            "current_share_outstanding",
+            "Current Share Outstanding",
+            &mut key_stats,
+        );
+        map_stats_field(stats, "free_float", "Free Float", &mut key_stats);
+    }
+
+    let mut net_income = NetIncome::new();
+    if let Some(groups) = v
+        .pointer("/data/financial_year_parent/financial_year_groups")
+        .and_then(|x| x.as_array())
+    {
+        for group in groups {
+            if group.get("fitem_name").and_then(|x| x.as_str()) != Some("Net Income") {
+                continue;
+            }
+            let ttm_label = group
+                .pointer("/most_recent_quarter/quarter")
+                .and_then(|x| x.as_str())
+                .map(|q| format!("TTM ({q})"))
+                .unwrap_or_else(|| "TTM".to_string());
+
+            let Some(years) = group.get("financial_year_values").and_then(|x| x.as_array()) else {
+                break;
+            };
+            for yv in years {
+                let year = yv
+                    .get("year")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim();
+                if year.is_empty() {
+                    continue;
+                }
+                let mut period_map = HashMap::new();
+                if let Some(pvs) = yv.get("period_values").and_then(|x| x.as_array()) {
+                    for pv in pvs {
+                        let period = pv
+                            .get("period")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .trim();
+                        if period.is_empty() {
+                            continue;
+                        }
+                        let val = pv
+                            .get("quarter_value")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .trim()
+                            .to_string();
+                        period_map.insert(period.to_string(), val);
+                    }
+                }
+                if let Some(a) = yv.get("annualised_value").and_then(|x| x.as_str()) {
+                    period_map.insert("Annualised".to_string(), a.trim().to_string());
+                }
+                if let Some(t) = yv.get("ttm_value").and_then(|x| x.as_str()) {
+                    period_map.insert(ttm_label.clone(), t.trim().to_string());
+                }
+                net_income.insert(year.to_string(), period_map);
+            }
+            break;
         }
+    }
+
+    KeyStatsApiResult {
+        key_stats,
+        net_income,
     }
 }
 
-/// Scroll semua card Key Stats + tabel recent-quarter ke viewport agar ter-render.
-async fn scroll_key_stats_cards(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    let _ = page
-        .evaluate(
-            r#"(() => {
-                const nodes = [
-                    ...document.querySelectorAll('[data-cy="card-title"]'),
-                    ...document.querySelectorAll('[data-cy="card-v2-recent-quarter-table"]'),
-                ];
-                for (const el of nodes) {
-                    el.scrollIntoView({ block: 'center', inline: 'nearest' });
-                }
-                window.scrollTo(0, 0);
-                return nodes.length;
-            })()"#,
-        )
-        .await;
-    sleep(Duration::from_millis(300)).await;
-    Ok(())
-}
+async fn fetch_keystats_ratio(
+    http: &reqwest::Client,
+    bearer: &str,
+    code: &str,
+) -> Result<KeyStatsApiResult, Box<dyn std::error::Error>> {
+    let url = format!("{KEYSTATS_RATIO_URL}/{code}?year_limit={KEYSTATS_YEAR_LIMIT}");
+    let resp = http
+        .get(&url)
+        .header("Authorization", format!("Bearer {bearer}"))
+        .header("Accept", "application/json")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .header("x-platform", "web")
+        .send()
+        .await?;
 
-async fn scrape_key_stats(page: &Page) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
-    wait_for_key_stats_cards(page).await?;
-    scroll_key_stats_cards(page).await?;
-    sleep(Duration::from_millis(400)).await;
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        let preview: String = body.chars().take(280).collect();
+        return Err(format!("keystats/ratio {code} HTTP {status}: {preview}").into());
+    }
 
-    let json = page
-        .evaluate(
-            r#"(() => {
-                const stats = {};
-                const ingestRows = (root) => {
-                    if (!root) return;
-                    const rows = root.querySelectorAll('tbody tr[data-row-key], tbody tr.ant-table-row');
-                    for (const tr of rows) {
-                        const cells = tr.querySelectorAll('td');
-                        if (cells.length < 2) continue;
-                        const labelEl = cells[0].querySelector('p');
-                        const valueEl = cells[1].querySelector('p');
-                        const label = labelEl
-                            ? (labelEl.innerText || labelEl.textContent || '').trim()
-                            : '';
-                        const value = valueEl
-                            ? (valueEl.innerText || valueEl.textContent || '').trim()
-                            : '';
-                        // Abaikan baris kosong / label tahun / label kuartal tabel multi-kolom.
-                        if (!label || /^\d{4}$/.test(label) || /^Q[1-4]$/.test(label)) continue;
-                        stats[label] = value;
-                    }
-                };
-
-                // Card Key Stats (Current Valuation, Profitability, Solvency, Cash Flow, dll.).
-                for (const card of document.querySelectorAll('[data-cy="card-title"]')) {
-                    ingestRows(card);
-                }
-                // Ringkasan: Market Cap, Enterprise Value, Current Share Outstanding, Free Float.
-                ingestRows(document.querySelector('[data-cy="card-v2-recent-quarter-table"]'));
-
-                return JSON.stringify(stats);
-            })()"#,
-        )
-        .await?
-        .into_value::<String>()
-        .unwrap_or_else(|_| "{}".to_string());
-
-    let map: HashMap<String, String> = serde_json::from_str(&json)?;
-    Ok(map)
+    let v: Value = serde_json::from_str(&body)
+        .map_err(|e| format!("keystats/ratio {code} JSON: {e}"))?;
+    let parsed = parse_keystats_ratio_json(&v);
+    if parsed.key_stats.is_empty() {
+        return Err(format!("keystats/ratio {code}: key_stats kosong").into());
+    }
+    Ok(parsed)
 }
 
 fn has_profitability_margins(stats: &HashMap<String, String>) -> bool {
@@ -431,397 +272,519 @@ fn has_cash_flow_block(stats: &HashMap<String, String>) -> bool {
         && stats.contains_key("Free cash flow (TTM)")
 }
 
-async fn scrape_long_name(page: &Page, emiten: &str) -> String {
-    let emiten_js = serde_json::to_string(&emiten.to_ascii_uppercase()).unwrap_or_default();
-    page.evaluate(format!(
-        r#"((code) => {{
-            // Prefer: section header ticker (h3) + nama lengkap di <h1>.
-            const h3 = Array.from(document.querySelectorAll('h3')).find(
-                (h) => (h.innerText || h.textContent || '').trim().toUpperCase() === code
+fn corp_action_type_label(action_type: &str) -> String {
+    match action_type.trim().to_ascii_lowercase().as_str() {
+        "rups" => "RUPS".to_string(),
+        "dividend" | "dividen" => "Dividend".to_string(),
+        "stocksplit" | "stock_split" => "Stock Split".to_string(),
+        "rightissue" | "right_issue" | "rightsissue" | "rights_issue" => {
+            "Right Issue".to_string()
+        }
+        "tenderoffer" | "tender_offer" => "Tender Offer".to_string(),
+        "bonus" | "bonusshare" | "bonus_share" => "Bonus".to_string(),
+        other if other.is_empty() => "Unknown".to_string(),
+        other => {
+            let mut out = String::new();
+            for (i, part) in other.split('_').enumerate() {
+                if i > 0 {
+                    out.push(' ');
+                }
+                let mut chars = part.chars();
+                if let Some(c) = chars.next() {
+                    out.extend(c.to_uppercase());
+                    out.extend(chars);
+                }
+            }
+            out
+        }
+    }
+}
+
+fn push_corp_kv(details: &mut Vec<HashMap<String, String>>, key: &str, value: &str) {
+    let v = value.trim();
+    if v.is_empty() {
+        return;
+    }
+    let mut m = HashMap::new();
+    m.insert(key.to_string(), v.replace('\n', " ").split_whitespace().collect::<Vec<_>>().join(" "));
+    details.push(m);
+}
+
+fn json_field_str(obj: &Value, key: &str) -> String {
+    match obj.get(key) {
+        Some(Value::String(s)) => s.trim().to_string(),
+        Some(Value::Number(n)) => n.to_string(),
+        Some(Value::Bool(b)) => b.to_string(),
+        _ => String::new(),
+    }
+}
+
+fn parse_corpaction_item(item: &Value) -> Option<HashMap<String, Vec<HashMap<String, String>>>> {
+    let action_type = item
+        .get("action_type")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .trim();
+    if action_type.is_empty() {
+        return None;
+    }
+    let label = corp_action_type_label(action_type);
+    let info = item.get("action_info")?;
+    // payload nested under same key as action_type (rups/stocksplit/dividend/...)
+    let payload = info
+        .get(action_type)
+        .or_else(|| info.get(action_type.to_ascii_lowercase()))
+        .or_else(|| {
+            info.as_object()
+                .and_then(|o| o.values().next())
+        })?;
+
+    let mut details = Vec::new();
+    match action_type.to_ascii_lowercase().as_str() {
+        "rups" => {
+            push_corp_kv(&mut details, "Event Date", &json_field_str(payload, "rups_date"));
+            push_corp_kv(&mut details, "Time", &json_field_str(payload, "rups_time"));
+            push_corp_kv(
+                &mut details,
+                "Eligible Date",
+                &json_field_str(payload, "rups_eligible_date"),
             );
-            if (h3) {{
-                const section = h3.closest('section') || h3.parentElement;
-                if (section) {{
-                    const h1 = section.querySelector('h1');
-                    const name = h1
-                        ? (h1.innerText || h1.textContent || '').trim()
-                        : '';
-                    if (name) return name;
-                }}
-            }}
-            // Fallback: h1 pertama yang bukan kode ticker.
-            const h1s = Array.from(document.querySelectorAll('h1'))
-                .map((h) => (h.innerText || h.textContent || '').trim())
-                .filter((t) => t && t.toUpperCase() !== code);
-            return h1s[0] || '';
-        }})({emiten_js})"#
-    ))
-    .await
-    .ok()
-    .and_then(|v| v.into_value::<String>().ok())
-    .unwrap_or_default()
-}
-
-async fn wait_for_corp_action_nav(
-    page: &Page,
-    timeout: Duration,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let started = Instant::now();
-    loop {
-        if page.find_element(CORP_ACTION_NAV).await.is_ok() {
-            return Ok(());
+            push_corp_kv(&mut details, "Venue", &json_field_str(payload, "rups_venue"));
         }
-        if started.elapsed() >= timeout {
-            return Err("Timeout menunggu navigasi Corp. Action".into());
+        "stocksplit" | "stock_split" => {
+            push_corp_kv(
+                &mut details,
+                "Cum Date",
+                &json_field_str(payload, "stocksplit_cumdate"),
+            );
+            push_corp_kv(
+                &mut details,
+                "Ex Date",
+                &json_field_str(payload, "stocksplit_exdate"),
+            );
+            push_corp_kv(
+                &mut details,
+                "Recording Date",
+                &json_field_str(payload, "stocksplit_recdate"),
+            );
+            let old = json_field_str(payload, "stocksplit_old");
+            let new = json_field_str(payload, "stocksplit_new");
+            if !old.is_empty() && !new.is_empty() {
+                push_corp_kv(&mut details, "Ratio", &format!("{old}:{new}"));
+            } else {
+                push_corp_kv(
+                    &mut details,
+                    "Factor",
+                    &json_field_str(payload, "stocksplit_factor"),
+                );
+            }
+            let price = json_field_str(payload, "stocksplit_new_price");
+            if price != "0" {
+                push_corp_kv(&mut details, "New Price", &price);
+            }
         }
-        sleep(Duration::from_millis(200)).await;
+        "dividend" | "dividen" => {
+            // Field name bervariasi antar versi API — coba beberapa key umum.
+            for (label_k, keys) in [
+                ("Dividend", &["dividend", "dividend_amount", "dividen"][..]),
+                ("Cum Date", &["cum_date", "cumdate", "dividend_cumdate"][..]),
+                ("Ex Date", &["ex_date", "exdate", "dividend_exdate"][..]),
+                (
+                    "Recording Date",
+                    &["rec_date", "recdate", "recording_date", "dividend_recdate"][..],
+                ),
+                (
+                    "Payment Date",
+                    &["payment_date", "pay_date", "dividend_payment_date"][..],
+                ),
+            ] {
+                let mut found = String::new();
+                for k in keys {
+                    found = json_field_str(payload, k);
+                    if !found.is_empty() {
+                        break;
+                    }
+                }
+                push_corp_kv(&mut details, label_k, &found);
+            }
+        }
+        "rightissue" | "right_issue" | "rightsissue" | "rights_issue" => {
+            for (label_k, keys) in [
+                ("Cum Date", &["cum_date", "cumdate", "rightissue_cumdate"][..]),
+                ("Ex Date", &["ex_date", "exdate", "rightissue_exdate"][..]),
+                (
+                    "Recording Date",
+                    &["rec_date", "recdate", "rightissue_recdate"][..],
+                ),
+                ("Ratio", &["ratio", "rightissue_ratio"][..]),
+                ("Price", &["price", "rightissue_price"][..]),
+            ] {
+                let mut found = String::new();
+                for k in keys {
+                    found = json_field_str(payload, k);
+                    if !found.is_empty() {
+                        break;
+                    }
+                }
+                push_corp_kv(&mut details, label_k, &found);
+            }
+        }
+        _ => {
+            // Fallback: semua field string non-kosong (skip meta/id).
+            if let Some(obj) = payload.as_object() {
+                for (k, v) in obj {
+                    let kl = k.to_ascii_lowercase();
+                    if kl.contains("company_id")
+                        || kl.contains("company_symbol")
+                        || kl.ends_with("_id")
+                        || kl.contains("datahash")
+                        || kl.contains("icon_url")
+                        || kl == "corp_action_active"
+                        || kl.contains("lock")
+                    {
+                        continue;
+                    }
+                    let s = match v {
+                        Value::String(s) => s.trim().to_string(),
+                        Value::Number(n) => n.to_string(),
+                        _ => continue,
+                    };
+                    if s.is_empty() || s == "0" {
+                        continue;
+                    }
+                    push_corp_kv(&mut details, k, &s);
+                }
+            }
+        }
     }
-}
 
-async fn click_corp_action(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    // Langsung klik bila link Corp. Action sudah terlihat di navbar.
-    if page.find_element(CORP_ACTION_NAV).await.is_ok() {
-        let link = page.find_element(CORP_ACTION_NAV).await?;
-        link.click().await?;
-        wait_for_corp_action_page(page).await?;
-        return Ok(());
+    if details.is_empty() {
+        return None;
     }
-
-    // Fallback: buka menu More lalu tunggu link Corp. Action muncul.
-    wait_for_selector(page, COMPANY_MORE_MENU, Duration::from_secs(10)).await?;
-    let more = page.find_element(COMPANY_MORE_MENU).await?;
-    more.click().await?;
-    wait_for_corp_action_nav(page, Duration::from_secs(10)).await?;
-    let link = page.find_element(CORP_ACTION_NAV).await?;
-    link.click().await?;
-    wait_for_corp_action_page(page).await?;
-    Ok(())
+    let mut group = HashMap::new();
+    group.insert(label, details);
+    Some(group)
 }
 
-async fn wait_for_corp_action_page(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    let started = Instant::now();
-    loop {
-        let ready = page
-            .evaluate(
-                r#"(() => {
-                    const wrap = document.querySelector('[data-cy="corpaction-all-wrapper"]');
-                    if (!wrap) return false;
-                    const url = window.location.href || '';
-                    if (!url.toLowerCase().includes('/corpaction')) return false;
-                    // Siap bila wrapper ada; tabel boleh kosong untuk emiten tanpa aksi.
-                    return true;
-                })()"#,
-            )
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if ready {
-            // Beri waktu isi tabel dividend/rups ter-render.
-            sleep(Duration::from_millis(500)).await;
-            return Ok(());
-        }
-        if started.elapsed() >= Duration::from_secs(30) {
-            let url = page.url().await?.unwrap_or_default();
-            return Err(format!(
-                "Timeout menunggu halaman Corp. Action (URL: {url})"
-            )
-            .into());
-        }
-        sleep(Duration::from_millis(250)).await;
-    }
+fn parse_corpaction_json(v: &Value) -> CorporateAction {
+    let Some(arr) = v.get("data").and_then(|x| x.as_array()) else {
+        return Vec::new();
+    };
+    arr.iter().filter_map(parse_corpaction_item).collect()
 }
 
-/// Scrape semua blok Dividend / RUPS / Right Issue / Stock Split di Corp. Action.
-async fn scrape_corporate_action(
-    page: &Page,
+async fn fetch_corpaction(
+    http: &reqwest::Client,
+    bearer: &str,
+    code: &str,
 ) -> Result<CorporateAction, Box<dyn std::error::Error>> {
-    let json = page
-        .evaluate(
-            r#"(() => {
-                const wrap = document.querySelector('[data-cy="corpaction-all-wrapper"]');
-                if (!wrap) return '[]';
-                const out = [];
-                // Setiap blok aksi adalah child langsung wrapper.
-                const blocks = Array.from(wrap.children);
-                for (const block of blocks) {
-                    const titleEl = Array.from(block.querySelectorAll('p')).find(
-                        (p) => !p.closest('table')
-                    );
-                    const actionType = titleEl
-                        ? (titleEl.innerText || titleEl.textContent || '').trim()
-                        : '';
-                    if (!actionType) continue;
+    let url = format!("{CORPACTION_URL}/{code}?limit={CORPACTION_LIMIT}");
+    let resp = http
+        .get(&url)
+        .header("Authorization", format!("Bearer {bearer}"))
+        .header("Accept", "application/json")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .header("x-platform", "web")
+        .send()
+        .await?;
 
-                    const table =
-                        block.querySelector('[data-cy$="-table-wrapper"] table') ||
-                        block.querySelector('table');
-                    if (!table) continue;
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        let preview: String = body.chars().take(280).collect();
+        return Err(format!("corpaction {code} HTTP {status}: {preview}").into());
+    }
 
-                    const headers = Array.from(table.querySelectorAll('thead th'))
-                        .map((th) => {
-                            const p = th.querySelector('p');
-                            return (p
-                                ? (p.innerText || p.textContent || '')
-                                : (th.innerText || '')
-                            ).trim();
-                        })
-                        .filter((t) => t);
-                    if (headers.length === 0) continue;
-
-                    const rows = Array.from(
-                        table.querySelectorAll('tbody tr.ant-table-row')
-                    );
-                    for (const tr of rows) {
-                        const cells = Array.from(tr.querySelectorAll('td')).map((td) => {
-                            const p = td.querySelector('p');
-                            return (p ? (p.innerText || p.textContent || '') : (td.innerText || ''))
-                                .trim()
-                                .replace(/\s+/g, ' ');
-                        });
-                        if (cells.every((c) => !c)) continue;
-
-                        const details = [];
-                        for (let i = 0; i < headers.length; i++) {
-                            const key = headers[i];
-                            const value = cells[i] || '';
-                            details.push({ [key]: value });
-                        }
-                        out.push({ [actionType]: details });
-                    }
-                }
-                return JSON.stringify(out);
-            })()"#,
-        )
-        .await?
-        .into_value::<String>()
-        .unwrap_or_else(|_| "[]".to_string());
-
-    let items: CorporateAction = serde_json::from_str(&json)?;
-    Ok(items)
+    let v: Value =
+        serde_json::from_str(&body).map_err(|e| format!("corpaction {code} JSON: {e}"))?;
+    Ok(parse_corpaction_json(&v))
 }
 
-async fn wait_for_profile_nav(
-    page: &Page,
-    timeout: Duration,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let started = Instant::now();
-    loop {
-        if page.find_element(PROFILE_NAV).await.is_ok() {
-            return Ok(());
+fn parse_company_profile_json(v: &Value) -> CompanyProfile {
+    let data = v.get("data").cloned().unwrap_or(Value::Null);
+
+    let company_background = data
+        .get("background")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    // API profile tidak selalu punya sector indeks; biarkan kosong.
+    let sector = String::new();
+
+    let mut shareholder_more_than_one_percent = Vec::new();
+    if let Some(arr) = data
+        .pointer("/shareholder_one_percent/shareholder")
+        .and_then(|x| x.as_array())
+    {
+        for sh in arr {
+            let name = sh
+                .get("name")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let type_ = sh
+                .get("classification")
+                .and_then(|x| x.as_str())
+                .filter(|s| !s.trim().is_empty())
+                .or_else(|| sh.get("type").and_then(|x| x.as_str()))
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            shareholder_more_than_one_percent.push(EmitenShareholderGt1 {
+                name,
+                type_,
+                location: sh
+                    .get("location")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+                domicile: sh
+                    .get("domicile")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+                scriples: sh
+                    .get("scripless")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+                scrip: sh
+                    .get("scrip")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+                total_shares: sh
+                    .get("value")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+                percentage: sh
+                    .get("percentage")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+            });
         }
-        if started.elapsed() >= timeout {
-            return Err("Timeout menunggu navigasi Profile".into());
+    }
+
+    let mut shareholders = Vec::new();
+    if let Some(arr) = data.get("shareholder").and_then(|x| x.as_array()) {
+        for sh in arr {
+            let name = sh
+                .get("name")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if name.is_empty() {
+                continue;
+            }
+            shareholders.push(EmitenShareholder {
+                name,
+                value: sh
+                    .get("value")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+                shares: sh
+                    .get("percentage")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+            });
         }
-        sleep(Duration::from_millis(200)).await;
+    }
+
+    let ultimate_beneficial_owner = data
+        .get("beneficiary")
+        .and_then(|x| x.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|b| b.get("name").and_then(|x| x.as_str()))
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_default();
+
+    CompanyProfile {
+        company_background,
+        sector,
+        shareholder_more_than_one_percent,
+        shareholders,
+        ultimate_beneficial_owner,
     }
 }
 
-async fn click_profile(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    // Langsung klik bila link Profile sudah terlihat di navbar.
-    if page.find_element(PROFILE_NAV).await.is_ok() {
-        let link = page.find_element(PROFILE_NAV).await?;
-        link.click().await?;
-        wait_for_profile_page(page).await?;
-        return Ok(());
-    }
-
-    // Fallback: buka menu More lalu tunggu link Profile muncul.
-    wait_for_selector(page, COMPANY_MORE_MENU, Duration::from_secs(10)).await?;
-    let more = page.find_element(COMPANY_MORE_MENU).await?;
-    more.click().await?;
-    wait_for_profile_nav(page, Duration::from_secs(10)).await?;
-    let link = page.find_element(PROFILE_NAV).await?;
-    link.click().await?;
-    wait_for_profile_page(page).await?;
-    Ok(())
-}
-
-async fn wait_for_profile_page(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    let started = Instant::now();
-    loop {
-        let ready = page
-            .evaluate(
-                r#"(() => {
-                    const url = (window.location.href || '').toLowerCase();
-                    if (!url.includes('/profile')) return false;
-                    const cards = Array.from(
-                        document.querySelectorAll('[data-cy="component-background-card"]')
-                    );
-                    return cards.some((card) => {
-                        const title = (card.innerText || '').toLowerCase();
-                        return title.includes('company background');
-                    });
-                })()"#,
-            )
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if ready {
-            sleep(Duration::from_millis(500)).await;
-            return Ok(());
-        }
-        if started.elapsed() >= Duration::from_secs(30) {
-            let url = page.url().await?.unwrap_or_default();
-            return Err(format!("Timeout menunggu halaman Profile (URL: {url})").into());
-        }
-        sleep(Duration::from_millis(250)).await;
-    }
-}
-
-/// Scrape Company Background, Sector, Shareholder >1%, Shareholders, UBO.
-async fn scrape_company_profile(
-    page: &Page,
+async fn fetch_company_profile(
+    http: &reqwest::Client,
+    bearer: &str,
+    code: &str,
 ) -> Result<CompanyProfile, Box<dyn std::error::Error>> {
-    let json = page
-        .evaluate(
-            r#"(() => {
-                const textOf = (el) =>
-                    ((el && (el.innerText || el.textContent)) || '')
-                        .trim()
-                        .replace(/\s+/g, ' ');
+    let url = format!("{PROFILE_URL}/{code}/profile");
+    let resp = http
+        .get(&url)
+        .header("Authorization", format!("Bearer {bearer}"))
+        .header("Accept", "application/json")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .header("x-platform", "web")
+        .send()
+        .await?;
 
-                // Company Background + Sector (index pertama di card).
-                let company_background = '';
-                let sector = '';
-                const bgCards = Array.from(
-                    document.querySelectorAll('[data-cy="component-background-card"]')
-                );
-                const bgCard = bgCards.find((c) =>
-                    textOf(c).toLowerCase().includes('company background')
-                );
-                if (bgCard) {
-                    const body = bgCard.querySelector('.ant-card-body');
-                    const p = body && body.querySelector('p');
-                    company_background = textOf(p);
-                    const firstIndex = bgCard.querySelector(
-                        'a[data-cy="component-link-indexes"]'
-                    );
-                    sector = firstIndex
-                        ? textOf(firstIndex.querySelector('span') || firstIndex)
-                        : '';
-                }
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        let preview: String = body.chars().take(280).collect();
+        return Err(format!("emitten profile {code} HTTP {status}: {preview}").into());
+    }
 
-                // Shareholder > 1%.
-                const gt1 = [];
-                const gt1Card = document.querySelector(
-                    '[data-cy="component-shareholder-gt1-card"]'
-                );
-                if (gt1Card) {
-                    const rows = Array.from(
-                        gt1Card.querySelectorAll(
-                            '.shareholder-gt1 tbody tr.ant-table-row'
-                        )
-                    );
-                    for (const tr of rows) {
-                        const cells = Array.from(tr.querySelectorAll('td')).map((td) => {
-                            const a = td.querySelector('a');
-                            const p = td.querySelector('p');
-                            return textOf(a || p || td);
-                        });
-                        if (cells.length < 8 || cells.every((c) => !c)) continue;
-                        gt1.push({
-                            name: cells[0] || '',
-                            type: cells[1] || '',
-                            location: cells[2] || '',
-                            domicile: cells[3] || '',
-                            scriples: cells[4] || '',
-                            scrip: cells[5] || '',
-                            total_shares: cells[6] || '',
-                            percentage: cells[7] || '',
-                        });
-                    }
-                }
-
-                // Shareholders (bukan "Number of Shareholders").
-                const shareholders = [];
-                const shCards = Array.from(
-                    document.querySelectorAll('[data-cy="component-shareholder-card"]')
-                );
-                const shCard = shCards.find((c) => {
-                    const t = textOf(c.querySelector('.ant-card-head-title')).toLowerCase();
-                    return (
-                        t.includes('shareholders') &&
-                        !t.includes('number of shareholders')
-                    );
-                });
-                if (shCard) {
-                    const rows = Array.from(
-                        shCard.querySelectorAll('tbody tr.ant-table-row')
-                    );
-                    for (const tr of rows) {
-                        const cells = Array.from(tr.querySelectorAll('td'));
-                        if (cells.length < 3) continue;
-                        const nameEl =
-                            cells[0].querySelector('.shareholder-name span') ||
-                            cells[0].querySelector('span') ||
-                            cells[0];
-                        const name = textOf(nameEl);
-                        const value = textOf(cells[1]);
-                        const shares = textOf(cells[2]);
-                        if (!name && !value && !shares) continue;
-                        shareholders.push({ name, value, shares });
-                    }
-                }
-
-                // Ultimate Beneficial / Beneficiary Owner.
-                let ultimate_beneficial_owner = '';
-                const uboTitle = Array.from(document.querySelectorAll('p')).find((p) => {
-                    const t = textOf(p).toLowerCase();
-                    return (
-                        t.includes('ultimate beneficial') ||
-                        t.includes('ultimate beneficiary')
-                    );
-                });
-                if (uboTitle) {
-                    const section =
-                        uboTitle.closest('.ant-card-body') ||
-                        uboTitle.parentElement ||
-                        uboTitle;
-                    // Tabel UBO biasanya tepat setelah judul.
-                    let table = null;
-                    let n = uboTitle.nextElementSibling;
-                    while (n && !table) {
-                        if (n.matches && n.matches('.ant-table-wrapper')) {
-                            table = n;
-                            break;
-                        }
-                        table = n.querySelector && n.querySelector('.ant-table-wrapper');
-                        n = n.nextElementSibling;
-                    }
-                    if (!table && section) {
-                        const wrappers = Array.from(
-                            section.querySelectorAll('.ant-table-wrapper')
-                        );
-                        table = wrappers.length ? wrappers[wrappers.length - 1] : null;
-                    }
-                    if (table) {
-                        const row = table.querySelector('tbody tr.ant-table-row td');
-                        ultimate_beneficial_owner = textOf(row);
-                    }
-                }
-
-                return JSON.stringify({
-                    company_background,
-                    sector,
-                    shareholder_more_than_one_percent: gt1,
-                    shareholders,
-                    ultimate_beneficial_owner,
-                });
-            })()"#,
-        )
-        .await?
-        .into_value::<String>()
-        .unwrap_or_else(|_| {
-            r#"{"company_background":"","sector":"","shareholder_more_than_one_percent":[],"shareholders":[],"ultimate_beneficial_owner":""}"#
-                .to_string()
-        });
-
-    let profile: CompanyProfile = serde_json::from_str(&json)?;
+    let v: Value =
+        serde_json::from_str(&body).map_err(|e| format!("emitten profile {code} JSON: {e}"))?;
+    let profile = parse_company_profile_json(&v);
+    if profile.company_background.trim().is_empty() {
+        return Err(format!("Profile {code}: Company Background kosong").into());
+    }
     Ok(profile)
 }
 
-/// Upsert kolom hasil scrape saja; tidak menyentuh `is_konglomerasi`, `sector`,
-/// `is_fundamental_solid`, `is_blue_chip` (di-set manual / aplikasi lain).
+#[derive(Debug, DeserializeRow)]
+struct EmitenLongNameRow {
+    #[scylla(default_when_null)]
+    long_name: String,
+}
+
+/// `long_name` dari search API: `data.company[].desc` untuk match kode emiten.
+/// Fallback: nilai DB yang sudah ada, lalu kode emiten.
+async fn resolve_long_name(
+    http: &reqwest::Client,
+    bearer: &str,
+    session: &Session,
+    keyspace: &str,
+    code: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    match fetch_long_name_from_search(http, bearer, code).await {
+        Ok(name) if !name.is_empty() => {
+            println!("long_name {code}: {name} (search API)");
+            return Ok(name);
+        }
+        Ok(_) => {
+            eprintln!("Peringatan: search API {code} tidak menemukan desc — coba DB/fallback");
+        }
+        Err(e) => {
+            eprintln!("Peringatan: search API long_name {code}: {e}");
+        }
+    }
+
+    let stmt = session
+        .prepare(format!(
+            "SELECT long_name FROM {keyspace}.emiten_list WHERE code_name = ?"
+        ))
+        .await?;
+    let result = session
+        .execute_unpaged(&stmt, (code,))
+        .await?
+        .into_rows_result()?;
+    let existing = result
+        .maybe_first_row::<EmitenLongNameRow>()?
+        .map(|r| r.long_name.trim().to_string())
+        .unwrap_or_default();
+    if !existing.is_empty() && existing.to_ascii_uppercase() != code {
+        return Ok(existing);
+    }
+    Ok(code.to_string())
+}
+
+fn parse_long_name_from_search(v: &Value, code: &str) -> Option<String> {
+    let code_u = code.trim().to_ascii_uppercase();
+    let companies = v.pointer("/data/company")?.as_array()?;
+    // Prefer exact ticker match (type Saham bila ada), skip waran dll.
+    let exact = companies.iter().find(|c| {
+        let name = c
+            .get("name")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_ascii_uppercase();
+        name == code_u
+    });
+    let pick = exact.or_else(|| {
+        companies.iter().find(|c| {
+            let sym2 = c
+                .get("symbol_2")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_ascii_uppercase();
+            let sym3 = c
+                .get("symbol_3")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_ascii_uppercase();
+            sym2 == code_u || sym3 == code_u
+        })
+    })?;
+    let desc = pick
+        .get("desc")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .trim();
+    if desc.is_empty() {
+        None
+    } else {
+        Some(desc.to_string())
+    }
+}
+
+async fn fetch_long_name_from_search(
+    http: &reqwest::Client,
+    bearer: &str,
+    code: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let keyword = code.trim().to_ascii_lowercase();
+    let url = format!("{SEARCH_URL}?keyword={keyword}&page=0&type=all");
+    let resp = http
+        .get(&url)
+        .header("Authorization", format!("Bearer {bearer}"))
+        .header("Accept", "application/json")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .header("x-platform", "web")
+        .send()
+        .await?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        let preview: String = body.chars().take(280).collect();
+        return Err(format!("search {code} HTTP {status}: {preview}").into());
+    }
+
+    let v: Value =
+        serde_json::from_str(&body).map_err(|e| format!("search {code} JSON: {e}"))?;
+    Ok(parse_long_name_from_search(&v, code).unwrap_or_default())
+}
+
+/// Upsert kolom hasil scrape saja.
+/// Tidak mengisi / mengubah: `sector`, `is_konglomerasi`, `is_fundamental_solid`,
+/// `is_blue_chip`, `catatan`, `catatan_owner`, `foto_owner` (manual / aplikasi lain).
 async fn upsert_emiten_list(
     session: &Session,
     keyspace: &str,
@@ -829,14 +792,16 @@ async fn upsert_emiten_list(
     long_name: &str,
     emiten_icon: &str,
     key_stats: &HashMap<String, String>,
+    net_income: &NetIncome,
     corporate_action: &CorporateAction,
     company_profile: &CompanyProfile,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.emiten_list (\
-                code_name, long_name, emiten_icon, key_stats, corporate_action, company_profile\
-            ) VALUES (?, ?, ?, ?, ?, ?)"
+                code_name, long_name, emiten_icon, key_stats, net_income, \
+                corporate_action, company_profile\
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
@@ -848,6 +813,7 @@ async fn upsert_emiten_list(
                 long_name,
                 emiten_icon,
                 key_stats,
+                net_income,
                 corporate_action,
                 company_profile,
             ),
@@ -910,6 +876,14 @@ fn gcs_upload_ctx() -> Result<(&'static GcsSignedUrlRuntime, &'static GcsOAuthTo
     Ok((runtime, oauth))
 }
 
+/// URL icon Stockbit: `https://assets.stockbit.com/logos/companies/{CODE}.png`.
+fn stockbit_emiten_icon_url(code: &str) -> String {
+    format!(
+        "{EMITEN_ICON_ASSETS_BASE}/{}.png",
+        code.trim().to_ascii_uppercase()
+    )
+}
+
 async fn upload_emiten_icon_to_gcs(
     emiten: &str,
     url: &str,
@@ -921,68 +895,35 @@ async fn upload_emiten_icon_to_gcs(
     download_and_upload_emiten_icon(emiten, url, runtime, oauth).await
 }
 
-/// Ambil URL icon dari header Key Stats (`img.company-header-icon`).
-async fn scrape_emiten_icon_url_from_page(
-    page: &Page,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let url = page
-        .evaluate(
-            r#"(() => {
-                const img = document.querySelector('img.company-header-icon');
-                if (!img) return '';
-                return (img.getAttribute('src') || img.src || '').trim();
-            })()"#,
-        )
-        .await?
-        .into_value::<String>()
-        .unwrap_or_default();
-    Ok(url)
-}
-
-async fn fetch_emiten_icon_from_trending(
-    session: &Session,
-    keyspace: &str,
-    code_name: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let today = Local::now().date_naive();
-    let agg = format!("{}_{}", today.format("%Y-%m-%d"), code_name);
-    let q = session
-        .prepare(format!(
-            "SELECT emiten_icon FROM {keyspace}.emiten_trending \
-             WHERE agg_tahun_bulan_tanggal_emiten_name = ?"
-        ))
-        .await?;
-    let result = session
-        .execute_unpaged(&q, (agg.as_str(),))
-        .await?
-        .into_rows_result()?;
-    Ok(result
-        .maybe_first_row::<EmitenIconRow>()?
-        .map(|row| row.emiten_icon)
-        .unwrap_or_default())
-}
-
-/// Trending hari ini bila ada; jika tidak, scrape `img.company-header-icon` di Key Stats → upload GCS.
+/// Icon dari URL assets Stockbit → upload GCS. Reuse path GCS bila sudah ada di `emiten_list`.
 async fn resolve_emiten_icon(
-    page: &Page,
     session: &Session,
     keyspace: &str,
     code: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let from_trending = fetch_emiten_icon_from_trending(session, keyspace, code).await?;
-    if !from_trending.trim().is_empty() {
-        return Ok(from_trending);
+    let existing = session
+        .prepare(format!(
+            "SELECT emiten_icon FROM {keyspace}.emiten_list WHERE code_name = ?"
+        ))
+        .await;
+    if let Ok(stmt) = existing {
+        if let Ok(result) = session.execute_unpaged(&stmt, (code,)).await {
+            if let Ok(rows) = result.into_rows_result() {
+                if let Ok(Some(row)) = rows.maybe_first_row::<EmitenIconRow>() {
+                    let path = row.emiten_icon.trim().to_string();
+                    if !path.is_empty() {
+                        return Ok(path);
+                    }
+                }
+            }
+        }
     }
 
-    let url = scrape_emiten_icon_url_from_page(page).await?;
-    if url.is_empty() {
-        return Ok(String::new());
-    }
-
+    let url = stockbit_emiten_icon_url(code);
     match upload_emiten_icon_to_gcs(code, &url).await {
         Ok(path) => {
             if !path.is_empty() {
-                println!("Key Stats: icon {code} dari header → GCS {path}");
+                println!("Key Stats: icon {code} dari {url} → GCS {path}");
             }
             Ok(path)
         }
@@ -995,31 +936,49 @@ async fn resolve_emiten_icon(
 
 /// Returns `Ok(true)` bila diinsert, `Ok(false)` bila di-skip (update_at masih < 30 hari).
 async fn scrape_one_emiten(
-    page: &Page,
+    _page: &Page,
+    http: &reqwest::Client,
+    bearer: &str,
     session: &Session,
     keyspace: &str,
     emiten: &str,
     index: usize,
     total: usize,
 ) -> Result<bool, Box<dyn std::error::Error>> {
-    scrape_one_emiten_inner(page, session, keyspace, emiten, index, total, true).await
+    scrape_one_emiten_inner(
+        http, bearer, session, keyspace, emiten, index, total, true,
+    )
+    .await
 }
 
-/// Scrape Key Stats + Corp. Action + Profile untuk satu `code_name` (tanpa skip fresh).
+/// Key Stats API + Corp. Action + Profile untuk satu `code_name` (tanpa skip fresh).
 pub async fn scrape_emiten_list_for_code(
     page: &Page,
     session: &Session,
     keyspace: &str,
     code_name: &str,
 ) -> Result<(), String> {
-    scrape_one_emiten_inner(page, session, keyspace, code_name, 1, 1, false)
+    let bearer = extract_stockbit_bearer(page)
         .await
         .map_err(|e| e.to_string())?;
+    let http = reqwest::Client::builder()
+        .user_agent(
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        )
+        .timeout(Duration::from_secs(60))
+        .build()
+        .map_err(|e| e.to_string())?;
+    scrape_one_emiten_inner(
+        &http, &bearer, session, keyspace, code_name, 1, 1, false,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 async fn scrape_one_emiten_inner(
-    page: &Page,
+    http: &reqwest::Client,
+    bearer: &str,
     session: &Session,
     keyspace: &str,
     emiten: &str,
@@ -1039,11 +998,17 @@ async fn scrape_one_emiten_inner(
         return Ok(false);
     }
 
-    println!("Key Stats: buka emiten {code} ({progress})...");
-    open_key_stats(page, &code).await?;
-    let emiten_icon = resolve_emiten_icon(page, session, keyspace, &code).await?;
+    println!("\nKey Stats API: {code} ({progress})...");
+    let KeyStatsApiResult {
+        key_stats,
+        net_income,
+    } = fetch_keystats_ratio(http, bearer, &code).await?;
+    println!(
+        "Key Stats API {code}: {} fields, {} net_income years",
+        key_stats.len(),
+        net_income.len()
+    );
 
-    let key_stats = scrape_key_stats(page).await?;
     if key_stats.is_empty() {
         return Err(format!("Key Stats kosong untuk {code}").into());
     }
@@ -1076,40 +1041,41 @@ async fn scrape_one_emiten_inner(
         .into());
     }
 
-    let long_name = scrape_long_name(page, &code).await;
-    let long_name = if long_name.is_empty() {
-        code.as_str()
-    } else {
-        long_name.as_str()
-    };
+    println!("Corp. Action API: {code}...");
+    let corporate_action = fetch_corpaction(http, bearer, &code).await?;
+    println!("Corp. Action {code}: {} items", corporate_action.len());
 
-    println!("Corp. Action: buka halaman untuk {code}...");
-    click_corp_action(page).await?;
-    let corporate_action = scrape_corporate_action(page).await?;
+    println!("Profile API: {code}...");
+    let company_profile = fetch_company_profile(http, bearer, &code).await?;
+    println!(
+        "Profile {code}: background_len={} gt1={} shareholders={} ubo={}",
+        company_profile.company_background.len(),
+        company_profile.shareholder_more_than_one_percent.len(),
+        company_profile.shareholders.len(),
+        company_profile.ultimate_beneficial_owner
+    );
 
-    println!("Profile: buka halaman untuk {code}...");
-    click_profile(page).await?;
-    let company_profile = scrape_company_profile(page).await?;
-    if company_profile.company_background.trim().is_empty() {
-        return Err(format!("Profile {code}: Company Background kosong").into());
-    }
+    let emiten_icon = resolve_emiten_icon(session, keyspace, &code).await?;
+    let long_name = resolve_long_name(http, bearer, session, keyspace, &code).await?;
 
     upsert_emiten_list(
         session,
         keyspace,
         &code,
-        long_name,
+        &long_name,
         &emiten_icon,
         &key_stats,
+        &net_income,
         &corporate_action,
         &company_profile,
     )
     .await?;
 
     println!(
-        "OK: emiten_list {code} ({progress}) — {} key_stats, {} corporate_action, \
-         profile gt1={} shareholders={}{} ({})",
+        "OK: emiten_list {code} ({progress}) — {} key_stats, {} net_income years, \
+         {} corporate_action, profile gt1={} shareholders={}{} ({})",
         key_stats.len(),
+        net_income.len(),
         corporate_action.len(),
         company_profile.shareholder_more_than_one_percent.len(),
         company_profile.shareholders.len(),
@@ -1123,7 +1089,7 @@ async fn scrape_one_emiten_inner(
     Ok(true)
 }
 
-/// Navbar search → Key Stats → Corp. Action → Profile → upsert `emiten_list`.
+/// Key Stats API → Corp. Action + Profile (DOM) → upsert `emiten_list`.
 /// Skip emiten yang `update_at`-nya masih lebih baru dari 30 hari.
 pub async fn scrape_and_insert_key_stats(
     page: &Page,
@@ -1136,11 +1102,26 @@ pub async fn scrape_and_insert_key_stats(
         return Ok(0);
     }
 
+    println!("Key Stats API: ambil Bearer dari sesi browser...");
+    let bearer = extract_stockbit_bearer(page)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    println!("Bearer OK (len={}).", bearer.len());
+    let http = reqwest::Client::builder()
+        .user_agent(
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        )
+        .timeout(Duration::from_secs(60))
+        .build()?;
+
     let mut ok = 0usize;
     let total = emitens.len();
     for (i, emiten) in emitens.iter().enumerate() {
         let index = i + 1;
-        let scraped = match scrape_one_emiten(page, session, keyspace, emiten, index, total).await
+        let scraped = match scrape_one_emiten(
+            page, &http, &bearer, session, keyspace, emiten, index, total,
+        )
+        .await
         {
             Ok(true) => {
                 ok += 1;
@@ -1173,10 +1154,135 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parse_keystats_ratio_maps_stats_and_net_income() {
+        let v: Value = serde_json::from_str(
+            r#"{
+            "data": {
+                "closure_fin_items_results": [
+                    {
+                        "keystats_name": "Profitability",
+                        "fin_name_results": [
+                            {"fitem": {"name": "Gross Profit Margin (Quarter)", "value": "35.63%"}},
+                            {"fitem": {"name": "Operating Profit Margin (Quarter)", "value": "16.85%"}},
+                            {"fitem": {"name": "Net Profit Margin (Quarter)", "value": "11.87%"}}
+                        ]
+                    },
+                    {
+                        "keystats_name": "Solvency",
+                        "fin_name_results": [
+                            {"fitem": {"name": "Current Ratio (Quarter)", "value": "2.26"}},
+                            {"fitem": {"name": "Quick Ratio (Quarter)", "value": "2.11"}},
+                            {"fitem": {"name": "Debt to Equity Ratio (Quarter)", "value": "0.85"}},
+                            {"fitem": {"name": "LT Debt/Equity (Quarter)", "value": "0.71"}},
+                            {"fitem": {"name": "Total Liabilities/Equity (Quarter)", "value": "1.18"}},
+                            {"fitem": {"name": "Total Debt/Total Assets (Quarter)", "value": "0.35"}},
+                            {"fitem": {"name": "Interest Coverage (TTM)", "value": "4.82"}}
+                        ]
+                    },
+                    {
+                        "keystats_name": "Cash Flow Statement",
+                        "fin_name_results": [
+                            {"fitem": {"name": "Cash From Operations (TTM)", "value": "3,294 B"}},
+                            {"fitem": {"name": "Cash From Investing (TTM)", "value": "(16,220 B)"}},
+                            {"fitem": {"name": "Cash From Financing (TTM)", "value": "5,253 B"}},
+                            {"fitem": {"name": "Capital expenditure (TTM)", "value": "(6,965 B)"}},
+                            {"fitem": {"name": "Free cash flow (TTM)", "value": "(3,671 B)"}}
+                        ]
+                    }
+                ],
+                "stats": {
+                    "current_share_outstanding": "192.64 B",
+                    "market_cap": "154,110 B",
+                    "enterprise_value": "181,042 B",
+                    "free_float": "19.35%"
+                },
+                "financial_year_parent": {
+                    "financial_year_groups": [
+                        {
+                            "fitem_name": "Net Income",
+                            "most_recent_quarter": {"quarter": "Q1"},
+                            "financial_year_values": [
+                                {
+                                    "year": "2026",
+                                    "period_values": [
+                                        {"period": "Q1", "quarter_value": "1,387 B"}
+                                    ],
+                                    "annualised_value": "5,547 B",
+                                    "ttm_value": "3,855 B"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }"#,
+        )
+        .unwrap();
+        let parsed = parse_keystats_ratio_json(&v);
+        assert!(has_profitability_margins(&parsed.key_stats));
+        assert!(has_market_cap_block(&parsed.key_stats));
+        assert!(has_solvency_block(&parsed.key_stats));
+        assert!(has_cash_flow_block(&parsed.key_stats));
+        assert_eq!(
+            parsed.key_stats.get("Market Cap").map(String::as_str),
+            Some("154,110 B")
+        );
+        assert_eq!(
+            parsed
+                .net_income
+                .get("2026")
+                .and_then(|y| y.get("TTM (Q1)"))
+                .map(String::as_str),
+            Some("3,855 B")
+        );
+        assert_eq!(
+            parsed
+                .net_income
+                .get("2026")
+                .and_then(|y| y.get("Q1"))
+                .map(String::as_str),
+            Some("1,387 B")
+        );
+    }
+
+    #[test]
     fn key_stats_json_parses() {
         let json = r#"{"Current PE Ratio (TTM)":"74.08","Revenue (Quarter YoY Growth)":"-65.36%"}"#;
         let map: HashMap<String, String> = serde_json::from_str(json).unwrap();
         assert_eq!(map.get("Current PE Ratio (TTM)").map(String::as_str), Some("74.08"));
+    }
+
+    #[test]
+    fn net_income_json_parses_by_year() {
+        let json = r#"{
+            "2026": {
+                "Q1": "1,387 B",
+                "Q2": "-",
+                "Q3": "-",
+                "Q4": "-",
+                "Annualised": "5,547 B",
+                "TTM (Q1)": "3,855 B"
+            },
+            "2025": {
+                "Q1": "1,317 B",
+                "Q2": "274 B",
+                "Q3": "1,312 B",
+                "Q4": "888 B",
+                "Annualised": "3,799 B",
+                "TTM (Q1)": "3,799 B"
+            }
+        }"#;
+        let map: NetIncome = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            map.get("2026").and_then(|y| y.get("Q1")).map(String::as_str),
+            Some("1,387 B")
+        );
+        assert_eq!(
+            map.get("2025")
+                .and_then(|y| y.get("Annualised"))
+                .map(String::as_str),
+            Some("3,799 B")
+        );
     }
 
     #[test]
@@ -1223,6 +1329,72 @@ mod tests {
     }
 
     #[test]
+    fn parse_corpaction_api_rups_and_stocksplit() {
+        let v: Value = serde_json::from_str(
+            r#"{
+            "data": [
+                {
+                    "action_type": "rups",
+                    "action_info": {
+                        "rups": {
+                            "rups_date": "2026-06-09",
+                            "rups_time": "14:00",
+                            "rups_eligible_date": "2026-05-06",
+                            "rups_venue": "Jakarta\nPusat"
+                        }
+                    }
+                },
+                {
+                    "action_type": "stocksplit",
+                    "action_info": {
+                        "stocksplit": {
+                            "stocksplit_cumdate": "2026-04-08",
+                            "stocksplit_exdate": "2026-04-09",
+                            "stocksplit_recdate": "2026-04-10",
+                            "stocksplit_old": "1",
+                            "stocksplit_new": "25",
+                            "stocksplit_new_price": 2680
+                        }
+                    }
+                }
+            ],
+            "message": "ok"
+        }"#,
+        )
+        .unwrap();
+        let items = parse_corpaction_json(&v);
+        assert_eq!(items.len(), 2);
+        assert_eq!(
+            items[0]["RUPS"]
+                .iter()
+                .find_map(|m| m.get("Event Date"))
+                .map(String::as_str),
+            Some("2026-06-09")
+        );
+        assert_eq!(
+            items[0]["RUPS"]
+                .iter()
+                .find_map(|m| m.get("Venue"))
+                .map(String::as_str),
+            Some("Jakarta Pusat")
+        );
+        assert_eq!(
+            items[1]["Stock Split"]
+                .iter()
+                .find_map(|m| m.get("Ratio"))
+                .map(String::as_str),
+            Some("1:25")
+        );
+        assert_eq!(
+            items[1]["Stock Split"]
+                .iter()
+                .find_map(|m| m.get("New Price"))
+                .map(String::as_str),
+            Some("2680")
+        );
+    }
+
+    #[test]
     fn corporate_action_json_parses() {
         let json = r#"[
           {
@@ -1253,6 +1425,80 @@ mod tests {
             items[1]["RUPS"][0].get("Event Date").map(String::as_str),
             Some("10 Apr 26")
         );
+    }
+
+    #[test]
+    fn parse_long_name_from_search_picks_exact_ticker_desc() {
+        let v: Value = serde_json::from_str(
+            r#"{
+            "data": {
+                "company": [
+                    {
+                        "name": "DSSA",
+                        "desc": "Dian Swastatika Sentosa Tbk",
+                        "type": "Saham",
+                        "symbol_2": "DSSA"
+                    },
+                    {
+                        "name": "DSSAZPCZ6A",
+                        "desc": "Call Waran DSSA ZP",
+                        "type": "Waran",
+                        "symbol_2": "DSSAZPCZ6A"
+                    }
+                ]
+            }
+        }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            parse_long_name_from_search(&v, "DSSA").as_deref(),
+            Some("Dian Swastatika Sentosa Tbk")
+        );
+        assert_eq!(
+            parse_long_name_from_search(&v, "dssa").as_deref(),
+            Some("Dian Swastatika Sentosa Tbk")
+        );
+    }
+
+    #[test]
+    fn parse_company_profile_api() {
+        let v: Value = serde_json::from_str(
+            r#"{
+            "data": {
+                "background": "PT Dian Swastatika Sentosa Tbk menjalankan kegiatan usaha utama.",
+                "shareholder": [
+                    {"name": "PT SINAR MAS TUNGGAL", "value": "115.39 B", "percentage": "59.9%"}
+                ],
+                "beneficiary": [{"name": "FRANKY OESMAN WIDJAJA"}],
+                "shareholder_one_percent": {
+                    "shareholder": [
+                        {
+                            "name": "SINAR MAS TUNGGAL",
+                            "classification": "Corporate",
+                            "location": "Local",
+                            "domicile": "INDONESIA",
+                            "scripless": "0",
+                            "scrip": "115,388,080,000",
+                            "value": "115,388,080,000",
+                            "percentage": "59.90%"
+                        }
+                    ]
+                }
+            }
+        }"#,
+        )
+        .unwrap();
+        let p = parse_company_profile_json(&v);
+        assert!(p.company_background.contains("Dian Swastatika"));
+        assert_eq!(p.shareholders.len(), 1);
+        assert_eq!(p.shareholders[0].shares, "59.9%");
+        assert_eq!(p.shareholder_more_than_one_percent.len(), 1);
+        assert_eq!(
+            p.shareholder_more_than_one_percent[0].type_,
+            "Corporate"
+        );
+        assert_eq!(p.shareholder_more_than_one_percent[0].scriples, "0");
+        assert_eq!(p.ultimate_beneficial_owner, "FRANKY OESMAN WIDJAJA");
     }
 
     #[test]

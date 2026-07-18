@@ -1,33 +1,41 @@
-//! Scrape Bandar Detector → insert `bandarmology` (kolom d_7, M_1, M_3, dan M_12).
+//! Bandarmology via API `exodus.stockbit.com/marketdetectors/{CODE}` (bukan scrape DOM).
+//! Bearer diambil dari sesi browser setelah login. `to` = kemarin; throttle bila rate-limit habis.
 
-use chrono::NaiveDate;
+use chrono::{Duration, Months, NaiveDate};
 use chromiumoxide::page::Page;
-use futures_util::StreamExt;
-use rand::Rng;
+use futures_util::stream::{self, StreamExt};
 use scylla::client::session::Session;
 use scylla::{DeserializeRow, SerializeValue};
 use serde::Deserialize;
 use std::collections::BTreeSet;
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::Duration as StdDuration;
+use stockbit_browser::extract_stockbit_bearer;
+use tokio::sync::Semaphore;
 use tokio::time::sleep;
 
-const PERIODS: &[(&str, &str)] = &[
-    ("Last 7D", "d_7"),
-    ("Last 1M", "M_1"),
-    ("Last 3M", "M_3"),
-    ("Last 1Y", "M_12"),
+const API_BASE: &str = "https://exodus.stockbit.com/marketdetectors";
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+/// Kolom period yang diisi dari API (urutan insert).
+const PERIOD_SPECS: &[(&str, PeriodKind)] = &[
+    ("d_7", PeriodKind::Days(7)),
+    ("d_14", PeriodKind::Days(14)),
+    ("M_1", PeriodKind::Months(1)),
+    ("M_3", PeriodKind::Months(3)),
+    ("M_6", PeriodKind::Months(6)),
+    ("M_12", PeriodKind::Months(12)),
+    ("Y_3", PeriodKind::Years(3)),
+    ("Y_5", PeriodKind::Years(5)),
+    ("Y_10", PeriodKind::Years(10)),
+    ("Y_15", PeriodKind::Years(15)),
 ];
 
-/// Rentang jeda acak setelah klik tombol period sebelum scrape tabel.
-const PERIOD_SCRAPE_WAIT_MIN_MS: u64 = 0;
-const PERIOD_SCRAPE_WAIT_MAX_MS: u64 = 300;
-
-fn format_wait_ms(ms: u64) -> String {
-    if ms >= 1000 {
-        format!("{:.1}s", ms as f64 / 1000.0)
-    } else {
-        format!("{ms}ms")
-    }
+#[derive(Clone, Copy)]
+enum PeriodKind {
+    Days(i64),
+    Months(u32),
+    Years(u32),
 }
 
 #[derive(Debug, Clone, SerializeValue, Deserialize)]
@@ -65,6 +73,20 @@ pub struct BandarmologyDay {
     pub average_rp: i64,
     pub broker_buy: Vec<BandarmologyBrokerBuy>,
     pub broker_sell: Vec<BandarmologyBrokerSell>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BandarmologyPeriods {
+    pub d_7: BandarmologyDay,
+    pub d_14: BandarmologyDay,
+    pub m_1: BandarmologyDay,
+    pub m_3: BandarmologyDay,
+    pub m_6: BandarmologyDay,
+    pub m_12: BandarmologyDay,
+    pub y_3: BandarmologyDay,
+    pub y_5: BandarmologyDay,
+    pub y_10: BandarmologyDay,
+    pub y_15: BandarmologyDay,
 }
 
 #[derive(Debug, DeserializeRow)]
@@ -115,11 +137,29 @@ fn empty_day() -> BandarmologyDay {
     }
 }
 
+/// `to` = kemarin relatif terhadap `today` (hari kalender lokal scrape).
+pub fn bandarmology_to_date(today: NaiveDate) -> NaiveDate {
+    today - Duration::days(1)
+}
+
+fn period_from_to(to: NaiveDate, kind: PeriodKind) -> (NaiveDate, NaiveDate) {
+    let from = match kind {
+        PeriodKind::Days(d) => to - Duration::days(d),
+        PeriodKind::Months(m) => to
+            .checked_sub_months(Months::new(m))
+            .unwrap_or(to),
+        PeriodKind::Years(y) => to
+            .checked_sub_months(Months::new(y.saturating_mul(12)))
+            .unwrap_or(to),
+    };
+    (from, to)
+}
+
 /// Ambil daftar `code_name` dari tabel `emiten_list` via token-ring scan.
 pub async fn fetch_emiten_list_code_names(
     session: &Session,
     keyspace: &str,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
     let mut scan = session
         .prepare(format!(
             "SELECT code_name FROM {keyspace}.emiten_list \
@@ -150,407 +190,8 @@ pub async fn fetch_today_emiten_names(
     session: &Session,
     keyspace: &str,
     _today: NaiveDate,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
     fetch_emiten_list_code_names(session, keyspace).await
-}
-
-async fn click_bandar_menu(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    for attempt in 1..=15 {
-        let clicked = page
-            .evaluate(
-                r#"(() => {
-                    const btn = document.querySelector('[data-cy="right-menu-bandar_detector"]');
-                    if (!btn) return false;
-                    btn.click();
-                    return true;
-                })()"#,
-            )
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if clicked {
-            println!("Bandar Detector diklik (attempt {attempt}).");
-            return Ok(());
-        }
-        sleep(Duration::from_millis(400)).await;
-    }
-    Err("Tombol [data-cy=\"right-menu-bandar_detector\"] tidak ditemukan".into())
-}
-
-async fn wait_for_company_search(
-    page: &Page,
-    timeout: Duration,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let started = std::time::Instant::now();
-    loop {
-        let ready = page
-            .evaluate(
-                r#"(() => {
-                    const input = document.querySelector(
-                        'input.ant-input[placeholder="Type here to add companies ..."]'
-                    );
-                    return !!input;
-                })()"#,
-            )
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if ready {
-            return Ok(());
-        }
-        if started.elapsed() >= timeout {
-            return Err("Input 'Type here to add companies ...' tidak muncul".into());
-        }
-        sleep(Duration::from_millis(400)).await;
-    }
-}
-
-async fn clear_selected_companies(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    let _ = page
-        .evaluate(
-            r#"(() => {
-                document
-                    .querySelectorAll(
-                        '.ant-select-selection-item-remove, .anticon-close, [aria-label="Remove"]'
-                    )
-                    .forEach((el) => {
-                        try { el.click(); } catch (_) {}
-                    });
-                return true;
-            })()"#,
-        )
-        .await;
-    sleep(Duration::from_millis(500)).await;
-    Ok(())
-}
-
-async fn add_company(page: &Page, emiten: &str) -> Result<(), Box<dyn std::error::Error>> {
-    clear_selected_companies(page).await?;
-    wait_for_company_search(page, Duration::from_secs(20)).await?;
-
-    let selector = r#"input.ant-input[placeholder="Type here to add companies ..."]"#;
-    let element = page.find_element(selector).await?;
-    element.click().await?;
-    sleep(Duration::from_millis(300)).await;
-
-    // Clear existing value via select-all + backspace (headless-safe).
-    let _ = page
-        .evaluate(
-            r#"(() => {
-                const input = document.querySelector(
-                    'input.ant-input[placeholder="Type here to add companies ..."]'
-                );
-                if (!input) return false;
-                input.focus();
-                input.value = '';
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                return true;
-            })()"#,
-        )
-        .await;
-
-    for ch in emiten.chars() {
-        let delay = rand::thread_rng().gen_range(100u64..=400);
-        sleep(Duration::from_millis(delay)).await;
-        element.type_str(&ch.to_string()).await?;
-    }
-    let enter_wait_ms = rand::thread_rng().gen_range(100u64..=300);
-    println!(
-        "Emiten {emiten} diketik (natural 100–400ms/karakter); jeda {enter_wait_ms} ms lalu Enter..."
-    );
-    sleep(Duration::from_millis(enter_wait_ms)).await;
-    element.press_key("Enter").await?;
-    sleep(Duration::from_secs(2)).await;
-    Ok(())
-}
-
-async fn open_datepicker(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    // Setelah period multi-hari (Last 7D / 1M / …) label tombol sering jadi range
-    // "10 Jul 26 - 16 Jul 26", bukan single "16 Jul 26".
-    for attempt in 1..=20 {
-        let clicked = page
-            .evaluate(
-                r#"(() => {
-                    const dateRe = /\d{1,2}\s+[A-Za-z]{3}\s+\d{2}/;
-                    const rangeRe = /^\d{1,2}\s+[A-Za-z]{3}\s+\d{2}\s*[-–—]\s*\d{1,2}\s+[A-Za-z]{3}\s+\d{2}$/;
-                    const singleRe = /^\d{1,2}\s+[A-Za-z]{3}\s+\d{2}$/;
-
-                    const candidates = Array.from(
-                        document.querySelectorAll('button, [role="button"], .ant-btn')
-                    );
-                    const target = candidates.find((b) => {
-                        const t = (b.innerText || b.textContent || '')
-                            .replace(/\s+/g, ' ')
-                            .trim();
-                        if (!t) return false;
-                        return singleRe.test(t) || rangeRe.test(t) || (
-                            dateRe.test(t) && t.length <= 40 && !t.includes('\n')
-                        );
-                    });
-                    if (!target) return false;
-                    target.scrollIntoView({ block: 'center', inline: 'nearest' });
-                    target.click();
-                    return true;
-                })()"#,
-            )
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if clicked {
-            // Tunggu popover datepicker.
-            for _ in 0..24 {
-                let open = page
-                    .evaluate(
-                        r#"(() => !!document.querySelector(
-                            '.react-datepicker, .ant-popover .react-datepicker, .ant-picker-dropdown'
-                        ))()"#,
-                    )
-                    .await?
-                    .into_value::<bool>()
-                    .unwrap_or(false);
-                if open {
-                    println!("Datepicker terbuka (attempt {attempt}).");
-                    return Ok(());
-                }
-                sleep(Duration::from_millis(250)).await;
-            }
-        }
-        sleep(Duration::from_millis(500)).await;
-    }
-
-    // Debug: tampilkan teks tombol yang mengandung pola tanggal (jika ada).
-    let debug = page
-        .evaluate(
-            r#"(() => {
-                const dateRe = /\d{1,2}\s+[A-Za-z]{3}\s+\d{2}/;
-                return Array.from(document.querySelectorAll('button, [role="button"], .ant-btn'))
-                    .map((b) => (b.innerText || b.textContent || '').replace(/\s+/g, ' ').trim())
-                    .filter((t) => dateRe.test(t))
-                    .slice(0, 8);
-            })()"#,
-        )
-        .await
-        .ok()
-        .and_then(|v| v.into_value::<Vec<String>>().ok())
-        .unwrap_or_default();
-    if !debug.is_empty() {
-        eprintln!("Debug tombol bertanggal (tidak diklik): {debug:?}");
-    }
-
-    Err("Tombol tanggal / datepicker tidak muncul".into())
-}
-
-async fn click_period_button(
-    page: &Page,
-    label: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let label_js = serde_json::to_string(label)?;
-    for attempt in 1..=10 {
-        let clicked = page
-            .evaluate(format!(
-                r#"(() => {{
-                    const label = {label_js};
-                    const buttons = Array.from(document.querySelectorAll('button'));
-                    const target = buttons.find((b) => {{
-                        const t = (b.innerText || b.textContent || '').trim();
-                        return t === label;
-                    }});
-                    if (!target) return false;
-                    target.click();
-                    return true;
-                }})()"#
-            ))
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if clicked {
-            println!("Period '{label}' diklik (attempt {attempt}).");
-            // Tunggu trigger tanggal kembali (format single ATAU range).
-            for _ in 0..20 {
-                let ready = page
-                    .evaluate(
-                        r#"(() => {
-                            const dateRe = /\d{1,2}\s+[A-Za-z]{3}\s+\d{2}/;
-                            return Array.from(
-                                document.querySelectorAll('button, [role="button"], .ant-btn')
-                            ).some((b) => {
-                                const t = (b.innerText || b.textContent || '')
-                                    .replace(/\s+/g, ' ')
-                                    .trim();
-                                return dateRe.test(t) && t.length <= 40;
-                            });
-                        })()"#,
-                    )
-                    .await?
-                    .into_value::<bool>()
-                    .unwrap_or(false);
-                if ready {
-                    break;
-                }
-                sleep(Duration::from_millis(300)).await;
-            }
-            return Ok(());
-        }
-        sleep(Duration::from_millis(400)).await;
-    }
-    Err(format!("Tombol period '{label}' tidak ditemukan").into())
-}
-
-async fn wait_for_bandar_tables(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    for _ in 0..30 {
-        let ready = page
-            .evaluate(
-                r#"(() => {
-                    const top1 = document.querySelector('tr[data-row-key="top1"]');
-                    const byRow = document.querySelector(
-                        '.sc-80e8ce32-26 tr[data-row-key="0"], .scrollable tr[data-row-key="0"]'
-                    );
-                    return !!(top1 && (byRow || document.body.innerText.includes('Net Volume')));
-                })()"#,
-            )
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if ready {
-            return Ok(());
-        }
-        sleep(Duration::from_millis(400)).await;
-    }
-    Err("Tabel bandarmology (Top 1 / broker) tidak siap".into())
-}
-
-async fn scrape_bandar_day(page: &Page) -> Result<BandarmologyDay, Box<dyn std::error::Error>> {
-    wait_for_bandar_tables(page).await?;
-    let json = page
-        .evaluate(
-            r#"(() => {
-                const parseIntClean = (s) => {
-                    if (s == null) return 0;
-                    const t = String(s).replace(/,/g, '').trim();
-                    if (!t || t === '-' || t === '—') return 0;
-                    const n = parseInt(t, 10);
-                    return Number.isFinite(n) ? n : 0;
-                };
-                const parseFloatClean = (s) => {
-                    if (s == null) return 0;
-                    const t = String(s).replace(/,/g, '').trim();
-                    if (!t || t === '-' || t === '—') return 0;
-                    const n = parseFloat(t);
-                    return Number.isFinite(n) ? n : 0;
-                };
-                // rp_b UI sering desimal (mis. -0.9) → simpan ×1000 sebagai bigint
-                const parseRpB = (s) => Math.round(parseFloatClean(s) * 1000);
-
-                const cellText = (td) => {
-                    if (!td) return '';
-                    const p = td.querySelector('p');
-                    return ((p && p.innerText) || td.innerText || '').trim();
-                };
-
-                const topRow = (key) => {
-                    const tr = document.querySelector('tr[data-row-key="' + key + '"]');
-                    if (!tr) {
-                        return { volume: 0, percent: 0, rp_b: 0, acc_dist: '' };
-                    }
-                    const tds = Array.from(tr.querySelectorAll('td'));
-                    return {
-                        volume: parseIntClean(cellText(tds[1])),
-                        percent: parseFloatClean(cellText(tds[2])),
-                        rp_b: parseRpB(cellText(tds[3])),
-                        acc_dist: cellText(tds[4]),
-                    };
-                };
-
-                const summaryVal = (label) => {
-                    const rows = Array.from(document.querySelectorAll('tr[data-row-key^="summary"]'));
-                    for (const tr of rows) {
-                        const tds = Array.from(tr.querySelectorAll('td'));
-                        if (cellText(tds[0]) === label) return cellText(tds[1]);
-                    }
-                    // fallback scan
-                    const all = Array.from(document.querySelectorAll('tr'));
-                    for (const tr of all) {
-                        const tds = Array.from(tr.querySelectorAll('td'));
-                        if (cellText(tds[0]) === label) return cellText(tds[1]);
-                    }
-                    return '';
-                };
-
-                const brokerRows = [];
-                const body =
-                    document.querySelector('.sc-80e8ce32-27 .ant-table-body tbody') ||
-                    document.querySelector('.scrollable .ant-table-body tbody');
-                if (body) {
-                    Array.from(body.querySelectorAll('tr[data-row-key]')).forEach((tr) => {
-                        if (tr.getAttribute('aria-hidden') === 'true') return;
-                        const tds = Array.from(tr.querySelectorAll('td'));
-                        if (tds.length < 8) return;
-                        const buyCode = cellText(tds[0]);
-                        const sellCode = cellText(tds[4]);
-                        if (!buyCode && !sellCode) return;
-                        brokerRows.push({
-                            buy: {
-                                broker_code: buyCode,
-                                buy_volume: cellText(tds[1]),
-                                buy_lot: cellText(tds[2]),
-                                buy_avg: parseIntClean(cellText(tds[3])),
-                            },
-                            sell: {
-                                broker_code: sellCode,
-                                sell_volume: cellText(tds[5]),
-                                sell_lot: cellText(tds[6]),
-                                sell_avg: parseIntClean(cellText(tds[7])),
-                            },
-                        });
-                    });
-                }
-
-                const out = {
-                    top_1: topRow('top1'),
-                    top_3: topRow('top3'),
-                    top_5: topRow('top5'),
-                    average: topRow('average'),
-                    net_volume: parseIntClean(summaryVal('Net Volume')),
-                    net_value: summaryVal('Net Value'),
-                    average_rp: parseIntClean(summaryVal('Average (Rp)')),
-                    broker_buy: brokerRows
-                        .filter((r) => r.buy.broker_code)
-                        .map((r) => r.buy),
-                    broker_sell: brokerRows
-                        .filter((r) => r.sell.broker_code)
-                        .map((r) => r.sell),
-                };
-                return JSON.stringify(out);
-            })()"#,
-        )
-        .await?
-        .into_value::<String>()
-        .unwrap_or_else(|_| "{}".to_string());
-
-    match serde_json::from_str::<BandarmologyDay>(&json) {
-        Ok(day) => Ok(day),
-        Err(e) => {
-            eprintln!("Peringatan: parse bandar day gagal ({e}); json={json}");
-            Ok(empty_day())
-        }
-    }
-}
-
-async fn scrape_period(
-    page: &Page,
-    period_label: &str,
-    col: &str,
-) -> Result<BandarmologyDay, Box<dyn std::error::Error>> {
-    open_datepicker(page).await?;
-    click_period_button(page, period_label).await?;
-    let wait_ms =
-        rand::thread_rng().gen_range(PERIOD_SCRAPE_WAIT_MIN_MS..=PERIOD_SCRAPE_WAIT_MAX_MS);
-    println!(
-        "  {col} ({period_label}): tunggu {} sebelum scrape...",
-        format_wait_ms(wait_ms)
-    );
-    sleep(Duration::from_millis(wait_ms)).await;
-    scrape_bandar_day(page).await
 }
 
 fn bandarmology_agg(today: NaiveDate, emiten: &str) -> String {
@@ -560,6 +201,18 @@ fn bandarmology_agg(today: NaiveDate, emiten: &str) -> String {
 /// Kunci partition bandarmology hari ini untuk emiten, mis. `2026-07-17_BBCA`.
 pub fn bandarmology_agg_key(today: NaiveDate, emiten: &str) -> String {
     bandarmology_agg(today, emiten.trim().to_ascii_uppercase().as_str())
+}
+
+async fn bandarmology_exists(
+    session: &Session,
+    exists_stmt: &scylla::statement::prepared::PreparedStatement,
+    agg: &str,
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    let result = session
+        .execute_unpaged(exists_stmt, (agg,))
+        .await?
+        .into_rows_result()?;
+    Ok(result.rows_num() > 0)
 }
 
 /// `true` bila baris `bandarmology` untuk agg hari ini + emiten sudah ada.
@@ -583,37 +236,444 @@ pub async fn bandarmology_exists_for_today(
         .map_err(|e| e.to_string())
 }
 
-async fn scrape_bandarmology_days_for_emiten(
-    page: &Page,
-    emiten: &str,
-) -> Result<Vec<BandarmologyDay>, Box<dyn std::error::Error>> {
-    add_company(page, emiten).await?;
+// --- API response mapping ---------------------------------------------------
 
-    let mut days: Vec<BandarmologyDay> = Vec::with_capacity(PERIODS.len());
-    for (period_label, col) in PERIODS {
-        match scrape_period(page, period_label, col).await {
-            Ok(day) => {
+#[derive(Debug, Deserialize)]
+struct ApiEnvelope {
+    #[serde(default)]
+    data: Option<ApiData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiData {
+    #[serde(default)]
+    bandar_detector: Option<ApiBandarDetector>,
+    #[serde(default)]
+    broker_summary: Option<ApiBrokerSummary>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiBandarDetector {
+    #[serde(default)]
+    average: f64,
+    #[serde(default)]
+    avg: Option<ApiTopStats>,
+    #[serde(default)]
+    top1: Option<ApiTopStats>,
+    #[serde(default)]
+    top3: Option<ApiTopStats>,
+    #[serde(default)]
+    top5: Option<ApiTopStats>,
+    #[serde(default)]
+    volume: f64,
+    #[serde(default)]
+    value: f64,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiTopStats {
+    #[serde(default)]
+    accdist: String,
+    #[serde(default)]
+    amount: f64,
+    #[serde(default)]
+    percent: f64,
+    #[serde(default)]
+    vol: f64,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiBrokerSummary {
+    #[serde(default)]
+    brokers_buy: Vec<ApiBrokerBuy>,
+    #[serde(default)]
+    brokers_sell: Vec<ApiBrokerSell>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiBrokerBuy {
+    #[serde(default)]
+    netbs_broker_code: String,
+    #[serde(default)]
+    blot: String,
+    #[serde(default)]
+    blotv: String,
+    #[serde(default)]
+    netbs_buy_avg_price: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiBrokerSell {
+    #[serde(default)]
+    netbs_broker_code: String,
+    #[serde(default)]
+    slot: String,
+    #[serde(default)]
+    slotv: String,
+    #[serde(default)]
+    netbs_sell_avg_price: String,
+}
+
+fn amount_to_rp_b(amount: f64) -> i64 {
+    // Samakan konvensi UI lama: Rp miliar × 1000 sebagai bigint.
+    (amount / 1_000_000_000.0 * 1000.0).round() as i64
+}
+
+fn parse_avg_price(s: &str) -> i64 {
+    s.trim().parse::<f64>().unwrap_or(0.0).round() as i64
+}
+
+fn map_top(stats: Option<&ApiTopStats>) -> BandarmologyTopStats {
+    let Some(s) = stats else {
+        return empty_top();
+    };
+    BandarmologyTopStats {
+        volume: s.vol.round() as i64,
+        percent: s.percent,
+        rp_b: amount_to_rp_b(s.amount),
+        acc_dist: s.accdist.clone(),
+    }
+}
+
+fn map_api_day(data: &ApiData) -> BandarmologyDay {
+    let bd = data.bandar_detector.as_ref();
+    let buy = data
+        .broker_summary
+        .as_ref()
+        .map(|s| s.brokers_buy.as_slice())
+        .unwrap_or(&[]);
+    let sell = data
+        .broker_summary
+        .as_ref()
+        .map(|s| s.brokers_sell.as_slice())
+        .unwrap_or(&[]);
+
+    BandarmologyDay {
+        top_1: map_top(bd.and_then(|b| b.top1.as_ref())),
+        top_3: map_top(bd.and_then(|b| b.top3.as_ref())),
+        top_5: map_top(bd.and_then(|b| b.top5.as_ref())),
+        average: map_top(bd.and_then(|b| b.avg.as_ref())),
+        net_volume: bd.map(|b| b.volume.round() as i64).unwrap_or(0),
+        net_value: bd
+            .map(|b| {
+                if b.value.abs() >= 1_000_000_000.0 {
+                    format!("{:.3} B", b.value / 1_000_000_000.0)
+                } else {
+                    format!("{:.0}", b.value)
+                }
+            })
+            .unwrap_or_default(),
+        average_rp: bd.map(|b| b.average.round() as i64).unwrap_or(0),
+        broker_buy: buy
+            .iter()
+            .filter(|r| !r.netbs_broker_code.trim().is_empty())
+            .map(|r| BandarmologyBrokerBuy {
+                broker_code: r.netbs_broker_code.trim().to_string(),
+                buy_volume: r.blotv.clone(),
+                buy_lot: r.blot.clone(),
+                buy_avg: parse_avg_price(&r.netbs_buy_avg_price),
+            })
+            .collect(),
+        broker_sell: sell
+            .iter()
+            .filter(|r| !r.netbs_broker_code.trim().is_empty())
+            .map(|r| BandarmologyBrokerSell {
+                broker_code: r.netbs_broker_code.trim().to_string(),
+                sell_volume: r.slotv.clone(),
+                sell_lot: r.slot.clone(),
+                sell_avg: parse_avg_price(&r.netbs_sell_avg_price),
+            })
+            .collect(),
+    }
+}
+
+struct RateLimitState {
+    limit: Option<i64>,
+    remaining: Option<i64>,
+    reset_secs: u64,
+}
+
+impl RateLimitState {
+    fn from_headers(headers: &reqwest::header::HeaderMap) -> Self {
+        let limit = headers
+            .get("x-rate-limit-limit")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse().ok());
+        let remaining = headers
+            .get("x-rate-limit-remaining")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse().ok());
+        let reset_secs = headers
+            .get("x-rate-limit-reset")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
+        Self {
+            limit,
+            remaining,
+            reset_secs,
+        }
+    }
+
+    fn log_line(&self) -> String {
+        format!(
+            "x-rate-limit-limit={} x-rate-limit-remaining={} x-rate-limit-reset={}",
+            self.limit
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "-".into()),
+            self.remaining
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "-".into()),
+            self.reset_secs
+        )
+    }
+}
+
+async fn throttle_if_needed(state: &RateLimitState) {
+    match state.remaining {
+        Some(r) if r <= 0 => {
+            let wait = state.reset_secs.max(2);
+            println!(
+                "Bandarmology API: rate-limit remaining=0 — throttle {wait}s... ({})",
+                state.log_line()
+            );
+            sleep(StdDuration::from_secs(wait)).await;
+        }
+        Some(r) if r <= 2 => {
+            let wait = state.reset_secs.max(1);
+            println!(
+                "Bandarmology API: rate-limit remaining={r} — throttle {wait}s... ({})",
+                state.log_line()
+            );
+            sleep(StdDuration::from_secs(wait)).await;
+        }
+        _ => {}
+    }
+}
+
+const API_TIMEOUT_MAX_RETRIES: u32 = 5;
+/// Berapa emiten yang boleh fetch+retry bersamaan (retry timeout tidak menahan emiten lain).
+const BANDARMOLOGY_EMITEN_CONCURRENCY: usize = 2;
+
+fn is_retryable_http_status(code: u16) -> bool {
+    matches!(code, 408 | 425 | 429 | 500 | 502 | 503 | 504 | 522 | 524)
+}
+
+fn timeout_retry_wait_secs(retry_n: u32) -> u64 {
+    // Delay memanjang: 2s, 4s, 6s, ... hingga retry ke-10 → 20s.
+    2u64.saturating_mul(retry_n.max(1) as u64)
+}
+
+async fn fetch_marketdetector_day(
+    client: &reqwest::Client,
+    bearer: &str,
+    emiten: &str,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<(BandarmologyDay, RateLimitState), Box<dyn std::error::Error + Send + Sync>> {
+    let url = format!(
+        "{API_BASE}/{emiten}?from={}&to={}&transaction_type=TRANSACTION_TYPE_NET\
+         &market_board=MARKET_BOARD_REGULER&investor_type=INVESTOR_TYPE_ALL&limit=25",
+        from.format("%Y-%m-%d"),
+        to.format("%Y-%m-%d"),
+    );
+
+    let mut timeout_retries = 0u32;
+    let mut rate_limit_attempt = 0u32;
+    loop {
+        let resp = match client
+            .get(&url)
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {bearer}"),
+            )
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header(reqwest::header::ORIGIN, "https://stockbit.com")
+            .header(reqwest::header::REFERER, "https://stockbit.com/")
+            .header(reqwest::header::USER_AGENT, USER_AGENT)
+            .timeout(StdDuration::from_secs(60))
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                timeout_retries += 1;
+                if timeout_retries > API_TIMEOUT_MAX_RETRIES {
+                    return Err(format!(
+                        "marketdetectors {emiten} {from}..{to}: network/timeout gagal setelah {API_TIMEOUT_MAX_RETRIES} retry ({e})"
+                    )
+                    .into());
+                }
+                let wait = timeout_retry_wait_secs(timeout_retries);
+                eprintln!(
+                    "Bandarmology API network error untuk {emiten} {from}..{to}: {e} — retry {timeout_retries}/{API_TIMEOUT_MAX_RETRIES} setelah {wait}s"
+                );
+                sleep(StdDuration::from_secs(wait)).await;
+                continue;
+            }
+        };
+
+        let status = resp.status();
+        let rate = RateLimitState::from_headers(resp.headers());
+        println!("  API {emiten} {from}..{to} → HTTP {status} | {}", rate.log_line());
+
+        if status.as_u16() == 401 || status.as_u16() == 403 {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!(
+                "unauthorized marketdetectors {emiten}: {status} {body}"
+            )
+            .into());
+        }
+
+        if status.as_u16() == 429 {
+            rate_limit_attempt += 1;
+            let wait = rate
+                .reset_secs
+                .max(timeout_retry_wait_secs(rate_limit_attempt));
+            eprintln!(
+                "Bandarmology API 429 untuk {emiten} {from}..{to} — retry setelah {wait}s (attempt {rate_limit_attempt}) | {}",
+                rate.log_line()
+            );
+            sleep(StdDuration::from_secs(wait)).await;
+            if rate_limit_attempt >= API_TIMEOUT_MAX_RETRIES {
+                return Err(format!("rate limit terus untuk {emiten} {from}..{to}").into());
+            }
+            continue;
+        }
+
+        if is_retryable_http_status(status.as_u16()) && !status.is_success() {
+            timeout_retries += 1;
+            if timeout_retries > API_TIMEOUT_MAX_RETRIES {
+                let body = resp.text().await.unwrap_or_default();
+                return Err(format!(
+                    "marketdetectors {emiten} {from}..{to}: HTTP {status} setelah {API_TIMEOUT_MAX_RETRIES} retry — {body}"
+                )
+                .into());
+            }
+            let wait = timeout_retry_wait_secs(timeout_retries);
+            eprintln!(
+                "Bandarmology API HTTP {status} untuk {emiten} {from}..{to} — retry {timeout_retries}/{API_TIMEOUT_MAX_RETRIES} setelah {wait}s"
+            );
+            // Body tidak perlu dibaca penuh; drop response lalu tunggu.
+            drop(resp);
+            sleep(StdDuration::from_secs(wait)).await;
+            continue;
+        }
+
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!(
+                "marketdetectors {emiten} {from}..{to}: HTTP {status} {body}"
+            )
+            .into());
+        }
+
+        let envelope: ApiEnvelope = resp.json().await?;
+        let day = envelope
+            .data
+            .as_ref()
+            .map(map_api_day)
+            .unwrap_or_else(empty_day);
+        return Ok((day, rate));
+    }
+}
+
+async fn fetch_all_periods_for_emiten(
+    client: &reqwest::Client,
+    bearer: &str,
+    emiten: &str,
+    to: NaiveDate,
+) -> Result<BandarmologyPeriods, Box<dyn std::error::Error + Send + Sync>> {
+    let mut days: Vec<BandarmologyDay> = Vec::with_capacity(PERIOD_SPECS.len());
+    for (col, kind) in PERIOD_SPECS {
+        let (from, to) = period_from_to(to, *kind);
+        match fetch_marketdetector_day(client, bearer, emiten, from, to).await {
+            Ok((day, rate)) => {
                 println!(
-                    "  {col} ({period_label}): net_volume={} brokers_buy={}",
+                    "  {col}: {from}..{to} net_volume={} brokers_buy={}",
                     day.net_volume,
-                    day.broker_buy.len()
+                    day.broker_buy.len(),
                 );
                 days.push(day);
+                throttle_if_needed(&rate).await;
             }
             Err(e) => {
-                eprintln!("  Gagal scrape {col} ({period_label}) untuk {emiten}: {e}");
+                let msg = e.to_string();
+                eprintln!("  Gagal API {col} untuk {emiten} ({from}..{to}): {msg}");
+                if msg.contains("unauthorized") || msg.contains("401") || msg.contains("403") {
+                    return Err(format!(
+                        "Abort bandarmology: Bearer ditolak API ({msg}). Perbaiki extract token iss=STOCKBIT."
+                    )
+                    .into());
+                }
                 days.push(empty_day());
+                // Jeda kecil agar tidak spam saat error beruntun.
+                sleep(StdDuration::from_millis(400)).await;
             }
         }
     }
-    while days.len() < PERIODS.len() {
+    while days.len() < PERIOD_SPECS.len() {
         days.push(empty_day());
     }
-    Ok(days)
+    Ok(BandarmologyPeriods {
+        d_7: days[0].clone(),
+        d_14: days[1].clone(),
+        m_1: days[2].clone(),
+        m_3: days[3].clone(),
+        m_6: days[4].clone(),
+        m_12: days[5].clone(),
+        y_3: days[6].clone(),
+        y_5: days[7].clone(),
+        y_10: days[8].clone(),
+        y_15: days[9].clone(),
+    })
 }
 
-/// Scrape Bandar Detector untuk satu emiten bila agg hari ini belum ada.
-/// Returns `Ok(true)` bila di-scrape+insert, `Ok(false)` bila sudah ada.
+async fn insert_bandarmology(
+    session: &Session,
+    keyspace: &str,
+    today: NaiveDate,
+    emiten: &str,
+    p: &BandarmologyPeriods,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let agg = bandarmology_agg(today, emiten);
+    let insert = session
+        .prepare(format!(
+            "INSERT INTO {keyspace}.bandarmology (\
+                agg_tahun_bulan_tanggal_emiten_name, \
+                emiten_name, \
+                tahun_bulan_tanggal, \
+                d_7, d_14, \"M_1\", \"M_3\", \"M_6\", \"M_12\", \
+                \"Y_3\", \"Y_5\", \"Y_10\", \"Y_15\"\
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ))
+        .await?;
+
+    session
+        .execute_unpaged(
+            &insert,
+            (
+                agg.as_str(),
+                emiten,
+                today,
+                &p.d_7,
+                &p.d_14,
+                &p.m_1,
+                &p.m_3,
+                &p.m_6,
+                &p.m_12,
+                &p.y_3,
+                &p.y_5,
+                &p.y_10,
+                &p.y_15,
+            ),
+        )
+        .await?;
+    Ok(())
+}
+
+/// Fetch API Bandar Detector untuk satu emiten bila agg hari ini belum ada.
+/// `page` dipakai hanya untuk ekstrak Bearer setelah login.
 pub async fn scrape_bandarmology_for_code_if_missing(
     page: &Page,
     session: &Session,
@@ -628,83 +688,34 @@ pub async fn scrape_bandarmology_for_code_if_missing(
         return Ok(false);
     }
 
-    click_bandar_menu(page).await.map_err(|e| e.to_string())?;
-    sleep(Duration::from_secs(2)).await;
-    wait_for_company_search(page, Duration::from_secs(30))
+    let bearer = extract_stockbit_bearer(page)
         .await
         .map_err(|e| e.to_string())?;
+    let client = reqwest::Client::new();
+    let to = bandarmology_to_date(today);
 
-    println!("\n=== Bandarmology on-demand emiten={code} ===");
-    let days = scrape_bandarmology_days_for_emiten(page, &code)
+    println!("\n=== Bandarmology API on-demand emiten={code} (to={to}) ===");
+    let periods = fetch_all_periods_for_emiten(&client, &bearer, &code, to)
         .await
         .map_err(|e| e.to_string())?;
-    insert_bandarmology(
-        session,
-        keyspace,
-        today,
-        &code,
-        &days[0],
-        &days[1],
-        &days[2],
-        &days[3],
-    )
-    .await
-    .map_err(|e| e.to_string())?;
-    println!("OK: bandarmology insert {code} (on-demand).");
+    insert_bandarmology(session, keyspace, today, &code, &periods)
+        .await
+        .map_err(|e| e.to_string())?;
+    println!("OK: bandarmology insert {code} (on-demand API).");
     Ok(true)
 }
 
-async fn bandarmology_exists(
-    session: &Session,
-    exists_stmt: &scylla::statement::prepared::PreparedStatement,
-    agg: &str,
-) -> Result<bool, Box<dyn std::error::Error>> {
-    let result = session
-        .execute_unpaged(exists_stmt, (agg,))
-        .await?
-        .into_rows_result()?;
-    Ok(result.rows_num() > 0)
-}
-
-async fn insert_bandarmology(
-    session: &Session,
-    keyspace: &str,
-    today: NaiveDate,
-    emiten: &str,
-    d_7: &BandarmologyDay,
-    m_1: &BandarmologyDay,
-    m_3: &BandarmologyDay,
-    m_12: &BandarmologyDay,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let agg = bandarmology_agg(today, emiten);
-    let insert = session
-        .prepare(format!(
-            "INSERT INTO {keyspace}.bandarmology (\
-                agg_tahun_bulan_tanggal_emiten_name, \
-                emiten_name, \
-                tahun_bulan_tanggal, \
-                d_7, \"M_1\", \"M_3\", \"M_12\"\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)"
-        ))
-        .await?;
-
-    session
-        .execute_unpaged(
-            &insert,
-            (agg.as_str(), emiten, today, d_7, m_1, m_3, m_12),
-        )
-        .await?;
-    Ok(())
-}
-
-/// Buka Bandar Detector, scrape period Last 7D + Last 1M + Last 3M + Last 1Y untuk setiap emiten, insert Scylla.
+/// Marketdetectors API untuk setiap emiten → insert Scylla (d_7..Y_15).
+/// Bearer dari sesi browser; throttle otomatis saat `x-rate-limit-remaining` hampir habis.
+/// Fetch+retry per emiten dijalankan di task paralel (concurrency terbatas) agar retry timeout
+/// satu emiten tidak menahan emiten berikutnya.
 pub async fn scrape_and_insert_bandarmology(
     page: &Page,
-    session: &Session,
+    session: &Arc<Session>,
     keyspace: &str,
     today: NaiveDate,
     emitens: &[String],
-) -> Result<usize, Box<dyn std::error::Error>> {
+) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
     if emitens.is_empty() {
         println!("Tidak ada emiten untuk bandarmology.");
         return Ok(0);
@@ -718,7 +729,6 @@ pub async fn scrape_and_insert_bandarmology(
         ))
         .await?;
 
-    // Filter dulu: skip yang sudah ada di PK agar tidak buka UI sia-sia.
     let mut todo: Vec<String> = Vec::new();
     let mut skipped = 0usize;
     for emiten in emitens {
@@ -731,61 +741,125 @@ pub async fn scrape_and_insert_bandarmology(
         }
     }
     println!(
-        "Bandarmology: {} perlu scrape, {} sudah ada (skip).",
+        "Bandarmology API: {} perlu fetch, {} sudah ada (skip). concurrency={}",
         todo.len(),
-        skipped
+        skipped,
+        BANDARMOLOGY_EMITEN_CONCURRENCY
     );
     if todo.is_empty() {
         return Ok(0);
     }
 
-    click_bandar_menu(page).await?;
-    sleep(Duration::from_secs(2)).await;
-    wait_for_company_search(page, Duration::from_secs(30)).await?;
+    let bearer = extract_stockbit_bearer(page)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
+    println!(
+        "Bandarmology API: Bearer OK (len={}), to={} (kemarin dari {today})",
+        bearer.len(),
+        bandarmology_to_date(today)
+    );
+
+    let _ = page
+        .evaluate(
+            r#"(() => {
+                try {
+                    return window.__sbCapturedBearer
+                        ? ('captured_len=' + window.__sbCapturedBearer.length)
+                        : 'captured_empty';
+                } catch (_) { return 'captured_err'; }
+            })()"#,
+        )
+        .await;
+
+    let client = Arc::new(reqwest::Client::new());
+    let bearer = Arc::new(bearer);
+    let session = Arc::clone(session);
+    let keyspace = keyspace.to_string();
+    let to = bandarmology_to_date(today);
+    let total = todo.len();
+    let sem = Arc::new(Semaphore::new(BANDARMOLOGY_EMITEN_CONCURRENCY));
+
+    let results: Vec<Result<bool, String>> = stream::iter(todo.into_iter().enumerate())
+        .map(|(idx, emiten)| {
+            let client = Arc::clone(&client);
+            let bearer = Arc::clone(&bearer);
+            let session = Arc::clone(&session);
+            let keyspace = keyspace.clone();
+            let sem = Arc::clone(&sem);
+            async move {
+                let _permit = sem
+                    .acquire()
+                    .await
+                    .map_err(|e| format!("semaphore: {e}"))?;
+                println!(
+                    "\n=== Bandarmology API [{}/{}] emiten={} (parallel worker) ===",
+                    idx + 1,
+                    total,
+                    emiten
+                );
+                match fetch_all_periods_for_emiten(client.as_ref(), bearer.as_str(), &emiten, to)
+                    .await
+                {
+                    Ok(periods) => {
+                        if let Err(e) =
+                            insert_bandarmology(session.as_ref(), &keyspace, today, &emiten, &periods)
+                                .await
+                        {
+                            eprintln!("Gagal insert bandarmology {emiten}: {e}");
+                            Ok(false)
+                        } else {
+                            println!("OK: bandarmology insert {emiten}");
+                            Ok(true)
+                        }
+                    }
+                    Err(e) => {
+                        let msg = e.to_string();
+                        eprintln!("Skip {emiten}: gagal fetch periods ({msg})");
+                        if msg.contains("Abort bandarmology") || msg.contains("unauthorized") {
+                            Err(msg)
+                        } else {
+                            Ok(false)
+                        }
+                    }
+                }
+            }
+        })
+        .buffer_unordered(BANDARMOLOGY_EMITEN_CONCURRENCY)
+        .collect()
+        .await;
 
     let mut ok = 0usize;
-    for (idx, emiten) in todo.iter().enumerate() {
-        println!(
-            "\n=== Bandarmology [{}/{}] emiten={} ===",
-            idx + 1,
-            todo.len(),
-            emiten
-        );
-
-        let days = match scrape_bandarmology_days_for_emiten(page, emiten).await {
-            Ok(d) => d,
-            Err(e) => {
-                eprintln!("Skip {emiten}: gagal add company / scrape ({e})");
-                continue;
+    for r in results {
+        match r {
+            Ok(true) => ok += 1,
+            Ok(false) => {}
+            Err(msg) => {
+                return Err(msg.into());
             }
-        };
-
-        if let Err(e) = insert_bandarmology(
-            session,
-            keyspace,
-            today,
-            emiten,
-            &days[0],
-            &days[1],
-            &days[2],
-            &days[3],
-        )
-        .await
-        {
-            eprintln!("Gagal insert bandarmology {emiten}: {e}");
-        } else {
-            ok += 1;
-            println!("OK: bandarmology insert {emiten}");
-        }
-
-        if idx + 1 < todo.len() {
-            let wait_ms = rand::thread_rng().gen_range(0u64..=2000);
-            println!(
-                "Jeda {} sebelum emiten berikutnya...",
-                format_wait_ms(wait_ms)
-            );
-            sleep(Duration::from_millis(wait_ms)).await;
         }
     }
     Ok(ok)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::NaiveDate;
+
+    #[test]
+    fn d7_range_matches_user_example() {
+        let today = NaiveDate::from_ymd_opt(2026, 7, 18).unwrap();
+        let to = bandarmology_to_date(today);
+        let (from, to2) = period_from_to(to, PeriodKind::Days(7));
+        assert_eq!(to, NaiveDate::from_ymd_opt(2026, 7, 17).unwrap());
+        assert_eq!(to2, to);
+        assert_eq!(from, NaiveDate::from_ymd_opt(2026, 7, 10).unwrap());
+    }
+
+    #[test]
+    fn d14_range_matches_user_example() {
+        let to = NaiveDate::from_ymd_opt(2026, 7, 17).unwrap();
+        let (from, _) = period_from_to(to, PeriodKind::Days(14));
+        assert_eq!(from, NaiveDate::from_ymd_opt(2026, 7, 3).unwrap());
+    }
 }

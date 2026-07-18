@@ -1,17 +1,26 @@
-//! Scrape Top Gainer / Top Loser (movers) Stockbit → insert `emiten_trending`.
+//! Top Gainer / Top Loser via API `exodus.stockbit.com/order-trade/market-mover`
+//! → insert `emiten_trending`. Bearer dari sesi browser (login Stockbit).
 //! Bila baris hari ini benar-benar baru (belum ada PK), ikut upsert
 //! `emiten_trending_count_by_name` (`appearance_count + 1`).
 
 use chrono::{Local, NaiveDate, Utc};
 use chromiumoxide::page::Page;
 use gcs::{download_and_upload_emiten_icon, GcsOAuthTokenCache, GcsSignedUrlRuntime};
-use rand::Rng;
 use scylla::client::session::Session;
 use scylla::DeserializeRow;
 use serde::Deserialize;
+use serde_json::Value;
 use std::sync::OnceLock;
 use std::time::Duration;
-use tokio::time::sleep;
+use stockbit_browser::extract_stockbit_bearer;
+
+const MARKET_MOVER_URL: &str = "https://exodus.stockbit.com/order-trade/market-mover";
+const FILTER_STOCKS_QUERY: &str = concat!(
+    "filter_stocks=FILTER_STOCKS_TYPE_MAIN_BOARD",
+    "&filter_stocks=FILTER_STOCKS_TYPE_DEVELOPMENT_BOARD",
+    "&filter_stocks=FILTER_STOCKS_TYPE_ACCELERATION_BOARD",
+    "&filter_stocks=FILTER_STOCKS_TYPE_NEW_ECONOMY_BOARD",
+);
 
 #[derive(Debug, DeserializeRow)]
 struct TrendingCountRow {
@@ -44,7 +53,7 @@ fn parse_price(raw: &str) -> f64 {
 }
 
 /// `emiten_trending.price_change` (double).
-/// Contoh UI: `"(+26.85%)"` → `26.85`, `"(-1.08%)"` → `-1.08`.
+/// Contoh API/UI: `"27.49%"` / `"(+26.85%)"` → `26.85`, `"(-1.08%)"` → `-1.08`.
 /// Buang `(`, `)`, `%`, spasi; tanda `+`/`-` tetap (positif tanpa `+`).
 fn parse_price_change(raw: &str) -> f64 {
     let cleaned: String = raw
@@ -78,189 +87,141 @@ async fn upload_emiten_icon_to_gcs(
     download_and_upload_emiten_icon(emiten, url, runtime, oauth).await
 }
 
-async fn click_mover_tab(page: &Page, label: &str) -> Result<(), Box<dyn std::error::Error>> {
-    for attempt in 1..=10 {
-        // Prefer id prefix MOVER_TYPE_* bila ada; fallback teks label di <p>.
-        let clicked = page
-            .evaluate(format!(
-                r#"(() => {{
-                    const label = {label_js};
-                    const byId = Array.from(document.querySelectorAll('[id^="MOVER_TYPE_"]'))
-                        .find((el) => {{
-                            const t = (el.innerText || el.textContent || '').trim();
-                            return t === label || t.includes(label);
-                        }});
-                    if (byId) {{ byId.click(); return true; }}
-                    const nodes = Array.from(document.querySelectorAll('p, span, button, div, a'));
-                    const target = nodes.find((el) => {{
-                        const t = (el.innerText || el.textContent || '').trim();
-                        return t === label;
-                    }});
-                    if (!target) return false;
-                    target.click();
-                    return true;
-                }})()"#,
-                label_js = serde_json::to_string(label).unwrap_or_else(|_| format!("\"{label}\""))
-            ))
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if clicked {
-            println!("'{label}' diklik (attempt {attempt}).");
-            return Ok(());
-        }
-        sleep(Duration::from_millis(500)).await;
-    }
-    Err(format!("Elemen '{label}' tidak ditemukan").into())
+#[derive(Debug, DeserializeRow)]
+struct EmitenListIconRow {
+    #[scylla(default_when_null)]
+    emiten_icon: String,
 }
 
-/// Scrape tabel movers di `#movers-table-wrapper` (Symbol / Price / Value / Volume / Freq).
-async fn scrape_movers_table(page: &Page) -> Result<Vec<MoversRow>, Box<dyn std::error::Error>> {
-    // Tunggu sampai ada baris tbody di tabel movers.
-    for _ in 0..20 {
-        let ready = page
-            .evaluate(
-                r#"(() => {
-                    const table = document.querySelector('#movers-table-wrapper table');
-                    if (!table) return false;
-                    return table.querySelectorAll('tbody tr').length > 0;
-                })()"#,
-            )
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if ready {
-            break;
+/// Ambil `emiten_list.emiten_icon` bila sudah terisi (hindari download/upload GCS ulang).
+async fn fetch_emiten_icon_from_list(
+    session: &Session,
+    stmt: &scylla::statement::prepared::PreparedStatement,
+    emiten: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let result = session
+        .execute_unpaged(stmt, (emiten,))
+        .await?
+        .into_rows_result()?;
+    Ok(result
+        .maybe_first_row::<EmitenListIconRow>()?
+        .map(|r| r.emiten_icon)
+        .unwrap_or_default()
+        .trim()
+        .to_string())
+}
+
+/// Prefer icon dari `emiten_list`; fallback download
+/// `https://assets.stockbit.com/logos/companies/{CODE}.png` → upload GCS.
+async fn resolve_trending_emiten_icon(
+    session: &Session,
+    list_icon_stmt: &scylla::statement::prepared::PreparedStatement,
+    emiten: &str,
+    _movers_icon_url: &str,
+) -> String {
+    match fetch_emiten_icon_from_list(session, list_icon_stmt, emiten).await {
+        Ok(path) if !path.is_empty() => return path,
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("Peringatan: baca emiten_list.emiten_icon {emiten}: {e}");
         }
-        sleep(Duration::from_millis(500)).await;
+    }
+    let url = format!("https://assets.stockbit.com/logos/companies/{emiten}.png");
+    match upload_emiten_icon_to_gcs(emiten, &url).await {
+        Ok(path) => path,
+        Err(e) => {
+            eprintln!("Peringatan: gagal upload icon GCS {emiten}: {e}");
+            String::new()
+        }
+    }
+}
+
+async fn fetch_market_mover(
+    http: &reqwest::Client,
+    bearer: &str,
+    mover_type: &str,
+) -> Result<Vec<MoversRow>, Box<dyn std::error::Error>> {
+    let url = format!("{MARKET_MOVER_URL}?mover_type={mover_type}&{FILTER_STOCKS_QUERY}");
+    let resp = http
+        .get(&url)
+        .header("Authorization", format!("Bearer {bearer}"))
+        .header("Accept", "application/json, text/plain, */*")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .header("x-platform", "web")
+        .send()
+        .await?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        let preview: String = body.chars().take(280).collect();
+        return Err(format!("market-mover {mover_type} HTTP {status}: {preview}").into());
     }
 
-    let json = page
-        .evaluate(
-            r#"(() => {
-                const parsePriceCell = (cell) => {
-                    if (!cell) return { price: '', price_change: '' };
-                    const spans = Array.from(cell.querySelectorAll('span'));
-                    // Contoh: <span>137</span><span class="green">(+26.85%)</span>
-                    if (spans.length >= 2) {
-                        return {
-                            price: (spans[0].innerText || '').trim(),
-                            price_change: (spans[1].innerText || '').trim(),
-                        };
-                    }
-                    const text = (cell.innerText || '').trim();
-                    const m = text.match(/^([\d,.]+)\s*\(([+-]?[\d.,]+%)\)/);
-                    if (m) {
-                        return { price: m[1], price_change: '(' + m[2] + ')' };
-                    }
-                    return { price: text.split(/\s+/)[0] || '', price_change: '' };
-                };
+    let v: Value = serde_json::from_str(&body)
+        .map_err(|e| format!("market-mover {mover_type} JSON: {e}"))?;
+    let list = v
+        .pointer("/data/mover_list")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
 
-                const table = document.querySelector('#movers-table-wrapper table');
-                if (!table) return '[]';
+    let mut rows = Vec::with_capacity(list.len());
+    for item in list {
+        let symbol = item
+            .pointer("/stock_detail/code")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_uppercase();
+        if symbol.is_empty() {
+            continue;
+        }
+        let emiten_icon = item
+            .pointer("/stock_detail/icon_url")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let price = match item.get("price") {
+            Some(Value::Number(n)) => n.to_string(),
+            Some(Value::String(s)) => s.trim().to_string(),
+            _ => String::new(),
+        };
+        let pct = item
+            .pointer("/change/percentage")
+            .and_then(|x| x.as_f64())
+            .unwrap_or(0.0);
+        let price_change = format!("{pct:.2}%");
+        let value = item
+            .pointer("/value/formatted")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let volume = item
+            .pointer("/volume/formatted")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let freq = item
+            .pointer("/frequency/formatted")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
 
-                // Map header → index (termasuk Freq) agar tidak bergantung urutan tetap.
-                const headerCells = Array.from(
-                    table.querySelectorAll(
-                        'thead th, thead td, [role="columnheader"], thead [class*="header"]'
-                    )
-                );
-                const headerIndex = {};
-                const mapHeader = (label, i) => {
-                    const t = (label || '').trim().toLowerCase();
-                    if (!t) return;
-                    if (t.includes('freq') || t.includes('frequency') || t.includes('frekuensi')) {
-                        headerIndex.freq = i;
-                    } else if (t.includes('volume') || t === 'vol') {
-                        headerIndex.volume = i;
-                    } else if (t.includes('value') || t === 'val') {
-                        headerIndex.value = i;
-                    } else if (t.includes('price') || t.includes('last') || t === 'chg') {
-                        if (headerIndex.price == null) headerIndex.price = i;
-                    } else if (t.includes('symbol') || t.includes('code')) {
-                        headerIndex.symbol = i;
-                    }
-                };
-                headerCells.forEach((th, i) => {
-                    mapHeader(th.innerText || th.textContent || '', i);
-                    mapHeader(th.getAttribute('aria-label') || '', i);
-                    mapHeader(th.getAttribute('title') || '', i);
-                });
-                // Fallback: baris header di dalam wrapper bila thead kosong.
-                if (headerIndex.freq == null) {
-                    const wrap = document.querySelector('#movers-table-wrapper');
-                    const candidates = wrap
-                        ? Array.from(wrap.querySelectorAll('div, span, p, th, td')).slice(0, 80)
-                        : [];
-                    candidates.forEach((el) => {
-                        const t = (el.innerText || el.textContent || '').trim().toLowerCase();
-                        if (t === 'freq' || t === 'frequency' || t === 'frekuensi') {
-                            const cell = el.closest('th, td, [role="columnheader"]') || el;
-                            const row = cell.parentElement;
-                            if (row) {
-                                const kids = Array.from(row.children);
-                                const idx = kids.indexOf(cell);
-                                if (idx >= 0) headerIndex.freq = idx;
-                            }
-                        }
-                    });
-                }
-
-                const rows = Array.from(table.querySelectorAll('tbody tr'));
-                const out = rows.map((tr) => {
-                    const tds = Array.from(tr.querySelectorAll('td'));
-                    // Fallback: lewati kolom gap kosong → symbol, price, value, volume, freq.
-                    const filled = tds.filter((td) => !!(td.innerText || '').trim());
-
-                    const cellAt = (key, fallbackFilledIdx) => {
-                        if (headerIndex[key] != null && tds[headerIndex[key]]) {
-                            return tds[headerIndex[key]];
-                        }
-                        return filled[fallbackFilledIdx] || null;
-                    };
-
-                    const symbolEl = tr.querySelector('.symbol span[style*="font-weight"], .symbol span');
-                    let symbol = symbolEl
-                        ? (symbolEl.innerText || '').trim().split(/\s+/)[0]
-                        : '';
-                    const symbolCell = cellAt('symbol', 0);
-                    if (!symbol && symbolCell) {
-                        symbol = (symbolCell.innerText || '').trim().split(/\s+/)[0];
-                    }
-                    const iconEl = tr.querySelector(
-                        '.symbol img, td:first-child img, img'
-                    );
-                    const emiten_icon = iconEl
-                        ? (iconEl.currentSrc || iconEl.getAttribute('src') || '').trim()
-                        : '';
-                    const { price, price_change } = parsePriceCell(cellAt('price', 1));
-                    const valueCell = cellAt('value', 2);
-                    const volumeCell = cellAt('volume', 3);
-                    const freqCell = cellAt('freq', 4);
-                    const value = valueCell ? (valueCell.innerText || '').trim() : '';
-                    const volume = volumeCell ? (volumeCell.innerText || '').trim() : '';
-                    const freq = freqCell ? (freqCell.innerText || '').trim() : '';
-                    return { symbol, emiten_icon, price, price_change, value, volume, freq };
-                }).filter((r) => r.symbol);
-                return JSON.stringify(out);
-            })()"#,
-        )
-        .await?
-        .into_value::<String>()
-        .unwrap_or_else(|_| "[]".to_string());
-
-    let rows: Vec<MoversRow> = serde_json::from_str(&json)?;
-    let with_freq = rows.iter().filter(|r| !r.freq.trim().is_empty()).count();
-    println!(
-        "Movers scrape: {} baris, {} punya Freq (contoh: {:?})",
-        rows.len(),
-        with_freq,
-        rows.first().map(|r| (r.symbol.as_str(), r.freq.as_str()))
-    );
-    if !rows.is_empty() && with_freq == 0 {
-        eprintln!(
-            "Peringatan: kolom Freq kosong di semua baris movers — periksa header tabel Stockbit."
-        );
+        rows.push(MoversRow {
+            symbol,
+            emiten_icon,
+            price,
+            price_change,
+            value,
+            volume,
+            freq,
+        });
     }
     Ok(rows)
 }
@@ -349,6 +310,12 @@ async fn insert_emiten_trending(
         ))
         .await?;
 
+    let list_icon_stmt = session
+        .prepare(format!(
+            "SELECT emiten_icon FROM {keyspace}.emiten_list WHERE code_name = ?"
+        ))
+        .await?;
+
     let mut n = 0usize;
     let mut new_count_bumps = 0usize;
     for row in rows {
@@ -362,13 +329,13 @@ async fn insert_emiten_trending(
 
         let price_change = parse_price_change(&row.price_change);
         let price = parse_price(&row.price);
-        let emiten_icon = match upload_emiten_icon_to_gcs(&emiten, &row.emiten_icon).await {
-            Ok(path) => path,
-            Err(e) => {
-                eprintln!("Peringatan: gagal upload icon GCS {emiten}: {e}");
-                String::new()
-            }
-        };
+        let emiten_icon = resolve_trending_emiten_icon(
+            session,
+            &list_icon_stmt,
+            &emiten,
+            &row.emiten_icon,
+        )
+        .await;
         session
             .execute_unpaged(
                 &insert,
@@ -386,6 +353,11 @@ async fn insert_emiten_trending(
                 ),
             )
             .await?;
+        println!(
+            "\nemiten_trending insert {emiten} ({gainer_or_loser}): \
+             price={price} change={price_change} value={} volume={} freq={}",
+            row.value, row.volume, row.freq
+        );
         n += 1;
 
         if is_new_today {
@@ -414,48 +386,43 @@ async fn insert_emiten_trending(
     Ok(n)
 }
 
-fn random_ms(min: u64, max: u64) -> u64 {
-    rand::thread_rng().gen_range(min..=max)
-}
-
-/// Klik movers → Top Gainer + Top Loser → insert `emiten_trending`.
+/// Ambil Top Gainer + Top Loser via API market-mover → insert `emiten_trending`.
+/// Bearer dari sesi browser (login Stockbit).
 /// Returns `(inserted_gainer, inserted_loser)`.
 pub async fn scrape_and_insert_movers(
     page: &Page,
     session: &Session,
     keyspace: &str,
 ) -> Result<(usize, usize), Box<dyn std::error::Error>> {
-    println!("Mengklik right-menu-movers...");
-    if let Ok(btn) = page.find_element(r#"[data-cy="right-menu-movers"]"#).await {
-        btn.click().await?;
-        let wait_ms = random_ms(500, 800);
-        sleep(Duration::from_millis(wait_ms)).await;
-    } else {
-        return Err("Error: Tombol [data-cy=\"right-menu-movers\"] tidak ditemukan!".into());
-    }
+    println!("Market mover: ambil Bearer dari sesi browser...");
+    let bearer = extract_stockbit_bearer(page)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    println!("Bearer OK (len={}).", bearer.len());
 
-    println!("Mengklik Top Gainer...");
-    click_mover_tab(page, "Top Gainer").await?;
-    sleep(Duration::from_millis(random_ms(300, 500))).await;
+    let http = reqwest::Client::builder()
+        .user_agent(
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        )
+        .timeout(Duration::from_secs(60))
+        .build()?;
 
-    let gainer_rows = scrape_movers_table(page).await?;
-    println!("Top Gainer: {} baris di-scrape.", gainer_rows.len());
+    println!("Market mover: TOP_GAINER...");
+    let gainer_rows = fetch_market_mover(&http, &bearer, "MOVER_TYPE_TOP_GAINER").await?;
+    println!("Top Gainer: {} baris dari API.", gainer_rows.len());
     if gainer_rows.is_empty() {
-        return Err("Tabel Top Gainer kosong / tidak terbaca".into());
+        return Err("Top Gainer kosong dari API market-mover".into());
     }
 
     let inserted_gainer =
         insert_emiten_trending(session, keyspace, &gainer_rows, "gainer").await?;
     println!("OK: {inserted_gainer} baris diinsert ke emiten_trending (gainer).");
 
-    println!("Mengklik Top Loser...");
-    click_mover_tab(page, "Top Loser").await?;
-    sleep(Duration::from_millis(random_ms(500, 800))).await;
-
-    let loser_rows = scrape_movers_table(page).await?;
-    println!("Top Loser: {} baris di-scrape.", loser_rows.len());
+    println!("Market mover: TOP_LOSER...");
+    let loser_rows = fetch_market_mover(&http, &bearer, "MOVER_TYPE_TOP_LOSER").await?;
+    println!("Top Loser: {} baris dari API.", loser_rows.len());
     if loser_rows.is_empty() {
-        return Err("Tabel Top Loser kosong / tidak terbaca".into());
+        return Err("Top Loser kosong dari API market-mover".into());
     }
 
     let inserted_loser = insert_emiten_trending(session, keyspace, &loser_rows, "loser").await?;
@@ -485,5 +452,8 @@ mod tests {
         assert_eq!(parse_price_change("(-1.08%)"), -1.08);
         assert_eq!(parse_price_change("-1.08%"), -1.08);
         assert_eq!(parse_price_change("(-12.50%)"), -12.50);
+        // Format dari API market-mover (`change.percentage`)
+        assert_eq!(parse_price_change("27.49%"), 27.49);
+        assert_eq!(parse_price_change("-14.35%"), -14.35);
     }
 }

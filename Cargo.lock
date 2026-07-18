@@ -2347,6 +2347,7 @@ dependencies = [
  "chromiumoxide",
  "futures",
  "rand 0.8.7",
+ "serde_json",
  "tokio",
 ]
 
@@ -3135,6 +3136,7 @@ dependencies = [
  "futures-util",
  "gcs",
  "rand 0.8.7",
+ "reqwest 0.12.28",
  "scylla",
  "serde",
  "serde_json",

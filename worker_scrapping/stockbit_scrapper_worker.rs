@@ -15,12 +15,17 @@
 //! Env Scylla (insert `emiten_trending`, `emiten_list`, `bandarmology`, `portofolio`): `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
 //! Env Trading PIN: `STOCKBUT_PIN` (atau `STOCKBIT_PIN`).
 //!
-//! Setelah movers → Top Gainer/Loser → insert `emiten_trending`.
+//! Setelah movers via API `order-trade/market-mover` (TOP_GAINER / TOP_LOSER)
+//! → insert `emiten_trending`.
 //! Bila PK hari ini baru (insert murni), upsert juga `emiten_trending_count_by_name`
 //! (`appearance_count + 1`, `last_tahun_bulan_tanggal` = hari ini, `updated_at` = now).
-//! Lalu token-ring scan `emiten_list.code_name` → Key Stats + Corp. Action + Profile → upsert `emiten_list`
-//! (hanya kolom scrape; tidak mengubah `is_konglomerasi`, `sector`, `is_fundamental_solid`, `is_blue_chip`).
-//! Kemudian Bandar Detector → Last 7D / Last 1M / Last 3M / Last 1Y → insert `bandarmology` (d_7, M_1, M_3, M_12).
+//! Lalu token-ring scan `emiten_list.code_name` → Key Stats + Corp. Action + Profile API
+//! (`keystats/ratio`, `corpaction`, `emitten/{CODE}/profile`) → upsert `emiten_list`
+//! (hanya kolom scrape; tidak mengisi `sector`, `is_konglomerasi`, `is_fundamental_solid`,
+//! `is_blue_chip`, `catatan`, `catatan_owner`, `foto_owner`).
+//! Kemudian Bandar Detector via API `exodus.stockbit.com/marketdetectors/{CODE}`
+//! (Bearer dari sesi login; `to` = kemarin; d_7/d_14/M_*/Y_* by from–to) → insert `bandarmology`.
+//! Throttle otomatis bila `x-rate-limit-remaining` hampir habis.
 //! Lalu START TRADING (PIN bila perlu) → jeda 2s → https://stockbit.com/securities/portfolio → insert `portofolio`.
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
@@ -41,7 +46,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use stockbit_browser::{
     dismiss_profile_avatar_modal, goto_stockbit, launch_page, open_stream_or_login,
-    STOCKBIT_STREAM_URL,
 };
 use tokio::time::sleep;
 
@@ -233,13 +237,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let today = Local::now().date_naive();
     println!("Token-ring scan emiten_list.code_name...");
-    let emitens = bandarmology_worker::fetch_emiten_list_code_names(&session, &ks).await?;
+    let emitens = bandarmology_worker::fetch_emiten_list_code_names(&session, &ks)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     println!(
         "Ditemukan {} emiten (emiten_list token-ring scan).",
         emitens.len()
     );
 
-    // Upsert scrape-only: kolom manual emiten_list (is_konglomerasi, sector, flags) tidak ditimpa.
+    // Upsert scrape-only: tidak mengisi sector, is_konglomerasi, is_blue_chip,
+    // catatan, catatan_owner, foto_owner (dan is_fundamental_solid).
     let key_stats_ok =
         emiten_list_worker::scrape_and_insert_key_stats(&page, &session, &ks, &emitens).await?;
     println!("OK: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");
@@ -255,18 +262,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         save_step_screenshot(&page, "07", "keystats").await?;
     }
 
-    println!("Kembali ke /stream untuk bandarmology...");
-    goto_stockbit(&page, STOCKBIT_STREAM_URL)
-        .await
-        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-    sleep(Duration::from_secs(2)).await;
-    dismiss_profile_avatar_modal(&page)
-        .await
-        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-
+    println!("Bandarmology via marketdetectors API (Bearer dari sesi browser)...");
     let bandar_ok =
         bandarmology_worker::scrape_and_insert_bandarmology(&page, &session, &ks, today, &emitens)
-            .await?;
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");
     save_step_screenshot(&page, "09", "bandarmology").await?;
 

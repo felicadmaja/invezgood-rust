@@ -44,7 +44,7 @@ impl EmitenListRepository {
             .get_or_try_init(|| async {
                 const COLUMNS: &str = "code_name, long_name, emiten_icon, key_stats, corporate_action, \
                      company_profile, update_at, is_konglomerasi, sector, is_fundamental_solid, is_blue_chip, \
-                     catatan, catatan_owner, foto_owner";
+                     catatan, catatan_owner, foto_owner, net_income";
                 let q = format!(
                     "SELECT {COLUMNS} FROM {} \
                      WHERE token(code_name) >= ? AND token(code_name) <= ?",

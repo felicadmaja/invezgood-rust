@@ -22,21 +22,23 @@ Kolom dan tipe CQL, kata demi kata:
   "catatan" text
   "catatan_owner" text
   "foto_owner" text
-Sumber: DDL bin create_emiten_list + ALTER TABLE (sector, is_fundamental_solid, is_blue_chip, catatan, catatan_owner, foto_owner); diisi aplikasi pada INSERT/UPDATE.
+  "net_income" map<text, frozen<map<text, text>>>
+Sumber: DDL bin create_emiten_list + ALTER TABLE (sector, is_fundamental_solid, is_blue_chip, catatan, catatan_owner, foto_owner, net_income); diisi aplikasi pada INSERT/UPDATE.
 Kolom "code_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
 Kolom "emiten_icon": text — path object GCS modul stoksaham (mis. stoksaham/icon/BBCA.png).
 Kolom "key_stats": map<text, text> — statistik kunci emiten (pasangan key-value); contoh dari UI Key Stats: "Market Cap", "Enterprise Value", "Current Share Outstanding", "Free Float", Income Statement ("Revenue (TTM)", "Gross Profit (TTM)", "EBITDA (TTM)", "Net Income (TTM)"), Solvency ("Current Ratio (Quarter)", "Debt to Equity Ratio (Quarter)", dll.), margin Profitability, Cash Flow Statement ("Cash From Operations (TTM)", "Cash From Investing (TTM)", "Cash From Financing (TTM)", "Capital expenditure (TTM)", "Free cash flow (TTM)"), dll.
+Kolom "net_income": map<text, frozen<map<text, text>>> — laba bersih per tahun → periode → nilai (teks UI). Outer key = tahun ("2026"); inner key = "Q1"|"Q2"|"Q3"|"Q4"|"Annualised"|"TTM (Q1)" (dll.); value contoh "1,387 B" atau "-".
 Kolom "corporate_action": list<frozen<map<text, frozen<list<frozen<map<text, text>>>>>>> — aksi korporasi sebagai list berurutan; tiap elemen map jenis aksi → list atribut; contoh [{ "Dividend": [{ "Dividend": "Rp 209" }, { "Cum Date": "20 Apr 26" }, { "Ex Date": "21 Apr 26" }, { "Recording Date": "22 Apr 26" }, { "Payment Date": "8 Mei 2026" }] }, ...].
 Kolom "company_profile": frozen<company_profile> — profil perusahaan (lihat UDT di bawah).
-Kolom "update_at": timestamp — waktu terakhir data emiten diperbarui.
-Kolom "is_konglomerasi": boolean — true bila emiten termasuk konglomerasi; default false.
 Kolom "sector": tinyint — kode sektor emiten (`EmitenSector` proto, 0 = UNSPECIFIED); null dibaca sebagai 0.
+Kolom "is_konglomerasi": boolean — true bila emiten termasuk konglomerasi; default false.
 Kolom "is_fundamental_solid": boolean — true bila fundamental solid; default false.
 Kolom "is_blue_chip": boolean — true bila blue chip; default false.
 Kolom "catatan": text — catatan manual untuk emiten (kosong bila belum di-set).
 Kolom "catatan_owner": text — pemilik/penulis catatan (kosong bila belum di-set).
 Kolom "foto_owner": text — path/URL foto pemilik catatan (kosong bila belum di-set).
+Kolom "update_at": timestamp — waktu terakhir data emiten diperbarui.
 
 --- Materialized view (MV) ---
 (1) "stockbit"."emiten_list_by_is_blue_chip" — base "emiten_list"; PRIMARY KEY (("is_blue_chip"), "code_name"); CLUSTERING ORDER BY ("code_name" ASC); SELECT *; WHERE is_blue_chip IS NOT NULL AND code_name IS NOT NULL. Lookup daftar blue chip: WHERE is_blue_chip = true.

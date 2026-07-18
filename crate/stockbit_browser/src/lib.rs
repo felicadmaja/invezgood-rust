@@ -265,6 +265,49 @@ pub async fn launch_page() -> Result<(Browser, Page), StockbitError> {
         Object.defineProperty(navigator, 'webdriver', {
             get: () => undefined
         });
+        // Tangkap Authorization Bearer yang dipakai SPA (exodus.stockbit.com, dll.).
+        (function () {
+            try {
+                if (window.__sbCaptureAuthInstalled) return;
+                window.__sbCaptureAuthInstalled = true;
+                window.__sbCapturedBearer = '';
+                const remember = (v) => {
+                    if (!v || typeof v !== 'string') return;
+                    const t = v.replace(/^Bearer\s+/i, '').trim();
+                    if (t.startsWith('eyJ')) window.__sbCapturedBearer = t;
+                };
+                const wrapHeaders = (headers) => {
+                    if (!headers) return;
+                    try {
+                        if (typeof headers.get === 'function') {
+                            remember(headers.get('Authorization') || headers.get('authorization'));
+                        } else if (typeof headers === 'object') {
+                            remember(headers.Authorization || headers.authorization);
+                        }
+                    } catch (_) {}
+                };
+                const ofetch = window.fetch;
+                window.fetch = function (input, init) {
+                    try {
+                        if (init && init.headers) wrapHeaders(init.headers);
+                        if (input && typeof input === 'object' && input.headers) wrapHeaders(input.headers);
+                    } catch (_) {}
+                    return ofetch.apply(this, arguments);
+                };
+                const oOpen = XMLHttpRequest.prototype.open;
+                const oSet = XMLHttpRequest.prototype.setRequestHeader;
+                XMLHttpRequest.prototype.open = function () {
+                    this.__sbUrl = arguments[1];
+                    return oOpen.apply(this, arguments);
+                };
+                XMLHttpRequest.prototype.setRequestHeader = function (k, v) {
+                    try {
+                        if (String(k).toLowerCase() === 'authorization') remember(v);
+                    } catch (_) {}
+                    return oSet.apply(this, arguments);
+                };
+            } catch (_) {}
+        })();
     "#,
     )
     .await?;
@@ -801,6 +844,143 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
     send_update(&tx, true, "Stockbit ready").await;
     browser.close().await?;
     Ok(())
+}
+
+/// Ambil Bearer JWT Stockbit (`iss=STOCKBIT`) dari sesi browser setelah login.
+/// Mengabaikan token EIPO/securities. Juga memindai cookie CDP (nilai plain dari Chrome).
+pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitError> {
+    // Kumpulkan cookie plain dari Chrome, lalu scan JWT di JS bersama localStorage.
+    let mut cookie_blob = String::new();
+    if let Ok(cookies) = page.get_cookies().await {
+        for c in cookies {
+            cookie_blob.push_str(&c.name);
+            cookie_blob.push('=');
+            cookie_blob.push_str(&c.value);
+            cookie_blob.push(';');
+        }
+    }
+
+    let cookie_js = serde_json::to_string(&cookie_blob).unwrap_or_else(|_| "\"\"".into());
+    let picked = page
+        .evaluate(format!(
+            r#"((cookieBlob) => {{
+                const hits = [];
+                const b64url = (s) => {{
+                    try {{
+                        const pad = '='.repeat((4 - (s.length % 4)) % 4);
+                        const b64 = (s + pad).replace(/-/g, '+').replace(/_/g, '/');
+                        return JSON.parse(atob(b64));
+                    }} catch (_) {{ return null; }}
+                }};
+                const addToken = (raw, source) => {{
+                    if (!raw || typeof raw !== 'string') return;
+                    const m = raw.match(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g);
+                    if (!m) return;
+                    for (const token of m) {{
+                        const p = b64url(token.split('.')[1] || '');
+                        hits.push({{
+                            token,
+                            source,
+                            iss: (p && p.iss) ? String(p.iss) : '',
+                            token_type: (p && p.token_type) ? String(p.token_type) : '',
+                        }});
+                    }}
+                }};
+                const scanStorage = (storage, label) => {{
+                    try {{
+                        for (let i = 0; i < storage.length; i++) {{
+                            const key = storage.key(i);
+                            if (!key) continue;
+                            addToken(storage.getItem(key) || '', label + ':' + key);
+                        }}
+                    }} catch (_) {{}}
+                }};
+                scanStorage(window.localStorage, 'localStorage');
+                scanStorage(window.sessionStorage, 'sessionStorage');
+                try {{ addToken(document.cookie || '', 'document.cookie'); }} catch (_) {{}}
+                addToken(cookieBlob || '', 'cdp.cookies');
+                try {{
+                    if (window.__sbCapturedBearer) {{
+                        addToken(window.__sbCapturedBearer, 'network.capture');
+                    }}
+                }} catch (_) {{}}
+
+                const seen = new Set();
+                const uniq = [];
+                for (const h of hits) {{
+                    if (seen.has(h.token)) continue;
+                    seen.add(h.token);
+                    uniq.push(h);
+                }}
+
+                const stockbit = uniq.find((h) => (h.iss || '').toUpperCase() === 'STOCKBIT');
+                const chosen = stockbit || null;
+                return JSON.stringify({{
+                    candidates: uniq.map((h) => ({{
+                        source: h.source,
+                        iss: h.iss,
+                        token_type: h.token_type,
+                        len: (h.token || '').length,
+                    }})),
+                    token: chosen ? chosen.token : '',
+                    chosen_source: chosen ? chosen.source : '',
+                    chosen_iss: chosen ? chosen.iss : '',
+                    chosen_type: chosen ? chosen.token_type : '',
+                }});
+            }})({cookie_js})"#
+        ))
+        .await?
+        .into_value::<String>()
+        .unwrap_or_else(|_| "{}".to_string());
+
+    let v: serde_json::Value = serde_json::from_str(&picked).unwrap_or_default();
+    if let Some(arr) = v.get("candidates").and_then(|x| x.as_array()) {
+        let summary: Vec<String> = arr
+            .iter()
+            .map(|h| {
+                format!(
+                    "{} iss={} type={} len={}",
+                    h.get("source").and_then(|x| x.as_str()).unwrap_or("-"),
+                    h.get("iss").and_then(|x| x.as_str()).unwrap_or("-"),
+                    h.get("token_type").and_then(|x| x.as_str()).unwrap_or("-"),
+                    h.get("len").and_then(|x| x.as_u64()).unwrap_or(0),
+                )
+            })
+            .collect();
+        println!(
+            "Stockbit bearer candidates ({}): {}",
+            summary.len(),
+            if summary.is_empty() {
+                "(none)".into()
+            } else {
+                summary.join(" | ")
+            }
+        );
+    }
+
+    let token = v
+        .get("token")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if token.starts_with("eyJ") {
+        println!(
+            "Stockbit bearer dipilih: source={} iss={} type={} len={}",
+            v.get("chosen_source").and_then(|x| x.as_str()).unwrap_or("-"),
+            v.get("chosen_iss").and_then(|x| x.as_str()).unwrap_or("-"),
+            v.get("chosen_type").and_then(|x| x.as_str()).unwrap_or("-"),
+            token.len()
+        );
+        return Ok(token);
+    }
+
+    Err(
+        "Bearer iss=STOCKBIT tidak ditemukan di localStorage/sessionStorage/cookie. \
+         Token EIPO/securities diabaikan (akan 401 di marketdetectors). \
+         Pastikan sesi login web Stockbit aktif di Chrome worker."
+            .into(),
+    )
 }
 
 /// Alur awal worker: akses `/stream`, login hanya bila di-redirect ke `/login` / sesi habis.

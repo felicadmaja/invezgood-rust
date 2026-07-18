@@ -12,11 +12,15 @@ Kolom dan tipe CQL:
   "d_1" frozen<bandarmology_day>
   "d_2" frozen<bandarmology_day>
   "d_7" frozen<bandarmology_day>
+  "d_14" frozen<bandarmology_day>
   "M_1" frozen<bandarmology_day>
   "M_3" frozen<bandarmology_day>
   "M_6" frozen<bandarmology_day>
   "M_12" frozen<bandarmology_day>
-
+  "Y_3" frozen<bandarmology_day>
+  "Y_5" frozen<bandarmology_day>
+  "Y_10" frozen<bandarmology_day>
+  "Y_15" frozen<bandarmology_day>
 --- User-defined type (UDT) ---
 (1) "stockbit"."bandarmology_top_stats" — volume bigint, percent double, rp_b bigint, acc_dist text.
 (2) "stockbit"."bandarmology_broker_buy" — broker_code text, buy_volume text, buy_lot text, buy_avg bigint.

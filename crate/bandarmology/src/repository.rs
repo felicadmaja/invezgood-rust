@@ -33,7 +33,8 @@ impl BandarmologyRepository {
             .get_or_try_init(|| async {
                 let q = format!(
                     "SELECT agg_tahun_bulan_tanggal_emiten_name, emiten_name, tahun_bulan_tanggal, \
-                     d_1, d_2, d_7, \"M_1\", \"M_3\", \"M_6\", \"M_12\" \
+                     d_1, d_2, d_7, d_14, \"M_1\", \"M_3\", \"M_6\", \"M_12\", \
+                     \"Y_3\", \"Y_5\", \"Y_10\", \"Y_15\" \
                      FROM {} WHERE agg_tahun_bulan_tanggal_emiten_name = ? LIMIT 1",
                     self.table
                 );

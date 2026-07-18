@@ -9,8 +9,10 @@ service EmitenList {
 
   // Lookup satu baris via PK base table: emiten_list.code_name = code_name.
   // code_name di server di-capitalize ke uppercase (bbca → BBCA).
-  // Bila tidak ada di Scylla: scrape Key Stats (+ emiten_icon dari header / trending → GCS),
-  // Corporate Action, Profile; upsert lalu UPDATE update_at = now().
+  // Bila tidak ada di Scylla: scrape Key Stats (+ tabel Period (IDR) → net_income,
+  // emiten_icon dari header / trending → GCS), Corporate Action, Profile;
+  // upsert lalu UPDATE update_at = now().
+  // Response `EmitenListRow.net_income`: tahun → { Q1..Q4 / Annualised / TTM… → nilai }.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetEmitenListByCodeName(GetEmitenListByCodeNameRequest) returns (GetEmitenListByCodeNameResponse);
 
@@ -228,6 +230,14 @@ message EmitenListRow {
   EmitenSector sector = 9;
   bool is_fundamental_solid = 10;
   bool is_blue_chip = 11;
+  // Tahun → periode → nilai; bentuk CQL map<text, frozen<map<text, text>>>.
+  // Contoh: "2026" → { "Q1": "1,387 B", "Annualised": "5,547 B", "TTM (Q1)": "3,855 B", ... }.
+  map<string, NetIncomeYear> net_income = 12;
+}
+
+// Satu tahun net income: periode (Q1..Q4, Annualised, TTM ...) → nilai teks.
+message NetIncomeYear {
+  map<string, string> periods = 1;
 }
 
 message EmitenListSingkatRow {

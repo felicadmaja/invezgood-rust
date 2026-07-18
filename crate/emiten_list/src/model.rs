@@ -18,6 +18,7 @@
 //! | catatan                | text     | String |
 //! | catatan_owner          | text     | String |
 //! | foto_owner             | text     | String |
+//! | net_income             | map\<text, frozen\<map\<text, text\>\>\> | HashMap\<String, HashMap\<String, String\>\> |
 
 use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
@@ -26,7 +27,7 @@ use std::collections::HashMap;
 use crate::{
     CompanyProfile as ProtoCompanyProfile, CorporateActionDetailList, CorporateActionGroup,
     CorporateActionKv, EmitenListRow, EmitenListSingkatRow, EmitenShareholder as ProtoShareholder,
-    EmitenShareholderGt1 as ProtoShareholderGt1,
+    EmitenShareholderGt1 as ProtoShareholderGt1, NetIncomeYear,
 };
 
 fn sector_to_proto(sector: Option<i8>) -> i32 {
@@ -181,6 +182,9 @@ pub struct EmitenList {
     /// Path/URL foto pemilik catatan.
     #[scylla(default_when_null)]
     pub foto_owner: String,
+    /// Tahun → { Q1/Q2/... → nilai teks }.
+    #[scylla(default_when_null)]
+    pub net_income: HashMap<String, HashMap<String, String>>,
 }
 
 impl EmitenList {
@@ -200,6 +204,11 @@ impl EmitenList {
             sector: sector_to_proto(self.sector),
             is_fundamental_solid: self.is_fundamental_solid,
             is_blue_chip: self.is_blue_chip,
+            net_income: self
+                .net_income
+                .into_iter()
+                .map(|(year, periods)| (year, NetIncomeYear { periods }))
+                .collect(),
         }
     }
 
