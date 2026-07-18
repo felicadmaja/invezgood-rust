@@ -794,7 +794,8 @@ async fn fetch_long_name_from_search(
 
 /// Upsert kolom hasil scrape saja.
 /// Tidak mengisi / mengubah: `sector`, `is_konglomerasi`, `is_fundamental_solid`,
-/// `is_blue_chip`, `catatan`, `catatan_owner`, `foto_owner` (manual / aplikasi lain).
+/// `is_blue_chip`, `is_plan_to_trade`, `catatan`, `catatan_owner`, `foto_owner`
+/// (manual / aplikasi lain).
 async fn upsert_emiten_list(
     session: &Session,
     keyspace: &str,

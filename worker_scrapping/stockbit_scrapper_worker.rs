@@ -198,7 +198,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Upsert scrape-only: tidak mengisi sector, is_konglomerasi, is_blue_chip,
-    // catatan, catatan_owner, foto_owner (dan is_fundamental_solid).
+    // is_plan_to_trade, catatan, catatan_owner, foto_owner (dan is_fundamental_solid).
     let key_stats_ok =
         emiten_list_worker::scrape_and_insert_key_stats(&page, &session, &ks, &emitens).await?;
     println!("OK: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");

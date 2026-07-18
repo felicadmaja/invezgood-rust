@@ -1,0 +1,1 @@
+tambahkan icon dompet untuk emiten yang sudah ada di porto

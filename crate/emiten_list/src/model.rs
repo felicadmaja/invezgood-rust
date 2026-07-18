@@ -15,6 +15,7 @@
 //! | sector                 | tinyint  | Option\<i8\> |
 //! | is_fundamental_solid   | boolean  | bool (default false) |
 //! | is_blue_chip           | boolean  | bool (default false) |
+//! | is_plan_to_trade       | boolean  | bool (default false) |
 //! | catatan                | text     | String |
 //! | catatan_owner          | text     | String |
 //! | foto_owner             | text     | String |
@@ -26,7 +27,7 @@ use std::collections::HashMap;
 
 use crate::{
     CompanyProfile as ProtoCompanyProfile, CorporateActionDetailList, CorporateActionGroup,
-    CorporateActionKv, EmitenListRow, EmitenListSingkatRow, EmitenShareholder as ProtoShareholder,
+    CorporateActionKv, EmitenListRow, EmitenShareholder as ProtoShareholder,
     EmitenShareholderGt1 as ProtoShareholderGt1, NetIncomeYear,
 };
 
@@ -175,6 +176,8 @@ pub struct EmitenList {
     #[scylla(default_when_null)]
     pub is_blue_chip: bool,
     #[scylla(default_when_null)]
+    pub is_plan_to_trade: bool,
+    #[scylla(default_when_null)]
     pub catatan: String,
     /// Pemilik/penulis catatan.
     #[scylla(default_when_null)]
@@ -204,22 +207,12 @@ impl EmitenList {
             sector: sector_to_proto(self.sector),
             is_fundamental_solid: self.is_fundamental_solid,
             is_blue_chip: self.is_blue_chip,
+            is_plan_to_trade: self.is_plan_to_trade,
             net_income: self
                 .net_income
                 .into_iter()
                 .map(|(year, periods)| (year, NetIncomeYear { periods }))
                 .collect(),
-        }
-    }
-
-    pub fn into_singkat_proto(self) -> EmitenListSingkatRow {
-        EmitenListSingkatRow {
-            code_name: self.code_name,
-            emiten_icon: self.emiten_icon,
-            is_konglomerasi: self.is_konglomerasi,
-            sector: sector_to_proto(self.sector),
-            is_fundamental_solid: self.is_fundamental_solid,
-            is_blue_chip: self.is_blue_chip,
         }
     }
 }

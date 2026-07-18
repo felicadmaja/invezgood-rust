@@ -10,7 +10,7 @@ use crate::emiten_list_server::EmitenList as EmitenListRpc;
 use crate::model::EmitenList;
 use crate::repository::EmitenListRepository;
 use crate::{
-    EmitenListSingkatRow, GetAllEmitenListRequest, GetAllEmitenListResponse,
+    EmitenListRow, GetAllEmitenListRequest, GetAllEmitenListResponse,
     GetEmitenListByCodeNameRequest, GetEmitenListByCodeNameResponse,
     UpdateEmitenListBlueChipRequest, UpdateEmitenListBlueChipResponse,
     UpdateEmitenListCatatanRequest, UpdateEmitenListCatatanResponse,
@@ -57,9 +57,9 @@ impl EmitenListRpc for EmitenListService {
             .await
             .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
 
-        let proto_rows: Vec<EmitenListSingkatRow> = rows
+        let proto_rows: Vec<EmitenListRow> = rows
             .into_iter()
-            .map(EmitenList::into_singkat_proto)
+            .map(EmitenList::into_proto)
             .collect();
 
         println!(
