@@ -5,7 +5,7 @@
 //! - Bulan berjalan: `from` = awal bulan, `to` = hari ini → upsert (selalu timpa).
 //! - Bulan sebelumnya (max 180): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
 //!   hentikan backfill bila 2 bulan berturut-turut sudah ada, atau 2 bulan berturut-turut kosong dari API.
-//! - Semua emiten diproses **sequential** (satu worker utama), jeda 1 detik antar emiten, 300 ms antar bulan per emiten.
+//! - Semua emiten diproses **sequential** (satu worker utama), jeda 100 ms antar emiten, 50 ms antar bulan per emiten.
 //! - Bila request API timeout/network error: retry di **background task** tanpa menahan worker utama.
 
 use chrono::{Datelike, Duration, Months, NaiveDate};
@@ -25,8 +25,8 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 const MAX_HISTORICAL_MONTHS: u32 = 180;
 const CONSECUTIVE_EMPTY_MONTHS_STOP: usize = 2;
 const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 2;
-const EMITEN_INTER_DELAY_SECS: u64 = 1;
-const MONTH_INTER_DELAY_MS: u64 = 300;
+const EMITEN_INTER_DELAY_MS: u64 = 100;
+const MONTH_INTER_DELAY_MS: u64 = 50;
 
 #[derive(Debug, Clone, SerializeValue, Deserialize)]
 pub struct BandarmologyTopStats {
@@ -978,7 +978,7 @@ pub async fn scrape_and_insert_bandarmology(
             Err(e) => eprintln!("Bandarmology emiten gagal: {e}"),
         }
         if idx + 1 < total {
-            sleep(StdDuration::from_secs(EMITEN_INTER_DELAY_SECS)).await;
+            sleep(StdDuration::from_millis(EMITEN_INTER_DELAY_MS)).await;
         }
     }
 

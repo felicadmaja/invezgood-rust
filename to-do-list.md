@@ -7,3 +7,6 @@ nama nama broker
 
 
 ganti icon ganti nama
+
+
+ambil api current price
