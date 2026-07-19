@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": "bash .cursor/hooks/auto-git-every-3-prompts.sh"
+      }
+    ]
+  }
+}

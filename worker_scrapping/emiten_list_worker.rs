@@ -22,7 +22,15 @@ const PROFILE_URL: &str = "https://exodus.stockbit.com/emitten";
 const SEARCH_URL: &str = "https://exodus.stockbit.com/search";
 const EMITEN_ICON_ASSETS_BASE: &str = "https://assets.stockbit.com/logos/companies";
 
-const UPDATE_AT_FRESH_DAYS: i64 = 30;
+pub const UPDATE_AT_FRESH_DAYS: i64 = 30;
+
+/// `true` bila perlu scrape ulang: `update_at` kosong atau usia ≥ [`UPDATE_AT_FRESH_DAYS`].
+pub fn is_emiten_update_at_stale(update_at: Option<DateTime<Utc>>) -> bool {
+    match update_at {
+        None => true,
+        Some(ts) => Utc::now().signed_duration_since(ts) >= ChronoDuration::days(UPDATE_AT_FRESH_DAYS),
+    }
+}
 
 /// Bentuk Scylla `corporate_action`:
 /// `[{"Dividend":[{"Dividend":"Rp 209"},{"Cum Date":"..."},...]}, ...]`
@@ -872,8 +880,7 @@ async fn is_update_at_fresh(
         return Ok(false);
     };
 
-    let age = Utc::now().signed_duration_since(ts);
-    Ok(age < ChronoDuration::days(UPDATE_AT_FRESH_DAYS) && !emiten_icon.trim().is_empty())
+    Ok(!is_emiten_update_at_stale(Some(ts)) && !emiten_icon.trim().is_empty())
 }
 
 fn gcs_upload_ctx() -> Result<(&'static GcsSignedUrlRuntime, &'static GcsOAuthTokenCache), String> {

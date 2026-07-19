@@ -6,14 +6,24 @@ service EmitenTrending {
   // Daftar trending per tanggal via MV `emiten_trending_by_tahun_bulan_tanggal`.
   rpc GetAllEmitenTrending(GetAllEmitenTrendingRequest) returns (GetAllEmitenTrendingResponse);
 
-  // On-demand scrape movers Stockbit (Top Gainer/Loser + Freq) lalu stream snapshot hari ini.
-  // Hanya jalan saat RPC dipanggil. Maksimal 1× per 5 menit (failed precondition jika terlalu cepat).
-  // Saat insert ke `emiten_trending`: bila PK hari ini
-  // (`agg_tahun_bulan_tanggal_emiten_name` = `YYYY-MM-DD_EMITEN`) belum ada (insert murni,
-  // bukan update baris yang sudah ada), server juga upsert
-  // `emiten_trending_count_by_name`: appearance_count += 1,
-  // last_tahun_bulan_tanggal = hari ini, updated_at = now.
-  // Emiten yang sudah trending di tanggal yang sama tidak menambah count lagi.
+  // On-demand scrape Stockbit lalu stream snapshot `emiten_trending` hari ini.
+  // Hanya jalan saat RPC dipanggil. Maksimal 1× per 1 menit (failed precondition jika terlalu cepat).
+  //
+  // Urutan tulis ke Scylla (satu sesi browser/login, berurutan):
+  // (1) `emiten_trending` — API market-mover TOP_GAINER, lalu TOP_LOSER (per baris emiten).
+  //     Setelah setiap insert baris hari ini yang benar-benar baru (PK `YYYY-MM-DD_EMITEN`
+  //     belum ada), upsert `emiten_trending_count_by_name`: appearance_count += 1,
+  //     last_tahun_bulan_tanggal = hari ini, updated_at = now.
+  //     Baris yang sudah ada di tanggal yang sama tidak menambah count lagi.
+  // (2) `emiten_list` — token-ring scan semua `code_name` yang sudah ada di tabel ini;
+  //     untuk tiap emiten (skip bila `update_at` masih < 30 hari): API keystats/ratio +
+  //     corpaction + profile → upsert kolom scrape saja (key_stats, corporate_action,
+  //     company_profile, net_income, long_name, emiten_icon, update_at; tidak mengisi
+  //     sector / is_konglomerasi / is_fundamental_solid / is_blue_chip / catatan / owner).
+  // (3) `bandarmology` — marketdetectors API untuk daftar `code_name` yang sama dari langkah (2);
+  //     insert hanya bila agg bulan ini `YYYY-MM_CODE` belum ada (skip jika sudah ada).
+  //
+  // Setelah scrape selesai, RPC membaca ulang `emiten_trending` hari ini dan stream hasilnya.
   // Request kosong. Wajib Authorization: Bearer <JWT valid>.
   rpc GetLatestEmitenTrendingFromStockbit(GetLatestEmitenTrendingFromStockbitRequest)
       returns (stream GetAllEmitenTrendingResponse);

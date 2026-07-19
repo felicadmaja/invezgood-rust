@@ -1,0 +1,31 @@
+---
+description: Auto git add, commit, push setiap 3 prompt agent selesai
+alwaysApply: true
+---
+
+# Auto Git Setiap 3 Prompt
+
+Git otomatis dijalankan oleh hook `stop` → `.cursor/hooks/auto-git-every-3-prompts.sh`.
+
+Agent **tidak perlu** menjalankan `git add` / `commit` / `push` manual kecuali hook gagal atau dinonaktifkan di Cursor Settings → Hooks.
+
+## Counter
+
+- State: `.cursor/auto-git-counter` (integer, mulai 0).
+- Setiap agent selesai menangani prompt user: counter +1.
+- Saat counter mencapai 3: reset ke 0, lalu git workflow.
+
+## Git workflow (hanya saat counter = 3)
+
+1. Cek perubahan (`git status` / diff).
+2. Jika tidak ada perubahan: skip commit & push.
+3. `git add .`
+4. Commit — pesan 1–2 kalimat, fokus "why", ikuti gaya commit repo.
+5. `git push` (upstream branch saat ini).
+
+## Safety
+
+- Jangan commit `.env`, credentials, atau file rahasia.
+- Jangan force push ke `main` / `master`.
+- Jangan `git commit --amend` kecuali user rule commit mengizinkan.
+- Counter tetap naik meski respons hanya Q&A; commit hanya bila ada perubahan di working tree.

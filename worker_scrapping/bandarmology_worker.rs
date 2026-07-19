@@ -1,9 +1,16 @@
-//! Bandarmology via API `exodus.stockbit.com/marketdetectors/{CODE}` (bukan scrape DOM).
-//! Bearer diambil dari sesi browser setelah login. `to` = kemarin; throttle bila rate-limit habis.
+//! Bandarmology via API `exodus.stockbit.com/marketdetectors/{CODE}`.
+//! Bearer dari sesi browser setelah login.
+//!
+//! Per emiten:
+//! - Bulan berjalan: `from` = awal bulan, `to` = hari ini → upsert (selalu timpa).
+//! - Bulan sebelumnya (max 180): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
+//!   hentikan backfill bila 2 bulan berturut-turut sudah ada, atau 2 bulan berturut-turut kosong dari API.
+//! - Semua emiten diproses **sequential** (satu worker utama), jeda 1 detik antar emiten, 300 ms antar bulan per emiten.
+//! - Bila request API timeout/network error: retry di **background task** tanpa menahan worker utama.
 
-use chrono::{Duration, Months, NaiveDate};
+use chrono::{Datelike, Duration, Months, NaiveDate};
 use chromiumoxide::page::Page;
-use futures_util::stream::{self, StreamExt};
+use futures_util::StreamExt;
 use scylla::client::session::Session;
 use scylla::{DeserializeRow, SerializeValue};
 use serde::Deserialize;
@@ -11,32 +18,15 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use stockbit_browser::extract_stockbit_bearer;
-use tokio::sync::Semaphore;
 use tokio::time::sleep;
 
 const API_BASE: &str = "https://exodus.stockbit.com/marketdetectors";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-
-/// Kolom period yang diisi dari API (urutan insert).
-const PERIOD_SPECS: &[(&str, PeriodKind)] = &[
-    ("d_7", PeriodKind::Days(7)),
-    ("d_14", PeriodKind::Days(14)),
-    ("M_1", PeriodKind::Months(1)),
-    ("M_3", PeriodKind::Months(3)),
-    ("M_6", PeriodKind::Months(6)),
-    ("M_12", PeriodKind::Months(12)),
-    ("Y_3", PeriodKind::Years(3)),
-    ("Y_5", PeriodKind::Years(5)),
-    ("Y_10", PeriodKind::Years(10)),
-    ("Y_15", PeriodKind::Years(15)),
-];
-
-#[derive(Clone, Copy)]
-enum PeriodKind {
-    Days(i64),
-    Months(u32),
-    Years(u32),
-}
+const MAX_HISTORICAL_MONTHS: u32 = 180;
+const CONSECUTIVE_EMPTY_MONTHS_STOP: usize = 2;
+const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 2;
+const EMITEN_INTER_DELAY_SECS: u64 = 1;
+const MONTH_INTER_DELAY_MS: u64 = 300;
 
 #[derive(Debug, Clone, SerializeValue, Deserialize)]
 pub struct BandarmologyTopStats {
@@ -73,20 +63,6 @@ pub struct BandarmologyDay {
     pub average_rp: i64,
     pub broker_buy: Vec<BandarmologyBrokerBuy>,
     pub broker_sell: Vec<BandarmologyBrokerSell>,
-}
-
-#[derive(Debug, Clone)]
-pub struct BandarmologyPeriods {
-    pub d_7: BandarmologyDay,
-    pub d_14: BandarmologyDay,
-    pub m_1: BandarmologyDay,
-    pub m_3: BandarmologyDay,
-    pub m_6: BandarmologyDay,
-    pub m_12: BandarmologyDay,
-    pub y_3: BandarmologyDay,
-    pub y_5: BandarmologyDay,
-    pub y_10: BandarmologyDay,
-    pub y_15: BandarmologyDay,
 }
 
 #[derive(Debug, DeserializeRow)]
@@ -137,22 +113,70 @@ fn empty_day() -> BandarmologyDay {
     }
 }
 
-/// `to` = kemarin relatif terhadap `today` (hari kalender lokal scrape).
+/// `to` = kemarin relatif terhadap `today` (legacy helper).
 pub fn bandarmology_to_date(today: NaiveDate) -> NaiveDate {
     today - Duration::days(1)
 }
 
-fn period_from_to(to: NaiveDate, kind: PeriodKind) -> (NaiveDate, NaiveDate) {
-    let from = match kind {
-        PeriodKind::Days(d) => to - Duration::days(d),
-        PeriodKind::Months(m) => to
-            .checked_sub_months(Months::new(m))
-            .unwrap_or(to),
-        PeriodKind::Years(y) => to
-            .checked_sub_months(Months::new(y.saturating_mul(12)))
-            .unwrap_or(to),
-    };
-    (from, to)
+pub fn tahun_bulan_str(year: i32, month: u32) -> String {
+    format!("{year:04}-{month:02}")
+}
+
+pub fn agg_tahun_bulan_emiten_name(tahun_bulan: &str, emiten: &str) -> String {
+    format!(
+        "{}_{}",
+        tahun_bulan.trim(),
+        emiten.trim().to_ascii_uppercase()
+    )
+}
+
+fn first_day_of_month(year: i32, month: u32) -> NaiveDate {
+    NaiveDate::from_ymd_opt(year, month, 1).unwrap_or_else(|| NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
+}
+
+fn last_day_of_month(year: i32, month: u32) -> NaiveDate {
+    first_day_of_month(year, month)
+        .checked_add_months(Months::new(1))
+        .and_then(|d| d.pred_opt())
+        .unwrap_or_else(|| first_day_of_month(year, month))
+}
+
+fn current_month_range(today: NaiveDate) -> (NaiveDate, NaiveDate, String) {
+    let from = first_day_of_month(today.year(), today.month());
+    let tb = tahun_bulan_str(today.year(), today.month());
+    (from, today, tb)
+}
+
+fn is_broker_summary_empty(day: &BandarmologyDay) -> bool {
+    day.net_volume == 0
+        && day.broker_buy.is_empty()
+        && day.broker_sell.is_empty()
+        && day.top_1.volume == 0
+        && day.top_3.volume == 0
+        && day.top_5.volume == 0
+}
+
+/// Kunci partition bandarmology bulan berjalan untuk emiten, mis. `2026-07_BBCA`.
+pub fn bandarmology_agg_key(today: NaiveDate, emiten: &str) -> String {
+    agg_tahun_bulan_emiten_name(
+        &tahun_bulan_str(today.year(), today.month()),
+        emiten,
+    )
+}
+
+async fn bandarmology_exists_by_agg(
+    session: &Session,
+    keyspace: &str,
+    agg: &str,
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    let exists_stmt = session
+        .prepare(format!(
+            "SELECT agg_tahun_bulan_emiten_name \
+             FROM {keyspace}.bandarmology \
+             WHERE agg_tahun_bulan_emiten_name = ?"
+        ))
+        .await?;
+    bandarmology_exists(session, &exists_stmt, agg).await
 }
 
 /// Ambil daftar `code_name` dari tabel `emiten_list` via token-ring scan.
@@ -194,15 +218,6 @@ pub async fn fetch_today_emiten_names(
     fetch_emiten_list_code_names(session, keyspace).await
 }
 
-fn bandarmology_agg(today: NaiveDate, emiten: &str) -> String {
-    format!("{}_{emiten}", today.format("%Y-%m-%d"))
-}
-
-/// Kunci partition bandarmology hari ini untuk emiten, mis. `2026-07-17_BBCA`.
-pub fn bandarmology_agg_key(today: NaiveDate, emiten: &str) -> String {
-    bandarmology_agg(today, emiten.trim().to_ascii_uppercase().as_str())
-}
-
 async fn bandarmology_exists(
     session: &Session,
     exists_stmt: &scylla::statement::prepared::PreparedStatement,
@@ -215,7 +230,7 @@ async fn bandarmology_exists(
     Ok(result.rows_num() > 0)
 }
 
-/// `true` bila baris `bandarmology` untuk agg hari ini + emiten sudah ada.
+/// `true` bila baris `bandarmology` untuk agg bulan berjalan + emiten sudah ada.
 pub async fn bandarmology_exists_for_today(
     session: &Session,
     keyspace: &str,
@@ -223,15 +238,7 @@ pub async fn bandarmology_exists_for_today(
     emiten: &str,
 ) -> Result<bool, String> {
     let agg = bandarmology_agg_key(today, emiten);
-    let exists_stmt = session
-        .prepare(format!(
-            "SELECT agg_tahun_bulan_tanggal_emiten_name \
-             FROM {keyspace}.bandarmology \
-             WHERE agg_tahun_bulan_tanggal_emiten_name = ?"
-        ))
-        .await
-        .map_err(|e| e.to_string())?;
-    bandarmology_exists(session, &exists_stmt, &agg)
+    bandarmology_exists_by_agg(session, keyspace, &agg)
         .await
         .map_err(|e| e.to_string())
 }
@@ -462,8 +469,6 @@ async fn throttle_if_needed(state: &RateLimitState) {
 }
 
 const API_TIMEOUT_MAX_RETRIES: u32 = 5;
-/// Berapa emiten yang boleh fetch+retry bersamaan (retry timeout tidak menahan emiten lain).
-const BANDARMOLOGY_EMITEN_CONCURRENCY: usize = 2;
 
 fn is_retryable_http_status(code: u16) -> bool {
     // Hanya 5xx / network-ish server errors. Semua 4xx → abort app (hindari blokir).
@@ -471,40 +476,89 @@ fn is_retryable_http_status(code: u16) -> bool {
 }
 
 fn timeout_retry_wait_secs(retry_n: u32) -> u64 {
-    // Delay memanjang: 2s, 4s, 6s, ... hingga retry ke-10 → 20s.
     2u64.saturating_mul(retry_n.max(1) as u64)
 }
 
-async fn fetch_marketdetector_day(
+struct BackgroundInsertCtx {
+    session: Arc<Session>,
+    keyspace: String,
+    tahun_bulan: String,
+}
+
+fn spawn_background_fetch_retry(
+    client: reqwest::Client,
+    bearer: String,
+    emiten: String,
+    from: NaiveDate,
+    to: NaiveDate,
+    ctx: BackgroundInsertCtx,
+) {
+    tokio::spawn(async move {
+        println!(
+            "  [background] retry API {emiten} {} ({from}..{to})",
+            ctx.tahun_bulan
+        );
+        match fetch_marketdetector_day_blocking_retries(
+            &client,
+            &bearer,
+            &emiten,
+            from,
+            to,
+        )
+        .await
+        {
+            Ok((day, rate)) => {
+                throttle_if_needed(&rate).await;
+                if is_broker_summary_empty(&day) {
+                    println!(
+                        "  [background] {emiten} {} kosong — skip insert",
+                        ctx.tahun_bulan
+                    );
+                    return;
+                }
+                match insert_bandarmology(
+                    ctx.session.as_ref(),
+                    &ctx.keyspace,
+                    &emiten,
+                    &ctx.tahun_bulan,
+                    &day,
+                )
+                .await
+                {
+                    Ok(()) => println!(
+                        "  [background] OK insert {emiten} {}",
+                        ctx.tahun_bulan
+                    ),
+                    Err(e) => eprintln!(
+                        "  [background] gagal insert {emiten} {}: {e}",
+                        ctx.tahun_bulan
+                    ),
+                }
+            }
+            Err(e) => eprintln!(
+                "  [background] gagal fetch {emiten} {}: {e}",
+                ctx.tahun_bulan
+            ),
+        }
+    });
+}
+
+fn is_timeout_or_network(err: &reqwest::Error) -> bool {
+    err.is_timeout() || err.is_connect() || err.is_request()
+}
+
+/// Fetch dengan retry penuh — hanya dipakai background worker (bukan worker utama).
+async fn fetch_marketdetector_day_blocking_retries(
     client: &reqwest::Client,
     bearer: &str,
     emiten: &str,
     from: NaiveDate,
     to: NaiveDate,
 ) -> Result<(BandarmologyDay, RateLimitState), Box<dyn std::error::Error + Send + Sync>> {
-    let url = format!(
-        "{API_BASE}/{emiten}?from={}&to={}&transaction_type=TRANSACTION_TYPE_NET\
-         &market_board=MARKET_BOARD_REGULER&investor_type=INVESTOR_TYPE_ALL&limit=25",
-        from.format("%Y-%m-%d"),
-        to.format("%Y-%m-%d"),
-    );
-
+    let url = marketdetector_url(emiten, from, to);
     let mut timeout_retries = 0u32;
     loop {
-        let resp = match client
-            .get(&url)
-            .header(
-                reqwest::header::AUTHORIZATION,
-                format!("Bearer {bearer}"),
-            )
-            .header(reqwest::header::ACCEPT, "application/json")
-            .header(reqwest::header::ORIGIN, "https://stockbit.com")
-            .header(reqwest::header::REFERER, "https://stockbit.com/")
-            .header(reqwest::header::USER_AGENT, USER_AGENT)
-            .timeout(StdDuration::from_secs(60))
-            .send()
-            .await
-        {
+        let resp = match send_marketdetector_request(client, bearer, &url).await {
             Ok(r) => r,
             Err(e) => {
                 timeout_retries += 1;
@@ -523,184 +577,353 @@ async fn fetch_marketdetector_day(
             }
         };
 
-        let status = resp.status();
-        let rate = RateLimitState::from_headers(resp.headers());
-        println!("  API {emiten} {from}..{to} → HTTP {status} | {}", rate.log_line());
-
-        // Semua 4xx (termasuk 401/403/429): hentikan worker + resume PM2.
-        crate::http_abort::abort_app_if_http_4xx(
-            status,
-            &format!("marketdetectors {emiten} {from}..{to}"),
-        );
-
-        if is_retryable_http_status(status.as_u16()) && !status.is_success() {
-            timeout_retries += 1;
-            if timeout_retries > API_TIMEOUT_MAX_RETRIES {
-                let body = resp.text().await.unwrap_or_default();
-                return Err(format!(
-                    "marketdetectors {emiten} {from}..{to}: HTTP {status} setelah {API_TIMEOUT_MAX_RETRIES} retry — {body}"
-                )
-                .into());
-            }
-            let wait = timeout_retry_wait_secs(timeout_retries);
-            eprintln!(
-                "Bandarmology API HTTP {status} untuk {emiten} {from}..{to} — retry {timeout_retries}/{API_TIMEOUT_MAX_RETRIES} setelah {wait}s"
-            );
-            // Body tidak perlu dibaca penuh; drop response lalu tunggu.
-            drop(resp);
-            sleep(StdDuration::from_secs(wait)).await;
-            continue;
+        match parse_marketdetector_response(resp, emiten, from, to, &mut timeout_retries).await {
+            Ok(Some(result)) => return Ok(result),
+            Ok(None) => continue,
+            Err(e) => return Err(e),
         }
-
-        if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            return Err(format!(
-                "marketdetectors {emiten} {from}..{to}: HTTP {status} {body}"
-            )
-            .into());
-        }
-
-        let envelope: ApiEnvelope = resp.json().await?;
-        let day = envelope
-            .data
-            .as_ref()
-            .map(map_api_day)
-            .unwrap_or_else(empty_day);
-        return Ok((day, rate));
     }
 }
 
-async fn fetch_all_periods_for_emiten(
+fn marketdetector_url(emiten: &str, from: NaiveDate, to: NaiveDate) -> String {
+    format!(
+        "{API_BASE}/{emiten}?from={}&to={}&transaction_type=TRANSACTION_TYPE_NET\
+         &market_board=MARKET_BOARD_REGULER&investor_type=INVESTOR_TYPE_ALL&limit=25",
+        from.format("%Y-%m-%d"),
+        to.format("%Y-%m-%d"),
+    )
+}
+
+async fn send_marketdetector_request(
+    client: &reqwest::Client,
+    bearer: &str,
+    url: &str,
+) -> Result<reqwest::Response, reqwest::Error> {
+    client
+        .get(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {bearer}"),
+        )
+        .header(reqwest::header::ACCEPT, "application/json")
+        .header(reqwest::header::ORIGIN, "https://stockbit.com")
+        .header(reqwest::header::REFERER, "https://stockbit.com/")
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
+        .timeout(StdDuration::from_secs(60))
+        .send()
+        .await
+}
+
+async fn parse_marketdetector_response(
+    resp: reqwest::Response,
+    emiten: &str,
+    from: NaiveDate,
+    to: NaiveDate,
+    timeout_retries: &mut u32,
+) -> Result<Option<(BandarmologyDay, RateLimitState)>, Box<dyn std::error::Error + Send + Sync>> {
+    let status = resp.status();
+    let rate = RateLimitState::from_headers(resp.headers());
+    println!("  API {emiten} {from}..{to} → HTTP {status} | {}", rate.log_line());
+
+    crate::http_abort::abort_app_if_http_4xx(
+        status,
+        &format!("marketdetectors {emiten} {from}..{to}"),
+    );
+
+    if is_retryable_http_status(status.as_u16()) && !status.is_success() {
+        *timeout_retries += 1;
+        if *timeout_retries > API_TIMEOUT_MAX_RETRIES {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!(
+                "marketdetectors {emiten} {from}..{to}: HTTP {status} setelah {API_TIMEOUT_MAX_RETRIES} retry — {body}"
+            )
+            .into());
+        }
+        let wait = timeout_retry_wait_secs(*timeout_retries);
+        eprintln!(
+            "Bandarmology API HTTP {status} untuk {emiten} {from}..{to} — retry {timeout_retries}/{API_TIMEOUT_MAX_RETRIES} setelah {wait}s"
+        );
+        drop(resp);
+        sleep(StdDuration::from_secs(wait)).await;
+        return Ok(None);
+    }
+
+    if !status.is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!(
+            "marketdetectors {emiten} {from}..{to}: HTTP {status} {body}"
+        )
+        .into());
+    }
+
+    let envelope: ApiEnvelope = resp.json().await?;
+    let day = envelope
+        .data
+        .as_ref()
+        .map(map_api_day)
+        .unwrap_or_else(empty_day);
+    Ok(Some((day, rate)))
+}
+
+/// Worker utama: HTTP retry inline; timeout/network → spawn background retry + lanjut.
+async fn fetch_marketdetector_day(
     client: &reqwest::Client,
     bearer: &str,
     emiten: &str,
+    from: NaiveDate,
     to: NaiveDate,
-) -> Result<BandarmologyPeriods, Box<dyn std::error::Error + Send + Sync>> {
-    let mut days: Vec<BandarmologyDay> = Vec::with_capacity(PERIOD_SPECS.len());
-    for (col, kind) in PERIOD_SPECS {
-        let (from, to) = period_from_to(to, *kind);
-        match fetch_marketdetector_day(client, bearer, emiten, from, to).await {
-            Ok((day, rate)) => {
-                println!(
-                    "  {col}: {from}..{to} net_volume={} brokers_buy={}",
-                    day.net_volume,
-                    day.broker_buy.len(),
-                );
-                days.push(day);
-                throttle_if_needed(&rate).await;
+    bg_insert: Option<BackgroundInsertCtx>,
+) -> Result<(BandarmologyDay, RateLimitState), Box<dyn std::error::Error + Send + Sync>> {
+    let url = marketdetector_url(emiten, from, to);
+    let mut http_retries = 0u32;
+    loop {
+        let resp = match send_marketdetector_request(client, bearer, &url).await {
+            Ok(r) => r,
+            Err(e) if is_timeout_or_network(&e) => {
+                if let Some(ctx) = bg_insert {
+                    spawn_background_fetch_retry(
+                        client.clone(),
+                        bearer.to_string(),
+                        emiten.to_string(),
+                        from,
+                        to,
+                        ctx,
+                    );
+                }
+                return Err(format!(
+                    "marketdetectors {emiten} {from}..{to}: timeout/network — retry di background worker ({e})"
+                )
+                .into());
             }
             Err(e) => {
-                let msg = e.to_string();
-                eprintln!("  Gagal API {col} untuk {emiten} ({from}..{to}): {msg}");
-                if msg.contains("unauthorized") || msg.contains("401") || msg.contains("403") {
-                    return Err(format!(
-                        "Abort bandarmology: Bearer ditolak API ({msg}). Perbaiki extract token iss=STOCKBIT."
-                    )
-                    .into());
-                }
-                days.push(empty_day());
-                // Jeda kecil agar tidak spam saat error beruntun.
-                sleep(StdDuration::from_millis(400)).await;
+                return Err(format!(
+                    "marketdetectors {emiten} {from}..{to}: request gagal ({e})"
+                )
+                .into());
             }
+        };
+
+        match parse_marketdetector_response(resp, emiten, from, to, &mut http_retries).await {
+            Ok(Some(result)) => return Ok(result),
+            Ok(None) => continue,
+            Err(e) => return Err(e),
         }
     }
-    while days.len() < PERIOD_SPECS.len() {
-        days.push(empty_day());
-    }
-    Ok(BandarmologyPeriods {
-        d_7: days[0].clone(),
-        d_14: days[1].clone(),
-        m_1: days[2].clone(),
-        m_3: days[3].clone(),
-        m_6: days[4].clone(),
-        m_12: days[5].clone(),
-        y_3: days[6].clone(),
-        y_5: days[7].clone(),
-        y_10: days[8].clone(),
-        y_15: days[9].clone(),
-    })
 }
 
 async fn insert_bandarmology(
     session: &Session,
     keyspace: &str,
-    today: NaiveDate,
     emiten: &str,
-    p: &BandarmologyPeriods,
+    tahun_bulan: &str,
+    broker_summary: &BandarmologyDay,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let agg = bandarmology_agg(today, emiten);
+    let agg = agg_tahun_bulan_emiten_name(tahun_bulan, emiten);
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.bandarmology (\
-                agg_tahun_bulan_tanggal_emiten_name, \
+                agg_tahun_bulan_emiten_name, \
                 emiten_name, \
-                tahun_bulan_tanggal, \
-                d_7, d_14, \"M_1\", \"M_3\", \"M_6\", \"M_12\", \
-                \"Y_3\", \"Y_5\", \"Y_10\", \"Y_15\"\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                tahun_bulan, \
+                broker_summary\
+            ) VALUES (?, ?, ?, ?)"
         ))
         .await?;
 
     session
         .execute_unpaged(
             &insert,
-            (
-                agg.as_str(),
-                emiten,
-                today,
-                &p.d_7,
-                &p.d_14,
-                &p.m_1,
-                &p.m_3,
-                &p.m_6,
-                &p.m_12,
-                &p.y_3,
-                &p.y_5,
-                &p.y_10,
-                &p.y_15,
-            ),
+            (agg.as_str(), emiten, tahun_bulan, broker_summary),
         )
         .await?;
     Ok(())
 }
 
-/// Fetch API Bandar Detector untuk satu emiten bila agg hari ini belum ada.
-/// `page` dipakai hanya untuk ekstrak Bearer setelah login.
+fn is_auth_abort(err: &str) -> bool {
+    err.contains("unauthorized") || err.contains("401") || err.contains("403") || err.contains("Abort bandarmology")
+}
+
+fn is_background_timeout_err(err: &str) -> bool {
+    err.contains("retry di background worker")
+}
+
+async fn scrape_emiten_bandarmology(
+    client: &reqwest::Client,
+    bearer: &str,
+    session: Arc<Session>,
+    keyspace: &str,
+    today: NaiveDate,
+    emiten: &str,
+) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    let code = emiten.trim().to_ascii_uppercase();
+    let mut inserted = 0usize;
+
+    let (cur_from, cur_to, cur_tb) = current_month_range(today);
+    println!(
+        "  [{code}] bulan berjalan {cur_tb}: {cur_from}..{cur_to} (overwrite)"
+    );
+    let cur_ctx = BackgroundInsertCtx {
+        session: Arc::clone(&session),
+        keyspace: keyspace.to_string(),
+        tahun_bulan: cur_tb.clone(),
+    };
+    match fetch_marketdetector_day(
+        client,
+        bearer,
+        &code,
+        cur_from,
+        cur_to,
+        Some(cur_ctx),
+    )
+    .await
+    {
+        Ok((day, rate)) => {
+            println!(
+                "  [{code}] {cur_tb} net_volume={} brokers_buy={}",
+                day.net_volume,
+                day.broker_buy.len()
+            );
+            throttle_if_needed(&rate).await;
+            insert_bandarmology(session.as_ref(), keyspace, &code, &cur_tb, &day).await?;
+            inserted += 1;
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            if is_auth_abort(&msg) {
+                return Err(e);
+            }
+            eprintln!("  [{code}] gagal fetch bulan berjalan {cur_tb}: {msg}");
+        }
+    }
+
+    sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
+
+    let mut empty_streak = 0usize;
+    let mut skip_existing_streak = 0usize;
+    for offset in 1..=MAX_HISTORICAL_MONTHS {
+        if offset > 1 {
+            sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
+        }
+        let Some(month_anchor) = today.checked_sub_months(Months::new(offset)) else {
+            break;
+        };
+        let y = month_anchor.year();
+        let m = month_anchor.month();
+        let tb = tahun_bulan_str(y, m);
+        let agg = agg_tahun_bulan_emiten_name(&tb, &code);
+
+        if bandarmology_exists_by_agg(session.as_ref(), keyspace, &agg).await? {
+            skip_existing_streak += 1;
+            println!(
+                "  [{code}] skip historis {tb}: sudah ada (agg={agg}, streak={skip_existing_streak})"
+            );
+            if skip_existing_streak >= CONSECUTIVE_SKIP_EXISTING_STOP {
+                println!(
+                    "  [{code}] hentikan historis: {CONSECUTIVE_SKIP_EXISTING_STOP} bulan berturut-turut sudah ada — lanjut emiten berikutnya"
+                );
+                break;
+            }
+            continue;
+        }
+
+        skip_existing_streak = 0;
+
+        let from = first_day_of_month(y, m);
+        let to = last_day_of_month(y, m);
+        println!("  [{code}] historis {tb}: {from}..{to}");
+
+        let hist_ctx = BackgroundInsertCtx {
+            session: Arc::clone(&session),
+            keyspace: keyspace.to_string(),
+            tahun_bulan: tb.clone(),
+        };
+        let fetch_result = fetch_marketdetector_day(
+            client,
+            bearer,
+            &code,
+            from,
+            to,
+            Some(hist_ctx),
+        )
+        .await;
+        let (day, rate) = match fetch_result {
+            Ok(v) => v,
+            Err(e) => {
+                let msg = e.to_string();
+                if is_auth_abort(&msg) {
+                    return Err(e);
+                }
+                eprintln!("  [{code}] gagal fetch {tb}: {msg}");
+                if is_background_timeout_err(&msg) {
+                    continue;
+                }
+                empty_streak += 1;
+                if empty_streak >= CONSECUTIVE_EMPTY_MONTHS_STOP {
+                    println!(
+                        "  [{code}] hentikan historis: {CONSECUTIVE_EMPTY_MONTHS_STOP} bulan kosong/gagal berturut-turut"
+                    );
+                    break;
+                }
+                continue;
+            }
+        };
+        throttle_if_needed(&rate).await;
+
+        if is_broker_summary_empty(&day) {
+            empty_streak += 1;
+            println!("  [{code}] {tb} kosong (streak={empty_streak})");
+            if empty_streak >= CONSECUTIVE_EMPTY_MONTHS_STOP {
+                println!(
+                    "  [{code}] hentikan historis: {CONSECUTIVE_EMPTY_MONTHS_STOP} bulan kosong berturut-turut"
+                );
+                break;
+            }
+            continue;
+        }
+
+        empty_streak = 0;
+        insert_bandarmology(session.as_ref(), keyspace, &code, &tb, &day).await?;
+        println!(
+            "  [{code}] insert historis {tb} net_volume={}",
+            day.net_volume
+        );
+        inserted += 1;
+    }
+
+    Ok(inserted)
+}
+
+/// Scrape bandarmology untuk satu emiten: bulan berjalan (overwrite) + backfill historis.
 pub async fn scrape_bandarmology_for_code_if_missing(
     page: &Page,
-    session: &Session,
+    session: Arc<Session>,
     keyspace: &str,
     today: NaiveDate,
     emiten: &str,
 ) -> Result<bool, String> {
     let code = emiten.trim().to_ascii_uppercase();
-    if bandarmology_exists_for_today(session, keyspace, today, &code).await? {
-        let agg = bandarmology_agg_key(today, &code);
-        println!("Skip {code}: bandarmology sudah ada (agg={agg}).");
-        return Ok(false);
-    }
-
     let bearer = extract_stockbit_bearer(page)
         .await
         .map_err(|e| e.to_string())?;
     let client = reqwest::Client::new();
-    let to = bandarmology_to_date(today);
 
-    println!("\n=== Bandarmology API on-demand emiten={code} (to={to}) ===");
-    let periods = fetch_all_periods_for_emiten(&client, &bearer, &code, to)
-        .await
-        .map_err(|e| e.to_string())?;
-    insert_bandarmology(session, keyspace, today, &code, &periods)
-        .await
-        .map_err(|e| e.to_string())?;
-    println!("OK: bandarmology insert {code} (on-demand API).");
-    Ok(true)
+    println!("\n=== Bandarmology API on-demand emiten={code} (today={today}) ===");
+    let inserted = scrape_emiten_bandarmology(
+        &client,
+        &bearer,
+        session,
+        keyspace,
+        today,
+        &code,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    println!("OK: bandarmology {code} — {inserted} baris bulan di-upsert.");
+    Ok(inserted > 0)
 }
 
-/// Marketdetectors API untuk setiap emiten → insert Scylla (d_7..Y_15).
-/// Bearer dari sesi browser; throttle otomatis saat `x-rate-limit-remaining` hampir habis.
-/// Fetch+retry per emiten dijalankan di task paralel (concurrency terbatas) agar retry timeout
-/// satu emiten tidak menahan emiten berikutnya.
+/// Marketdetectors API per emiten → upsert Scylla per bulan (`broker_summary`).
+/// Satu emiten per satu (sequential); timeout API di-retry di background task.
 pub async fn scrape_and_insert_bandarmology(
     page: &Page,
     session: &Arc<Session>,
@@ -713,124 +936,57 @@ pub async fn scrape_and_insert_bandarmology(
         return Ok(0);
     }
 
-    let exists_stmt = session
-        .prepare(format!(
-            "SELECT agg_tahun_bulan_tanggal_emiten_name \
-             FROM {keyspace}.bandarmology \
-             WHERE agg_tahun_bulan_tanggal_emiten_name = ?"
-        ))
-        .await?;
-
-    let mut todo: Vec<String> = Vec::new();
-    let mut skipped = 0usize;
-    for emiten in emitens {
-        let agg = bandarmology_agg(today, emiten);
-        if bandarmology_exists(session, &exists_stmt, &agg).await? {
-            println!("Skip {emiten}: bandarmology sudah ada (agg={agg}).");
-            skipped += 1;
-        } else {
-            todo.push(emiten.clone());
-        }
-    }
-    println!(
-        "Bandarmology API: {} perlu fetch, {} sudah ada (skip). concurrency={}",
-        todo.len(),
-        skipped,
-        BANDARMOLOGY_EMITEN_CONCURRENCY
-    );
-    if todo.is_empty() {
-        return Ok(0);
-    }
-
     let bearer = extract_stockbit_bearer(page)
         .await
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
     println!(
-        "Bandarmology API: Bearer OK (len={}), to={} (kemarin dari {today})",
+        "Bandarmology API: Bearer OK (len={}), today={today}, emiten={} (sequential)",
         bearer.len(),
-        bandarmology_to_date(today)
+        emitens.len(),
     );
 
-    let _ = page
-        .evaluate(
-            r#"(() => {
-                try {
-                    return window.__sbCapturedBearer
-                        ? ('captured_len=' + window.__sbCapturedBearer.length)
-                        : 'captured_empty';
-                } catch (_) { return 'captured_err'; }
-            })()"#,
-        )
-        .await;
-
-    let client = Arc::new(reqwest::Client::new());
-    let bearer = Arc::new(bearer);
+    let client = reqwest::Client::new();
     let session = Arc::clone(session);
     let keyspace = keyspace.to_string();
-    let to = bandarmology_to_date(today);
-    let total = todo.len();
-    let sem = Arc::new(Semaphore::new(BANDARMOLOGY_EMITEN_CONCURRENCY));
+    let total = emitens.len();
+    let mut total_inserted = 0usize;
+    let mut emitens_ok = 0usize;
 
-    let results: Vec<Result<bool, String>> = stream::iter(todo.into_iter().enumerate())
-        .map(|(idx, emiten)| {
-            let client = Arc::clone(&client);
-            let bearer = Arc::clone(&bearer);
-            let session = Arc::clone(&session);
-            let keyspace = keyspace.clone();
-            let sem = Arc::clone(&sem);
-            async move {
-                let _permit = sem
-                    .acquire()
-                    .await
-                    .map_err(|e| format!("semaphore: {e}"))?;
-                println!(
-                    "\n=== Bandarmology API [{}/{}] emiten={} (parallel worker) ===",
-                    idx + 1,
-                    total,
-                    emiten
-                );
-                match fetch_all_periods_for_emiten(client.as_ref(), bearer.as_str(), &emiten, to)
-                    .await
-                {
-                    Ok(periods) => {
-                        if let Err(e) =
-                            insert_bandarmology(session.as_ref(), &keyspace, today, &emiten, &periods)
-                                .await
-                        {
-                            eprintln!("Gagal insert bandarmology {emiten}: {e}");
-                            Ok(false)
-                        } else {
-                            println!("OK: bandarmology insert {emiten}");
-                            Ok(true)
-                        }
-                    }
-                    Err(e) => {
-                        let msg = e.to_string();
-                        eprintln!("Skip {emiten}: gagal fetch periods ({msg})");
-                        if msg.contains("Abort bandarmology") || msg.contains("unauthorized") {
-                            Err(msg)
-                        } else {
-                            Ok(false)
-                        }
-                    }
-                }
+    for (idx, emiten) in emitens.iter().enumerate() {
+        println!(
+            "\n=== Bandarmology API [{}/{}] emiten={} ===",
+            idx + 1,
+            total,
+            emiten
+        );
+        match scrape_emiten_bandarmology(
+            &client,
+            &bearer,
+            Arc::clone(&session),
+            &keyspace,
+            today,
+            emiten,
+        )
+        .await
+        {
+            Ok(n) if n > 0 => {
+                emitens_ok += 1;
+                total_inserted += n;
             }
-        })
-        .buffer_unordered(BANDARMOLOGY_EMITEN_CONCURRENCY)
-        .collect()
-        .await;
-
-    let mut ok = 0usize;
-    for r in results {
-        match r {
-            Ok(true) => ok += 1,
-            Ok(false) => {}
-            Err(msg) => {
-                return Err(msg.into());
-            }
+            Ok(_) => {}
+            Err(e) if is_auth_abort(&e.to_string()) => return Err(e),
+            Err(e) => eprintln!("Bandarmology emiten gagal: {e}"),
+        }
+        if idx + 1 < total {
+            sleep(StdDuration::from_secs(EMITEN_INTER_DELAY_SECS)).await;
         }
     }
-    Ok(ok)
+
+    println!(
+        "Bandarmology selesai: {emitens_ok}/{} emiten, {total_inserted} baris bulan di-upsert.",
+        emitens.len()
+    );
+    Ok(emitens_ok)
 }
 
 #[cfg(test)]
@@ -839,20 +995,29 @@ mod tests {
     use chrono::NaiveDate;
 
     #[test]
-    fn d7_range_matches_user_example() {
-        let today = NaiveDate::from_ymd_opt(2026, 7, 18).unwrap();
-        let to = bandarmology_to_date(today);
-        let (from, to2) = period_from_to(to, PeriodKind::Days(7));
-        assert_eq!(to, NaiveDate::from_ymd_opt(2026, 7, 17).unwrap());
-        assert_eq!(to2, to);
-        assert_eq!(from, NaiveDate::from_ymd_opt(2026, 7, 10).unwrap());
+    fn current_month_range_example() {
+        let today = NaiveDate::from_ymd_opt(2026, 7, 19).unwrap();
+        let (from, to, tb) = current_month_range(today);
+        assert_eq!(from, NaiveDate::from_ymd_opt(2026, 7, 1).unwrap());
+        assert_eq!(to, today);
+        assert_eq!(tb, "2026-07");
+        assert_eq!(
+            agg_tahun_bulan_emiten_name(&tb, "BBCA"),
+            "2026-07_BBCA"
+        );
     }
 
     #[test]
-    fn d14_range_matches_user_example() {
-        let to = NaiveDate::from_ymd_opt(2026, 7, 17).unwrap();
-        let (from, _) = period_from_to(to, PeriodKind::Days(14));
-        assert_eq!(from, NaiveDate::from_ymd_opt(2026, 7, 3).unwrap());
+    fn last_day_of_month_july_2026() {
+        assert_eq!(
+            last_day_of_month(2026, 7),
+            NaiveDate::from_ymd_opt(2026, 7, 31).unwrap()
+        );
+    }
+
+    #[test]
+    fn is_broker_summary_empty_detects_no_data() {
+        assert!(is_broker_summary_empty(&empty_day()));
     }
 
     #[test]

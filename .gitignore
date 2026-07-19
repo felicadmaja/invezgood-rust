@@ -1,4 +1,5 @@
 /target/
+.cursor/auto-git-counter
 .env
 screenshots/
 worker_scrapping/screenshots/

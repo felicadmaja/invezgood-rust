@@ -9,12 +9,16 @@ service EmitenList {
 
   // Lookup satu baris via PK base table: emiten_list.code_name = code_name.
   // code_name di server di-capitalize ke uppercase (bbca → BBCA).
-  // Bila tidak ada di Scylla: scrape Key Stats (+ tabel Period (IDR) → net_income,
-  // emiten_icon dari header / trending → GCS), Corporate Action, Profile;
-  // upsert lalu UPDATE update_at = now().
+  // Hanya baca dari Scylla; tidak scrape Stockbit. Bila tidak ada → NOT_FOUND.
   // Response `EmitenListRow.net_income`: tahun → { Q1..Q4 / Annualised / TTM… → nilai }.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetEmitenListByCodeName(GetEmitenListByCodeNameRequest) returns (GetEmitenListByCodeNameResponse);
+  rpc GetEmitenListByCodeNameFromScylla(GetEmitenListByCodeNameFromScyllaRequest) returns (GetEmitenListByCodeNameFromScyllaResponse);
+
+
+  // Lookup satu emiten: baca Scylla dulu; scrape Key Stats + Corp.Action + Profile dari Stockbit
+  // hanya bila baris tidak ada atau `update_at` kosong / sudah ≥ 30 hari; upsert lalu baca baris lengkap.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetEmitenListByCodeNameFromStockbit(GetEmitenListByCodeNameFromStockbitRequest) returns (GetEmitenListByCodeNameFromStockbitResponse);
 
   // Update kolom `is_fundamental_solid` untuk satu emiten (PK code_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
@@ -99,12 +103,21 @@ enum EmitenSector {
 
 message GetAllEmitenListRequest {}
 
-message GetEmitenListByCodeNameRequest {
+message GetEmitenListByCodeNameFromScyllaRequest {
   // Kode emiten / ticker (contoh "BBCA").
   string code_name = 1;
 }
 
-message GetEmitenListByCodeNameResponse {
+message GetEmitenListByCodeNameFromScyllaResponse {
+  EmitenListRow row = 1;
+}
+
+message GetEmitenListByCodeNameFromStockbitRequest {
+  // Kode emiten / ticker (contoh "BBCA").
+  string code_name = 1;
+}
+
+message GetEmitenListByCodeNameFromStockbitResponse {
   EmitenListRow row = 1;
 }
 

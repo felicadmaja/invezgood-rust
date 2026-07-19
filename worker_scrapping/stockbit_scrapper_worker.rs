@@ -25,7 +25,7 @@
 //! (hanya kolom scrape; tidak mengisi `sector`, `is_konglomerasi`, `is_fundamental_solid`,
 //! `is_blue_chip`, `catatan`, `catatan_owner`, `foto_owner`).
 //! Kemudian Bandar Detector via API `exodus.stockbit.com/marketdetectors/{CODE}`
-//! (Bearer dari sesi login; `to` = kemarin; d_7/d_14/M_*/Y_* by from–to) → insert `bandarmology`.
+//! (Bearer dari sesi login; `to` = kemarin; kolom `broker_summary` saja) → insert `bandarmology`.
 //! Throttle otomatis bila `x-rate-limit-remaining` hampir habis.
 //! Jika API mengembalikan HTTP 4xx: worker dihentikan segera + `pm2 resume stockbit_ws`
 //! (hindari diblokir server).

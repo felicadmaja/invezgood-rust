@@ -11,7 +11,8 @@ use crate::model::EmitenList;
 use crate::repository::EmitenListRepository;
 use crate::{
     EmitenListRow, GetAllEmitenListRequest, GetAllEmitenListResponse,
-    GetEmitenListByCodeNameRequest, GetEmitenListByCodeNameResponse,
+    GetEmitenListByCodeNameFromScyllaRequest, GetEmitenListByCodeNameFromScyllaResponse,
+    GetEmitenListByCodeNameFromStockbitRequest, GetEmitenListByCodeNameFromStockbitResponse,
     UpdateEmitenListBlueChipRequest, UpdateEmitenListBlueChipResponse,
     UpdateEmitenListCatatanRequest, UpdateEmitenListCatatanResponse,
     UpdateEmitenListFundamentalRequest, UpdateEmitenListFundamentalResponse,
@@ -75,10 +76,44 @@ impl EmitenListRpc for EmitenListService {
         }))
     }
 
-    async fn get_emiten_list_by_code_name(
+    async fn get_emiten_list_by_code_name_from_scylla(
         &self,
-        request: Request<GetEmitenListByCodeNameRequest>,
-    ) -> Result<Response<GetEmitenListByCodeNameResponse>, Status> {
+        request: Request<GetEmitenListByCodeNameFromScyllaRequest>,
+    ) -> Result<Response<GetEmitenListByCodeNameFromScyllaResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+
+        let code_name = request.into_inner().code_name.trim().to_ascii_uppercase();
+        if code_name.is_empty() {
+            return Err(Status::invalid_argument("code_name wajib diisi"));
+        }
+
+        let row = self
+            .repo
+            .get_by_code_name(&code_name)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+            .ok_or_else(|| {
+                Status::not_found(format!("emiten_list code_name={code_name} tidak ditemukan"))
+            })?;
+
+        println!(
+            "GetEmitenListByCodeNameFromScylla {} {} {}ms",
+            username,
+            code_name,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetEmitenListByCodeNameFromScyllaResponse {
+            row: Some(row.into_proto()),
+        }))
+    }
+
+    async fn get_emiten_list_by_code_name_from_stockbit(
+        &self,
+        request: Request<GetEmitenListByCodeNameFromStockbitRequest>,
+    ) -> Result<Response<GetEmitenListByCodeNameFromStockbitResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
@@ -94,15 +129,32 @@ impl EmitenListRpc for EmitenListService {
             .await
             .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
 
-        if row.is_none() {
+        let needs_scrape = match &row {
+            None => true,
+            Some(r) => {
+                worker_scrapping::emiten_list_worker::is_emiten_update_at_stale(r.update_at)
+            }
+        };
+
+        if needs_scrape {
+            let reason = if row.is_none() {
+                "tidak ada"
+            } else {
+                "update_at stale (≥30 hari)"
+            };
             println!(
-                "GetEmitenListByCodeName {username}: {code_name} tidak ada — on-demand scrape..."
+                "GetEmitenListByCodeNameFromStockbit {username}: {code_name} {reason} — scrape Stockbit..."
             );
-            if let Err(e) =
-                on_demand::ensure_emiten_data_for_code(self.session.clone(), &code_name).await
+            if let Err(e) = on_demand::scrape_emiten_list_from_stockbit_for_code(
+                self.session.clone(),
+                &code_name,
+            )
+            .await
             {
-                eprintln!("GetEmitenListByCodeName {username}: on-demand gagal {code_name}: {e}");
-                return Err(Status::internal(format!("on-demand scrape gagal: {e}")));
+                eprintln!(
+                    "GetEmitenListByCodeNameFromStockbit {username}: scrape gagal {code_name}: {e}"
+                );
+                return Err(Status::internal(format!("scrape Stockbit gagal: {e}")));
             }
 
             row = self
@@ -119,13 +171,13 @@ impl EmitenListRpc for EmitenListService {
         })?;
 
         println!(
-            "GetEmitenListByCodeName {} {} {}ms",
+            "GetEmitenListByCodeNameFromStockbit {} {} {}ms",
             username,
             code_name,
             started.elapsed().as_millis()
         );
 
-        Ok(Response::new(GetEmitenListByCodeNameResponse {
+        Ok(Response::new(GetEmitenListByCodeNameFromStockbitResponse {
             row: Some(row.into_proto()),
         }))
     }

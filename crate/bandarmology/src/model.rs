@@ -116,50 +116,21 @@ impl BandarmologyDay {
 #[derive(Debug, Clone, DeserializeRow)]
 pub struct Bandarmology {
     #[scylla(default_when_null)]
-    pub agg_tahun_bulan_tanggal_emiten_name: String,
+    pub agg_tahun_bulan_emiten_name: String,
     #[scylla(default_when_null)]
     pub emiten_name: String,
-    pub tahun_bulan_tanggal: NaiveDate,
-    pub d_1: Option<BandarmologyDay>,
-    pub d_2: Option<BandarmologyDay>,
-    pub d_7: Option<BandarmologyDay>,
-    pub d_14: Option<BandarmologyDay>,
-    #[scylla(rename = "M_1")]
-    pub m_1: Option<BandarmologyDay>,
-    #[scylla(rename = "M_3")]
-    pub m_3: Option<BandarmologyDay>,
-    #[scylla(rename = "M_6")]
-    pub m_6: Option<BandarmologyDay>,
-    #[scylla(rename = "M_12")]
-    pub m_12: Option<BandarmologyDay>,
-    #[scylla(rename = "Y_3")]
-    pub y_3: Option<BandarmologyDay>,
-    #[scylla(rename = "Y_5")]
-    pub y_5: Option<BandarmologyDay>,
-    #[scylla(rename = "Y_10")]
-    pub y_10: Option<BandarmologyDay>,
-    #[scylla(rename = "Y_15")]
-    pub y_15: Option<BandarmologyDay>,
+    #[scylla(default_when_null)]
+    pub tahun_bulan: String,
+    pub broker_summary: Option<BandarmologyDay>,
 }
 
 impl Bandarmology {
     pub fn into_proto(self) -> BandarmologyRow {
         BandarmologyRow {
-            agg_tahun_bulan_tanggal_emiten_name: self.agg_tahun_bulan_tanggal_emiten_name,
+            agg_tahun_bulan_emiten_name: self.agg_tahun_bulan_emiten_name,
             emiten_name: self.emiten_name,
-            tahun_bulan_tanggal: self.tahun_bulan_tanggal.format("%Y-%m-%d").to_string(),
-            d_1: self.d_1.map(BandarmologyDay::into_proto),
-            d_2: self.d_2.map(BandarmologyDay::into_proto),
-            d_7: self.d_7.map(BandarmologyDay::into_proto),
-            d_14: self.d_14.map(BandarmologyDay::into_proto),
-            m_1: self.m_1.map(BandarmologyDay::into_proto),
-            m_3: self.m_3.map(BandarmologyDay::into_proto),
-            m_6: self.m_6.map(BandarmologyDay::into_proto),
-            m_12: self.m_12.map(BandarmologyDay::into_proto),
-            y_3: self.y_3.map(BandarmologyDay::into_proto),
-            y_5: self.y_5.map(BandarmologyDay::into_proto),
-            y_10: self.y_10.map(BandarmologyDay::into_proto),
-            y_15: self.y_15.map(BandarmologyDay::into_proto),
+            tahun_bulan: self.tahun_bulan,
+            broker_summary: self.broker_summary.map(BandarmologyDay::into_proto),
         }
     }
 }
@@ -170,13 +141,23 @@ pub struct BandarmologyByEmitenName {
     #[scylla(default_when_null)]
     pub emiten_name: String,
     #[scylla(default_when_null)]
-    pub agg_tahun_bulan_tanggal_emiten_name: String,
+    pub agg_tahun_bulan_emiten_name: String,
 }
 
-/// Kunci partition: `concat(tahun_bulan_tanggal, '_', emiten_name)` — contoh `2026-07-16_BBCA`.
-pub fn agg_tahun_bulan_tanggal_emiten_name(
-    tahun_bulan_tanggal: NaiveDate,
-    emiten_name: &str,
-) -> String {
-    format!("{}_{}", tahun_bulan_tanggal.format("%Y-%m-%d"), emiten_name)
+/// Format `tahun_bulan` dari tanggal lokal, contoh `2026-07`.
+pub fn tahun_bulan_from_date(date: NaiveDate) -> String {
+    date.format("%Y-%m").to_string()
+}
+
+/// Kunci partition: `concat(tahun_bulan, '_', emiten_name)` — contoh `2026-07_BBCA`.
+pub fn agg_tahun_bulan_emiten_name(tahun_bulan: &str, emiten_name: &str) -> String {
+    format!(
+        "{}_{}",
+        tahun_bulan.trim(),
+        emiten_name.trim().to_ascii_uppercase()
+    )
+}
+
+pub fn agg_tahun_bulan_emiten_name_from_date(date: NaiveDate, emiten_name: &str) -> String {
+    agg_tahun_bulan_emiten_name(&tahun_bulan_from_date(date), emiten_name)
 }

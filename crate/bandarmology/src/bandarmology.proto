@@ -4,17 +4,44 @@ package bandarmology;
 
 service Bandarmology {
   // Lookup baris bandarmology via PK:
-  // agg_tahun_bulan_tanggal_emiten_name = tahun_bulan_tanggal + '_' + kode_emiten
+  // agg_tahun_bulan_emiten_name = tahun_bulan + '_' + kode_emiten
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmology(GetBandarmologyRequest) returns (GetBandarmologyResponse);
 }
 
 message GetBandarmologyRequest {
-  // Wajib format YYYY-MM-DD (contoh "2026-07-16"); selain itu invalid_argument.
-  string tahun_bulan_tanggal = 1;
+  // Wajib format YYYY-MM (contoh "2026-07"); selain itu invalid_argument.
+  string tahun_bulan = 1;
   // Kode emiten / ticker (4 huruf); di server di-capitalize ke uppercase (bbca → BBCA).
   string kode_emiten = 2;
 }
+
+
+message GetBandarmologyResponse {
+  BandarmologyRow row = 1;
+}
+
+
+
+message BandarmologyRow {
+  string agg_tahun_bulan_emiten_name = 1;
+  string emiten_name = 2;
+  string tahun_bulan = 3;
+  BandarmologyDay broker_summary = 4;
+}
+
+message BandarmologyDay {
+  BandarmologyTopStats top_1 = 1;
+  BandarmologyTopStats top_3 = 2;
+  BandarmologyTopStats top_5 = 3;
+  BandarmologyTopStats average = 4;
+  int64 net_volume = 5;
+  string net_value = 6;
+  int64 average_rp = 7;
+  repeated BandarmologyBrokerBuy broker_buy = 8;
+  repeated BandarmologyBrokerSell broker_sell = 9;
+}
+
 
 message BandarmologyTopStats {
   int64 volume = 1;
@@ -37,36 +64,5 @@ message BandarmologyBrokerSell {
   int64 sell_avg = 4;
 }
 
-message BandarmologyDay {
-  BandarmologyTopStats top_1 = 1;
-  BandarmologyTopStats top_3 = 2;
-  BandarmologyTopStats top_5 = 3;
-  BandarmologyTopStats average = 4;
-  int64 net_volume = 5;
-  string net_value = 6;
-  int64 average_rp = 7;
-  repeated BandarmologyBrokerBuy broker_buy = 8;
-  repeated BandarmologyBrokerSell broker_sell = 9;
-}
 
-message BandarmologyRow {
-  string agg_tahun_bulan_tanggal_emiten_name = 1;
-  string emiten_name = 2;
-  string tahun_bulan_tanggal = 3;
-  BandarmologyDay d_1 = 4;
-  BandarmologyDay d_2 = 5;
-  BandarmologyDay d_7 = 6;
-  BandarmologyDay d_14 = 15;
-  BandarmologyDay m_1 = 7;
-  BandarmologyDay m_3 = 8;
-  BandarmologyDay m_6 = 9;
-  BandarmologyDay m_12 = 10;
-  BandarmologyDay y_3 = 12;
-  BandarmologyDay y_5 = 13;
-  BandarmologyDay y_10 = 14;
-  BandarmologyDay y_15 = 11;
-}
 
-message GetBandarmologyResponse {
-  BandarmologyRow row = 1;
-}
