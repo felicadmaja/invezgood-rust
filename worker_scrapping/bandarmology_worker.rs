@@ -7,7 +7,8 @@
 //!   (termasuk minggu w1–w4).
 //!   Plus minggu berjalan (hanya minggu yang sudah dimulai, `to` dibatasi hari ini):
 //!   w1 = tgl 1–7, w2 = 8–14, w3 = 15–21, w4 = 22–akhir bulan →
-//!   `broker_summary_current_w1`…`w4`.
+//!   `broker_summary_current_w1`…`w4`. Minggu lalu di-skip bila kolom Scylla sudah berisi data
+//!   (W2+ skip w1; W3+ skip w1–w2; W4+ skip w1–w3).
 //! - Bulan sebelumnya (max 36 / 3 tahun): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
 //!   hentikan backfill bila 2 bulan berturut-turut sudah ada, atau 2 bulan berturut-turut kosong dari API.
 //!   Upsert historis juga di-skip bila `updated_at` masih hari ini.
@@ -18,7 +19,7 @@ use chrono::{DateTime, Datelike, Duration, Local, Months, NaiveDate, Utc};
 use chromiumoxide::page::Page;
 use futures_util::StreamExt;
 use scylla::client::session::Session;
-use scylla::{DeserializeRow, SerializeValue};
+use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -34,7 +35,7 @@ const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 2;
 const EMITEN_INTER_DELAY_MS: u64 = 100;
 const MONTH_INTER_DELAY_MS: u64 = 50;
 
-#[derive(Debug, Clone, SerializeValue, Deserialize)]
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, Deserialize)]
 pub struct BandarmologyTopStats {
     pub volume: i64,
     pub percent: f64,
@@ -42,7 +43,7 @@ pub struct BandarmologyTopStats {
     pub acc_dist: String,
 }
 
-#[derive(Debug, Clone, SerializeValue, Deserialize)]
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, Deserialize)]
 pub struct BandarmologyBrokerBuy {
     pub broker_code: String,
     pub buy_volume: String,
@@ -50,7 +51,7 @@ pub struct BandarmologyBrokerBuy {
     pub buy_avg: i64,
 }
 
-#[derive(Debug, Clone, SerializeValue, Deserialize)]
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, Deserialize)]
 pub struct BandarmologyBrokerSell {
     pub broker_code: String,
     pub sell_volume: String,
@@ -58,7 +59,7 @@ pub struct BandarmologyBrokerSell {
     pub sell_avg: i64,
 }
 
-#[derive(Debug, Clone, SerializeValue, Deserialize)]
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, Deserialize)]
 pub struct BandarmologyDay {
     pub top_1: BandarmologyTopStats,
     pub top_3: BandarmologyTopStats,
@@ -74,6 +75,14 @@ pub struct BandarmologyDay {
 #[derive(Debug, DeserializeRow)]
 struct CodeNameRow {
     code_name: String,
+}
+
+#[derive(Debug, DeserializeRow)]
+struct CurrentMonthWeeksRow {
+    broker_summary_current_w1: Option<BandarmologyDay>,
+    broker_summary_current_w2: Option<BandarmologyDay>,
+    broker_summary_current_w3: Option<BandarmologyDay>,
+    broker_summary_current_w4: Option<BandarmologyDay>,
 }
 
 const TOKEN_SEGMENTS: usize = 16;
@@ -190,6 +199,65 @@ fn is_broker_summary_empty(day: &BandarmologyDay) -> bool {
         && day.top_1.volume == 0
         && day.top_3.volume == 0
         && day.top_5.volume == 0
+}
+
+/// Skip scrape minggu lalu bila hari ini sudah masuk minggu berikutnya dan kolom Scylla sudah terisi.
+fn should_skip_past_week_scrape(
+    today: NaiveDate,
+    week: u8,
+    existing: Option<&BandarmologyDay>,
+) -> bool {
+    let Some(day) = existing else {
+        return false;
+    };
+    if is_broker_summary_empty(day) {
+        return false;
+    }
+    let d = today.day();
+    match week {
+        1 => d >= 8,
+        2 => d >= 15,
+        3 => d >= 22,
+        _ => false,
+    }
+}
+
+async fn load_current_month_week_summaries(
+    session: &Session,
+    keyspace: &str,
+    agg: &str,
+) -> Result<
+    (
+        Option<BandarmologyDay>,
+        Option<BandarmologyDay>,
+        Option<BandarmologyDay>,
+        Option<BandarmologyDay>,
+    ),
+    Box<dyn std::error::Error + Send + Sync>,
+> {
+    let stmt = session
+        .prepare(format!(
+            "SELECT broker_summary_current_w1, broker_summary_current_w2, \
+             broker_summary_current_w3, broker_summary_current_w4 \
+             FROM {keyspace}.bandarmology \
+             WHERE agg_tahun_bulan_emiten_name = ? LIMIT 1"
+        ))
+        .await?;
+    let result = session
+        .execute_unpaged(&stmt, (agg,))
+        .await?
+        .into_rows_result()?;
+    let mut rows = result.rows::<CurrentMonthWeeksRow>()?;
+    Ok(if let Some(row) = rows.next().transpose()? {
+        (
+            row.broker_summary_current_w1,
+            row.broker_summary_current_w2,
+            row.broker_summary_current_w3,
+            row.broker_summary_current_w4,
+        )
+    } else {
+        (None, None, None, None)
+    })
 }
 
 /// Kunci partition bandarmology bulan berjalan untuk emiten, mis. `2026-07_BBCA`.
@@ -987,10 +1055,12 @@ async fn scrape_emiten_bandarmology(
         }
 
         // Minggu berjalan: hanya minggu yang sudah dimulai; `to` ≤ hari ini.
-        let mut w1: Option<BandarmologyDay> = None;
-        let mut w2: Option<BandarmologyDay> = None;
-        let mut w3: Option<BandarmologyDay> = None;
-        let mut w4: Option<BandarmologyDay> = None;
+        let (existing_w1, existing_w2, existing_w3, existing_w4) =
+            load_current_month_week_summaries(session.as_ref(), keyspace, &cur_agg).await?;
+        let mut w1 = existing_w1;
+        let mut w2 = existing_w2;
+        let mut w3 = existing_w3;
+        let mut w4 = existing_w4;
         let week_ranges = current_month_week_ranges(today);
         println!(
             "  [{code}] minggu berjalan {cur_tb}: {} window(s) (today day={})",
@@ -999,6 +1069,19 @@ async fn scrape_emiten_bandarmology(
         );
         for (week, from, to) in week_ranges {
             sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
+            let existing_week = match week {
+                1 => w1.as_ref(),
+                2 => w2.as_ref(),
+                3 => w3.as_ref(),
+                4 => w4.as_ref(),
+                _ => None,
+            };
+            if should_skip_past_week_scrape(today, week, existing_week) {
+                println!(
+                    "  [{code}] skip scrape {cur_tb} w{week}: sudah ada data di Scylla (reuse)"
+                );
+                continue;
+            }
             println!("  [{code}] {cur_tb} w{week}: {from}..{to}");
             match fetch_marketdetector_day(client, bearer, &code, from, to, None).await {
                 Ok((day, rate)) => {
@@ -1363,5 +1446,48 @@ mod tests {
         assert_eq!(parse_sci_to_int_string("2.349649e+08"), "234964900");
         assert_eq!(parse_sci_to_int_string("12345"), "12345");
         assert_eq!(parse_sci_to_int_string(""), "0");
+    }
+
+    #[test]
+    fn should_skip_past_week_scrape_w1_in_w2_with_data() {
+        let today = NaiveDate::from_ymd_opt(2026, 7, 10).unwrap();
+        let day = BandarmologyDay {
+            net_volume: 100,
+            ..empty_day()
+        };
+        assert!(should_skip_past_week_scrape(today, 1, Some(&day)));
+        assert!(!should_skip_past_week_scrape(today, 2, Some(&day)));
+    }
+
+    #[test]
+    fn should_skip_past_week_scrape_w1_w2_in_w3_with_data() {
+        let today = NaiveDate::from_ymd_opt(2026, 7, 21).unwrap();
+        let day = BandarmologyDay {
+            net_volume: 1,
+            ..empty_day()
+        };
+        assert!(should_skip_past_week_scrape(today, 1, Some(&day)));
+        assert!(should_skip_past_week_scrape(today, 2, Some(&day)));
+        assert!(!should_skip_past_week_scrape(today, 3, Some(&day)));
+    }
+
+    #[test]
+    fn should_skip_past_week_scrape_w123_in_w4_with_data() {
+        let today = NaiveDate::from_ymd_opt(2026, 7, 25).unwrap();
+        let day = BandarmologyDay {
+            net_volume: 1,
+            ..empty_day()
+        };
+        assert!(should_skip_past_week_scrape(today, 1, Some(&day)));
+        assert!(should_skip_past_week_scrape(today, 2, Some(&day)));
+        assert!(should_skip_past_week_scrape(today, 3, Some(&day)));
+        assert!(!should_skip_past_week_scrape(today, 4, Some(&day)));
+    }
+
+    #[test]
+    fn should_skip_past_week_scrape_no_data_never_skips() {
+        let today = NaiveDate::from_ymd_opt(2026, 7, 21).unwrap();
+        assert!(!should_skip_past_week_scrape(today, 1, None));
+        assert!(!should_skip_past_week_scrape(today, 1, Some(&empty_day())));
     }
 }
