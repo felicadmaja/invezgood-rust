@@ -11,7 +11,7 @@
 //! | status                 | text     | String    |
 //! | message                | text     | String    |
 //! | side                   | text     | String    |
-//! | time_open              | date     | NaiveDate |
+//! | time_open              | timestamp | Option\<DateTime\<Utc\>\> |
 //! | lot_open               | double   | f64       |
 //! | lot_done               | double   | f64       |
 //! | price_order            | double   | f64       |
@@ -19,7 +19,7 @@
 //! | amount_match           | double   | f64       |
 //! | amount_match_total     | double   | f64       |
 //! | is_gtc                 | boolean  | bool      |
-//! | updated_at             | date     | Option\<NaiveDate\> |
+//! | updated_at             | timestamp | Option\<DateTime\<Utc\>\> |
 //!
 //! ## MV `pending_order_by_emiten_name`
 //! PK: `(("emiten_name"), "order_id")` — `SELECT *` dari base table.
@@ -27,7 +27,7 @@
 //! ## MV `pending_order_by_status`
 //! PK: `(("status"), "order_id")` — `SELECT *` dari base table.
 
-use chrono::NaiveDate;
+use chrono::{DateTime, Utc};
 use scylla::DeserializeRow;
 
 use crate::PendingOrderRow;
@@ -47,7 +47,7 @@ pub struct PendingOrder {
     pub message: String,
     #[scylla(default_when_null)]
     pub side: String,
-    pub time_open: NaiveDate,
+    pub time_open: Option<DateTime<Utc>>,
     #[scylla(default_when_null)]
     pub lot_open: f64,
     #[scylla(default_when_null)]
@@ -62,8 +62,8 @@ pub struct PendingOrder {
     pub amount_match_total: f64,
     #[scylla(default_when_null)]
     pub is_gtc: bool,
-    /// Tanggal terakhir baris di-upsert.
-    pub updated_at: Option<NaiveDate>,
+    /// Waktu terakhir baris di-upsert.
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 impl PendingOrder {
@@ -74,7 +74,10 @@ impl PendingOrder {
             status: self.status,
             message: self.message,
             side: self.side,
-            time_open: self.time_open.format("%Y-%m-%d").to_string(),
+            time_open: self
+                .time_open
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_default(),
             lot_open: self.lot_open,
             lot_done: self.lot_done,
             price_order: self.price_order,
@@ -84,7 +87,7 @@ impl PendingOrder {
             is_gtc: self.is_gtc,
             updated_at: self
                 .updated_at
-                .map(|d| d.format("%Y-%m-%d").to_string())
+                .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
         }
     }

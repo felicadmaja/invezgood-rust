@@ -9,7 +9,7 @@
 //! - `status` ← `status_text`
 //! - `message` ← `message`
 //! - `side` ← `side`
-//! - `time_open` ← `time.open` (tanggal)
+//! - `time_open` ← `time.open` (timestamp RFC3339)
 //! - `lot_open` ← `qty.lot_open`
 //! - `lot_done` ← `qty.lot_done`
 //! - `price_order` ← `price.order`
@@ -17,9 +17,9 @@
 //! - `amount_match` ← `amount.matched`
 //! - `amount_match_total` ← `amount.matched_total`
 //! - `is_gtc` ← `gtc.is_gtc`
-//! - `updated_at` ← tanggal lokal hari ini
+//! - `updated_at` ← waktu upsert (UTC now)
 
-use chrono::{Local, NaiveDate};
+use chrono::{DateTime, Utc};
 use chromiumoxide::page::Page;
 use scylla::client::session::Session;
 use serde_json::Value;
@@ -40,7 +40,7 @@ struct PendingOrderRow {
     status: String,
     message: String,
     side: String,
-    time_open: NaiveDate,
+    time_open: DateTime<Utc>,
     lot_open: f64,
     lot_done: f64,
     price_order: f64,
@@ -83,8 +83,8 @@ fn json_bool(v: &Value, path: &[&str]) -> bool {
     cur.as_bool().unwrap_or(false)
 }
 
-/// Parse `time.open` ISO (`2026-07-20T13:04:25Z`) → tanggal lokal NaiveDate.
-fn parse_time_open(item: &Value) -> Option<NaiveDate> {
+/// Parse `time.open` ISO (`2026-07-20T13:04:25Z`) → `DateTime<Utc>`.
+fn parse_time_open(item: &Value) -> Option<DateTime<Utc>> {
     let s = item
         .pointer("/time/open")
         .and_then(|x| x.as_str())
@@ -93,12 +93,16 @@ fn parse_time_open(item: &Value) -> Option<NaiveDate> {
     if s.is_empty() || s.starts_with("0001-01-01") {
         return None;
     }
-    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(s) {
-        return Some(dt.date_naive());
+    if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+        return Some(dt.with_timezone(&Utc));
     }
-    // Fallback: ambil prefix YYYY-MM-DD
+    // Fallback: tanggal saja → midnight UTC
     let date_part = s.get(..10)?;
-    NaiveDate::parse_from_str(date_part, "%Y-%m-%d").ok()
+    let naive = chrono::NaiveDate::parse_from_str(date_part, "%Y-%m-%d").ok()?;
+    Some(DateTime::from_naive_utc_and_offset(
+        naive.and_hms_opt(0, 0, 0)?,
+        Utc,
+    ))
 }
 
 fn parse_order_list_json(v: &Value) -> Vec<PendingOrderRow> {
@@ -187,7 +191,7 @@ async fn upsert_pending_orders(
         ))
         .await?;
 
-    let updated_at = Local::now().date_naive();
+    let updated_at = Utc::now();
     let mut n = 0usize;
     for row in rows {
         session
@@ -221,7 +225,7 @@ async fn upsert_pending_orders(
             row.emiten_name,
             row.status,
             row.side,
-            row.time_open,
+            row.time_open.to_rfc3339(),
             row.lot_open,
             row.lot_done,
             row.price_order,
@@ -229,7 +233,7 @@ async fn upsert_pending_orders(
             row.amount_match,
             row.amount_match_total,
             row.is_gtc,
-            updated_at,
+            updated_at.to_rfc3339(),
         );
     }
     println!("INFO upsert pending_order selesai: {n}/{} baris.", rows.len());
@@ -308,7 +312,10 @@ mod tests {
         assert_eq!(r.status, "PENDING");
         assert_eq!(r.message, "waiting");
         assert_eq!(r.side, "SIDE_BUY");
-        assert_eq!(r.time_open, NaiveDate::from_ymd_opt(2026, 7, 20).unwrap());
+        assert_eq!(
+            r.time_open.to_rfc3339(),
+            "2026-07-20T13:04:25+00:00"
+        );
         assert_eq!(r.lot_open, 157.0);
         assert_eq!(r.lot_done, 0.0);
         assert_eq!(r.price_order, 63.0);

@@ -11,7 +11,7 @@ Kolom dan tipe CQL:
   "status" text
   "message" text
   "side" text
-  "time_open" date
+  "time_open" timestamp
   "lot_open" double
   "lot_done" double
   "price_order" double
@@ -19,10 +19,11 @@ Kolom dan tipe CQL:
   "amount_match" double
   "amount_match_total" double
   "is_gtc" boolean
-  "updated_at" date
+  "updated_at" timestamp
 
 Kolom "message": text — keterangan/status message dari order (opsional).
-Kolom "updated_at": date — tanggal terakhir baris di-upsert (diisi aplikasi).
+Kolom "time_open": timestamp — waktu open order dari API (`time.open`).
+Kolom "updated_at": timestamp — waktu terakhir baris di-upsert (diisi aplikasi).
 
 Lookup: WHERE order_id = ?.
 

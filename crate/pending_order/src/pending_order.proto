@@ -3,13 +3,13 @@ syntax = "proto3";
 package pending_order;
 
 service PendingOrder {
-  // Token-ring scan seluruh baris tabel Scylla `pending_order`.
+  // Baca MV `pending_order_by_status` — hanya baris status = "OPEN".
   // Request kosong. Response: repeated PendingOrderRow.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetAllPendingOrder(GetAllPendingOrderRequest) returns (GetAllPendingOrderResponse);
+  rpc GetAllOpenPendingOrder(GetAllOpenPendingOrderRequest) returns (GetAllOpenPendingOrderResponse);
 }
 
-message GetAllPendingOrderRequest {}
+message GetAllOpenPendingOrderRequest {}
 
 message PendingOrderRow {
   string order_id = 1;
@@ -17,7 +17,7 @@ message PendingOrderRow {
   string status = 3;
   string message = 4;
   string side = 5;
-  // YYYY-MM-DD
+  // RFC3339 timestamp (contoh 2026-07-20T13:04:25Z)
   string time_open = 6;
   double lot_open = 7;
   double lot_done = 8;
@@ -26,10 +26,10 @@ message PendingOrderRow {
   double amount_match = 11;
   double amount_match_total = 12;
   bool is_gtc = 13;
-  // YYYY-MM-DD; kosong bila null
+  // RFC3339 timestamp; kosong bila null
   string updated_at = 14;
 }
 
-message GetAllPendingOrderResponse {
+message GetAllOpenPendingOrderResponse {
   repeated PendingOrderRow rows = 1;
 }
