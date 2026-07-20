@@ -22,6 +22,8 @@ use emiten_trending_count::emiten_trending_count_server::EmitenTrendingCountServ
 use emiten_trending_count::EmitenTrendingCountService;
 use gcs::gcs_server::GcsServer;
 use gcs::GcsGrpcService;
+use pending_order::pending_order_server::PendingOrderServer;
+use pending_order::PendingOrderService;
 use portofolio::portofolio_server::PortofolioServer;
 use portofolio::PortofolioService;
 use tonic_reflection::server::Builder as ReflectionBuilder;
@@ -52,6 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let bandarmology_svc = BandarmologyService::new(session.clone());
     let emiten_list_svc = EmitenListService::new(session.clone());
     let broker_svc = BrokerService::new(session.clone());
+    let pending_order_svc = PendingOrderService::new(session.clone());
     let gcs_svc = GcsGrpcService::from_env()
         .map_err(|e| format!("GCS env: {e}"))?;
 
@@ -65,10 +68,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         bandarmology_svc.warm_prepared(),
         emiten_list_svc.warm_prepared(),
         broker_svc.warm_prepared(),
+        pending_order_svc.warm_prepared(),
     )
     .map_err(|e| format!("Gagal memanaskan statement database: {e}"))?;
     println!(
-        "OK: prepared statements siap (user, portofolio, emiten_trending, emiten_trending_count, bandarmology, emiten_list, broker)"
+        "OK: prepared statements siap (user, portofolio, emiten_trending, emiten_trending_count, bandarmology, emiten_list, broker, pending_order)"
     );
 
     let user_svc = UserServer::new(user_svc);
@@ -83,6 +87,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let emiten_list_svc =
         EmitenListServer::with_interceptor(emiten_list_svc, AuthInterceptor);
     let broker_svc = BrokerServer::with_interceptor(broker_svc, AuthInterceptor);
+    let pending_order_svc =
+        PendingOrderServer::with_interceptor(pending_order_svc, AuthInterceptor);
     let gcs_svc = GcsServer::with_interceptor(gcs_svc, AuthInterceptor);
 
     let reflection_svc = ReflectionBuilder::configure()
@@ -93,6 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .register_encoded_file_descriptor_set(bandarmology::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(emiten_list::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(broker::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(pending_order::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(gcs::FILE_DESCRIPTOR_SET)
         .build_v1()
         .map_err(|e| format!("reflection: {e}"))?;
@@ -118,6 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(bandarmology_svc)
         .add_service(emiten_list_svc)
         .add_service(broker_svc)
+        .add_service(pending_order_svc)
         .add_service(gcs_svc)
         .add_service(reflection_svc)
         .serve_with_shutdown(addr, grpc_shutdown_signal())

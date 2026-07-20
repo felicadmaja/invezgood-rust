@@ -34,7 +34,14 @@ PRIMARY KEY: partition "emiten_name" (text); clustering "order_id" (text).
 WITH CLUSTERING ORDER BY ("order_id" ASC).
 Gunakan: daftar pending order per emiten_name (contoh WHERE emiten_name = ?); baris tunggal lewat tabel dasar WHERE order_id = ?.
 
+(2) "stockbit"."pending_order_by_status"
+SELECT * FROM "stockbit"."pending_order"
+WHERE "status" IS NOT NULL AND "order_id" IS NOT NULL.
+PRIMARY KEY: partition "status" (text); clustering "order_id" (text).
+WITH CLUSTERING ORDER BY ("order_id" ASC).
+Gunakan: daftar pending order per status (contoh WHERE status = ?); baris tunggal lewat tabel dasar WHERE order_id = ?.
+
 --- Secondary index ---
-Tidak ada: akses lewat PRIMARY KEY (("order_id")) atau MV by emiten_name.
+Tidak ada: akses lewat PRIMARY KEY (("order_id")), MV by emiten_name, atau MV by status.
 
 === Akhir ringkasan struktur ===

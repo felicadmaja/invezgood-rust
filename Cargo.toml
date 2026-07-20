@@ -8,6 +8,7 @@ members = [
     "crate/emiten_trending",
     "crate/emiten_trending_count",
     "crate/gcs",
+    "crate/pending_order",
     "crate/portofolio",
     "crate/stockbit_browser",
     "crate/tls",

@@ -23,9 +23,14 @@
 //!
 //! ## MV `pending_order_by_emiten_name`
 //! PK: `(("emiten_name"), "order_id")` — `SELECT *` dari base table.
+//!
+//! ## MV `pending_order_by_status`
+//! PK: `(("status"), "order_id")` — `SELECT *` dari base table.
 
 use chrono::NaiveDate;
 use scylla::DeserializeRow;
+
+use crate::PendingOrderRow;
 
 /// Baris tabel dasar `pending_order` (juga hasil query MV `SELECT *`).
 /// PK: `(("order_id"))`.
@@ -61,6 +66,30 @@ pub struct PendingOrder {
     pub updated_at: Option<NaiveDate>,
 }
 
+impl PendingOrder {
+    pub fn into_proto(self) -> PendingOrderRow {
+        PendingOrderRow {
+            order_id: self.order_id,
+            emiten_name: self.emiten_name,
+            status: self.status,
+            message: self.message,
+            side: self.side,
+            time_open: self.time_open.format("%Y-%m-%d").to_string(),
+            lot_open: self.lot_open,
+            lot_done: self.lot_done,
+            price_order: self.price_order,
+            amount_open: self.amount_open,
+            amount_match: self.amount_match,
+            amount_match_total: self.amount_match_total,
+            is_gtc: self.is_gtc,
+            updated_at: self
+                .updated_at
+                .map(|d| d.format("%Y-%m-%d").to_string())
+                .unwrap_or_default(),
+        }
+    }
+}
+
 /// Baris MV `pending_order_by_emiten_name` (lookup per emiten).
 /// PK: `(("emiten_name"), "order_id")`.
 ///
@@ -69,6 +98,18 @@ pub struct PendingOrder {
 pub struct PendingOrderByEmitenName {
     #[scylla(default_when_null)]
     pub emiten_name: String,
+    #[scylla(default_when_null)]
+    pub order_id: String,
+}
+
+/// Baris MV `pending_order_by_status` (lookup per status).
+/// PK: `(("status"), "order_id")`.
+///
+/// Untuk baris lengkap dari MV (`SELECT *`), gunakan [`PendingOrder`].
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct PendingOrderByStatus {
+    #[scylla(default_when_null)]
+    pub status: String,
     #[scylla(default_when_null)]
     pub order_id: String,
 }

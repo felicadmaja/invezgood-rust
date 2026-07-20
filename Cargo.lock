@@ -1488,6 +1488,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pending_order"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures-util",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "scylla",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2420,6 +2436,7 @@ dependencies = [
  "emiten_trending",
  "emiten_trending_count",
  "gcs",
+ "pending_order",
  "portofolio",
  "tls",
  "tokio",
