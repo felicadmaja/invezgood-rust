@@ -14,6 +14,7 @@ const PAGE_SIZE: i32 = 100;
 
 struct Prepared {
     scan: PreparedStatement,
+    by_emiten: PreparedStatement,
 }
 
 pub struct PortofolioRepository {
@@ -35,15 +36,26 @@ impl PortofolioRepository {
     async fn prepared(&self) -> Result<&Prepared, Box<dyn std::error::Error + Send + Sync>> {
         self.prepared
             .get_or_try_init(|| async {
-                let q = format!(
+                let scan_q = format!(
                     "SELECT emiten_name, long_name, emiten_icon, balance_lot, available_lot, \
-                     average_price, current_price, invested, market_value, potential_p_l, percentage \
+                     average_price, current_price, invested, market_value, potential_p_l, percentage, \
+                     history \
                      FROM {} WHERE token(emiten_name) >= ? AND token(emiten_name) <= ?",
                     self.table
                 );
-                let mut scan = self.session.prepare(q).await?;
+                let by_emiten_q = format!(
+                    "SELECT emiten_name, long_name, emiten_icon, balance_lot, available_lot, \
+                     average_price, current_price, invested, market_value, potential_p_l, percentage, \
+                     history \
+                     FROM {} WHERE emiten_name = ? LIMIT 1",
+                    self.table
+                );
+                let mut scan = self.session.prepare(scan_q).await?;
                 scan.set_page_size(PAGE_SIZE);
-                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared { scan })
+                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared {
+                    scan,
+                    by_emiten: self.session.prepare(by_emiten_q).await?,
+                })
             })
             .await
     }
@@ -52,6 +64,21 @@ impl PortofolioRepository {
     pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.prepared().await?;
         Ok(())
+    }
+
+    pub async fn find_by_emiten(
+        &self,
+        emiten_name: &str,
+    ) -> Result<Option<Portofolio>, Box<dyn std::error::Error + Send + Sync>> {
+        let code = emiten_name.trim().to_ascii_uppercase();
+        let prepared = self.prepared().await?;
+        let result = self
+            .session
+            .execute_unpaged(&prepared.by_emiten, (code.as_str(),))
+            .await?
+            .into_rows_result()?;
+        let mut rows = result.rows::<Portofolio>()?;
+        Ok(rows.next().transpose()?)
     }
 
     pub async fn get_all(&self) -> Result<Vec<Portofolio>, Box<dyn std::error::Error + Send + Sync>> {

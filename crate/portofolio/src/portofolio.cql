@@ -18,6 +18,20 @@ Kolom dan tipe CQL:
   "market_value" double
   "potential_p_l" double
   "percentage" double
+  "history" map<timestamp, frozen<portofolio_history_item>>
+
+Kolom "history": map keyed by waktu order (timestamp ISO, contoh 2026-07-20T07:20:55Z)
+→ nilai UDT `portofolio_history_item` (satu entri matched order).
+
+--- UDT ---
+(1) "stockbit"."portofolio_history_item"
+  "order_id" text
+  "message" text
+  "symbol" text
+  "side" text
+  "lot_done" int
+  "price_average" double
+  "amount_matched" double
 
 --- Materialized view (MV) ---
 Tidak ada: MV "stockbit"."portofolio_by_emiten_name" (legacy) di-drop saat migrasi; lookup langsung lewat PRIMARY KEY (("emiten_name")).

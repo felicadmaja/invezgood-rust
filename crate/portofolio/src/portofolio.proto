@@ -4,10 +4,49 @@ package portofolio;
 
 service Portofolio {
   // Tanpa parameter request; mengembalikan semua baris dari tabel Scylla `portofolio`.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPortofolio(GetAllPortofolioRequest) returns (GetAllPortofolioResponse);
+
+  // Baca kolom `history` dari Scylla `portofolio` untuk satu emiten (tanpa scrape).
+  // emiten_name: tepat 4 huruf; dinormalisasi ke UPPERCASE.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetPortofolioHistoryByEmitenNameFromScylla(
+      GetPortofolioHistoryByEmitenNameFromScyllaRequest)
+      returns (GetPortofolioHistoryByEmitenNameFromScyllaResponse);
+
+  // Ambil riwayat order per emiten dari Stockbit lalu timpa kolom `portofolio.history`.
+  // Alur: login → START TRADING/PIN bila perlu →
+  // GET carina.stockbit.com/order/v2/list?filter_criteria.stock_code={emiten_name}
+  // → SET history = map baru (timpa ulang, bukan push).
+  // Key map = waktu order (`time.match`, fallback `time.open` / `time.order`) RFC3339.
+  // emiten_name: tepat 4 huruf; dinormalisasi ke UPPERCASE.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetPortofolioHistoryByEmitenNameFromStockbit(
+      GetPortofolioHistoryByEmitenNameFromStockbitRequest)
+      returns (GetPortofolioHistoryByEmitenNameFromStockbitResponse);
 }
 
 message GetAllPortofolioRequest {}
+
+message GetPortofolioHistoryByEmitenNameFromScyllaRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE (asbi → ASBI).
+  string emiten_name = 1;
+}
+
+message GetPortofolioHistoryByEmitenNameFromStockbitRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE (asbi → ASBI).
+  string emiten_name = 1;
+}
+
+message PortofolioHistoryItem {
+  string order_id = 1;
+  string message = 2;
+  string symbol = 3;
+  string side = 4;
+  int32 lot_done = 5;
+  double price_average = 6;
+  double amount_matched = 7;
+}
 
 message PortofolioRow {
   string emiten_name = 1;
@@ -21,8 +60,21 @@ message PortofolioRow {
   double potential_p_l = 9;
   double percentage = 10;
   string long_name = 11;
+  // Key = timestamp RFC3339 (contoh "2026-07-20T07:20:55Z").
+  map<string, PortofolioHistoryItem> history = 12;
 }
 
 message GetAllPortofolioResponse {
   repeated PortofolioRow rows = 1;
+}
+
+message GetPortofolioHistoryByEmitenNameFromScyllaResponse {
+  PortofolioRow row = 1;
+}
+
+message GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+  bool success = 1;
+  string message = 2;
+  // Baris portofolio setelah history di-timpa; kosong jika gagal / emiten belum ada di Scylla.
+  PortofolioRow row = 3;
 }

@@ -1577,6 +1577,7 @@ checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
 name = "portofolio"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "futures-util",
  "prost",
  "prost-build",
@@ -1586,6 +1587,7 @@ dependencies = [
  "tonic",
  "tonic-build",
  "user",
+ "worker_scrapping",
 ]
 
 [[package]]

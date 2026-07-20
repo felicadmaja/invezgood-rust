@@ -11,13 +11,14 @@
 //! (scrape bila belum ada). Icon: reuse `emiten_list.emiten_icon` bila sudah ada;
 //! download GCS hanya bila belum ada.
 
-use chrono::Local;
+use chrono::{DateTime, Local, Utc};
 use chromiumoxide::page::Page;
 use gcs::{download_and_upload_emiten_icon, GcsOAuthTokenCache, GcsSignedUrlRuntime};
 use rand::Rng;
 use scylla::client::session::Session;
-use scylla::DeserializeRow;
+use scylla::{DeserializeRow, SerializeValue};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use stockbit_browser::goto_stockbit;
@@ -26,9 +27,22 @@ use tokio::time::sleep;
 use crate::{bandarmology_worker, emiten_list_worker, portofolio_equity_worker};
 
 const PORTFOLIO_API_URL: &str = "https://carina.stockbit.com/portfolio/v2/list";
+const ORDER_LIST_API_URL: &str = "https://carina.stockbit.com/order/v2/list";
 const STOCKBIT_PORTFOLIO_URL: &str = "https://stockbit.com/securities/portfolio";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+/// UDT `portofolio_history_item` untuk INSERT/UPDATE map history.
+#[derive(Debug, Clone, SerializeValue)]
+pub struct PortofolioHistoryItemUd {
+    pub order_id: String,
+    pub message: String,
+    pub symbol: String,
+    pub side: String,
+    pub lot_done: i32,
+    pub price_average: f64,
+    pub amount_matched: f64,
+}
 
 #[derive(Debug, Clone)]
 struct PortoRow {
@@ -850,6 +864,175 @@ pub async fn scrape_and_insert_portofolio(
     Ok(n)
 }
 
+fn json_i32(v: &Value, path: &[&str]) -> i32 {
+    json_i64(v, path) as i32
+}
+
+fn parse_order_time_key(item: &Value) -> Option<DateTime<Utc>> {
+    for path in ["/time/match", "/time/open", "/time/order"] {
+        let s = item.pointer(path).and_then(|x| x.as_str()).unwrap_or("").trim();
+        if s.is_empty() || s.starts_with("0001-01-01") {
+            continue;
+        }
+        if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+            return Some(dt.with_timezone(&Utc));
+        }
+    }
+    None
+}
+
+/// Parse `data[]` dari order/v2/list → map history (key = waktu match/open/order).
+pub fn parse_order_history_map(
+    v: &Value,
+) -> HashMap<DateTime<Utc>, PortofolioHistoryItemUd> {
+    let items = v
+        .get("data")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut out = HashMap::new();
+    for item in items {
+        let Some(ts) = parse_order_time_key(&item) else {
+            continue;
+        };
+        let order_id = item
+            .get("order_id")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if order_id.is_empty() {
+            continue;
+        }
+        let symbol = item
+            .get("symbol")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_ascii_uppercase();
+        let message = item
+            .get("message")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let side = item
+            .get("side")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        out.insert(
+            ts,
+            PortofolioHistoryItemUd {
+                order_id,
+                message,
+                symbol,
+                side,
+                lot_done: json_i32(&item, &["qty", "lot_done"]),
+                price_average: json_f64(&item, &["price", "average", "price"]),
+                amount_matched: json_f64(&item, &["amount", "matched"]),
+            },
+        );
+    }
+    out
+}
+
+async fn fetch_order_history_by_stock_code(
+    http: &reqwest::Client,
+    bearer: &str,
+    stock_code: &str,
+) -> Result<HashMap<DateTime<Utc>, PortofolioHistoryItemUd>, Box<dyn std::error::Error>> {
+    let url = format!(
+        "{ORDER_LIST_API_URL}?filter_criteria.stock_code={}",
+        urlencoding_simple(stock_code)
+    );
+    let resp = http
+        .get(&url)
+        .header("Authorization", format!("Bearer {bearer}"))
+        .header("Accept", "application/json")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .header("Cache-Control", "no-cache")
+        .header("Pragma", "no-cache")
+        .send()
+        .await?;
+
+    let status = resp.status();
+    crate::http_abort::abort_app_if_http_4xx(status, "order/v2/list?filter_criteria.stock_code");
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        let preview: String = body.chars().take(280).collect();
+        return Err(format!("order/v2/list (stock={stock_code}) HTTP {status}: {preview}").into());
+    }
+    let v: Value = serde_json::from_str(&body)
+        .map_err(|e| format!("order/v2/list JSON: {e}"))?;
+    Ok(parse_order_history_map(&v))
+}
+
+fn urlencoding_simple(s: &str) -> String {
+    // stock code = huruf saja; cukup escape aman.
+    s.chars()
+        .map(|c| match c {
+            'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' => c.to_string(),
+            _ => format!("%{:02X}", c as u8),
+        })
+        .collect()
+}
+
+/// Timpa `portofolio.history` untuk satu emiten (bukan push/merge).
+pub async fn replace_portofolio_history(
+    session: &Session,
+    keyspace: &str,
+    emiten_name: &str,
+    history: &HashMap<DateTime<Utc>, PortofolioHistoryItemUd>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let code = emiten_name.trim().to_ascii_uppercase();
+    let update = session
+        .prepare(format!(
+            "UPDATE {keyspace}.portofolio SET history = ? WHERE emiten_name = ?"
+        ))
+        .await?;
+    session
+        .execute_unpaged(&update, (history, code.as_str()))
+        .await?;
+    Ok(())
+}
+
+/// START TRADING/PIN → Bearer trading → GET order/v2/list?filter_criteria.stock_code=
+/// → timpa `portofolio.history`. Returns jumlah entri history.
+pub async fn scrape_and_replace_portofolio_history(
+    page: &Page,
+    session: &Session,
+    keyspace: &str,
+    emiten_name: &str,
+) -> Result<usize, Box<dyn std::error::Error>> {
+    let code = emiten_name.trim().to_ascii_uppercase();
+    if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Err("emiten_name harus tepat 4 huruf alfabet".into());
+    }
+
+    ensure_trading_session(page).await?;
+    println!("Portofolio history: jeda 2 detik setelah PIN / mode trading siap...");
+    sleep(Duration::from_secs(2)).await;
+
+    let bearer = extract_trading_bearer_after_pin(page).await?;
+    let http = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(60))
+        .build()?;
+
+    println!(
+        "Portofolio history API: GET {ORDER_LIST_API_URL}?filter_criteria.stock_code={code}..."
+    );
+    let history = fetch_order_history_by_stock_code(&http, &bearer, &code).await?;
+    let n = history.len();
+    replace_portofolio_history(session, keyspace, &code, &history).await?;
+    println!("OK: portofolio.history {code} ditimpa dengan {n} entri.");
+    Ok(n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -898,5 +1081,41 @@ mod tests {
         assert!((r.average_price - 1361.414).abs() < 1e-6);
         assert!((r.current_price - 1335.0).abs() < 1e-9);
         assert!((r.percentage - (-1.9401)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn parse_order_history_maps_fields() {
+        let v: Value = serde_json::from_str(
+            r#"{
+                "message": "Orders data retrieved",
+                "data": [
+                    {
+                        "order_id": "XL46376141PYwb3yIzZ7",
+                        "symbol": "ASBI",
+                        "message": "",
+                        "side": "SIDE_BUY",
+                        "time": {
+                            "order": "2026-07-20T11:17:01Z",
+                            "open": "2026-07-20T11:17:01Z",
+                            "match": "2026-07-20T07:20:55Z"
+                        },
+                        "qty": { "lot_done": 15, "lot_open": 0 },
+                        "price": { "order": 424, "average": { "price": 424 } },
+                        "amount": { "matched": 636000 }
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+        let map = parse_order_history_map(&v);
+        assert_eq!(map.len(), 1);
+        let (ts, item) = map.iter().next().unwrap();
+        assert_eq!(item.order_id, "XL46376141PYwb3yIzZ7");
+        assert_eq!(item.symbol, "ASBI");
+        assert_eq!(item.side, "SIDE_BUY");
+        assert_eq!(item.lot_done, 15);
+        assert!((item.price_average - 424.0).abs() < 1e-9);
+        assert!((item.amount_matched - 636000.0).abs() < 1e-9);
+        assert_eq!(ts.timestamp(), 1_784_532_055); // 2026-07-20T07:20:55Z
     }
 }
