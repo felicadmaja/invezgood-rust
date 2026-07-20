@@ -15,11 +15,14 @@ service EmitenTrending {
   //     belum ada), upsert `emiten_trending_count_by_name`: appearance_count += 1,
   //     last_tahun_bulan_tanggal = hari ini, updated_at = now.
   //     Baris yang sudah ada di tanggal yang sama tidak menambah count lagi.
-  // (2) `emiten_list` — token-ring scan semua `code_name` yang sudah ada di tabel ini;
-  //     untuk tiap emiten (skip bila `update_at` masih < 30 hari): API keystats/ratio +
-  //     corpaction + profile → upsert kolom scrape saja (key_stats, corporate_action,
-  //     company_profile, net_income, long_name, emiten_icon, update_at; tidak mengisi
-  //     sector / is_konglomerasi / is_fundamental_solid / is_blue_chip / catatan / owner).
+  // (2) `emiten_list` — union kode movers hari ini ∪ token-ring scan `code_name` di tabel ini.
+  //     Per kode: upsert scrape (key_stats, corporate_action, company_profile, net_income,
+  //     long_name, emiten_icon, update_at) hanya bila:
+  //       - baris belum ada di `emiten_list`, ATAU
+  //       - `update_at` kosong / usia sudah ≥ 30 hari
+  //     (skip bila `update_at` masih < 30 hari dan emiten_icon sudah terisi).
+  //     Tidak mengisi sector / is_konglomerasi / is_fundamental_solid / is_blue_chip /
+  //     is_plan_to_trade / catatan / catatan_owner / foto_owner.
   // (3) `bandarmology` — marketdetectors API untuk daftar `code_name` yang sama dari langkah (2);
   //     insert hanya bila agg bulan ini `YYYY-MM_CODE` belum ada (skip jika sudah ada).
   //

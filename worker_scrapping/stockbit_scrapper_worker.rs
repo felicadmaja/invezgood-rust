@@ -181,7 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let session = connect_scylla().await?;
     let ks = keyspace();
 
-    let (inserted_gainer, inserted_loser) =
+    let (inserted_gainer, inserted_loser, mover_codes) =
         emiten_trending_worker::scrape_and_insert_movers(&page, &session, &ks).await?;
     println!(
         "OK: emiten_trending gainer={inserted_gainer}, loser={inserted_loser} (dengan long_name)."
@@ -189,12 +189,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let today = Local::now().date_naive();
     println!("Token-ring scan emiten_list.code_name...");
-    let emitens = bandarmology_worker::fetch_emiten_list_code_names(&session, &ks)
+    let mut emitens = bandarmology_worker::fetch_emiten_list_code_names(&session, &ks)
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    let before = emitens.len();
+    for code in &mover_codes {
+        if !emitens.iter().any(|e| e == code) {
+            emitens.push(code.clone());
+        }
+    }
+    emitens.sort();
+    emitens.dedup();
     println!(
-        "Ditemukan {} emiten (emiten_list token-ring scan).",
-        emitens.len()
+        "Ditemukan {} emiten (emiten_list scan={} + movers baru={}).",
+        emitens.len(),
+        before,
+        emitens.len().saturating_sub(before)
     );
 
     // Upsert scrape-only: tidak mengisi sector, is_konglomerasi, is_blue_chip,

@@ -1107,8 +1107,9 @@ async fn scrape_one_emiten_inner(
     Ok(true)
 }
 
-/// Key Stats API → Corp. Action + Profile (DOM) → upsert `emiten_list`.
-/// Skip emiten yang `update_at`-nya masih lebih baru dari 30 hari.
+/// Key Stats API → Corp. Action + Profile → upsert `emiten_list`.
+/// Upsert bila baris belum ada, atau `update_at` kosong / usia ≥ 30 hari;
+/// skip bila `update_at` masih < 30 hari (dan `emiten_icon` sudah terisi).
 pub async fn scrape_and_insert_key_stats(
     page: &Page,
     session: &Session,

@@ -465,12 +465,12 @@ async fn insert_emiten_trending(
 
 /// Ambil Top Gainer + Top Loser via API market-mover → insert `emiten_trending`.
 /// Bearer dari sesi browser (login Stockbit).
-/// Returns `(inserted_gainer, inserted_loser)`.
+/// Returns `(inserted_gainer, inserted_loser, mover_codes)` — `mover_codes` unik uppercase.
 pub async fn scrape_and_insert_movers(
     page: &Page,
     session: &Session,
     keyspace: &str,
-) -> Result<(usize, usize), Box<dyn std::error::Error>> {
+) -> Result<(usize, usize, Vec<String>), Box<dyn std::error::Error>> {
     println!("Market mover: ambil Bearer dari sesi browser...");
     let bearer = extract_stockbit_bearer(page)
         .await
@@ -505,7 +505,16 @@ pub async fn scrape_and_insert_movers(
     let inserted_loser = insert_emiten_trending(session, keyspace, &loser_rows, "loser").await?;
     println!("OK: {inserted_loser} baris diinsert ke emiten_trending (loser).");
 
-    Ok((inserted_gainer, inserted_loser))
+    let mut mover_codes: Vec<String> = gainer_rows
+        .iter()
+        .chain(loser_rows.iter())
+        .map(|r| normalize_emiten_name(&r.symbol))
+        .filter(|c| !c.is_empty())
+        .collect();
+    mover_codes.sort();
+    mover_codes.dedup();
+
+    Ok((inserted_gainer, inserted_loser, mover_codes))
 }
 
 #[cfg(test)]

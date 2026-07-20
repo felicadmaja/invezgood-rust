@@ -260,8 +260,9 @@ async fn run_emiten_list_stockbit_scrape(
 }
 
 /// On-demand scrape Top Gainer/Loser (movers) → upsert `emiten_trending`;
-/// lalu token-ring scan `emiten_list` → Key Stats + Profile → upsert `emiten_list`;
-/// lalu marketdetectors API → insert `bandarmology` (pola `stockbit_scrapper_worker`).
+/// lalu upsert `emiten_list` untuk union (kode movers ∪ scan `emiten_list`) —
+/// insert bila belum ada, atau refresh bila `update_at` ≥ 30 hari (skip jika masih fresh);
+/// lalu marketdetectors API → insert `bandarmology`.
 pub async fn scrape_emiten_trending_movers(
     session: Arc<Session>,
 ) -> Result<(usize, usize), String> {
@@ -287,22 +288,34 @@ pub async fn scrape_emiten_trending_movers(
             .await
             .map_err(|e| format!("login Stockbit: {e}"))?;
 
-        let movers = crate::emiten_trending_worker::scrape_and_insert_movers(
-            &page,
-            session.as_ref(),
-            &ks,
-        )
-        .await
-        .map_err(|e| e.to_string())?;
+        let (inserted_gainer, inserted_loser, mover_codes) =
+            crate::emiten_trending_worker::scrape_and_insert_movers(
+                &page,
+                session.as_ref(),
+                &ks,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
 
         let today = Local::now().date_naive();
         println!("On-demand: token-ring scan emiten_list.code_name...");
-        let emitens = bandarmology_worker::fetch_emiten_list_code_names(session.as_ref(), &ks)
+        let mut emitens = bandarmology_worker::fetch_emiten_list_code_names(session.as_ref(), &ks)
             .await
             .map_err(|e| e.to_string())?;
+        let before = emitens.len();
+        for code in &mover_codes {
+            if !emitens.iter().any(|e| e == code) {
+                emitens.push(code.clone());
+            }
+        }
+        emitens.sort();
+        emitens.dedup();
+        let added = emitens.len().saturating_sub(before);
         println!(
-            "On-demand: {} emiten dari emiten_list (token-ring scan).",
-            emitens.len()
+            "On-demand: {} emiten untuk key_stats (emiten_list scan={} + movers baru={}).",
+            emitens.len(),
+            before,
+            added
         );
 
         let key_stats_ok = emiten_list_worker::scrape_and_insert_key_stats(
@@ -327,7 +340,7 @@ pub async fn scrape_emiten_trending_movers(
         .map_err(|e| e.to_string())?;
         println!("On-demand: {bandar_ok} emiten diinsert ke bandarmology.");
 
-        Ok::<(usize, usize), String>(movers)
+        Ok::<(usize, usize), String>((inserted_gainer, inserted_loser))
     }
     .await;
 
