@@ -3,7 +3,7 @@
 //!
 //! Per emiten:
 //! - Bulan berjalan: `from` = awal bulan, `to` = hari ini → upsert (selalu timpa).
-//! - Bulan sebelumnya (max 180): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
+//! - Bulan sebelumnya (max 36 / 3 tahun): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
 //!   hentikan backfill bila 2 bulan berturut-turut sudah ada, atau 2 bulan berturut-turut kosong dari API.
 //! - Semua emiten diproses **sequential** (satu worker utama), jeda 100 ms antar emiten, 50 ms antar bulan per emiten.
 //! - Bila request API timeout/network error: retry di **background task** tanpa menahan worker utama.
@@ -22,7 +22,7 @@ use tokio::time::sleep;
 
 const API_BASE: &str = "https://exodus.stockbit.com/marketdetectors";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const MAX_HISTORICAL_MONTHS: u32 = 180;
+const MAX_HISTORICAL_MONTHS: u32 = 36;
 const CONSECUTIVE_EMPTY_MONTHS_STOP: usize = 2;
 const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 2;
 const EMITEN_INTER_DELAY_MS: u64 = 100;

@@ -455,16 +455,18 @@ async fn wait_for_login_form(page: &Page, timeout: Duration) -> Result<(), Stock
     .into())
 }
 
+/// Klik tombol CTA di modal "Sesi Kamu Sudah Habis".
 async fn click_session_expired_cta(page: &Page) -> Result<bool, StockbitError> {
     let clicked = page
         .evaluate(
             r#"(() => {
+                const needle = 'kembali ke halaman utama';
                 const candidates = Array.from(
                     document.querySelectorAll('button, [role="button"], a')
                 );
                 const target = candidates.find((el) => {
-                    const t = (el.innerText || el.textContent || '').trim();
-                    return t.includes('Kembali ke Halaman Utama');
+                    const t = (el.innerText || el.textContent || '').trim().toLowerCase();
+                    return t.includes(needle);
                 });
                 if (!target) return false;
                 target.click();
@@ -491,6 +493,21 @@ async fn type_naturally(
     element.click().await?;
     sleep(Duration::from_millis(400)).await;
 
+    // Kosongkan nilai lama (username sering sudah terisi setelah sesi habis).
+    let clear_js = format!(
+        r#"(() => {{
+            const el = document.querySelector({selector:?});
+            if (!el) return false;
+            el.focus();
+            if (typeof el.select === 'function') el.select();
+            el.value = '';
+            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            return true;
+        }})()"#
+    );
+    let _ = page.evaluate(clear_js.as_str()).await;
+
     for karakter in value.chars() {
         let delay_acak = rand::thread_rng().gen_range(80..220);
         sleep(Duration::from_millis(delay_acak)).await;
@@ -500,7 +517,20 @@ async fn type_naturally(
 }
 
 async fn has_login_form(page: &Page) -> bool {
-    page.find_element("#username").await.is_ok()
+    page.evaluate(
+        r#"(() => {
+            return !!(
+                document.querySelector('#username')
+                || document.querySelector('[data-cy="login-form"]')
+                || document.querySelector('[data-cy="auth-card-layout"].login')
+                || document.querySelector('[data-cy="login-form-username"]')
+            );
+        })()"#,
+    )
+    .await
+    .ok()
+    .and_then(|v| v.into_value::<bool>().ok())
+    .unwrap_or(false)
 }
 
 async fn has_profile_avatar_modal(page: &Page) -> bool {
@@ -666,7 +696,7 @@ async fn is_already_authenticated_on_stream(page: &Page) -> bool {
 /// Perlu login ulang hanya jika:
 /// - di-redirect ke `/login`, atau
 /// - modal "Sesi Kamu Sudah Habis", atau
-/// - form login muncul di luar halaman `/stream` (sudah login).
+/// - form login (`#username` / `data-cy=login-form`) muncul.
 async fn needs_relogin(page: &Page) -> bool {
     if has_session_expired_modal(page).await {
         return true;
@@ -675,7 +705,8 @@ async fn needs_relogin(page: &Page) -> bool {
     if is_login_url(&url) {
         return true;
     }
-    // Form login di `/stream` tidak berarti perlu login — biasanya sudah terautentikasi.
+    // Form login di `/stream` tanpa modal biasanya bukan halaman login — skip.
+    // Setelah klik CTA sesi habis, form login bisa muncul di path mana pun.
     has_login_form(page).await && !is_stream_url(&url)
 }
 
@@ -684,10 +715,22 @@ async fn login_and_return_to_stream(
     email: &str,
     password: &str,
 ) -> Result<(), StockbitError> {
-    if has_session_expired_modal(page).await {
-        if click_session_expired_cta(page).await? {
-            sleep(Duration::from_secs(1)).await;
+    let session_expired = has_session_expired_modal(page).await;
+
+    if session_expired {
+        println!("Modal 'Sesi Kamu Sudah Habis' — klik 'Kembali ke Halaman Utama'...");
+        if !click_session_expired_cta(page).await? {
+            return Err(
+                "Tombol 'Kembali ke Halaman Utama' tidak ditemukan di modal sesi habis".into(),
+            );
         }
+        println!("Menunggu form login (#username / data-cy=login-form)...");
+        wait_for_login_form(page, Duration::from_secs(30)).await?;
+        println!("Form login muncul — isi email/password...");
+        perform_login(page, email, password).await?;
+        goto_stockbit_expect(page, STOCKBIT_STREAM_URL, Some("/stream")).await?;
+        sleep(Duration::from_secs(2)).await;
+        return Ok(());
     }
 
     // Sudah di /stream tanpa form login → jangan paksa ke /login.
@@ -783,6 +826,9 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
         if has_session_expired_modal(&page).await {
             session_expired = true;
             need_login = true;
+            println!(
+                "Modal 'Sesi Kamu Sudah Habis' terdeteksi — akan klik 'Kembali ke Halaman Utama' lalu login..."
+            );
             break;
         }
         let u = page.url().await?.unwrap_or_default();
@@ -1141,12 +1187,17 @@ pub async fn open_stream_or_login(
     let started = Instant::now();
 
     // Tunggu sebentar: redirect ke /login, modal sesi habis, atau konfirmasi sudah di /stream.
+    let mut saw_session_expired = false;
     while started.elapsed() < Duration::from_secs(wait_secs) {
         if has_profile_avatar_modal(page).await {
             dismiss_profile_avatar_modal(page).await?;
             break;
         }
         if has_session_expired_modal(page).await {
+            saw_session_expired = true;
+            println!(
+                "Modal 'Sesi Kamu Sudah Habis' terdeteksi — akan klik 'Kembali ke Halaman Utama' lalu login..."
+            );
             break;
         }
         let u = page.url().await?.unwrap_or_default();
@@ -1165,7 +1216,7 @@ pub async fn open_stream_or_login(
         dismiss_profile_avatar_modal(page).await?;
     }
 
-    if needs_relogin(page).await {
+    if saw_session_expired || needs_relogin(page).await {
         println!("Perlu login ulang (redirect /login atau sesi habis)...");
         login_and_return_to_stream(page, email, password).await?;
     } else if is_already_authenticated_on_stream(page).await {

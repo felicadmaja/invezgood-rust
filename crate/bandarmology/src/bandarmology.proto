@@ -8,7 +8,7 @@ service Bandarmology {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyFromScylla(GetBandarmologyFromScyllaRequest) returns (GetBandarmologyFromScyllaResponse);
 
-  // Scrape bandarmology 15 tahun kebelakang (max 180 bulan) untuk satu emiten via API Stockbit.
+  // Scrape bandarmology 3 tahun kebelakang (max 36 bulan) untuk satu emiten via API Stockbit.
   // Aturan sama `bandarmology_worker`: bulan berjalan overwrite; historis skip bila sudah ada;
   // henti bila 2 bulan berturut-turut sudah ada atau 2 bulan kosong dari API.
   // kode_emiten: tepat 4 huruf; dinormalisasi ke UPPERCASE.
@@ -17,7 +17,7 @@ service Bandarmology {
 }
 
 message GetBandarmologyFromScyllaRequest {
-  // Wajib format YYYY-MM (contoh "2026-07"); selain itu invalid_argument.
+  // Wajib format YYYY-MM (contoh "2026-07"); selain itu invalid_argument.---
   string tahun_bulan = 1;
   // Kode emiten / ticker (4 huruf); di server di-capitalize ke uppercase (bbca → BBCA).
   string kode_emiten = 2;
