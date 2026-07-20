@@ -7,13 +7,6 @@ service Portofolio {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPortofolio(GetAllPortofolioRequest) returns (GetAllPortofolioResponse);
 
-  // Baca kolom `history` dari Scylla `portofolio` untuk satu emiten (tanpa scrape).
-  // emiten_name: tepat 4 huruf; dinormalisasi ke UPPERCASE.
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetPortofolioHistoryByEmitenNameFromScylla(
-      GetPortofolioHistoryByEmitenNameFromScyllaRequest)
-      returns (GetPortofolioHistoryByEmitenNameFromScyllaResponse);
-
   // Ambil riwayat order per emiten dari Stockbit lalu timpa kolom `portofolio.history`.
   // Alur: login → START TRADING/PIN bila perlu →
   // GET carina.stockbit.com/order/v2/list?filter_criteria.stock_code={emiten_name}
@@ -21,19 +14,13 @@ service Portofolio {
   // Key map = waktu order (`time.match`, fallback `time.open` / `time.order`) RFC3339.
   // emiten_name: tepat 4 huruf; dinormalisasi ke UPPERCASE.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetPortofolioHistoryByEmitenNameFromStockbit(
-      GetPortofolioHistoryByEmitenNameFromStockbitRequest)
-      returns (GetPortofolioHistoryByEmitenNameFromStockbitResponse);
+  rpc GetPortofolioHistoryByEmitenName(GetPortofolioHistoryByEmitenNameRequest)
+      returns (GetPortofolioHistoryByEmitenNameResponse);
 }
 
 message GetAllPortofolioRequest {}
 
-message GetPortofolioHistoryByEmitenNameFromScyllaRequest {
-  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE (asbi → ASBI).
-  string emiten_name = 1;
-}
-
-message GetPortofolioHistoryByEmitenNameFromStockbitRequest {
+message GetPortofolioHistoryByEmitenNameRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE (asbi → ASBI).
   string emiten_name = 1;
 }
@@ -68,11 +55,7 @@ message GetAllPortofolioResponse {
   repeated PortofolioRow rows = 1;
 }
 
-message GetPortofolioHistoryByEmitenNameFromScyllaResponse {
-  PortofolioRow row = 1;
-}
-
-message GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+message GetPortofolioHistoryByEmitenNameResponse {
   bool success = 1;
   string message = 2;
   // Baris portofolio setelah history di-timpa; kosong jika gagal / emiten belum ada di Scylla.
