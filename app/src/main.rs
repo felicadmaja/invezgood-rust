@@ -26,6 +26,8 @@ use pending_order::pending_order_server::PendingOrderServer;
 use pending_order::PendingOrderService;
 use portofolio::portofolio_server::PortofolioServer;
 use portofolio::PortofolioService;
+use portofolio_equity::portofolio_equity_server::PortofolioEquityServer;
+use portofolio_equity::PortofolioEquityService;
 use tonic_reflection::server::Builder as ReflectionBuilder;
 use user::user_server::UserServer;
 use user::{AuthInterceptor, UserService};
@@ -49,6 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let user_svc = UserService::new(session.clone());
     let portofolio_svc = PortofolioService::new(session.clone());
+    let portofolio_equity_svc = PortofolioEquityService::new(session.clone());
     let emiten_trending_svc = EmitenTrendingService::new(session.clone());
     let emiten_trending_count_svc = EmitenTrendingCountService::new(session.clone());
     let bandarmology_svc = BandarmologyService::new(session.clone());
@@ -63,6 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tokio::try_join!(
         user_svc.warm_prepared(),
         portofolio_svc.warm_prepared(),
+        portofolio_equity_svc.warm_prepared(),
         emiten_trending_svc.warm_prepared(),
         emiten_trending_count_svc.warm_prepared(),
         bandarmology_svc.warm_prepared(),
@@ -72,12 +76,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     )
     .map_err(|e| format!("Gagal memanaskan statement database: {e}"))?;
     println!(
-        "OK: prepared statements siap (user, portofolio, emiten_trending, emiten_trending_count, bandarmology, emiten_list, broker, pending_order)"
+        "OK: prepared statements siap (user, portofolio, portofolio_equity, emiten_trending, emiten_trending_count, bandarmology, emiten_list, broker, pending_order)"
     );
 
     let user_svc = UserServer::new(user_svc);
     let portofolio_svc =
         PortofolioServer::with_interceptor(portofolio_svc, AuthInterceptor);
+    let portofolio_equity_svc =
+        PortofolioEquityServer::with_interceptor(portofolio_equity_svc, AuthInterceptor);
     let emiten_trending_svc =
         EmitenTrendingServer::with_interceptor(emiten_trending_svc, AuthInterceptor);
     let emiten_trending_count_svc =
@@ -94,6 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let reflection_svc = ReflectionBuilder::configure()
         .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(portofolio::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(portofolio_equity::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(emiten_trending::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(emiten_trending_count::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(bandarmology::FILE_DESCRIPTOR_SET)
@@ -120,6 +127,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     builder
         .add_service(user_svc)
         .add_service(portofolio_svc)
+        .add_service(portofolio_equity_svc)
         .add_service(emiten_trending_svc)
         .add_service(emiten_trending_count_svc)
         .add_service(bandarmology_svc)

@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package portofolio_equity;
+
+service PortofolioEquity {
+  // Baca semua baris dari tabel Scylla `portofolio_equity`.
+  // Request kosong. Response: repeated PortofolioEquityRow.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetAllPortofolioEquityFromScylla(GetAllPortofolioEquityFromScyllaRequest)
+      returns (GetAllPortofolioEquityFromScyllaResponse);
+
+  // Scrape header equity dari https://stockbit.com/securities/portfolio (DOM)
+  // lalu upsert `portofolio_equity` — alur sama `portofolio_equity_worker`
+  // (login → START TRADING/PIN bila perlu → buka portfolio → tunggu header → insert).
+  // Request kosong. Response: repeated PortofolioEquityRow (isi setelah scrape).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetAllPortofolioEquityFromStockbit(GetAllPortofolioEquityFromStockbitRequest)
+      returns (GetAllPortofolioEquityFromStockbitResponse);
+}
+
+message GetAllPortofolioEquityFromScyllaRequest {}
+
+message GetAllPortofolioEquityFromStockbitRequest {}
+
+message PortofolioEquityRow {
+  string nama = 1;
+  double value = 2;
+}
+
+message GetAllPortofolioEquityFromScyllaResponse {
+  repeated PortofolioEquityRow rows = 1;
+}
+
+message GetAllPortofolioEquityFromStockbitResponse {
+  bool success = 1;
+  string message = 2;
+  repeated PortofolioEquityRow rows = 3;
+}

@@ -1,4 +1,4 @@
-//! On-demand scrape Stockbit (movers, emiten_list, bandarmology).
+//! On-demand scrape Stockbit (movers, emiten_list, bandarmology, portofolio_equity).
 //!
 //! Scrape dijalankan di `tokio::spawn` + single-flight per `code_name`, supaya
 //! cancel/timeout di sisi gRPC client **tidak** membatalkan scrape yang sedang jalan
@@ -27,6 +27,10 @@ static INFLIGHT_BANDAR_ALL_TIME: OnceLock<
     Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>>,
 > = OnceLock::new();
 
+static INFLIGHT_PORTO_EQUITY: OnceLock<
+    Mutex<Option<watch::Receiver<Option<Result<usize, String>>>>>,
+> = OnceLock::new();
+
 fn inflight_map() -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<(), String>>>>> {
     INFLIGHT_EMITEN.get_or_init(|| Mutex::new(HashMap::new()))
 }
@@ -39,6 +43,11 @@ fn inflight_stockbit_map(
 fn inflight_bandar_all_time_map(
 ) -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>> {
     INFLIGHT_BANDAR_ALL_TIME.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn inflight_porto_equity(
+) -> &'static Mutex<Option<watch::Receiver<Option<Result<usize, String>>>>> {
+    INFLIGHT_PORTO_EQUITY.get_or_init(|| Mutex::new(None))
 }
 
 fn keyspace() -> String {
@@ -454,6 +463,102 @@ async fn run_bandarmology_all_the_time(
         .await?;
 
         Ok::<usize, String>(inserted)
+    }
+    .await;
+
+    if let Err(e) = browser.close().await {
+        eprintln!("Peringatan: gagal menutup browser: {e}");
+    }
+
+    result
+}
+
+/// On-demand scrape header equity portfolio (DOM) → upsert `portofolio_equity`.
+/// Alur sama `portofolio_equity_worker`: login → START TRADING/PIN bila perlu →
+/// buka `/securities/portfolio` → tunggu header → insert.
+/// Single-flight global; survive cancel RPC.
+/// Returns jumlah baris yang di-upsert.
+pub async fn scrape_portofolio_equity(session: Arc<Session>) -> Result<usize, String> {
+    let mut rx = {
+        let mut slot = inflight_porto_equity().lock().await;
+        if let Some(existing) = slot.as_ref() {
+            println!(
+                "On-demand portofolio_equity: sudah berjalan — menunggu hasil (single-flight)..."
+            );
+            existing.clone()
+        } else {
+            let (tx, rx) = watch::channel::<Option<Result<usize, String>>>(None);
+            *slot = Some(rx.clone());
+            let session = Arc::clone(&session);
+            tokio::spawn(async move {
+                let result = run_portofolio_equity_scrape(session).await;
+                match &result {
+                    Ok(n) => println!(
+                        "On-demand portofolio_equity selesai: {n} baris di-upsert."
+                    ),
+                    Err(e) => eprintln!("On-demand portofolio_equity GAGAL: {e}"),
+                }
+                let _ = tx.send(Some(result));
+                *inflight_porto_equity().lock().await = None;
+            });
+            rx
+        }
+    };
+
+    loop {
+        {
+            let guard = rx.borrow();
+            if let Some(result) = guard.as_ref() {
+                return result.clone();
+            }
+        }
+        if rx.changed().await.is_err() {
+            return Err(
+                "on-demand portofolio_equity: channel ditutup sebelum ada hasil".into(),
+            );
+        }
+    }
+}
+
+async fn run_portofolio_equity_scrape(session: Arc<Session>) -> Result<usize, String> {
+    let email = std::env::var("STOCKBIT_EMAIL")
+        .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk scrape portofolio_equity".to_string())?;
+    let password = std::env::var("STOCKBIT_PASSWORD")
+        .map_err(|_| "STOCKBIT_PASSWORD wajib diisi untuk scrape portofolio_equity".to_string())?;
+    if email.trim().is_empty() || password.trim().is_empty() {
+        return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
+    }
+
+    let _browser_guard = browser_session_lock().lock().await;
+    let ks = keyspace();
+
+    println!("On-demand portofolio_equity: login → PIN → DOM scrape header...");
+
+    let (mut browser, page) = launch_page()
+        .await
+        .map_err(|e| format!("launch Chrome: {e}"))?;
+
+    let result = async {
+        open_stream_or_login(&page, email.trim(), password.trim())
+            .await
+            .map_err(|e| format!("login Stockbit: {e}"))?;
+
+        crate::portofolio_worker::ensure_trading_session(&page)
+            .await
+            .map_err(|e| format!("trading session / PIN: {e}"))?;
+
+        println!("On-demand portofolio_equity: jeda 2 detik setelah PIN...");
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        let n = crate::portofolio_equity_worker::scrape_and_insert_portofolio_equity(
+            &page,
+            session.as_ref(),
+            &ks,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+        Ok::<usize, String>(n)
     }
     .await;
 
