@@ -143,11 +143,13 @@ async fn run_ensure_emiten_scrape(
     result
 }
 
-/// Selalu scrape Key Stats + Corp.Action + Profile dari Stockbit API untuk satu `code_name`
-/// (tanpa cek Scylla / `update_at`); upsert `emiten_list` saja (tanpa bandarmology).
+/// Scrape Key Stats + Corp.Action + Profile dari Stockbit API untuk satu `code_name`
+/// (tanpa cek Scylla / `update_at`); upsert `emiten_list`.
+/// Bila `also_bandarmology`: setelah emiten_list, scrape API bandarmology untuk kode tersebut.
 pub async fn scrape_emiten_list_from_stockbit_for_code(
     session: Arc<Session>,
     code_name: &str,
+    also_bandarmology: bool,
 ) -> Result<(), String> {
     let code = code_name.trim().to_ascii_uppercase();
     if code.is_empty() {
@@ -166,8 +168,11 @@ pub async fn scrape_emiten_list_from_stockbit_for_code(
             map.insert(code.clone(), rx.clone());
             let session = Arc::clone(&session);
             let code_spawn = code.clone();
+            let also_bandarmology_spawn = also_bandarmology;
             tokio::spawn(async move {
-                let result = run_emiten_list_stockbit_scrape(session, &code_spawn).await;
+                let result =
+                    run_emiten_list_stockbit_scrape(session, &code_spawn, also_bandarmology_spawn)
+                        .await;
                 match &result {
                     Ok(()) => println!("On-demand Stockbit scrape selesai untuk {code_spawn}."),
                     Err(e) => eprintln!("On-demand Stockbit scrape GAGAL {code_spawn}: {e}"),
@@ -197,6 +202,7 @@ pub async fn scrape_emiten_list_from_stockbit_for_code(
 async fn run_emiten_list_stockbit_scrape(
     session: Arc<Session>,
     code: &str,
+    also_bandarmology: bool,
 ) -> Result<(), String> {
     let email = std::env::var("STOCKBIT_EMAIL")
         .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk on-demand scrape".to_string())?;
@@ -208,8 +214,14 @@ async fn run_emiten_list_stockbit_scrape(
 
     let _browser_guard = browser_session_lock().lock().await;
     let ks = keyspace();
+    let today = Local::now().date_naive();
 
-    println!("On-demand Stockbit scrape: mulai untuk {code} (emiten_list saja)...");
+    let scope = if also_bandarmology {
+        "emiten_list + bandarmology"
+    } else {
+        "emiten_list saja"
+    };
+    println!("On-demand Stockbit scrape: mulai untuk {code} ({scope})...");
 
     let (mut browser, page) = launch_page()
         .await
@@ -223,6 +235,18 @@ async fn run_emiten_list_stockbit_scrape(
         println!("On-demand Stockbit: ambil bearer + API keystats/corpaction/profile untuk {code}...");
         emiten_list_worker::scrape_emiten_list_for_code(&page, session.as_ref(), &ks, code)
             .await?;
+
+        if also_bandarmology {
+            println!("On-demand Stockbit: bandarmology API untuk {code}...");
+            bandarmology_worker::scrape_bandarmology_for_code_if_missing(
+                &page,
+                session,
+                &ks,
+                today,
+                code,
+            )
+            .await?;
+        }
 
         Ok::<(), String>(())
     }

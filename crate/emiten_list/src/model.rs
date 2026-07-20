@@ -18,7 +18,7 @@
 //! | is_plan_to_trade       | boolean  | bool (default false) |
 //! | catatan                | text     | String |
 //! | catatan_owner          | text     | String |
-//! | foto_owner             | text     | String |
+//! | foto_owner             | list\<text\> | Vec\<String\> |
 //! | net_income             | map\<text, frozen\<map\<text, text\>\>\> | HashMap\<String, HashMap\<String, String\>\> |
 
 use chrono::{DateTime, Utc};
@@ -184,7 +184,7 @@ pub struct EmitenList {
     pub catatan_owner: String,
     /// Path/URL foto pemilik catatan.
     #[scylla(default_when_null)]
-    pub foto_owner: String,
+    pub foto_owner: Vec<String>,
     /// Tahun → { Q1/Q2/... → nilai teks }.
     #[scylla(default_when_null)]
     pub net_income: HashMap<String, HashMap<String, String>>,

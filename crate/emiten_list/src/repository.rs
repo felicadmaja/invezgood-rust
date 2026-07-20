@@ -273,12 +273,12 @@ impl EmitenListRepository {
         Ok(true)
     }
 
-    /// Update `catatan_owner` + `foto_owner`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Update `catatan_owner` + `foto_owner` (list<path>). Mengembalikan `Ok(false)` bila `code_name` tidak ada.
     pub async fn update_owner(
         &self,
         code_name: &str,
         catatan_owner: &str,
-        foto_owner: &str,
+        foto_owner: &[String],
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         if self.get_by_code_name(code_name).await?.is_none() {
             return Ok(false);

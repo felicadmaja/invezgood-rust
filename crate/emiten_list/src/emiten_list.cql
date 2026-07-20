@@ -21,10 +21,10 @@ Kolom dan tipe CQL, kata demi kata:
   "is_blue_chip" boolean
   "catatan" text
   "catatan_owner" text
-  "foto_owner" text
+  "foto_owner" list<text>
   "net_income" map<text, frozen<map<text, text>>>
   "is_plan_to_trade" boolean
-Sumber: DDL bin create_emiten_list + ALTER TABLE (sector, is_fundamental_solid, is_blue_chip, catatan, catatan_owner, foto_owner, net_income, is_plan_to_trade); diisi aplikasi pada INSERT/UPDATE.
+Sumber: DDL bin create_emiten_list + ALTER TABLE (sector, is_fundamental_solid, is_blue_chip, catatan, catatan_owner, foto_owner, net_income, is_plan_to_trade); foto_owner diubah text → list<text> (DROP+ADD, MV by_is_blue_chip di-recreate); diisi aplikasi pada INSERT/UPDATE.
 Kolom "code_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
 Kolom "emiten_icon": text — path object GCS modul stoksaham (mis. stoksaham/icon/BBCA.png).
@@ -39,7 +39,7 @@ Kolom "is_blue_chip": boolean — true bila blue chip; default false.
 Kolom "is_plan_to_trade": boolean — true bila direncanakan untuk trade; default false.
 Kolom "catatan": text — catatan manual untuk emiten (kosong bila belum di-set).
 Kolom "catatan_owner": text — pemilik/penulis catatan (kosong bila belum di-set).
-Kolom "foto_owner": text — path/URL foto pemilik catatan (kosong bila belum di-set).
+Kolom "foto_owner": list<text> — daftar path/URL foto pemilik catatan (kosong/[] bila belum di-set).
 Kolom "update_at": timestamp — waktu terakhir data emiten diperbarui.
 
 --- Materialized view (MV) ---

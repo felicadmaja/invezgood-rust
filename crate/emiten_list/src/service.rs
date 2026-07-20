@@ -24,6 +24,15 @@ use crate::{
 
 const MAX_EMITEN_SECTOR: i32 = 46;
 
+/// Trim + UPPERCASE; wajib tepat 4 huruf ASCII alphabet (A–Z).
+fn parse_code_name(raw: &str) -> Result<String, String> {
+    let code = raw.trim().to_ascii_uppercase();
+    if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Err("code_name wajib tepat 4 huruf alphabet (contoh BBCA)".into());
+    }
+    Ok(code)
+}
+
 pub struct EmitenListService {
     repo: EmitenListRepository,
     session: Arc<Session>,
@@ -84,10 +93,8 @@ impl EmitenListRpc for EmitenListService {
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
 
-        let code_name = request.into_inner().code_name.trim().to_ascii_uppercase();
-        if code_name.is_empty() {
-            return Err(Status::invalid_argument("code_name wajib diisi"));
-        }
+        let code_name = parse_code_name(&request.into_inner().code_name)
+            .map_err(Status::invalid_argument)?;
 
         let row = self
             .repo
@@ -118,10 +125,8 @@ impl EmitenListRpc for EmitenListService {
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
 
-        let code_name = request.into_inner().code_name.trim().to_ascii_uppercase();
-        if code_name.is_empty() {
-            return Err(Status::invalid_argument("code_name wajib diisi"));
-        }
+        let code_name = parse_code_name(&request.into_inner().code_name)
+            .map_err(Status::invalid_argument)?;
 
         let mut row: Option<EmitenList> = self
             .repo
@@ -137,17 +142,24 @@ impl EmitenListRpc for EmitenListService {
         };
 
         if needs_scrape {
-            let reason = if row.is_none() {
+            let emiten_missing = row.is_none();
+            let reason = if emiten_missing {
                 "tidak ada"
             } else {
                 "update_at stale (≥30 hari)"
             };
             println!(
-                "GetEmitenListByCodeNameFromStockbit {username}: {code_name} {reason} — scrape Stockbit..."
+                "GetEmitenListByCodeNameFromStockbit {username}: {code_name} {reason} — scrape Stockbit{}...",
+                if emiten_missing {
+                    " (+ bandarmology)"
+                } else {
+                    ""
+                }
             );
             if let Err(e) = on_demand::scrape_emiten_list_from_stockbit_for_code(
                 self.session.clone(),
                 &code_name,
+                emiten_missing,
             )
             .await
             {
@@ -191,14 +203,16 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = req.code_name.trim().to_ascii_uppercase();
-        if code_name.is_empty() {
-            return Ok(Response::new(UpdateEmitenListFundamentalResponse {
-                success: false,
-                message: "code_name wajib diisi".to_string(),
-                row: None,
-            }));
-        }
+        let code_name = match parse_code_name(&req.code_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateEmitenListFundamentalResponse {
+                    success: false,
+                    message,
+                    row: None,
+                }));
+            }
+        };
 
         let updated = self
             .repo
@@ -251,14 +265,16 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = req.code_name.trim().to_ascii_uppercase();
-        if code_name.is_empty() {
-            return Ok(Response::new(UpdateEmitenListSectorResponse {
-                success: false,
-                message: "code_name wajib diisi".to_string(),
-                row: None,
-            }));
-        }
+        let code_name = match parse_code_name(&req.code_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateEmitenListSectorResponse {
+                    success: false,
+                    message,
+                    row: None,
+                }));
+            }
+        };
 
         if req.sector < 0 || req.sector > MAX_EMITEN_SECTOR {
             return Ok(Response::new(UpdateEmitenListSectorResponse {
@@ -320,14 +336,16 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = req.code_name.trim().to_ascii_uppercase();
-        if code_name.is_empty() {
-            return Ok(Response::new(UpdateEmitenListKonglomerasiResponse {
-                success: false,
-                message: "code_name wajib diisi".to_string(),
-                row: None,
-            }));
-        }
+        let code_name = match parse_code_name(&req.code_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateEmitenListKonglomerasiResponse {
+                    success: false,
+                    message,
+                    row: None,
+                }));
+            }
+        };
 
         let updated = self
             .repo
@@ -380,14 +398,16 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = req.code_name.trim().to_ascii_uppercase();
-        if code_name.is_empty() {
-            return Ok(Response::new(UpdateEmitenListBlueChipResponse {
-                success: false,
-                message: "code_name wajib diisi".to_string(),
-                row: None,
-            }));
-        }
+        let code_name = match parse_code_name(&req.code_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateEmitenListBlueChipResponse {
+                    success: false,
+                    message,
+                    row: None,
+                }));
+            }
+        };
 
         let updated = self
             .repo
@@ -440,14 +460,16 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = req.code_name.trim().to_ascii_uppercase();
-        if code_name.is_empty() {
-            return Ok(Response::new(UpdateEmitenListPlanToTradeResponse {
-                success: false,
-                message: "code_name wajib diisi".to_string(),
-                row: None,
-            }));
-        }
+        let code_name = match parse_code_name(&req.code_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateEmitenListPlanToTradeResponse {
+                    success: false,
+                    message,
+                    row: None,
+                }));
+            }
+        };
 
         let updated = self
             .repo
@@ -500,14 +522,16 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = req.code_name.trim().to_ascii_uppercase();
-        if code_name.is_empty() {
-            return Ok(Response::new(UpdateEmitenListCatatanResponse {
-                success: false,
-                message: "code_name wajib diisi".to_string(),
-                row: None,
-            }));
-        }
+        let code_name = match parse_code_name(&req.code_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateEmitenListCatatanResponse {
+                    success: false,
+                    message,
+                    row: None,
+                }));
+            }
+        };
 
         let catatan = req.catatan;
         let updated = self
@@ -558,17 +582,24 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = req.code_name.trim().to_ascii_uppercase();
-        if code_name.is_empty() {
-            return Ok(Response::new(UpdateEmitenListOwnerResponse {
-                success: false,
-                message: "code_name wajib diisi".to_string(),
-                row: None,
-            }));
-        }
+        let code_name = match parse_code_name(&req.code_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateEmitenListOwnerResponse {
+                    success: false,
+                    message,
+                    row: None,
+                }));
+            }
+        };
 
         let catatan_owner = req.catatan_owner.trim().to_string();
-        let foto_owner = req.foto_owner_gcs_path.trim().to_string();
+        let foto_owner: Vec<String> = req
+            .foto_owner_gcs_path
+            .into_iter()
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+            .collect();
         let updated = self
             .repo
             .update_owner(&code_name, &catatan_owner, &foto_owner)
