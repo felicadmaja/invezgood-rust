@@ -398,7 +398,7 @@ async fn wait_pin_modal_gone(page: &Page, timeout: Duration) -> Result<(), Box<d
 }
 
 /// Masuk mode trading: klik START TRADING + PIN bila perlu; lewati bila tombol sudah hilang.
-async fn ensure_trading_session(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn ensure_trading_session(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
     if !is_start_trading_visible(page).await? {
         println!("START TRADING tidak terlihat — sudah mode trading, lewati PIN.");
         return Ok(());
@@ -478,7 +478,7 @@ async fn probe_trading_bearer(http: &reqwest::Client, token: &str) -> Result<u16
 
 /// Bearer trading pasca-PIN (`securitiesAccessToken` / Authorization ke carina).
 /// Sengaja **tidak** memakai `extract_stockbit_bearer` (login Exodus).
-async fn extract_trading_bearer_after_pin(
+pub async fn extract_trading_bearer_after_pin(
     page: &Page,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let _ = page.evaluate(ensure_auth_capture_js()).await?;

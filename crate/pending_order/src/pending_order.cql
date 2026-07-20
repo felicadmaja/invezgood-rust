@@ -9,6 +9,7 @@ Kolom dan tipe CQL:
   "order_id" text — partition key
   "emiten_name" text
   "status" text
+  "message" text
   "side" text
   "time_open" date
   "lot_open" double
@@ -18,6 +19,10 @@ Kolom dan tipe CQL:
   "amount_match" double
   "amount_match_total" double
   "is_gtc" boolean
+  "updated_at" date
+
+Kolom "message": text — keterangan/status message dari order (opsional).
+Kolom "updated_at": date — tanggal terakhir baris di-upsert (diisi aplikasi).
 
 Lookup: WHERE order_id = ?.
 

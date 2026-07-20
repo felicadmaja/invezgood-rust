@@ -12,7 +12,8 @@
 //! Env opsional: `CHROME_EXECUTABLE_PATH` (mis. `/usr/bin/chromium-browser`).
 //! Env opsional: `STOCKBIT_2FA_TIMEOUT_SECS` (default 300 = 5 menit).
 //! Env opsional: `STOCKBIT_SESSION_CHECK_SECS` (default 5) — tunggu popup sesi habis di `/stream`.
-//! Env Scylla (insert `emiten_trending`, `emiten_list`, `bandarmology`, `portofolio`): `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
+//! Env Scylla (insert `emiten_trending`, `emiten_list`, `bandarmology`, `portofolio`,
+//! `pending_order`): `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
 //! Env Redis (cache `long_name`, TTL 1 tahun): `REDIS_URL`.
 //! Env Trading PIN: `STOCKBUT_PIN` (atau `STOCKBIT_PIN`).
 //!
@@ -32,11 +33,14 @@
 //! Lalu START TRADING (PIN bila perlu) → Bearer trading pasca-PIN →
 //! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list + bandarmology
 //! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name).
+//! Lalu (PIN/trading session bila perlu) → `GET carina.stockbit.com/order/v2/list`
+//! → insert `pending_order`.
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 
 use worker_scrapping::{
-    bandarmology_worker, emiten_list_worker, emiten_trending_worker, portofolio_worker,
+    bandarmology_worker, emiten_list_worker, emiten_trending_worker, pending_order_worker,
+    portofolio_worker,
 };
 
 use chrono::Local;
@@ -230,6 +234,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Lanjut portofolio (PIN bila perlu → API → emiten_list + bandarmology → upsert)...");
     let porto_ok = portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks).await?;
     println!("OK: {porto_ok} baris diinsert ke portofolio.");
+
+    println!("Lanjut pending_order (PIN bila perlu → order/v2/list → upsert)...");
+    let pending_ok =
+        pending_order_worker::scrape_and_insert_pending_order(&page, &session, &ks).await?;
+    println!("OK: {pending_ok} baris diinsert ke pending_order.");
 
     let final_url = page.url().await?.unwrap_or_default();
     let final_title = page.get_title().await?.unwrap_or_default();
