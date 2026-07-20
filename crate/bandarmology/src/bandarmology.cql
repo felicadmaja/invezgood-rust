@@ -9,7 +9,12 @@ Kolom dan tipe CQL:
   "agg_tahun_bulan_emiten_name" text — partition key; diisi aplikasi sebagai concat(tahun_bulan, '_', emiten_name), contoh "2026-07_BBCA"
   "emiten_name" text
   "tahun_bulan" text
+  "broker_summary_current_w1" frozen<bandarmology_day> — minggu 1 bulan berjalan (tgl 1–7; dibatasi hari ini)
+  "broker_summary_current_w2" frozen<bandarmology_day> — minggu 2 (tgl 8–14; null bila belum dimulai)
+  "broker_summary_current_w3" frozen<bandarmology_day> — minggu 3 (tgl 15–21; null bila belum dimulai)
+  "broker_summary_current_w4" frozen<bandarmology_day> — minggu 4 (tgl 22–akhir bulan; null bila belum dimulai)
   "broker_summary" frozen<bandarmology_day>
+
 --- User-defined type (UDT) ---
 (1) "stockbit"."bandarmology_top_stats" — volume bigint, percent double, rp_b bigint, acc_dist text.
 (2) "stockbit"."bandarmology_broker_buy" — broker_code text, buy_volume text, buy_lot text, buy_avg bigint.

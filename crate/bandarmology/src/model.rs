@@ -121,6 +121,11 @@ pub struct Bandarmology {
     pub emiten_name: String,
     #[scylla(default_when_null)]
     pub tahun_bulan: String,
+    /// Ringkasan broker minggu 1–4 bulan berjalan (opsional).
+    pub broker_summary_current_w1: Option<BandarmologyDay>,
+    pub broker_summary_current_w2: Option<BandarmologyDay>,
+    pub broker_summary_current_w3: Option<BandarmologyDay>,
+    pub broker_summary_current_w4: Option<BandarmologyDay>,
     pub broker_summary: Option<BandarmologyDay>,
 }
 

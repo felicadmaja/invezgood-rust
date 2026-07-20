@@ -2,7 +2,10 @@
 //! Bearer dari sesi browser setelah login.
 //!
 //! Per emiten:
-//! - Bulan berjalan: `from` = awal bulan, `to` = hari ini → upsert (selalu timpa).
+//! - Bulan berjalan: `from` = awal bulan, `to` = hari ini → upsert `broker_summary` (selalu timpa).
+//!   Plus minggu berjalan (hanya minggu yang sudah dimulai, `to` dibatasi hari ini):
+//!   w1 = tgl 1–7, w2 = 8–14, w3 = 15–21, w4 = 22–akhir bulan →
+//!   `broker_summary_current_w1`…`w4`.
 //! - Bulan sebelumnya (max 36 / 3 tahun): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
 //!   hentikan backfill bila 2 bulan berturut-turut sudah ada, atau 2 bulan berturut-turut kosong dari API.
 //! - Semua emiten diproses **sequential** (satu worker utama), jeda 100 ms antar emiten, 50 ms antar bulan per emiten.
@@ -145,6 +148,36 @@ fn current_month_range(today: NaiveDate) -> (NaiveDate, NaiveDate, String) {
     let from = first_day_of_month(today.year(), today.month());
     let tb = tahun_bulan_str(today.year(), today.month());
     (from, today, tb)
+}
+
+/// Rentang minggu bulan berjalan yang sudah dimulai (dibatasi `today`).
+///
+/// - w1: 1–7, w2: 8–14, w3: 15–21, w4: 22–akhir bulan
+/// - Jika hari ini tgl 6 → hanya `(1, 1..=6)`; w2–w4 belum diisi.
+fn current_month_week_ranges(today: NaiveDate) -> Vec<(u8, NaiveDate, NaiveDate)> {
+    let y = today.year();
+    let m = today.month();
+    let d = today.day();
+    let month_last = last_day_of_month(y, m).day();
+
+    let windows: [(u8, u32, u32); 4] = [
+        (1, 1, 7),
+        (2, 8, 14),
+        (3, 15, 21),
+        (4, 22, month_last),
+    ];
+
+    let mut out = Vec::with_capacity(4);
+    for (week, start_day, end_day) in windows {
+        if d < start_day {
+            break;
+        }
+        let from = NaiveDate::from_ymd_opt(y, m, start_day).expect("valid week start");
+        let to_day = end_day.min(d);
+        let to = NaiveDate::from_ymd_opt(y, m, to_day).expect("valid week end");
+        out.push((week, from, to));
+    }
+    out
 }
 
 fn is_broker_summary_empty(day: &BandarmologyDay) -> bool {
@@ -739,6 +772,52 @@ async fn insert_bandarmology(
     Ok(())
 }
 
+/// Upsert bulan berjalan: `broker_summary` + minggu `w1`…`w4` (yang belum mulai = null).
+async fn insert_bandarmology_current_month(
+    session: &Session,
+    keyspace: &str,
+    emiten: &str,
+    tahun_bulan: &str,
+    broker_summary: &BandarmologyDay,
+    w1: Option<&BandarmologyDay>,
+    w2: Option<&BandarmologyDay>,
+    w3: Option<&BandarmologyDay>,
+    w4: Option<&BandarmologyDay>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let agg = agg_tahun_bulan_emiten_name(tahun_bulan, emiten);
+    let insert = session
+        .prepare(format!(
+            "INSERT INTO {keyspace}.bandarmology (\
+                agg_tahun_bulan_emiten_name, \
+                emiten_name, \
+                tahun_bulan, \
+                broker_summary_current_w1, \
+                broker_summary_current_w2, \
+                broker_summary_current_w3, \
+                broker_summary_current_w4, \
+                broker_summary\
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        ))
+        .await?;
+
+    session
+        .execute_unpaged(
+            &insert,
+            (
+                agg.as_str(),
+                emiten,
+                tahun_bulan,
+                w1,
+                w2,
+                w3,
+                w4,
+                broker_summary,
+            ),
+        )
+        .await?;
+    Ok(())
+}
+
 fn is_auth_abort(err: &str) -> bool {
     err.contains("unauthorized") || err.contains("401") || err.contains("403") || err.contains("Abort bandarmology")
 }
@@ -767,6 +846,8 @@ async fn scrape_emiten_bandarmology(
         keyspace: keyspace.to_string(),
         tahun_bulan: cur_tb.clone(),
     };
+
+    let mut month_day: Option<BandarmologyDay> = None;
     match fetch_marketdetector_day(
         client,
         bearer,
@@ -784,8 +865,7 @@ async fn scrape_emiten_bandarmology(
                 day.broker_buy.len()
             );
             throttle_if_needed(&rate).await;
-            insert_bandarmology(session.as_ref(), keyspace, &code, &cur_tb, &day).await?;
-            inserted += 1;
+            month_day = Some(day);
         }
         Err(e) => {
             let msg = e.to_string();
@@ -794,6 +874,98 @@ async fn scrape_emiten_bandarmology(
             }
             eprintln!("  [{code}] gagal fetch bulan berjalan {cur_tb}: {msg}");
         }
+    }
+
+    // Minggu berjalan: hanya minggu yang sudah dimulai; `to` ≤ hari ini.
+    let mut w1: Option<BandarmologyDay> = None;
+    let mut w2: Option<BandarmologyDay> = None;
+    let mut w3: Option<BandarmologyDay> = None;
+    let mut w4: Option<BandarmologyDay> = None;
+    let week_ranges = current_month_week_ranges(today);
+    println!(
+        "  [{code}] minggu berjalan {cur_tb}: {} window(s) (today day={})",
+        week_ranges.len(),
+        today.day()
+    );
+    for (week, from, to) in week_ranges {
+        sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
+        println!("  [{code}] {cur_tb} w{week}: {from}..{to}");
+        match fetch_marketdetector_day(client, bearer, &code, from, to, None).await {
+            Ok((day, rate)) => {
+                throttle_if_needed(&rate).await;
+                if is_broker_summary_empty(&day) {
+                    println!("  [{code}] {cur_tb} w{week} kosong — skip kolom");
+                    continue;
+                }
+                println!(
+                    "  [{code}] {cur_tb} w{week} net_volume={} brokers_buy={}",
+                    day.net_volume,
+                    day.broker_buy.len()
+                );
+                match week {
+                    1 => w1 = Some(day),
+                    2 => w2 = Some(day),
+                    3 => w3 = Some(day),
+                    4 => w4 = Some(day),
+                    _ => {}
+                }
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                if is_auth_abort(&msg) {
+                    return Err(e);
+                }
+                eprintln!("  [{code}] gagal fetch {cur_tb} w{week}: {msg}");
+            }
+        }
+    }
+
+    if let Some(ref day) = month_day {
+        insert_bandarmology_current_month(
+            session.as_ref(),
+            keyspace,
+            &code,
+            &cur_tb,
+            day,
+            w1.as_ref(),
+            w2.as_ref(),
+            w3.as_ref(),
+            w4.as_ref(),
+        )
+        .await?;
+        inserted += 1;
+        println!(
+            "  [{code}] upsert bulan berjalan {cur_tb} \
+             w1={} w2={} w3={} w4={}",
+            w1.is_some(),
+            w2.is_some(),
+            w3.is_some(),
+            w4.is_some()
+        );
+    } else if w1.is_some() || w2.is_some() || w3.is_some() || w4.is_some() {
+        // Bulan penuh gagal, tapi ada data minggu — simpan dengan summary kosong.
+        let empty = empty_day();
+        insert_bandarmology_current_month(
+            session.as_ref(),
+            keyspace,
+            &code,
+            &cur_tb,
+            &empty,
+            w1.as_ref(),
+            w2.as_ref(),
+            w3.as_ref(),
+            w4.as_ref(),
+        )
+        .await?;
+        inserted += 1;
+        println!(
+            "  [{code}] upsert bulan berjalan {cur_tb} (hanya minggu; summary kosong) \
+             w1={} w2={} w3={} w4={}",
+            w1.is_some(),
+            w2.is_some(),
+            w3.is_some(),
+            w4.is_some()
+        );
     }
 
     sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
@@ -1013,6 +1185,54 @@ mod tests {
         assert_eq!(
             last_day_of_month(2026, 7),
             NaiveDate::from_ymd_opt(2026, 7, 31).unwrap()
+        );
+    }
+
+    #[test]
+    fn current_month_week_ranges_day_6_only_w1() {
+        let today = NaiveDate::from_ymd_opt(2026, 7, 6).unwrap();
+        let ranges = current_month_week_ranges(today);
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0].0, 1);
+        assert_eq!(ranges[0].1, NaiveDate::from_ymd_opt(2026, 7, 1).unwrap());
+        assert_eq!(ranges[0].2, NaiveDate::from_ymd_opt(2026, 7, 6).unwrap());
+    }
+
+    #[test]
+    fn current_month_week_ranges_day_10_w1_w2() {
+        let today = NaiveDate::from_ymd_opt(2026, 7, 10).unwrap();
+        let ranges = current_month_week_ranges(today);
+        assert_eq!(ranges.len(), 2);
+        assert_eq!(
+            ranges[0],
+            (
+                1,
+                NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2026, 7, 7).unwrap()
+            )
+        );
+        assert_eq!(
+            ranges[1],
+            (
+                2,
+                NaiveDate::from_ymd_opt(2026, 7, 8).unwrap(),
+                NaiveDate::from_ymd_opt(2026, 7, 10).unwrap()
+            )
+        );
+    }
+
+    #[test]
+    fn current_month_week_ranges_end_of_july_all_weeks() {
+        let today = NaiveDate::from_ymd_opt(2026, 7, 31).unwrap();
+        let ranges = current_month_week_ranges(today);
+        assert_eq!(ranges.len(), 4);
+        assert_eq!(
+            ranges[3],
+            (
+                4,
+                NaiveDate::from_ymd_opt(2026, 7, 22).unwrap(),
+                NaiveDate::from_ymd_opt(2026, 7, 31).unwrap()
+            )
         );
     }
 
