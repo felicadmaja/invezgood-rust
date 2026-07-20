@@ -181,6 +181,15 @@ async fn upsert_pending_orders(
     keyspace: &str,
     rows: &[PendingOrderRow],
 ) -> Result<usize, Box<dyn std::error::Error>> {
+    println!("Pending order: TRUNCATE {keyspace}.pending_order...");
+    session
+        .query_unpaged(format!("TRUNCATE {keyspace}.pending_order"), &[])
+        .await?;
+    println!(
+        "Pending order: truncate selesai — mulai insert {} baris...",
+        rows.len()
+    );
+
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.pending_order (\
@@ -236,7 +245,7 @@ async fn upsert_pending_orders(
             updated_at.to_rfc3339(),
         );
     }
-    println!("INFO upsert pending_order selesai: {n}/{} baris.", rows.len());
+    println!("INFO insert pending_order selesai: {n}/{} baris.", rows.len());
     Ok(n)
 }
 

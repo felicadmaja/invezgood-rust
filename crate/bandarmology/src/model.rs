@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
 
 use crate::{
@@ -127,6 +127,7 @@ pub struct Bandarmology {
     pub broker_summary_current_w3: Option<BandarmologyDay>,
     pub broker_summary_current_w4: Option<BandarmologyDay>,
     pub broker_summary: Option<BandarmologyDay>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 impl Bandarmology {
@@ -148,6 +149,10 @@ impl Bandarmology {
             broker_summary_current_w4: self
                 .broker_summary_current_w4
                 .map(BandarmologyDay::into_proto),
+            updated_at: self
+                .updated_at
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_default(),
         }
     }
 }

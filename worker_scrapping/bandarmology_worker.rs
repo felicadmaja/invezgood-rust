@@ -11,7 +11,7 @@
 //! - Semua emiten diproses **sequential** (satu worker utama), jeda 100 ms antar emiten, 50 ms antar bulan per emiten.
 //! - Bila request API timeout/network error: retry di **background task** tanpa menahan worker utama.
 
-use chrono::{Datelike, Duration, Months, NaiveDate};
+use chrono::{Datelike, Duration, Months, NaiveDate, Utc};
 use chromiumoxide::page::Page;
 use futures_util::StreamExt;
 use scylla::client::session::Session;
@@ -752,21 +752,23 @@ async fn insert_bandarmology(
     broker_summary: &BandarmologyDay,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let agg = agg_tahun_bulan_emiten_name(tahun_bulan, emiten);
+    let updated_at = Utc::now();
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.bandarmology (\
                 agg_tahun_bulan_emiten_name, \
                 emiten_name, \
                 tahun_bulan, \
-                broker_summary\
-            ) VALUES (?, ?, ?, ?)"
+                broker_summary, \
+                updated_at\
+            ) VALUES (?, ?, ?, ?, ?)"
         ))
         .await?;
 
     session
         .execute_unpaged(
             &insert,
-            (agg.as_str(), emiten, tahun_bulan, broker_summary),
+            (agg.as_str(), emiten, tahun_bulan, broker_summary, updated_at),
         )
         .await?;
     Ok(())
@@ -785,6 +787,7 @@ async fn insert_bandarmology_current_month(
     w4: Option<&BandarmologyDay>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let agg = agg_tahun_bulan_emiten_name(tahun_bulan, emiten);
+    let updated_at = Utc::now();
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.bandarmology (\
@@ -795,8 +798,9 @@ async fn insert_bandarmology_current_month(
                 broker_summary_current_w2, \
                 broker_summary_current_w3, \
                 broker_summary_current_w4, \
-                broker_summary\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                broker_summary, \
+                updated_at\
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
@@ -812,6 +816,7 @@ async fn insert_bandarmology_current_month(
                 w3,
                 w4,
                 broker_summary,
+                updated_at,
             ),
         )
         .await?;

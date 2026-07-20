@@ -34,7 +34,7 @@ impl BandarmologyRepository {
                     "SELECT agg_tahun_bulan_emiten_name, emiten_name, tahun_bulan, \
                      broker_summary_current_w1, broker_summary_current_w2, \
                      broker_summary_current_w3, broker_summary_current_w4, \
-                     broker_summary \
+                     broker_summary, updated_at \
                      FROM {} WHERE agg_tahun_bulan_emiten_name = ? LIMIT 1",
                     self.table
                 );

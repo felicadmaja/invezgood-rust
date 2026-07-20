@@ -54,6 +54,7 @@ message BandarmologyRow {
   BandarmologyDay broker_summary_current_w2 = 6;
   BandarmologyDay broker_summary_current_w3 = 7;
   BandarmologyDay broker_summary_current_w4 = 8;
+  string updated_at = 9;
 }
 
 message BandarmologyDay {

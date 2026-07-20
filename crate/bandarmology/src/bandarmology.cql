@@ -14,6 +14,7 @@ Kolom dan tipe CQL:
   "broker_summary_current_w3" frozen<bandarmology_day> — minggu 3 (tgl 15–21; null bila belum dimulai)
   "broker_summary_current_w4" frozen<bandarmology_day> — minggu 4 (tgl 22–akhir bulan; null bila belum dimulai)
   "broker_summary" frozen<bandarmology_day>
+  "updated_at" timestamp — diisi aplikasi saat upsert (UTC now)
 
 --- User-defined type (UDT) ---
 (1) "stockbit"."bandarmology_top_stats" — volume bigint, percent double, rp_b bigint, acc_dist text.

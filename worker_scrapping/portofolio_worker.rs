@@ -710,6 +710,12 @@ async fn upsert_portofolio(
     keyspace: &str,
     rows: &[PortoRow],
 ) -> Result<usize, Box<dyn std::error::Error>> {
+    println!("Portofolio: TRUNCATE {keyspace}.portofolio...");
+    session
+        .query_unpaged(format!("TRUNCATE {keyspace}.portofolio"), &[])
+        .await?;
+    println!("Portofolio: truncate selesai — mulai insert {} baris...", rows.len());
+
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.portofolio (\
@@ -751,7 +757,7 @@ async fn upsert_portofolio(
             .await?;
         n += 1;
         println!(
-            "Upsert portofolio [{n}/{}]: {emiten} ({long_name}) \
+            "Insert portofolio [{n}/{}]: {emiten} ({long_name}) \
              balance_lot={} available_lot={} avg={:.4} last={} \
              invested={:.2} mv={:.2} pl={:.2} pct={:.4}%{}",
             rows.len(),
@@ -770,7 +776,7 @@ async fn upsert_portofolio(
             },
         );
     }
-    println!("Upsert portofolio selesai: {n}/{} baris.", rows.len());
+    println!("Insert portofolio selesai: {n}/{} baris.", rows.len());
     Ok(n)
 }
 
