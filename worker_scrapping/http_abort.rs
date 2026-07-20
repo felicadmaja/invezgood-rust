@@ -37,9 +37,13 @@ fn pm2_resume_stockbit_ws() {
 }
 
 /// Jika `status` adalah 4xx: log, resume PM2 `stockbit_ws`, lalu `process::exit(1)`.
-/// Tidak return bila 4xx.
+/// Tidak return bila 4xx (kecuali 404 — ticker/resource tidak ada; biarkan caller handle).
 pub fn abort_app_if_http_4xx(status: StatusCode, context: &str) {
     if !is_http_4xx(status) {
+        return;
+    }
+    // 404: biasanya emiten/kode tidak ditemukan — jangan bunuh seluruh proses.
+    if status == StatusCode::NOT_FOUND {
         return;
     }
     let code = status.as_u16();

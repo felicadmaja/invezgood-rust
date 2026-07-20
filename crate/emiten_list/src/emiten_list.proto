@@ -19,6 +19,7 @@ service EmitenList {
   // hanya bila baris tidak ada atau `update_at` kosong / sudah ≥ 30 hari; upsert lalu baca baris lengkap.
   // Bila baris belum ada di `emiten_list`: selain upsert emiten, scrape API bandarmology untuk kode tersebut.
   // code_name: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  // Bila code_name tidak ditemukan di API Stockbit → NOT_FOUND "Nama emiten tidak ada di BEI".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetEmitenListByCodeNameFromStockbit(GetEmitenListByCodeNameFromStockbitRequest) returns (GetEmitenListByCodeNameFromStockbitResponse);
 
@@ -119,6 +120,7 @@ message GetEmitenListByCodeNameFromScyllaResponse {
 
 message GetEmitenListByCodeNameFromStockbitRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  // Jika tidak ditemukan di API Stockbit → error NOT_FOUND: "Nama emiten tidak ada di BEI".
   string code_name = 1;
 }
 

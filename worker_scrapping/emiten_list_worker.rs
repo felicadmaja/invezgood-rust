@@ -24,6 +24,9 @@ const EMITEN_ICON_ASSETS_BASE: &str = "https://assets.stockbit.com/logos/compani
 
 pub const UPDATE_AT_FRESH_DAYS: i64 = 30;
 
+/// Pesan bila ticker tidak ditemukan di API Stockbit / tidak listing BEI.
+pub const EMITEN_NOT_ON_BEI: &str = "Nama emiten tidak ada di BEI";
+
 /// `true` bila perlu scrape ulang: `update_at` kosong atau usia ≥ [`UPDATE_AT_FRESH_DAYS`].
 pub fn is_emiten_update_at_stale(update_at: Option<DateTime<Utc>>) -> bool {
     match update_at {
@@ -233,6 +236,9 @@ async fn fetch_keystats_ratio(
     let status = resp.status();
     crate::http_abort::abort_app_if_http_4xx(status, &format!("keystats/ratio {code}"));
     let body = resp.text().await.unwrap_or_default();
+    if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::BAD_REQUEST {
+        return Err(EMITEN_NOT_ON_BEI.into());
+    }
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
         return Err(format!("keystats/ratio {code} HTTP {status}: {preview}").into());
@@ -242,7 +248,7 @@ async fn fetch_keystats_ratio(
         .map_err(|e| format!("keystats/ratio {code} JSON: {e}"))?;
     let parsed = parse_keystats_ratio_json(&v);
     if parsed.key_stats.is_empty() {
-        return Err(format!("keystats/ratio {code}: key_stats kosong").into());
+        return Err(EMITEN_NOT_ON_BEI.into());
     }
     Ok(parsed)
 }

@@ -164,10 +164,16 @@ impl EmitenListRpc for EmitenListService {
             )
             .await
             {
+                let err = e.to_string();
                 eprintln!(
-                    "GetEmitenListByCodeNameFromStockbit {username}: scrape gagal {code_name}: {e}"
+                    "GetEmitenListByCodeNameFromStockbit {username}: scrape gagal {code_name}: {err}"
                 );
-                return Err(Status::internal(format!("scrape Stockbit gagal: {e}")));
+                if err.contains(worker_scrapping::emiten_list_worker::EMITEN_NOT_ON_BEI) {
+                    return Err(Status::not_found(
+                        worker_scrapping::emiten_list_worker::EMITEN_NOT_ON_BEI,
+                    ));
+                }
+                return Err(Status::internal(format!("scrape Stockbit gagal: {err}")));
             }
 
             row = self
