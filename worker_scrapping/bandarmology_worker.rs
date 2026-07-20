@@ -2,16 +2,19 @@
 //! Bearer dari sesi browser setelah login.
 //!
 //! Per emiten:
-//! - Bulan berjalan: `from` = awal bulan, `to` = hari ini → upsert `broker_summary` (selalu timpa).
+//! - Bulan berjalan: `from` = awal bulan, `to` = hari ini → upsert `broker_summary`
+//!   **hanya bila `updated_at` kosong / bukan hari ini**; jika masih hari ini → skip scrape+upsert
+//!   (termasuk minggu w1–w4).
 //!   Plus minggu berjalan (hanya minggu yang sudah dimulai, `to` dibatasi hari ini):
 //!   w1 = tgl 1–7, w2 = 8–14, w3 = 15–21, w4 = 22–akhir bulan →
 //!   `broker_summary_current_w1`…`w4`.
 //! - Bulan sebelumnya (max 36 / 3 tahun): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
 //!   hentikan backfill bila 2 bulan berturut-turut sudah ada, atau 2 bulan berturut-turut kosong dari API.
+//!   Upsert historis juga di-skip bila `updated_at` masih hari ini.
 //! - Semua emiten diproses **sequential** (satu worker utama), jeda 100 ms antar emiten, 50 ms antar bulan per emiten.
 //! - Bila request API timeout/network error: retry di **background task** tanpa menahan worker utama.
 
-use chrono::{Datelike, Duration, Months, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, Duration, Local, Months, NaiveDate, Utc};
 use chromiumoxide::page::Page;
 use futures_util::StreamExt;
 use scylla::client::session::Session;
@@ -274,6 +277,61 @@ pub async fn bandarmology_exists_for_today(
     bandarmology_exists_by_agg(session, keyspace, &agg)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, DeserializeRow)]
+struct UpdatedAtRow {
+    updated_at: Option<DateTime<Utc>>,
+}
+
+/// `true` bila `updated_at` jatuh pada tanggal lokal `today`.
+fn is_updated_at_today(updated_at: DateTime<Utc>, today: NaiveDate) -> bool {
+    updated_at.with_timezone(&Local).date_naive() == today
+}
+
+async fn bandarmology_updated_at(
+    session: &Session,
+    keyspace: &str,
+    agg: &str,
+) -> Result<Option<DateTime<Utc>>, Box<dyn std::error::Error + Send + Sync>> {
+    let stmt = session
+        .prepare(format!(
+            "SELECT updated_at FROM {keyspace}.bandarmology \
+             WHERE agg_tahun_bulan_emiten_name = ? LIMIT 1"
+        ))
+        .await?;
+    let result = session
+        .execute_unpaged(&stmt, (agg,))
+        .await?
+        .into_rows_result()?;
+    let mut rows = result.rows::<UpdatedAtRow>()?;
+    Ok(rows.next().transpose()?.and_then(|r| r.updated_at))
+}
+
+/// `true` bila baris sudah di-upsert hari ini (`updated_at` tanggal lokal = `today`).
+/// Tidak ada baris / `updated_at` null → `false` (boleh upsert).
+async fn bandarmology_updated_at_is_today(
+    session: &Session,
+    keyspace: &str,
+    agg: &str,
+    today: NaiveDate,
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    Ok(match bandarmology_updated_at(session, keyspace, agg).await? {
+        Some(ts) => is_updated_at_today(ts, today),
+        None => false,
+    })
+}
+
+/// Skip upsert bila `updated_at` masih hari ini (zona lokal).
+async fn should_skip_upsert_updated_today(
+    session: &Session,
+    keyspace: &str,
+    tahun_bulan: &str,
+    emiten: &str,
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    let today = Local::now().date_naive();
+    let agg = agg_tahun_bulan_emiten_name(tahun_bulan, emiten);
+    bandarmology_updated_at_is_today(session, keyspace, &agg, today).await
 }
 
 // --- API response mapping ---------------------------------------------------
@@ -549,6 +607,30 @@ fn spawn_background_fetch_retry(
                     );
                     return;
                 }
+                match should_skip_upsert_updated_today(
+                    ctx.session.as_ref(),
+                    &ctx.keyspace,
+                    &ctx.tahun_bulan,
+                    &emiten,
+                )
+                .await
+                {
+                    Ok(true) => {
+                        println!(
+                            "  [background] skip insert {emiten} {}: updated_at masih hari ini",
+                            ctx.tahun_bulan
+                        );
+                        return;
+                    }
+                    Ok(false) => {}
+                    Err(e) => {
+                        eprintln!(
+                            "  [background] gagal cek updated_at {emiten} {}: {e}",
+                            ctx.tahun_bulan
+                        );
+                        return;
+                    }
+                }
                 match insert_bandarmology(
                     ctx.session.as_ref(),
                     &ctx.keyspace,
@@ -558,10 +640,11 @@ fn spawn_background_fetch_retry(
                 )
                 .await
                 {
-                    Ok(()) => println!(
+                    Ok(true) => println!(
                         "  [background] OK insert {emiten} {}",
                         ctx.tahun_bulan
                     ),
+                    Ok(false) => {}
                     Err(e) => eprintln!(
                         "  [background] gagal insert {emiten} {}: {e}",
                         ctx.tahun_bulan
@@ -750,7 +833,13 @@ async fn insert_bandarmology(
     emiten: &str,
     tahun_bulan: &str,
     broker_summary: &BandarmologyDay,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    if should_skip_upsert_updated_today(session, keyspace, tahun_bulan, emiten).await? {
+        println!(
+            "  [{emiten}] skip upsert {tahun_bulan}: updated_at masih hari ini"
+        );
+        return Ok(false);
+    }
     let agg = agg_tahun_bulan_emiten_name(tahun_bulan, emiten);
     let updated_at = Utc::now();
     let insert = session
@@ -771,10 +860,11 @@ async fn insert_bandarmology(
             (agg.as_str(), emiten, tahun_bulan, broker_summary, updated_at),
         )
         .await?;
-    Ok(())
+    Ok(true)
 }
 
 /// Upsert bulan berjalan: `broker_summary` + minggu `w1`…`w4` (yang belum mulai = null).
+/// Returns `true` bila benar-benar di-write; `false` bila di-skip (`updated_at` masih hari ini).
 async fn insert_bandarmology_current_month(
     session: &Session,
     keyspace: &str,
@@ -785,7 +875,13 @@ async fn insert_bandarmology_current_month(
     w2: Option<&BandarmologyDay>,
     w3: Option<&BandarmologyDay>,
     w4: Option<&BandarmologyDay>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    if should_skip_upsert_updated_today(session, keyspace, tahun_bulan, emiten).await? {
+        println!(
+            "  [{emiten}] skip upsert bulan berjalan {tahun_bulan}: updated_at masih hari ini"
+        );
+        return Ok(false);
+    }
     let agg = agg_tahun_bulan_emiten_name(tahun_bulan, emiten);
     let updated_at = Utc::now();
     let insert = session
@@ -820,7 +916,7 @@ async fn insert_bandarmology_current_month(
             ),
         )
         .await?;
-    Ok(())
+    Ok(true)
 }
 
 fn is_auth_abort(err: &str) -> bool {
@@ -843,137 +939,151 @@ async fn scrape_emiten_bandarmology(
     let mut inserted = 0usize;
 
     let (cur_from, cur_to, cur_tb) = current_month_range(today);
-    println!(
-        "  [{code}] bulan berjalan {cur_tb}: {cur_from}..{cur_to} (overwrite)"
-    );
-    let cur_ctx = BackgroundInsertCtx {
-        session: Arc::clone(&session),
-        keyspace: keyspace.to_string(),
-        tahun_bulan: cur_tb.clone(),
-    };
+    let cur_agg = agg_tahun_bulan_emiten_name(&cur_tb, &code);
+    let skip_current =
+        bandarmology_updated_at_is_today(session.as_ref(), keyspace, &cur_agg, today).await?;
 
-    let mut month_day: Option<BandarmologyDay> = None;
-    match fetch_marketdetector_day(
-        client,
-        bearer,
-        &code,
-        cur_from,
-        cur_to,
-        Some(cur_ctx),
-    )
-    .await
-    {
-        Ok((day, rate)) => {
-            println!(
-                "  [{code}] {cur_tb} net_volume={} brokers_buy={}",
-                day.net_volume,
-                day.broker_buy.len()
-            );
-            throttle_if_needed(&rate).await;
-            month_day = Some(day);
-        }
-        Err(e) => {
-            let msg = e.to_string();
-            if is_auth_abort(&msg) {
-                return Err(e);
-            }
-            eprintln!("  [{code}] gagal fetch bulan berjalan {cur_tb}: {msg}");
-        }
-    }
+    if skip_current {
+        println!(
+            "  [{code}] skip bulan berjalan {cur_tb}: updated_at masih hari ini (agg={cur_agg})"
+        );
+    } else {
+        println!(
+            "  [{code}] bulan berjalan {cur_tb}: {cur_from}..{cur_to} (overwrite bila perlu)"
+        );
+        let cur_ctx = BackgroundInsertCtx {
+            session: Arc::clone(&session),
+            keyspace: keyspace.to_string(),
+            tahun_bulan: cur_tb.clone(),
+        };
 
-    // Minggu berjalan: hanya minggu yang sudah dimulai; `to` ≤ hari ini.
-    let mut w1: Option<BandarmologyDay> = None;
-    let mut w2: Option<BandarmologyDay> = None;
-    let mut w3: Option<BandarmologyDay> = None;
-    let mut w4: Option<BandarmologyDay> = None;
-    let week_ranges = current_month_week_ranges(today);
-    println!(
-        "  [{code}] minggu berjalan {cur_tb}: {} window(s) (today day={})",
-        week_ranges.len(),
-        today.day()
-    );
-    for (week, from, to) in week_ranges {
-        sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
-        println!("  [{code}] {cur_tb} w{week}: {from}..{to}");
-        match fetch_marketdetector_day(client, bearer, &code, from, to, None).await {
+        let mut month_day: Option<BandarmologyDay> = None;
+        match fetch_marketdetector_day(
+            client,
+            bearer,
+            &code,
+            cur_from,
+            cur_to,
+            Some(cur_ctx),
+        )
+        .await
+        {
             Ok((day, rate)) => {
-                throttle_if_needed(&rate).await;
-                if is_broker_summary_empty(&day) {
-                    println!("  [{code}] {cur_tb} w{week} kosong — skip kolom");
-                    continue;
-                }
                 println!(
-                    "  [{code}] {cur_tb} w{week} net_volume={} brokers_buy={}",
+                    "  [{code}] {cur_tb} net_volume={} brokers_buy={}",
                     day.net_volume,
                     day.broker_buy.len()
                 );
-                match week {
-                    1 => w1 = Some(day),
-                    2 => w2 = Some(day),
-                    3 => w3 = Some(day),
-                    4 => w4 = Some(day),
-                    _ => {}
-                }
+                throttle_if_needed(&rate).await;
+                month_day = Some(day);
             }
             Err(e) => {
                 let msg = e.to_string();
                 if is_auth_abort(&msg) {
                     return Err(e);
                 }
-                eprintln!("  [{code}] gagal fetch {cur_tb} w{week}: {msg}");
+                eprintln!("  [{code}] gagal fetch bulan berjalan {cur_tb}: {msg}");
             }
         }
-    }
 
-    if let Some(ref day) = month_day {
-        insert_bandarmology_current_month(
-            session.as_ref(),
-            keyspace,
-            &code,
-            &cur_tb,
-            day,
-            w1.as_ref(),
-            w2.as_ref(),
-            w3.as_ref(),
-            w4.as_ref(),
-        )
-        .await?;
-        inserted += 1;
+        // Minggu berjalan: hanya minggu yang sudah dimulai; `to` ≤ hari ini.
+        let mut w1: Option<BandarmologyDay> = None;
+        let mut w2: Option<BandarmologyDay> = None;
+        let mut w3: Option<BandarmologyDay> = None;
+        let mut w4: Option<BandarmologyDay> = None;
+        let week_ranges = current_month_week_ranges(today);
         println!(
-            "  [{code}] upsert bulan berjalan {cur_tb} \
-             w1={} w2={} w3={} w4={}",
-            w1.is_some(),
-            w2.is_some(),
-            w3.is_some(),
-            w4.is_some()
+            "  [{code}] minggu berjalan {cur_tb}: {} window(s) (today day={})",
+            week_ranges.len(),
+            today.day()
         );
-    } else if w1.is_some() || w2.is_some() || w3.is_some() || w4.is_some() {
-        // Bulan penuh gagal, tapi ada data minggu — simpan dengan summary kosong.
-        let empty = empty_day();
-        insert_bandarmology_current_month(
-            session.as_ref(),
-            keyspace,
-            &code,
-            &cur_tb,
-            &empty,
-            w1.as_ref(),
-            w2.as_ref(),
-            w3.as_ref(),
-            w4.as_ref(),
-        )
-        .await?;
-        inserted += 1;
-        println!(
-            "  [{code}] upsert bulan berjalan {cur_tb} (hanya minggu; summary kosong) \
-             w1={} w2={} w3={} w4={}",
-            w1.is_some(),
-            w2.is_some(),
-            w3.is_some(),
-            w4.is_some()
-        );
-    }
+        for (week, from, to) in week_ranges {
+            sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
+            println!("  [{code}] {cur_tb} w{week}: {from}..{to}");
+            match fetch_marketdetector_day(client, bearer, &code, from, to, None).await {
+                Ok((day, rate)) => {
+                    throttle_if_needed(&rate).await;
+                    if is_broker_summary_empty(&day) {
+                        println!("  [{code}] {cur_tb} w{week} kosong — skip kolom");
+                        continue;
+                    }
+                    println!(
+                        "  [{code}] {cur_tb} w{week} net_volume={} brokers_buy={}",
+                        day.net_volume,
+                        day.broker_buy.len()
+                    );
+                    match week {
+                        1 => w1 = Some(day),
+                        2 => w2 = Some(day),
+                        3 => w3 = Some(day),
+                        4 => w4 = Some(day),
+                        _ => {}
+                    }
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    if is_auth_abort(&msg) {
+                        return Err(e);
+                    }
+                    eprintln!("  [{code}] gagal fetch {cur_tb} w{week}: {msg}");
+                }
+            }
+        }
 
-    sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
+        if let Some(ref day) = month_day {
+            if insert_bandarmology_current_month(
+                session.as_ref(),
+                keyspace,
+                &code,
+                &cur_tb,
+                day,
+                w1.as_ref(),
+                w2.as_ref(),
+                w3.as_ref(),
+                w4.as_ref(),
+            )
+            .await?
+            {
+                inserted += 1;
+                println!(
+                    "  [{code}] upsert bulan berjalan {cur_tb} \
+                     w1={} w2={} w3={} w4={}",
+                    w1.is_some(),
+                    w2.is_some(),
+                    w3.is_some(),
+                    w4.is_some()
+                );
+            }
+        } else if w1.is_some() || w2.is_some() || w3.is_some() || w4.is_some() {
+            // Bulan penuh gagal, tapi ada data minggu — simpan dengan summary kosong.
+            let empty = empty_day();
+            if insert_bandarmology_current_month(
+                session.as_ref(),
+                keyspace,
+                &code,
+                &cur_tb,
+                &empty,
+                w1.as_ref(),
+                w2.as_ref(),
+                w3.as_ref(),
+                w4.as_ref(),
+            )
+            .await?
+            {
+                inserted += 1;
+                println!(
+                    "  [{code}] upsert bulan berjalan {cur_tb} (hanya minggu; summary kosong) \
+                     w1={} w2={} w3={} w4={}",
+                    w1.is_some(),
+                    w2.is_some(),
+                    w3.is_some(),
+                    w4.is_some()
+                );
+            }
+        }
+
+        sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
+    }
 
     let mut empty_streak = 0usize;
     let mut skip_existing_streak = 0usize;
@@ -1059,18 +1169,20 @@ async fn scrape_emiten_bandarmology(
         }
 
         empty_streak = 0;
-        insert_bandarmology(session.as_ref(), keyspace, &code, &tb, &day).await?;
-        println!(
-            "  [{code}] insert historis {tb} net_volume={}",
-            day.net_volume
-        );
-        inserted += 1;
+        if insert_bandarmology(session.as_ref(), keyspace, &code, &tb, &day).await? {
+            println!(
+                "  [{code}] insert historis {tb} net_volume={}",
+                day.net_volume
+            );
+            inserted += 1;
+        }
     }
 
     Ok(inserted)
 }
 
-/// Scrape bandarmology untuk satu emiten: bulan berjalan (overwrite) + backfill historis.
+/// Scrape bandarmology untuk satu emiten: bulan berjalan (overwrite bila `updated_at` bukan hari ini)
+/// + backfill historis.
 /// Returns jumlah baris bulan yang di-upsert.
 pub async fn scrape_bandarmology_for_code_if_missing(
     page: &Page,
