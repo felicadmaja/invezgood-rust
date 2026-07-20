@@ -10,8 +10,10 @@ use crate::model::Portofolio;
 use crate::portofolio_server::Portofolio as PortofolioRpc;
 use crate::repository::PortofolioRepository;
 use crate::{
-    GetAllPortofolioRequest, GetAllPortofolioResponse, GetPortofolioHistoryByEmitenNameRequest,
-    GetPortofolioHistoryByEmitenNameResponse, PortofolioRow,
+    GetAllPortofolioFromScyllaRequest, GetAllPortofolioFromScyllaResponse,
+    GetAllPortofolioFromStockbitRequest, GetAllPortofolioFromStockbitResponse,
+    GetPortofolioHistoryByEmitenNameRequest, GetPortofolioHistoryByEmitenNameResponse,
+    PortofolioRow,
 };
 
 fn parse_emiten_name(raw: &str) -> Result<String, String> {
@@ -41,34 +43,91 @@ impl PortofolioService {
     }
 }
 
+fn rows_to_proto(rows: Vec<Portofolio>) -> Vec<PortofolioRow> {
+    rows.into_iter().map(Portofolio::into_proto).collect()
+}
+
 #[tonic::async_trait]
 impl PortofolioRpc for PortofolioService {
-    async fn get_all_portofolio(
+    async fn get_all_portofolio_from_scylla(
         &self,
-        request: Request<GetAllPortofolioRequest>,
-    ) -> Result<Response<GetAllPortofolioResponse>, Status> {
+        request: Request<GetAllPortofolioFromScyllaRequest>,
+    ) -> Result<Response<GetAllPortofolioFromScyllaResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
 
-        let rows: Vec<Portofolio> = self
+        let rows = self
             .repo
             .get_all()
             .await
             .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
 
-        let proto_rows: Vec<PortofolioRow> = rows.into_iter().map(Portofolio::into_proto).collect();
+        let proto_rows = rows_to_proto(rows);
 
         println!(
-            "GetAllPortofolio {} rows={} {}ms",
+            "GetAllPortofolioFromScylla {} rows={} {}ms",
             username,
             proto_rows.len(),
             started.elapsed().as_millis()
         );
 
-        Ok(Response::new(GetAllPortofolioResponse {
+        Ok(Response::new(GetAllPortofolioFromScyllaResponse {
             rows: proto_rows,
         }))
+    }
+
+    async fn get_all_portofolio_from_stockbit(
+        &self,
+        request: Request<GetAllPortofolioFromStockbitRequest>,
+    ) -> Result<Response<GetAllPortofolioFromStockbitResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let _ = request.into_inner();
+
+        println!(
+            "GetAllPortofolioFromStockbit {username}: scrape portfolio API + upsert..."
+        );
+
+        match on_demand::scrape_portofolio_all(Arc::clone(&self.session)).await {
+            Ok(n) => {
+                let rows = self
+                    .repo
+                    .get_all()
+                    .await
+                    .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+                let proto_rows = rows_to_proto(rows);
+                let message = format!(
+                    "portofolio: scrape selesai, {n} baris di-upsert (baca {} baris)",
+                    proto_rows.len()
+                );
+                println!(
+                    "GetAllPortofolioFromStockbit {} success=true rows={} {}ms",
+                    username,
+                    proto_rows.len(),
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(GetAllPortofolioFromStockbitResponse {
+                    success: true,
+                    message,
+                    rows: proto_rows,
+                }))
+            }
+            Err(e) => {
+                eprintln!("GetAllPortofolioFromStockbit {username}: gagal: {e}");
+                println!(
+                    "GetAllPortofolioFromStockbit {} success=false {}ms",
+                    username,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(GetAllPortofolioFromStockbitResponse {
+                    success: false,
+                    message: format!("scrape portofolio gagal: {e}"),
+                    rows: vec![],
+                }))
+            }
+        }
     }
 
     async fn get_portofolio_history_by_emiten_name(

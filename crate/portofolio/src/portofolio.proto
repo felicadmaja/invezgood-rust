@@ -5,8 +5,20 @@ package portofolio;
 service Portofolio {
   // Tanpa parameter request; mengembalikan semua baris dari tabel Scylla `portofolio`.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetAllPortofolio(GetAllPortofolioRequest) returns (GetAllPortofolioResponse);
+  rpc GetAllPortofolioFromScylla(GetAllPortofolioFromScyllaRequest)
+      returns (GetAllPortofolioFromScyllaResponse);
 
+  // Scrape semua holdings dari Stockbit lalu upsert `portofolio`.
+  // Alur sama `portofolio_worker`: login → START TRADING/PIN bila perlu →
+  // DOM `portofolio_equity` → GET carina.stockbit.com/portfolio/v2/list →
+  // pastikan emiten_list + bandarmology → TRUNCATE+insert `portofolio`.
+  // Request kosong. Response: repeated PortofolioRow setelah scrape.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetAllPortofolioFromStockbit(GetAllPortofolioFromStockbitRequest)
+      returns (GetAllPortofolioFromStockbitResponse);
+
+      
+  // HISTORY DARI PEMBELIAN    
   // Ambil riwayat order per emiten dari Stockbit lalu timpa kolom `portofolio.history`.
   // Alur: login → START TRADING/PIN bila perlu →
   // GET carina.stockbit.com/order/v2/list?filter_criteria.stock_code={emiten_name}
@@ -18,7 +30,9 @@ service Portofolio {
       returns (GetPortofolioHistoryByEmitenNameResponse);
 }
 
-message GetAllPortofolioRequest {}
+message GetAllPortofolioFromScyllaRequest {}
+
+message GetAllPortofolioFromStockbitRequest {}
 
 message GetPortofolioHistoryByEmitenNameRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE (asbi → ASBI).
@@ -51,8 +65,14 @@ message PortofolioRow {
   map<string, PortofolioHistoryItem> history = 12;
 }
 
-message GetAllPortofolioResponse {
+message GetAllPortofolioFromScyllaResponse {
   repeated PortofolioRow rows = 1;
+}
+
+message GetAllPortofolioFromStockbitResponse {
+  bool success = 1;
+  string message = 2;
+  repeated PortofolioRow rows = 3;
 }
 
 message GetPortofolioHistoryByEmitenNameResponse {

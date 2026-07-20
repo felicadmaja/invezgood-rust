@@ -1,4 +1,4 @@
-//! On-demand scrape Stockbit (movers, emiten_list, bandarmology, portofolio_equity, portofolio history).
+//! On-demand scrape Stockbit (movers, emiten_list, bandarmology, portofolio, portofolio_equity, history).
 //!
 //! Scrape dijalankan di `tokio::spawn` + single-flight per `code_name`, supaya
 //! cancel/timeout di sisi gRPC client **tidak** membatalkan scrape yang sedang jalan
@@ -35,6 +35,10 @@ static INFLIGHT_PORTO_HISTORY: OnceLock<
     Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>>,
 > = OnceLock::new();
 
+static INFLIGHT_PORTO_ALL: OnceLock<
+    Mutex<Option<watch::Receiver<Option<Result<usize, String>>>>>,
+> = OnceLock::new();
+
 fn inflight_map() -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<(), String>>>>> {
     INFLIGHT_EMITEN.get_or_init(|| Mutex::new(HashMap::new()))
 }
@@ -57,6 +61,11 @@ fn inflight_porto_equity(
 fn inflight_porto_history(
 ) -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>> {
     INFLIGHT_PORTO_HISTORY.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn inflight_porto_all(
+) -> &'static Mutex<Option<watch::Receiver<Option<Result<usize, String>>>>> {
+    INFLIGHT_PORTO_ALL.get_or_init(|| Mutex::new(None))
 }
 
 fn keyspace() -> String {
@@ -668,6 +677,86 @@ async fn run_portofolio_history_scrape(
         )
         .await
         .map_err(|e| e.to_string())?;
+
+        Ok::<usize, String>(n)
+    }
+    .await;
+
+    if let Err(e) = browser.close().await {
+        eprintln!("Peringatan: gagal menutup browser: {e}");
+    }
+
+    result
+}
+
+/// On-demand scrape semua holdings portfolio → upsert `portofolio`
+/// (alur `portofolio_worker::scrape_and_insert_portofolio`).
+/// Single-flight global; survive cancel RPC.
+/// Returns jumlah baris yang di-upsert.
+pub async fn scrape_portofolio_all(session: Arc<Session>) -> Result<usize, String> {
+    let mut rx = {
+        let mut slot = inflight_porto_all().lock().await;
+        if let Some(existing) = slot.as_ref() {
+            println!(
+                "On-demand portofolio: sudah berjalan — menunggu hasil (single-flight)..."
+            );
+            existing.clone()
+        } else {
+            let (tx, rx) = watch::channel::<Option<Result<usize, String>>>(None);
+            *slot = Some(rx.clone());
+            let session = Arc::clone(&session);
+            tokio::spawn(async move {
+                let result = run_portofolio_all_scrape(session).await;
+                match &result {
+                    Ok(n) => println!("On-demand portofolio selesai: {n} baris di-upsert."),
+                    Err(e) => eprintln!("On-demand portofolio GAGAL: {e}"),
+                }
+                let _ = tx.send(Some(result));
+                *inflight_porto_all().lock().await = None;
+            });
+            rx
+        }
+    };
+
+    loop {
+        {
+            let guard = rx.borrow();
+            if let Some(result) = guard.as_ref() {
+                return result.clone();
+            }
+        }
+        if rx.changed().await.is_err() {
+            return Err("on-demand portofolio: channel ditutup sebelum ada hasil".into());
+        }
+    }
+}
+
+async fn run_portofolio_all_scrape(session: Arc<Session>) -> Result<usize, String> {
+    let email = std::env::var("STOCKBIT_EMAIL")
+        .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk scrape portofolio".to_string())?;
+    let password = std::env::var("STOCKBIT_PASSWORD")
+        .map_err(|_| "STOCKBIT_PASSWORD wajib diisi untuk scrape portofolio".to_string())?;
+    if email.trim().is_empty() || password.trim().is_empty() {
+        return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
+    }
+
+    let _browser_guard = browser_session_lock().lock().await;
+    let ks = keyspace();
+
+    println!("On-demand portofolio: login → PIN → equity DOM → portfolio API...");
+
+    let (mut browser, page) = launch_page()
+        .await
+        .map_err(|e| format!("launch Chrome: {e}"))?;
+
+    let result = async {
+        open_stream_or_login(&page, email.trim(), password.trim())
+            .await
+            .map_err(|e| format!("login Stockbit: {e}"))?;
+
+        let n = crate::portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks)
+            .await
+            .map_err(|e| e.to_string())?;
 
         Ok::<usize, String>(n)
     }
