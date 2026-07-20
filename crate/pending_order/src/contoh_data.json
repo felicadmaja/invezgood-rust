@@ -1,0 +1,5109 @@
+{
+    "message": "Orders data retrieved",
+    "data": [
+        {
+            "order_id": "XL4637614QBOkCmZbPu7",
+            "market_order_id": "",
+            "symbol": "RBMS",
+            "status_text": "PENDING",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T13:04:25Z",
+                "open": "2026-07-20T13:04:25Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 157,
+                "lot_total": 157
+            },
+            "price": {
+                "order": 63,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 989100,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 989100,
+                "amount": 990583.65,
+                "fee": {
+                    "amount": 1483.65,
+                    "open": 990583.65,
+                    "invested": 990583.65,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T06:04:25.055362900Z",
+                "open": "2026-07-20T06:04:25.055362900Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "71CXf10VdSVyS6BznbJW",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614oZ6pcCezGm7",
+            "market_order_id": "",
+            "symbol": "MPMX",
+            "status_text": "PENDING",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T12:03:11Z",
+                "open": "2026-07-20T12:03:11Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 10,
+                "lot_total": 10
+            },
+            "price": {
+                "order": 1000,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 1000000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 1000000,
+                "amount": 1001500,
+                "fee": {
+                    "amount": 1500,
+                    "open": 1001500,
+                    "invested": 1001500,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T05:03:11.432352466Z",
+                "open": "2026-07-20T05:03:11.432352466Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "a5aMuyA9pmtVZvHhtZG6",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL46376147FVrKg5bIw7",
+            "market_order_id": "",
+            "symbol": "PGAS",
+            "status_text": "PENDING",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T12:02:45Z",
+                "open": "2026-07-20T12:02:45Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 2,
+                "lot_total": 2
+            },
+            "price": {
+                "order": 1505,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 301000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 301000,
+                "amount": 300247.5,
+                "fee": {
+                    "amount": 752.5,
+                    "open": 300247.5,
+                    "invested": 300247.5,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T05:02:45.887156885Z",
+                "open": "2026-07-20T05:02:45.887156885Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "1fLanPq1WoIt8i1Mo8AW",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614Pgzx9QoFoL7",
+            "market_order_id": "",
+            "symbol": "UNVR",
+            "status_text": "PENDING",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T12:01:53Z",
+                "open": "2026-07-20T12:01:53Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 6,
+                "lot_total": 6
+            },
+            "price": {
+                "order": 1765,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 1059000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 1059000,
+                "amount": 1060588.5,
+                "fee": {
+                    "amount": 1588.5,
+                    "open": 1060588.5,
+                    "invested": 1060588.5,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T05:01:53.970073203Z",
+                "open": "2026-07-20T05:01:53.970073203Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "TaZnXfvYTtDiBC0G8oCD",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL46376149uMBznXc947",
+            "market_order_id": "",
+            "symbol": "SAFE",
+            "status_text": "REJECTED",
+            "message": "Invalid price",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:59:20Z",
+                "open": "2026-07-20T11:59:20Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 30,
+                "lot_total": 30
+            },
+            "price": {
+                "order": 312,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 936000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 936000,
+                "amount": 937404,
+                "fee": {
+                    "amount": 1404,
+                    "open": 937404,
+                    "invested": 937404,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:59:20.631764998Z",
+                "open": "2026-07-20T04:59:20.631764998Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "J3vTRg5KkqPIsZD2HDta",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614EZ1oLJkRyU7",
+            "market_order_id": "202607200003607306",
+            "symbol": "SRTG",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:57:27Z",
+                "open": "2026-07-20T11:57:27Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 6,
+                "lot_total": 6
+            },
+            "price": {
+                "order": 1735,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 1041000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 1041000,
+                "amount": 1042561.5,
+                "fee": {
+                    "amount": 1561.5,
+                    "open": 1042561.5,
+                    "invested": 1042561.5,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:57:27.563087370Z",
+                "open": "2026-07-20T04:57:27.563087370Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "stJG1BMrRLm4Agy4DwwK",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614dRWpEjIodC7",
+            "market_order_id": "202607200003490804",
+            "symbol": "KIOS",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:45:04Z",
+                "open": "2026-07-20T11:45:04Z",
+                "match": "2026-07-20T04:45:04Z"
+            },
+            "qty": {
+                "lot_done": 100,
+                "lot_open": 0,
+                "lot_total": 100
+            },
+            "price": {
+                "order": 95,
+                "average": {
+                    "price": 95,
+                    "fee": 95.14250000000001
+                }
+            },
+            "amount": {
+                "invested": 950000,
+                "matched": 950000,
+                "matched_total": 951425.0000000001,
+                "open": 0,
+                "amount": 951425,
+                "fee": {
+                    "amount": 1425,
+                    "open": 0,
+                    "invested": 951425,
+                    "matched": {
+                        "amount": 1425.0000000001164,
+                        "broker": 1013.65,
+                        "exchange": 411.35
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:45:04.731958031Z",
+                "open": "2026-07-20T04:45:04.731958031Z",
+                "match": "2026-07-20T04:45:04.774605Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "Mjm1992m5fxMKGx65wDx",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614hA1TIKOPGz7",
+            "market_order_id": "202607200003480379",
+            "symbol": "ENRG",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:43:54Z",
+                "open": "2026-07-20T11:43:54Z",
+                "match": "2026-07-20T04:43:54Z"
+            },
+            "qty": {
+                "lot_done": 7,
+                "lot_open": 0,
+                "lot_total": 7
+            },
+            "price": {
+                "order": 1425,
+                "average": {
+                    "price": 1425,
+                    "fee": 1427.1375
+                }
+            },
+            "amount": {
+                "invested": 997500,
+                "matched": 997500,
+                "matched_total": 998996.25,
+                "open": 0,
+                "amount": 998996.25,
+                "fee": {
+                    "amount": 1496.25,
+                    "open": 0,
+                    "invested": 998996.25,
+                    "matched": {
+                        "amount": 1496.25,
+                        "broker": 1064.3325,
+                        "exchange": 431.9175
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:43:54.309347998Z",
+                "open": "2026-07-20T04:43:54.309347998Z",
+                "match": "2026-07-20T04:43:54.354730Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "EfIhbCqfkkmvyZ2Uj6VB",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614FQgIRBlI7a7",
+            "market_order_id": "202607200003431178",
+            "symbol": "CRSN",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:38:55Z",
+                "open": "2026-07-20T11:38:55Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 99,
+                "lot_total": 99
+            },
+            "price": {
+                "order": 100,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 990000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 990000,
+                "amount": 991485,
+                "fee": {
+                    "amount": 1485,
+                    "open": 991485,
+                    "invested": 991485,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:38:55.486317672Z",
+                "open": "2026-07-20T04:38:55.486317672Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "nNdT2lcgO4TPuHIK6p0o",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614KXJqo7lMpb7",
+            "market_order_id": "202607200003422598",
+            "symbol": "SMMT",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:38:03Z",
+                "open": "2026-07-20T11:38:03Z",
+                "match": "2026-07-20T04:38:03Z"
+            },
+            "qty": {
+                "lot_done": 5,
+                "lot_open": 0,
+                "lot_total": 5
+            },
+            "price": {
+                "order": 1850,
+                "average": {
+                    "price": 1850,
+                    "fee": 1852.775
+                }
+            },
+            "amount": {
+                "invested": 925000,
+                "matched": 925000,
+                "matched_total": 926387.5,
+                "open": 0,
+                "amount": 926387.5,
+                "fee": {
+                    "amount": 1387.5,
+                    "open": 0,
+                    "invested": 926387.5,
+                    "matched": {
+                        "amount": 1387.5,
+                        "broker": 986.975,
+                        "exchange": 400.52500000000003
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:38:03.370042778Z",
+                "open": "2026-07-20T04:38:03.370042778Z",
+                "match": "2026-07-20T04:38:03.427224Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "bpmTSU2UB6xcBZGJwlSp",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614diIScC93YU7",
+            "market_order_id": "202607200003408257",
+            "symbol": "BINO",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:36:38Z",
+                "open": "2026-07-20T11:36:38Z",
+                "match": "2026-07-20T04:36:47Z"
+            },
+            "qty": {
+                "lot_done": 89,
+                "lot_open": 0,
+                "lot_total": 89
+            },
+            "price": {
+                "order": 111,
+                "average": {
+                    "price": 111,
+                    "fee": 111.16650000000001
+                }
+            },
+            "amount": {
+                "invested": 987900,
+                "matched": 987900,
+                "matched_total": 989381.8500000001,
+                "open": 0,
+                "amount": 989381.85,
+                "fee": {
+                    "amount": 1481.8500000000001,
+                    "open": 0,
+                    "invested": 989381.85,
+                    "matched": {
+                        "amount": 1481.8500000000931,
+                        "broker": 1054.0893,
+                        "exchange": 427.7607
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:36:38.803058855Z",
+                "open": "2026-07-20T04:36:38.803058855Z",
+                "match": "2026-07-20T04:36:47.172210Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "tWA4JEMIevSPlgEBVPfZ",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614dGztgraj307",
+            "market_order_id": "202607200003389150",
+            "symbol": "LPLI",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:34:41Z",
+                "open": "2026-07-20T11:34:41Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 40,
+                "lot_total": 40
+            },
+            "price": {
+                "order": 246,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 984000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 984000,
+                "amount": 985476,
+                "fee": {
+                    "amount": 1476,
+                    "open": 985476,
+                    "invested": 985476,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:34:41.449339593Z",
+                "open": "2026-07-20T04:34:41.449339593Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "D9Ioe9CAwdMcz4DAOoP0",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614li51SH1mEm7",
+            "market_order_id": "202607200003350665",
+            "symbol": "BLOG",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:30:29Z",
+                "open": "2026-07-20T11:30:29Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 29,
+                "lot_total": 29
+            },
+            "price": {
+                "order": 340,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 986000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 986000,
+                "amount": 987479,
+                "fee": {
+                    "amount": 1479,
+                    "open": 987479,
+                    "invested": 987479,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:30:29.578782450Z",
+                "open": "2026-07-20T04:30:29.578782450Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "3BzvARIcFuBBdlgUeiLl",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614JCzbr8mh097",
+            "market_order_id": "202607200003322255",
+            "symbol": "MERK",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:27:33Z",
+                "open": "2026-07-20T11:27:33Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 2,
+                "lot_total": 2
+            },
+            "price": {
+                "order": 3750,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 750000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 750000,
+                "amount": 751125,
+                "fee": {
+                    "amount": 1125,
+                    "open": 751125,
+                    "invested": 751125,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:27:33.104990668Z",
+                "open": "2026-07-20T04:27:33.104990668Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "v5xXeYZILUeUvzUkVFI7",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614AYDqSCbKNO7",
+            "market_order_id": "202607200003310010",
+            "symbol": "TCID",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:26:12Z",
+                "open": "2026-07-20T11:26:12Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 4,
+                "lot_total": 4
+            },
+            "price": {
+                "order": 2720,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 1088000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 1088000,
+                "amount": 1089632,
+                "fee": {
+                    "amount": 1632,
+                    "open": 1089632,
+                    "invested": 1089632,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:26:12.062845371Z",
+                "open": "2026-07-20T04:26:12.062845371Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "oq89Q2xStAso6jSdN9JT",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614YcAYMISGoF7",
+            "market_order_id": "202607200003298138",
+            "symbol": "CUAN",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:25:00Z",
+                "open": "2026-07-20T11:25:00Z",
+                "match": "2026-07-20T04:25:00Z"
+            },
+            "qty": {
+                "lot_done": 31,
+                "lot_open": 0,
+                "lot_total": 31
+            },
+            "price": {
+                "order": 650,
+                "average": {
+                    "price": 650,
+                    "fee": 650.975
+                }
+            },
+            "amount": {
+                "invested": 2015000,
+                "matched": 2015000,
+                "matched_total": 2018022.5,
+                "open": 0,
+                "amount": 2018022.5,
+                "fee": {
+                    "amount": 3022.5,
+                    "open": 0,
+                    "invested": 2018022.5,
+                    "matched": {
+                        "amount": 3022.5,
+                        "broker": 2150.005,
+                        "exchange": 872.495
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:25:00.834622213Z",
+                "open": "2026-07-20T04:25:00.834622213Z",
+                "match": "2026-07-20T04:25:00.880325Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "UhYuFXgmZsUgExtL7PKz",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614CCxmYP9Mfo7",
+            "market_order_id": "202607200003277717",
+            "symbol": "KOTA",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:22:55Z",
+                "open": "2026-07-20T11:22:55Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 100,
+                "lot_total": 100
+            },
+            "price": {
+                "order": 93,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 930000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 930000,
+                "amount": 931395,
+                "fee": {
+                    "amount": 1395,
+                    "open": 931395,
+                    "invested": 931395,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:22:55.739563703Z",
+                "open": "2026-07-20T04:22:55.739563703Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "fuPv9l1xZSI8hpmTJgXA",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614HAonml22mu7",
+            "market_order_id": "202607200003243936",
+            "symbol": "BLES",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:19:36Z",
+                "open": "2026-07-20T11:19:36Z",
+                "match": "2026-07-20T04:19:36Z"
+            },
+            "qty": {
+                "lot_done": 69,
+                "lot_open": 0,
+                "lot_total": 69
+            },
+            "price": {
+                "order": 143,
+                "average": {
+                    "price": 143,
+                    "fee": 143.21450000000002
+                }
+            },
+            "amount": {
+                "invested": 986700,
+                "matched": 986700,
+                "matched_total": 988180.0500000002,
+                "open": 0,
+                "amount": 988180.05,
+                "fee": {
+                    "amount": 1480.05,
+                    "open": 0,
+                    "invested": 988180.05,
+                    "matched": {
+                        "amount": 1480.050000000163,
+                        "broker": 1052.8089,
+                        "exchange": 427.2411
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:19:36.739234751Z",
+                "open": "2026-07-20T04:19:36.739234751Z",
+                "match": "2026-07-20T04:19:36.786064Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "ffDa6zuFD7WUF7M855Gp",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614XP4caL0s8Q7",
+            "market_order_id": "202607200003231480",
+            "symbol": "AXIO",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:18:28Z",
+                "open": "2026-07-20T11:18:28Z",
+                "match": "2026-07-20T04:38:33Z"
+            },
+            "qty": {
+                "lot_done": 84,
+                "lot_open": 0,
+                "lot_total": 84
+            },
+            "price": {
+                "order": 113,
+                "average": {
+                    "price": 113,
+                    "fee": 113.1695
+                }
+            },
+            "amount": {
+                "invested": 949200,
+                "matched": 949200,
+                "matched_total": 950623.8,
+                "open": 0,
+                "amount": 950623.8,
+                "fee": {
+                    "amount": 1423.8,
+                    "open": 0,
+                    "invested": 950623.8,
+                    "matched": {
+                        "amount": 1423.8000000000466,
+                        "broker": 1012.7964,
+                        "exchange": 411.0036
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:18:28.237981453Z",
+                "open": "2026-07-20T04:18:28.237981453Z",
+                "match": "2026-07-20T04:38:33.590862Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "P1iY5ytWTO5tNKZrn7tg",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL46376141PYwb3yIzZ7",
+            "market_order_id": "202607200003216913",
+            "symbol": "ASBI",
+            "status_text": "PARTIAL",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:17:01Z",
+                "open": "2026-07-20T11:17:01Z",
+                "match": "2026-07-20T04:24:32Z"
+            },
+            "qty": {
+                "lot_done": 2,
+                "lot_open": 13,
+                "lot_total": 15
+            },
+            "price": {
+                "order": 424,
+                "average": {
+                    "price": 424,
+                    "fee": 424.636
+                }
+            },
+            "amount": {
+                "invested": 636000,
+                "matched": 84800,
+                "matched_total": 84927.20000000001,
+                "open": 551200,
+                "amount": 636954,
+                "fee": {
+                    "amount": 954,
+                    "open": 552026.8,
+                    "invested": 636954,
+                    "matched": {
+                        "amount": 127.20000000001164,
+                        "broker": 90.4816,
+                        "exchange": 36.7184
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:17:01.780894427Z",
+                "open": "2026-07-20T04:17:01.780894427Z",
+                "match": "2026-07-20T04:24:32.677277Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "J0iu9G3Y293vac6auKVU",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614bzl0hZ4tkt7",
+            "market_order_id": "202607200003048554",
+            "symbol": "MTLA",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T11:02:28Z",
+                "open": "2026-07-20T11:02:28Z",
+                "match": "2026-07-20T04:02:28Z"
+            },
+            "qty": {
+                "lot_done": 19,
+                "lot_open": 0,
+                "lot_total": 19
+            },
+            "price": {
+                "order": 520,
+                "average": {
+                    "price": 520,
+                    "fee": 520.78
+                }
+            },
+            "amount": {
+                "invested": 988000,
+                "matched": 988000,
+                "matched_total": 989482,
+                "open": 0,
+                "amount": 989482,
+                "fee": {
+                    "amount": 1482,
+                    "open": 0,
+                    "invested": 989482,
+                    "matched": {
+                        "amount": 1482,
+                        "broker": 1054.1960000000001,
+                        "exchange": 427.80400000000003
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T04:02:28.562566496Z",
+                "open": "2026-07-20T04:02:28.562566496Z",
+                "match": "2026-07-20T04:02:28.611705Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "P76WoCM4VssZlbxLIaRC",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614lYjdDksDTM7",
+            "market_order_id": "202607200002236417",
+            "symbol": "MEDC",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:58:23Z",
+                "open": "2026-07-20T09:58:23Z",
+                "match": "2026-07-20T02:58:23Z"
+            },
+            "qty": {
+                "lot_done": 8,
+                "lot_open": 0,
+                "lot_total": 8
+            },
+            "price": {
+                "order": 1275,
+                "average": {
+                    "price": 1275,
+                    "fee": 1276.9125000000001
+                }
+            },
+            "amount": {
+                "invested": 1020000,
+                "matched": 1020000,
+                "matched_total": 1021530.0000000001,
+                "open": 0,
+                "amount": 1021530,
+                "fee": {
+                    "amount": 1530,
+                    "open": 0,
+                    "invested": 1021530,
+                    "matched": {
+                        "amount": 1530.0000000001164,
+                        "broker": 1088.34,
+                        "exchange": 441.66
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:58:23.779967221Z",
+                "open": "2026-07-20T02:58:23.779967221Z",
+                "match": "2026-07-20T02:58:23.823401Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "imrbCcjuD1hD7302hvRe",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614NYWTRfwtFQ7",
+            "market_order_id": "202607200002227860",
+            "symbol": "BBRI",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:57:53Z",
+                "open": "2026-07-20T09:57:53Z",
+                "match": "2026-07-20T02:57:53Z"
+            },
+            "qty": {
+                "lot_done": 38,
+                "lot_open": 0,
+                "lot_total": 38
+            },
+            "price": {
+                "order": 3050,
+                "average": {
+                    "price": 3050,
+                    "fee": 3042.375
+                }
+            },
+            "amount": {
+                "invested": 11590000,
+                "matched": 11590000,
+                "matched_total": 11561025,
+                "open": 0,
+                "amount": 11561025,
+                "fee": {
+                    "amount": 28975,
+                    "open": 0,
+                    "invested": 11561025,
+                    "matched": {
+                        "amount": 28975,
+                        "broker": 12366.53,
+                        "exchange": 16608.47
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:57:53.149108605Z",
+                "open": "2026-07-20T02:57:53.149108605Z",
+                "match": "2026-07-20T02:57:53.190958Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "xAnuruTWI1zpQ9z3Y7TJ",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL46376146qzZpSR89G7",
+            "market_order_id": "202607200002217061",
+            "symbol": "BRIS",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:57:15Z",
+                "open": "2026-07-20T09:57:15Z",
+                "match": "2026-07-20T02:57:15Z"
+            },
+            "qty": {
+                "lot_done": 8,
+                "lot_open": 0,
+                "lot_total": 8
+            },
+            "price": {
+                "order": 1905,
+                "average": {
+                    "price": 1904.375,
+                    "fee": 1907.2315625
+                }
+            },
+            "amount": {
+                "invested": 1524000,
+                "matched": 1523500,
+                "matched_total": 1525785.25,
+                "open": 0,
+                "amount": 1526286,
+                "fee": {
+                    "amount": 2286,
+                    "open": 0,
+                    "invested": 1526286,
+                    "matched": {
+                        "amount": 2285.25,
+                        "broker": 1625.5745000000002,
+                        "exchange": 659.6755
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:57:15.729038667Z",
+                "open": "2026-07-20T02:57:15.729038667Z",
+                "match": "2026-07-20T02:57:15.790973Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "IYIsHR5vYNSARL3fhwII",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614AqGOSFeSJy7",
+            "market_order_id": "202607200002090719",
+            "symbol": "MTEL",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:50:24Z",
+                "open": "2026-07-20T09:50:24Z",
+                "match": "2026-07-20T02:50:24Z"
+            },
+            "qty": {
+                "lot_done": 11,
+                "lot_open": 0,
+                "lot_total": 11
+            },
+            "price": {
+                "order": 460,
+                "average": {
+                    "price": 460,
+                    "fee": 460.69000000000005
+                }
+            },
+            "amount": {
+                "invested": 506000,
+                "matched": 506000,
+                "matched_total": 506759.00000000006,
+                "open": 0,
+                "amount": 506759,
+                "fee": {
+                    "amount": 759,
+                    "open": 0,
+                    "invested": 506759,
+                    "matched": {
+                        "amount": 759.0000000000582,
+                        "broker": 539.902,
+                        "exchange": 219.098
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:50:24.379819713Z",
+                "open": "2026-07-20T02:50:24.379819713Z",
+                "match": "2026-07-20T02:50:24.425179Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "tZVfgXVDtLPSo4CakbHN",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614nrl1eGJ01V7",
+            "market_order_id": "202607200002084291",
+            "symbol": "TRUS",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:50:02Z",
+                "open": "2026-07-20T09:50:02Z",
+                "match": "2026-07-20T02:50:02Z"
+            },
+            "qty": {
+                "lot_done": 16,
+                "lot_open": 0,
+                "lot_total": 16
+            },
+            "price": {
+                "order": 458,
+                "average": {
+                    "price": 458,
+                    "fee": 458.687
+                }
+            },
+            "amount": {
+                "invested": 732800,
+                "matched": 732800,
+                "matched_total": 733899.2000000001,
+                "open": 0,
+                "amount": 733899.2,
+                "fee": {
+                    "amount": 1099.2,
+                    "open": 0,
+                    "invested": 733899.2,
+                    "matched": {
+                        "amount": 1099.2000000000698,
+                        "broker": 781.8975999999999,
+                        "exchange": 317.30240000000003
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:50:02.881156855Z",
+                "open": "2026-07-20T02:50:02.881156855Z",
+                "match": "2026-07-20T02:50:02.924790Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "S20QdgXkRpFt3WmwE7dO",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614ZHvpK1Epmi7",
+            "market_order_id": "202607200002070117",
+            "symbol": "BAPA",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:49:18Z",
+                "open": "2026-07-20T09:49:18Z",
+                "match": "2026-07-20T02:49:18Z"
+            },
+            "qty": {
+                "lot_done": 45,
+                "lot_open": 0,
+                "lot_total": 45
+            },
+            "price": {
+                "order": 222,
+                "average": {
+                    "price": 222,
+                    "fee": 221.44500000000002
+                }
+            },
+            "amount": {
+                "invested": 999000,
+                "matched": 999000,
+                "matched_total": 996502.5000000001,
+                "open": 0,
+                "amount": 996502.5,
+                "fee": {
+                    "amount": 2497.5,
+                    "open": 0,
+                    "invested": 996502.5,
+                    "matched": {
+                        "amount": 2497.4999999999027,
+                        "broker": 1065.933,
+                        "exchange": 1431.567
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:49:18.353983663Z",
+                "open": "2026-07-20T02:49:18.353983663Z",
+                "match": "2026-07-20T02:49:18.395947Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "NCP31O1cfmUVS6Zgx6bt",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL46376140cpfoblvpE7",
+            "market_order_id": "202607200002049936",
+            "symbol": "ISEA",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:48:18Z",
+                "open": "2026-07-20T09:48:18Z",
+                "match": "2026-07-20T02:48:18Z"
+            },
+            "qty": {
+                "lot_done": 39,
+                "lot_open": 0,
+                "lot_total": 39
+            },
+            "price": {
+                "order": 83,
+                "average": {
+                    "price": 83,
+                    "fee": 83.12450000000001
+                }
+            },
+            "amount": {
+                "invested": 323700,
+                "matched": 323700,
+                "matched_total": 324185.55000000005,
+                "open": 0,
+                "amount": 324185.55,
+                "fee": {
+                    "amount": 485.55,
+                    "open": 0,
+                    "invested": 324185.55,
+                    "matched": {
+                        "amount": 485.55000000004657,
+                        "broker": 345.3879,
+                        "exchange": 140.1621
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:48:18.914784184Z",
+                "open": "2026-07-20T02:48:18.914784184Z",
+                "match": "2026-07-20T02:48:18.960559Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "v7KZDrhLyTg0WefkUVMn",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614AzwiPU2SeW7",
+            "market_order_id": "202607200002039334",
+            "symbol": "RAAM",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:47:46Z",
+                "open": "2026-07-20T09:47:46Z",
+                "match": "2026-07-20T02:47:46Z"
+            },
+            "qty": {
+                "lot_done": 22,
+                "lot_open": 0,
+                "lot_total": 22
+            },
+            "price": {
+                "order": 202,
+                "average": {
+                    "price": 202,
+                    "fee": 202.303
+                }
+            },
+            "amount": {
+                "invested": 444400,
+                "matched": 444400,
+                "matched_total": 445066.6,
+                "open": 0,
+                "amount": 445066.6,
+                "fee": {
+                    "amount": 666.6,
+                    "open": 0,
+                    "invested": 445066.6,
+                    "matched": {
+                        "amount": 666.5999999999767,
+                        "broker": 474.1748,
+                        "exchange": 192.4252
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:47:46.457460557Z",
+                "open": "2026-07-20T02:47:46.457460557Z",
+                "match": "2026-07-20T02:47:46.506861Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "soKMGa3FAjpnblqMHkvT",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614glFvd3odKA7",
+            "market_order_id": "202607200002011643",
+            "symbol": "OBMD",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:46:16Z",
+                "open": "2026-07-20T09:46:16Z",
+                "match": "2026-07-20T02:46:16Z"
+            },
+            "qty": {
+                "lot_done": 31,
+                "lot_open": 0,
+                "lot_total": 31
+            },
+            "price": {
+                "order": 190,
+                "average": {
+                    "price": 190,
+                    "fee": 190.28500000000003
+                }
+            },
+            "amount": {
+                "invested": 589000,
+                "matched": 589000,
+                "matched_total": 589883.5000000001,
+                "open": 0,
+                "amount": 589883.5,
+                "fee": {
+                    "amount": 883.5,
+                    "open": 0,
+                    "invested": 589883.5,
+                    "matched": {
+                        "amount": 883.5000000001164,
+                        "broker": 628.4630000000001,
+                        "exchange": 255.037
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:46:16.380642318Z",
+                "open": "2026-07-20T02:46:16.380642318Z",
+                "match": "2026-07-20T02:46:16.443768Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "HLy02e9yTp8JPXlDFNol",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL46376144FvAdSOKVR7",
+            "market_order_id": "202607200002003050",
+            "symbol": "SDMU",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:45:49Z",
+                "open": "2026-07-20T09:45:49Z",
+                "match": "2026-07-20T02:45:49Z"
+            },
+            "qty": {
+                "lot_done": 123,
+                "lot_open": 0,
+                "lot_total": 123
+            },
+            "price": {
+                "order": 83,
+                "average": {
+                    "price": 83,
+                    "fee": 82.7925
+                }
+            },
+            "amount": {
+                "invested": 1020900,
+                "matched": 1020900,
+                "matched_total": 1018347.75,
+                "open": 0,
+                "amount": 1018347.75,
+                "fee": {
+                    "amount": 2552.25,
+                    "open": 0,
+                    "invested": 1018347.75,
+                    "matched": {
+                        "amount": 2552.249999999951,
+                        "broker": 1089.3002999999999,
+                        "exchange": 1462.9497000000001
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:45:49.697101091Z",
+                "open": "2026-07-20T02:45:49.697101091Z",
+                "match": "2026-07-20T02:45:49.734910Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "S7PdbR2V1HEx42gsj5zq",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614w0SbX0DRhm7",
+            "market_order_id": "202607200001992146",
+            "symbol": "JECX",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:45:14Z",
+                "open": "2026-07-20T09:45:14Z",
+                "match": "2026-07-20T02:45:14Z"
+            },
+            "qty": {
+                "lot_done": 4,
+                "lot_open": 0,
+                "lot_total": 4
+            },
+            "price": {
+                "order": 1320,
+                "average": {
+                    "price": 1320,
+                    "fee": 1321.98
+                }
+            },
+            "amount": {
+                "invested": 528000,
+                "matched": 528000,
+                "matched_total": 528792,
+                "open": 0,
+                "amount": 528792,
+                "fee": {
+                    "amount": 792,
+                    "open": 0,
+                    "invested": 528792,
+                    "matched": {
+                        "amount": 792,
+                        "broker": 563.376,
+                        "exchange": 228.624
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:45:14.830008537Z",
+                "open": "2026-07-20T02:45:14.830008537Z",
+                "match": "2026-07-20T02:45:14.888125Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "ZAhHCdaoGde8XcMlTmLF",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614k7tfuNOcXa7",
+            "market_order_id": "202607200001928503",
+            "symbol": "GDST",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:42:12Z",
+                "open": "2026-07-20T09:42:12Z",
+                "match": "2026-07-20T02:42:12Z"
+            },
+            "qty": {
+                "lot_done": 112,
+                "lot_open": 0,
+                "lot_total": 112
+            },
+            "price": {
+                "order": 92,
+                "average": {
+                    "price": 92,
+                    "fee": 92.138
+                }
+            },
+            "amount": {
+                "invested": 1030400,
+                "matched": 1030400,
+                "matched_total": 1031945.6000000001,
+                "open": 0,
+                "amount": 1031945.6,
+                "fee": {
+                    "amount": 1545.6000000000001,
+                    "open": 0,
+                    "invested": 1031945.6,
+                    "matched": {
+                        "amount": 1545.6000000000931,
+                        "broker": 1099.4368000000002,
+                        "exchange": 446.1632
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:42:12.007185520Z",
+                "open": "2026-07-20T02:42:12.007185520Z",
+                "match": "2026-07-20T02:42:12.053096Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "MLrJgvTDHbwnm7YxxYFp",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614PWXhRdBgnh7",
+            "market_order_id": "202607200001911106",
+            "symbol": "MTDL",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:41:21Z",
+                "open": "2026-07-20T09:41:21Z",
+                "match": "2026-07-20T02:41:21Z"
+            },
+            "qty": {
+                "lot_done": 41,
+                "lot_open": 0,
+                "lot_total": 41
+            },
+            "price": {
+                "order": 510,
+                "average": {
+                    "price": 510,
+                    "fee": 508.725
+                }
+            },
+            "amount": {
+                "invested": 2091000,
+                "matched": 2091000,
+                "matched_total": 2085772.5,
+                "open": 0,
+                "amount": 2085772.5,
+                "fee": {
+                    "amount": 5227.5,
+                    "open": 0,
+                    "invested": 2085772.5,
+                    "matched": {
+                        "amount": 5227.499999999907,
+                        "broker": 2231.097,
+                        "exchange": 2996.403
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:41:21.633801663Z",
+                "open": "2026-07-20T02:41:21.633801663Z",
+                "match": "2026-07-20T02:41:21.684683Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "3oS2RtLUnt7TIxcFH1Sb",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614Bob9UdZROb7",
+            "market_order_id": "202607200001901297",
+            "symbol": "MEJA",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:40:54Z",
+                "open": "2026-07-20T09:40:54Z",
+                "match": "2026-07-20T02:40:54Z"
+            },
+            "qty": {
+                "lot_done": 67,
+                "lot_open": 0,
+                "lot_total": 67
+            },
+            "price": {
+                "order": 80,
+                "average": {
+                    "price": 80,
+                    "fee": 79.80000000000001
+                }
+            },
+            "amount": {
+                "invested": 536000,
+                "matched": 536000,
+                "matched_total": 534660.0000000001,
+                "open": 0,
+                "amount": 534660,
+                "fee": {
+                    "amount": 1340,
+                    "open": 0,
+                    "invested": 534660,
+                    "matched": {
+                        "amount": 1339.9999999999238,
+                        "broker": 571.912,
+                        "exchange": 768.0880000000001
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:40:54.478735765Z",
+                "open": "2026-07-20T02:40:54.478735765Z",
+                "match": "2026-07-20T02:40:54.521785Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "MXJ1xti3DYtgyxCLMyHx",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614yICliPdIhQ7",
+            "market_order_id": "202607200001860908",
+            "symbol": "BWPT",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:39:08Z",
+                "open": "2026-07-20T09:39:08Z",
+                "match": "2026-07-20T02:39:08Z"
+            },
+            "qty": {
+                "lot_done": 224,
+                "lot_open": 0,
+                "lot_total": 224
+            },
+            "price": {
+                "order": 76,
+                "average": {
+                    "price": 76,
+                    "fee": 75.81
+                }
+            },
+            "amount": {
+                "invested": 1702400,
+                "matched": 1702400,
+                "matched_total": 1698144,
+                "open": 0,
+                "amount": 1698144,
+                "fee": {
+                    "amount": 4256,
+                    "open": 0,
+                    "invested": 1698144,
+                    "matched": {
+                        "amount": 4255.999999999949,
+                        "broker": 1816.4608,
+                        "exchange": 2439.5392
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:39:08.692194663Z",
+                "open": "2026-07-20T02:39:08.692194663Z",
+                "match": "2026-07-20T02:39:08.734242Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "E9IgWwq5sxRbQYsBkgQ2",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614NvbSJLdR0p7",
+            "market_order_id": "202607200001777049",
+            "symbol": "JPFA",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:35:10Z",
+                "open": "2026-07-20T09:35:10Z",
+                "match": "2026-07-20T02:35:11Z"
+            },
+            "qty": {
+                "lot_done": 20,
+                "lot_open": 0,
+                "lot_total": 20
+            },
+            "price": {
+                "order": 2060,
+                "average": {
+                    "price": 2060,
+                    "fee": 2054.85
+                }
+            },
+            "amount": {
+                "invested": 4120000,
+                "matched": 4120000,
+                "matched_total": 4109700,
+                "open": 0,
+                "amount": 4109700,
+                "fee": {
+                    "amount": 10300,
+                    "open": 0,
+                    "invested": 4109700,
+                    "matched": {
+                        "amount": 10300.000000000182,
+                        "broker": 4396.04,
+                        "exchange": 5903.96
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:35:10.999083912Z",
+                "open": "2026-07-20T02:35:10.999083912Z",
+                "match": "2026-07-20T02:35:11.043694Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "5x0hb8sMCYBd31xy3sX4",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614UyAVladXhG7",
+            "market_order_id": "202607200001763899",
+            "symbol": "MPXL",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:34:37Z",
+                "open": "2026-07-20T09:34:37Z",
+                "match": "2026-07-20T02:50:19Z"
+            },
+            "qty": {
+                "lot_done": 73,
+                "lot_open": 0,
+                "lot_total": 73
+            },
+            "price": {
+                "order": 144,
+                "average": {
+                    "price": 144,
+                    "fee": 143.64000000000001
+                }
+            },
+            "amount": {
+                "invested": 1051200,
+                "matched": 1051200,
+                "matched_total": 1048572.0000000001,
+                "open": 0,
+                "amount": 1048572,
+                "fee": {
+                    "amount": 2628,
+                    "open": 0,
+                    "invested": 1048572,
+                    "matched": {
+                        "amount": 2627.999999999892,
+                        "broker": 1121.6304,
+                        "exchange": 1506.3696
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:34:37.528252177Z",
+                "open": "2026-07-20T02:34:37.528252177Z",
+                "match": "2026-07-20T02:50:19.284772Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "D312kCdClWkncNBohO83",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614mY7f6vwmCX7",
+            "market_order_id": "202607200001738882",
+            "symbol": "AMRT",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:33:34Z",
+                "open": "2026-07-20T09:33:34Z",
+                "match": "2026-07-20T02:33:34Z"
+            },
+            "qty": {
+                "lot_done": 24,
+                "lot_open": 0,
+                "lot_total": 24
+            },
+            "price": {
+                "order": 1395,
+                "average": {
+                    "price": 1395,
+                    "fee": 1391.5125
+                }
+            },
+            "amount": {
+                "invested": 3348000,
+                "matched": 3348000,
+                "matched_total": 3339630,
+                "open": 0,
+                "amount": 3339630,
+                "fee": {
+                    "amount": 8370,
+                    "open": 0,
+                    "invested": 3339630,
+                    "matched": {
+                        "amount": 8369.99999999989,
+                        "broker": 3572.3160000000003,
+                        "exchange": 4797.684
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:33:34.132401040Z",
+                "open": "2026-07-20T02:33:34.132401040Z",
+                "match": "2026-07-20T02:33:34.175355Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "UlE7fQYa9xI91pOg1jIM",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614wfGnSZDULn7",
+            "market_order_id": "202607200001670385",
+            "symbol": "GJTL",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:30:35Z",
+                "open": "2026-07-20T09:30:35Z",
+                "match": "2026-07-20T02:30:35Z"
+            },
+            "qty": {
+                "lot_done": 19,
+                "lot_open": 0,
+                "lot_total": 19
+            },
+            "price": {
+                "order": 1140,
+                "average": {
+                    "price": 1140,
+                    "fee": 1137.15
+                }
+            },
+            "amount": {
+                "invested": 2166000,
+                "matched": 2166000,
+                "matched_total": 2160585,
+                "open": 0,
+                "amount": 2160585,
+                "fee": {
+                    "amount": 5415,
+                    "open": 0,
+                    "invested": 2160585,
+                    "matched": {
+                        "amount": 5414.999999999827,
+                        "broker": 2311.1220000000003,
+                        "exchange": 3103.8779999999997
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:30:35.854604039Z",
+                "open": "2026-07-20T02:30:35.854604039Z",
+                "match": "2026-07-20T02:30:35.921777Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "fFwDwOShmyjlz0KAm5BO",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614pdTIZ2h5KZ7",
+            "market_order_id": "202607200001659272",
+            "symbol": "SMDR",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:30:05Z",
+                "open": "2026-07-20T09:30:05Z",
+                "match": "2026-07-20T02:30:05Z"
+            },
+            "qty": {
+                "lot_done": 49,
+                "lot_open": 0,
+                "lot_total": 49
+            },
+            "price": {
+                "order": 292,
+                "average": {
+                    "price": 292,
+                    "fee": 291.27000000000004
+                }
+            },
+            "amount": {
+                "invested": 1430800,
+                "matched": 1430800,
+                "matched_total": 1427223.0000000002,
+                "open": 0,
+                "amount": 1427223,
+                "fee": {
+                    "amount": 3577,
+                    "open": 0,
+                    "invested": 1427223,
+                    "matched": {
+                        "amount": 3576.999999999811,
+                        "broker": 1526.6636,
+                        "exchange": 2050.3364
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:30:05.252943482Z",
+                "open": "2026-07-20T02:30:05.252943482Z",
+                "match": "2026-07-20T02:30:05.292741Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "M2iloSGzaU40yLKXRw6y",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614dRhgXEow2u7",
+            "market_order_id": "202607200001651131",
+            "symbol": "PACK",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:29:43Z",
+                "open": "2026-07-20T09:29:43Z",
+                "match": "2026-07-20T02:29:43Z"
+            },
+            "qty": {
+                "lot_done": 52,
+                "lot_open": 0,
+                "lot_total": 52
+            },
+            "price": {
+                "order": 214,
+                "average": {
+                    "price": 214,
+                    "fee": 213.465
+                }
+            },
+            "amount": {
+                "invested": 1112800,
+                "matched": 1112800,
+                "matched_total": 1110018,
+                "open": 0,
+                "amount": 1110018,
+                "fee": {
+                    "amount": 2782,
+                    "open": 0,
+                    "invested": 1110018,
+                    "matched": {
+                        "amount": 2781.9999999999823,
+                        "broker": 1187.3576,
+                        "exchange": 1594.6424
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:29:43.252319514Z",
+                "open": "2026-07-20T02:29:43.252319514Z",
+                "match": "2026-07-20T02:29:43.296398Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "xnR43QEnTdecrTVCTY4J",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614aZ4AzM6Q8o7",
+            "market_order_id": "202607200001604751",
+            "symbol": "GPRA",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:27:41Z",
+                "open": "2026-07-20T09:27:41Z",
+                "match": "2026-07-20T02:27:41Z"
+            },
+            "qty": {
+                "lot_done": 66,
+                "lot_open": 0,
+                "lot_total": 66
+            },
+            "price": {
+                "order": 105,
+                "average": {
+                    "price": 105,
+                    "fee": 105.1575
+                }
+            },
+            "amount": {
+                "invested": 693000,
+                "matched": 693000,
+                "matched_total": 694039.5,
+                "open": 0,
+                "amount": 694039.5,
+                "fee": {
+                    "amount": 1039.5,
+                    "open": 0,
+                    "invested": 694039.5,
+                    "matched": {
+                        "amount": 1039.5,
+                        "broker": 739.431,
+                        "exchange": 300.069
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:27:41.122858469Z",
+                "open": "2026-07-20T02:27:41.122858469Z",
+                "match": "2026-07-20T02:27:41.177473Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "PAK38tf3lg5B7flfqv0B",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614lSKGxRATUX7",
+            "market_order_id": "202607200001469013",
+            "symbol": "MAIN",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:22:28Z",
+                "open": "2026-07-20T09:22:28Z",
+                "match": "2026-07-20T02:22:28Z"
+            },
+            "qty": {
+                "lot_done": 3,
+                "lot_open": 0,
+                "lot_total": 3
+            },
+            "price": {
+                "order": 715,
+                "average": {
+                    "price": 715,
+                    "fee": 713.2125000000001
+                }
+            },
+            "amount": {
+                "invested": 214500,
+                "matched": 214500,
+                "matched_total": 213963.75000000003,
+                "open": 0,
+                "amount": 213963.75,
+                "fee": {
+                    "amount": 536.25,
+                    "open": 0,
+                    "invested": 213963.75,
+                    "matched": {
+                        "amount": 536.2499999999727,
+                        "broker": 228.87150000000003,
+                        "exchange": 307.37850000000003
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:22:28.494582925Z",
+                "open": "2026-07-20T02:22:28.494582925Z",
+                "match": "2026-07-20T02:22:28.536993Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "vGD0sDjg01MNh4ML5nrI",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614SUURsJTJ8p7",
+            "market_order_id": "202607200001452722",
+            "symbol": "MAIN",
+            "status_text": "WITHDRAWN",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:21:54Z",
+                "open": "2026-07-20T09:21:54Z",
+                "match": "2026-07-20T02:21:54Z"
+            },
+            "qty": {
+                "lot_done": 15,
+                "lot_open": 3,
+                "lot_total": 18
+            },
+            "price": {
+                "order": 720,
+                "average": {
+                    "price": 720,
+                    "fee": 718.2
+                }
+            },
+            "amount": {
+                "invested": 1296000,
+                "matched": 1080000,
+                "matched_total": 1077300,
+                "open": 216000,
+                "amount": 1292760,
+                "fee": {
+                    "amount": 3240,
+                    "open": 215460,
+                    "invested": 1292760,
+                    "matched": {
+                        "amount": 2699.999999999932,
+                        "broker": 1152.36,
+                        "exchange": 1547.64
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:21:54.199668141Z",
+                "open": "2026-07-20T02:21:54.199668141Z",
+                "match": "2026-07-20T02:21:54.246423Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "Cr8ss4cUIrQhLmoX81BC",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614cBzk34COXL7",
+            "market_order_id": "202607200001440870",
+            "symbol": "PGLI",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:21:29Z",
+                "open": "2026-07-20T09:21:29Z",
+                "match": "2026-07-20T02:23:37Z"
+            },
+            "qty": {
+                "lot_done": 56,
+                "lot_open": 0,
+                "lot_total": 56
+            },
+            "price": {
+                "order": 188,
+                "average": {
+                    "price": 188,
+                    "fee": 187.53
+                }
+            },
+            "amount": {
+                "invested": 1052800,
+                "matched": 1052800,
+                "matched_total": 1050168,
+                "open": 0,
+                "amount": 1050168,
+                "fee": {
+                    "amount": 2632,
+                    "open": 0,
+                    "invested": 1050168,
+                    "matched": {
+                        "amount": 2631.9999999999936,
+                        "broker": 1123.3376,
+                        "exchange": 1508.6624
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:21:29.439178844Z",
+                "open": "2026-07-20T02:21:29.439178844Z",
+                "match": "2026-07-20T02:23:37.996728Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "s5PnCsWlsEWcfkR4C37p",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614v4vuY5KLyl7",
+            "market_order_id": "202607200001427956",
+            "symbol": "KLBF",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_SELL",
+            "time": {
+                "order": "2026-07-20T09:21:03Z",
+                "open": "2026-07-20T09:21:03Z",
+                "match": "2026-07-20T02:21:03Z"
+            },
+            "qty": {
+                "lot_done": 45,
+                "lot_open": 0,
+                "lot_total": 45
+            },
+            "price": {
+                "order": 760,
+                "average": {
+                    "price": 760,
+                    "fee": 758.1
+                }
+            },
+            "amount": {
+                "invested": 3420000,
+                "matched": 3420000,
+                "matched_total": 3411450,
+                "open": 0,
+                "amount": 3411450,
+                "fee": {
+                    "amount": 8550,
+                    "open": 0,
+                    "invested": 3411450,
+                    "matched": {
+                        "amount": 8549.999999999898,
+                        "broker": 3649.14,
+                        "exchange": 4900.86
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:21:03.721156125Z",
+                "open": "2026-07-20T02:21:03.721156125Z",
+                "match": "2026-07-20T02:21:03.768357Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "k2rGsonFuUGieKgmuoZu",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614FUyGxRuWrP7",
+            "market_order_id": "202607200001253019",
+            "symbol": "NSSS",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:15:31Z",
+                "open": "2026-07-20T09:15:31Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 14,
+                "lot_total": 14
+            },
+            "price": {
+                "order": 680,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 952000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 952000,
+                "amount": 953428,
+                "fee": {
+                    "amount": 1428,
+                    "open": 953428,
+                    "invested": 953428,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:15:31.730162588Z",
+                "open": "2026-07-20T02:15:31.730162588Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "Yr3vtghvlRudhSDRfg8A",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614mvcyvF9iWe7",
+            "market_order_id": "202607200001234150",
+            "symbol": "ESTI",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:15:03Z",
+                "open": "2026-07-20T09:15:03Z",
+                "match": "2026-07-20T02:15:03Z"
+            },
+            "qty": {
+                "lot_done": 75,
+                "lot_open": 0,
+                "lot_total": 75
+            },
+            "price": {
+                "order": 133,
+                "average": {
+                    "price": 133,
+                    "fee": 133.1995
+                }
+            },
+            "amount": {
+                "invested": 997500,
+                "matched": 997500,
+                "matched_total": 998996.25,
+                "open": 0,
+                "amount": 998996.25,
+                "fee": {
+                    "amount": 1496.25,
+                    "open": 0,
+                    "invested": 998996.25,
+                    "matched": {
+                        "amount": 1496.25,
+                        "broker": 1064.3325,
+                        "exchange": 431.9175
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:15:03.737872997Z",
+                "open": "2026-07-20T02:15:03.737872997Z",
+                "match": "2026-07-20T02:15:03.778203Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "HiRIzwzzIdNdeb9XLheP",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614N4fYJkEnMg7",
+            "market_order_id": "202607200001197989",
+            "symbol": "NRCA",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:14:01Z",
+                "open": "2026-07-20T09:14:01Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 20,
+                "lot_total": 20
+            },
+            "price": {
+                "order": 476,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 952000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 952000,
+                "amount": 953428,
+                "fee": {
+                    "amount": 1428,
+                    "open": 953428,
+                    "invested": 953428,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:14:01.932418457Z",
+                "open": "2026-07-20T02:14:01.932418457Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "efJk1p7IogIdaKOuJYfT",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614HoF7H0J1lt7",
+            "market_order_id": "202607200001179875",
+            "symbol": "MEDC",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:13:29Z",
+                "open": "2026-07-20T09:13:29Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 8,
+                "lot_total": 8
+            },
+            "price": {
+                "order": 1200,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 960000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 960000,
+                "amount": 961440,
+                "fee": {
+                    "amount": 1440,
+                    "open": 961440,
+                    "invested": 961440,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:13:29.661346752Z",
+                "open": "2026-07-20T02:13:29.661346752Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "1OTpGmZmDb4qnfxe8QOA",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614yhWmv4EvVL7",
+            "market_order_id": "202607200000986785",
+            "symbol": "BACA",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:08:11Z",
+                "open": "2026-07-20T09:08:11Z",
+                "match": "2026-07-20T02:08:11Z"
+            },
+            "qty": {
+                "lot_done": 80,
+                "lot_open": 0,
+                "lot_total": 80
+            },
+            "price": {
+                "order": 122,
+                "average": {
+                    "price": 122,
+                    "fee": 122.183
+                }
+            },
+            "amount": {
+                "invested": 976000,
+                "matched": 976000,
+                "matched_total": 977464,
+                "open": 0,
+                "amount": 977464,
+                "fee": {
+                    "amount": 1464,
+                    "open": 0,
+                    "invested": 977464,
+                    "matched": {
+                        "amount": 1464,
+                        "broker": 1041.392,
+                        "exchange": 422.608
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:08:11.152123011Z",
+                "open": "2026-07-20T02:08:11.152123011Z",
+                "match": "2026-07-20T02:08:11.199858Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "WPwAjrEthj1jI22LPZne",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614xfBqEhiCDX7",
+            "market_order_id": "202607200000959957",
+            "symbol": "BPTR",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:07:27Z",
+                "open": "2026-07-20T09:07:27Z",
+                "match": "2026-07-20T02:07:33Z"
+            },
+            "qty": {
+                "lot_done": 135,
+                "lot_open": 0,
+                "lot_total": 135
+            },
+            "price": {
+                "order": 73,
+                "average": {
+                    "price": 73,
+                    "fee": 73.1095
+                }
+            },
+            "amount": {
+                "invested": 985500,
+                "matched": 985500,
+                "matched_total": 986978.25,
+                "open": 0,
+                "amount": 986978.25,
+                "fee": {
+                    "amount": 1478.25,
+                    "open": 0,
+                    "invested": 986978.25,
+                    "matched": {
+                        "amount": 1478.25,
+                        "broker": 1051.5285000000001,
+                        "exchange": 426.7215
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:07:27.767869930Z",
+                "open": "2026-07-20T02:07:27.767869930Z",
+                "match": "2026-07-20T02:07:33.439262Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "aArcC4qSSPZRln9q4p8L",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614gtUb7cXOjk7",
+            "market_order_id": "",
+            "symbol": "RBMS",
+            "status_text": "REJECTED",
+            "message": "Invalid price",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:06:50Z",
+                "open": "2026-07-20T09:06:50Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 155,
+                "lot_total": 155
+            },
+            "price": {
+                "order": 60,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 930000,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 930000,
+                "amount": 931395,
+                "fee": {
+                    "amount": 1395,
+                    "open": 931395,
+                    "invested": 931395,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:06:50.974328505Z",
+                "open": "2026-07-20T02:06:50.974328505Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "90clAuHZ06FG8BRe7hBv",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614tc9CHUdXwl7",
+            "market_order_id": "202607200000906164",
+            "symbol": "BMSR",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:06:11Z",
+                "open": "2026-07-20T09:06:11Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 32,
+                "lot_total": 32
+            },
+            "price": {
+                "order": 304,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 972800,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 972800,
+                "amount": 974259.2,
+                "fee": {
+                    "amount": 1459.2,
+                    "open": 974259.1999999998,
+                    "invested": 974259.2,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:06:11.264686289Z",
+                "open": "2026-07-20T02:06:11.264686289Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "hnKuQ9wWoJCIz79Hf7xb",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614IQFRYUsYTA7",
+            "market_order_id": "202607200000839872",
+            "symbol": "GTRA",
+            "status_text": "OPEN",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:04:40Z",
+                "open": "2026-07-20T09:04:40Z",
+                "match": "0001-01-01T00:00:00Z"
+            },
+            "qty": {
+                "lot_done": 0,
+                "lot_open": 44,
+                "lot_total": 44
+            },
+            "price": {
+                "order": 222,
+                "average": {
+                    "price": 0,
+                    "fee": 0
+                }
+            },
+            "amount": {
+                "invested": 976800,
+                "matched": 0,
+                "matched_total": 0,
+                "open": 976800,
+                "amount": 978265.2,
+                "fee": {
+                    "amount": 1465.2,
+                    "open": 978265.2,
+                    "invested": 978265.2,
+                    "matched": {
+                        "amount": 0,
+                        "broker": 0,
+                        "exchange": 0
+                    }
+                }
+            },
+            "action": {
+                "can_amend": true,
+                "can_cancel": true,
+                "amend_target": "ACTION_TARGET_REGULAR",
+                "cancel_target": "ACTION_TARGET_REGULAR"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:04:40.856108139Z",
+                "open": "2026-07-20T02:04:40.856108139Z",
+                "match": "0001-01-01T00:00:00Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "XlWWps9JyVep3p8aCPb3",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614oNQDF027n77",
+            "market_order_id": "202607200000773363",
+            "symbol": "OBMD",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:03:09Z",
+                "open": "2026-07-20T09:03:09Z",
+                "match": "2026-07-20T02:03:09Z"
+            },
+            "qty": {
+                "lot_done": 50,
+                "lot_open": 0,
+                "lot_total": 50
+            },
+            "price": {
+                "order": 196,
+                "average": {
+                    "price": 196,
+                    "fee": 196.294
+                }
+            },
+            "amount": {
+                "invested": 980000,
+                "matched": 980000,
+                "matched_total": 981470,
+                "open": 0,
+                "amount": 981470,
+                "fee": {
+                    "amount": 1470,
+                    "open": 0,
+                    "invested": 981470,
+                    "matched": {
+                        "amount": 1470,
+                        "broker": 1045.66,
+                        "exchange": 424.34000000000003
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": true,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:03:09.891404581Z",
+                "open": "2026-07-20T02:03:09.891404581Z",
+                "match": "2026-07-20T02:03:09.935115Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "0Sv9OrDH8kuc8cOIyLC7",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        },
+        {
+            "order_id": "XL4637614Mj9pAInfji7",
+            "market_order_id": "202607200000742543",
+            "symbol": "BGTG",
+            "status_text": "MATCH",
+            "message": "",
+            "side": "SIDE_BUY",
+            "time": {
+                "order": "2026-07-20T09:02:31Z",
+                "open": "2026-07-20T09:02:31Z",
+                "match": "2026-07-20T02:02:31Z"
+            },
+            "qty": {
+                "lot_done": 85,
+                "lot_open": 0,
+                "lot_total": 85
+            },
+            "price": {
+                "order": 115,
+                "average": {
+                    "price": 115,
+                    "fee": 115.17250000000001
+                }
+            },
+            "amount": {
+                "invested": 977500,
+                "matched": 977500,
+                "matched_total": 978966.2500000001,
+                "open": 0,
+                "amount": 978966.25,
+                "fee": {
+                    "amount": 1466.25,
+                    "open": 0,
+                    "invested": 978966.25,
+                    "matched": {
+                        "amount": 1466.2500000001164,
+                        "broker": 1042.9925,
+                        "exchange": 423.2575
+                    }
+                }
+            },
+            "action": {
+                "can_amend": false,
+                "can_cancel": false,
+                "amend_target": "ACTION_TARGET_UNSPECIFIED",
+                "cancel_target": "ACTION_TARGET_UNSPECIFIED"
+            },
+            "smart_order": {
+                "order_id": "",
+                "label": "",
+                "trigger_price": 0,
+                "config_type": "0",
+                "trailing_stop": null,
+                "bracket_order_children": [],
+                "parent_id": "",
+                "parent_price": 0,
+                "order_type": "ORDER_TYPE_LIMIT",
+                "amount_with_fee": 0,
+                "status": "ORDER_STATUS_UNSPECIFIED",
+                "expiry_type": "ORDER_EXPIRY_TYPE_UNSPECIFIED"
+            },
+            "gtc": {
+                "is_gtc": false,
+                "status": "GTC_STATUS_UNSPECIFIED"
+            },
+            "day_trade": {
+                "is_day_trade": false,
+                "force_sell_event": "DAY_TRADE_FORCE_SELL_UNSPECIFIED"
+            },
+            "leverage_type": "LEVERAGE_TYPE_TRADING_BALANCE",
+            "is_sharia": false,
+            "securities_kind": "SECURITIES_KIND_STOCK",
+            "platform_order_type": "PLATFORM_ORDER_TYPE_LIMIT_DAY",
+            "time_utc": {
+                "order": "2026-07-20T02:02:31.587377509Z",
+                "open": "2026-07-20T02:02:31.587377509Z",
+                "match": "2026-07-20T02:02:31.632968Z",
+                "gtc_expired": null
+            },
+            "force_sell": {
+                "is_force_sell": false
+            },
+            "nego_in_app": null,
+            "prev_order_id": "",
+            "group_id": "pst4lZA7yS7BMkQF24JA",
+            "corpaction_info": null,
+            "order_source": "ORDER_SOURCE_TRANSACTION"
+        }
+    ]
+}

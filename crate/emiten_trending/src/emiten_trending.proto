@@ -26,8 +26,7 @@ service EmitenTrending {
   //     (skip bila `update_at` masih < 30 hari dan emiten_icon sudah terisi).
   //     Tidak mengisi sector / is_konglomerasi / is_fundamental_solid / is_blue_chip /
   //     is_plan_to_trade / catatan / catatan_owner / foto_owner.
-  // (4) `bandarmology` — marketdetectors API untuk daftar `code_name` yang sama dari langkah (3);
-  //     insert hanya bila agg bulan ini `YYYY-MM_CODE` belum ada (skip jika sudah ada).
+  //     Tidak scrape `bandarmology` (gunakan RPC bandarmology terpisah bila perlu).
   //
   // Setelah scrape selesai, RPC membaca ulang `emiten_trending` hari ini dan stream hasilnya.
   // Request kosong. Wajib Authorization: Bearer <JWT valid>.
