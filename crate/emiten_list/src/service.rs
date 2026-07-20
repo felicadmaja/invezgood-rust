@@ -14,10 +14,11 @@ use crate::{
     GetEmitenListByCodeNameFromScyllaRequest, GetEmitenListByCodeNameFromScyllaResponse,
     GetEmitenListByCodeNameFromStockbitRequest, GetEmitenListByCodeNameFromStockbitResponse,
     UpdateEmitenListBlueChipRequest, UpdateEmitenListBlueChipResponse,
+    UpdateEmitenListCatatanOwnerRequest, UpdateEmitenListCatatanOwnerResponse,
     UpdateEmitenListCatatanRequest, UpdateEmitenListCatatanResponse,
     UpdateEmitenListFundamentalRequest, UpdateEmitenListFundamentalResponse,
     UpdateEmitenListKonglomerasiRequest, UpdateEmitenListKonglomerasiResponse,
-    UpdateEmitenListOwnerRequest, UpdateEmitenListOwnerResponse,
+    UpdateEmitenListPhotoProfileOwnerRequest, UpdateEmitenListPhotoProfileOwnerResponse,
     UpdateEmitenListPlanToTradeRequest, UpdateEmitenListPlanToTradeResponse,
     UpdateEmitenListSectorRequest, UpdateEmitenListSectorResponse,
 };
@@ -573,10 +574,10 @@ impl EmitenListRpc for EmitenListService {
         }))
     }
 
-    async fn update_emiten_list_owner(
+    async fn update_emiten_list_catatan_owner(
         &self,
-        request: Request<UpdateEmitenListOwnerRequest>,
-    ) -> Result<Response<UpdateEmitenListOwnerResponse>, Status> {
+        request: Request<UpdateEmitenListCatatanOwnerRequest>,
+    ) -> Result<Response<UpdateEmitenListCatatanOwnerResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
@@ -585,7 +586,7 @@ impl EmitenListRpc for EmitenListService {
         let code_name = match parse_code_name(&req.code_name) {
             Ok(c) => c,
             Err(message) => {
-                return Ok(Response::new(UpdateEmitenListOwnerResponse {
+                return Ok(Response::new(UpdateEmitenListCatatanOwnerResponse {
                     success: false,
                     message,
                     row: None,
@@ -594,15 +595,9 @@ impl EmitenListRpc for EmitenListService {
         };
 
         let catatan_owner = req.catatan_owner.trim().to_string();
-        let foto_owner: Vec<String> = req
-            .foto_owner_gcs_path
-            .into_iter()
-            .map(|p| p.trim().to_string())
-            .filter(|p| !p.is_empty())
-            .collect();
         let updated = self
             .repo
-            .update_owner(&code_name, &catatan_owner, &foto_owner)
+            .update_catatan_owner(&code_name, &catatan_owner)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
@@ -615,7 +610,7 @@ impl EmitenListRpc for EmitenListService {
                 .map(EmitenList::into_proto);
             (
                 true,
-                format!("catatan_owner/foto_owner untuk {code_name} berhasil diupdate"),
+                format!("catatan_owner untuk {code_name} berhasil diupdate"),
                 row,
             )
         } else {
@@ -627,12 +622,77 @@ impl EmitenListRpc for EmitenListService {
         };
 
         println!(
-            "UpdateEmitenListOwner {} {code_name} success={success} {}ms",
+            "UpdateEmitenListCatatanOwner {} {code_name} success={success} {}ms",
             username,
             started.elapsed().as_millis()
         );
 
-        Ok(Response::new(UpdateEmitenListOwnerResponse {
+        Ok(Response::new(UpdateEmitenListCatatanOwnerResponse {
+            success,
+            message,
+            row,
+        }))
+    }
+
+    async fn update_emiten_list_photo_profile_owner(
+        &self,
+        request: Request<UpdateEmitenListPhotoProfileOwnerRequest>,
+    ) -> Result<Response<UpdateEmitenListPhotoProfileOwnerResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let code_name = match parse_code_name(&req.code_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateEmitenListPhotoProfileOwnerResponse {
+                    success: false,
+                    message,
+                    row: None,
+                }));
+            }
+        };
+
+        let foto_owner: Vec<String> = req
+            .foto_owner_gcs_path
+            .into_iter()
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+            .collect();
+        let updated = self
+            .repo
+            .update_foto_owner(&code_name, &foto_owner)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
+
+        let (success, message, row) = if updated {
+            let row = self
+                .repo
+                .get_by_code_name(&code_name)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+                .map(EmitenList::into_proto);
+            (
+                true,
+                format!("foto_owner untuk {code_name} berhasil diupdate"),
+                row,
+            )
+        } else {
+            (
+                false,
+                format!("emiten_list code_name={code_name} tidak ditemukan"),
+                None,
+            )
+        };
+
+        println!(
+            "UpdateEmitenListPhotoProfileOwner {} {code_name} success={success} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(UpdateEmitenListPhotoProfileOwnerResponse {
             success,
             message,
             row,

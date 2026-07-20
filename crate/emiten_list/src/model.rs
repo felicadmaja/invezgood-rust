@@ -208,6 +208,9 @@ impl EmitenList {
             is_fundamental_solid: self.is_fundamental_solid,
             is_blue_chip: self.is_blue_chip,
             is_plan_to_trade: self.is_plan_to_trade,
+            catatan: self.catatan,
+            catatan_owner: self.catatan_owner,
+            foto_owner: self.foto_owner,
             net_income: self
                 .net_income
                 .into_iter()

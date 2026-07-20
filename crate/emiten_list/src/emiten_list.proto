@@ -42,10 +42,13 @@ service EmitenList {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListCatatan(UpdateEmitenListCatatanRequest) returns (UpdateEmitenListCatatanResponse);
 
-  // Update kolom `catatan_owner` dan `foto_owner` (list<path>) untuk satu emiten (PK code_name).
-  // Request field `foto_owner_gcs_path` (repeated) disimpan ke kolom Scylla `foto_owner` list<text>.
+  // Update kolom `catatan_owner` untuk satu emiten (PK code_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc UpdateEmitenListOwner(UpdateEmitenListOwnerRequest) returns (UpdateEmitenListOwnerResponse);
+  rpc UpdateEmitenListCatatanOwner(UpdateEmitenListCatatanOwnerRequest) returns (UpdateEmitenListCatatanOwnerResponse);
+
+  // Update kolom `foto_owner` (list<path GCS>) untuk satu emiten (PK code_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateEmitenListPhotoProfileOwner(UpdateEmitenListPhotoProfileOwnerRequest) returns (UpdateEmitenListPhotoProfileOwnerResponse);
 
   // Update kolom `is_plan_to_trade` untuk satu emiten (PK code_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
@@ -196,15 +199,26 @@ message UpdateEmitenListCatatanResponse {
   EmitenListRow row = 3;
 }
 
-message UpdateEmitenListOwnerRequest {
+message UpdateEmitenListCatatanOwnerRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
   string code_name = 1;
   string catatan_owner = 2;
-  // Path object GCS; disimpan ke kolom Scylla `foto_owner` (list<text>).
-  repeated string foto_owner_gcs_path = 3;
 }
 
-message UpdateEmitenListOwnerResponse {
+message UpdateEmitenListCatatanOwnerResponse {
+  bool success = 1;
+  string message = 2;
+  EmitenListRow row = 3;
+}
+
+message UpdateEmitenListPhotoProfileOwnerRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  string code_name = 1;
+  // Path object GCS; disimpan ke kolom Scylla `foto_owner` (list<text>).
+  repeated string foto_owner_gcs_path = 2;
+}
+
+message UpdateEmitenListPhotoProfileOwnerResponse {
   bool success = 1;
   string message = 2;
   EmitenListRow row = 3;
@@ -275,6 +289,10 @@ message EmitenListRow {
   map<string, NetIncomeYear> net_income = 12;
   // Default false — rencana untuk trade.
   bool is_plan_to_trade = 13;
+  string catatan = 14;
+  string catatan_owner = 15;
+  // Path/URL foto pemilik catatan; bentuk CQL list<text>.
+  repeated string foto_owner = 16;
 }
 
 // Satu tahun net income: periode (Q1..Q4, Annualised, TTM ...) → nilai teks.

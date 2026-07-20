@@ -21,7 +21,8 @@ struct Prepared {
     update_blue_chip: PreparedStatement,
     update_plan_to_trade: PreparedStatement,
     update_catatan: PreparedStatement,
-    update_owner: PreparedStatement,
+    update_catatan_owner: PreparedStatement,
+    update_foto_owner: PreparedStatement,
 }
 
 pub struct EmitenListRepository {
@@ -94,10 +95,16 @@ impl EmitenListRepository {
                 let update_catatan = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "UPDATE {} SET catatan_owner = ?, foto_owner = ? WHERE code_name = ?",
+                    "UPDATE {} SET catatan_owner = ? WHERE code_name = ?",
                     self.table
                 );
-                let update_owner = self.session.prepare(q).await?;
+                let update_catatan_owner = self.session.prepare(q).await?;
+
+                let q = format!(
+                    "UPDATE {} SET foto_owner = ? WHERE code_name = ?",
+                    self.table
+                );
+                let update_foto_owner = self.session.prepare(q).await?;
 
                 Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared {
                     scan,
@@ -108,7 +115,8 @@ impl EmitenListRepository {
                     update_blue_chip,
                     update_plan_to_trade,
                     update_catatan,
-                    update_owner,
+                    update_catatan_owner,
+                    update_foto_owner,
                 })
             })
             .await
@@ -273,12 +281,11 @@ impl EmitenListRepository {
         Ok(true)
     }
 
-    /// Update `catatan_owner` + `foto_owner` (list<path>). Mengembalikan `Ok(false)` bila `code_name` tidak ada.
-    pub async fn update_owner(
+    /// Update `catatan_owner`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    pub async fn update_catatan_owner(
         &self,
         code_name: &str,
         catatan_owner: &str,
-        foto_owner: &[String],
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         if self.get_by_code_name(code_name).await?.is_none() {
             return Ok(false);
@@ -287,9 +294,26 @@ impl EmitenListRepository {
         let prepared = self.prepared().await?;
         self.session
             .execute_unpaged(
-                &prepared.update_owner,
-                (catatan_owner, foto_owner, code_name),
+                &prepared.update_catatan_owner,
+                (catatan_owner, code_name),
             )
+            .await?;
+        Ok(true)
+    }
+
+    /// Update `foto_owner` (list<path>). Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    pub async fn update_foto_owner(
+        &self,
+        code_name: &str,
+        foto_owner: &[String],
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if self.get_by_code_name(code_name).await?.is_none() {
+            return Ok(false);
+        }
+
+        let prepared = self.prepared().await?;
+        self.session
+            .execute_unpaged(&prepared.update_foto_owner, (foto_owner, code_name))
             .await?;
         Ok(true)
     }
