@@ -13,7 +13,8 @@
 //! Env opsional: `STOCKBIT_2FA_TIMEOUT_SECS` (default 300 = 5 menit).
 //! Env opsional: `STOCKBIT_SESSION_CHECK_SECS` (default 5) — tunggu popup sesi habis di `/stream`.
 //! Env Scylla (insert `emiten_trending`, `emiten_list`, `bandarmology`, `portofolio`,
-//! `pending_order`): `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
+//! `portofolio_equity`, `pending_order`): `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional
+//! `SCYLLA_USER` / `SCYLLA_PASSWORD`.
 //! Env Redis (cache `long_name`, TTL 1 tahun): `REDIS_URL`.
 //! Env Trading PIN: `STOCKBUT_PIN` (atau `STOCKBIT_PIN`).
 //!
@@ -30,7 +31,8 @@
 //! Throttle otomatis bila `x-rate-limit-remaining` hampir habis.
 //! Jika API mengembalikan HTTP 4xx: worker dihentikan segera + `pm2 resume stockbit_ws`
 //! (hindari diblokir server).
-//! Lalu START TRADING (PIN bila perlu) → Bearer trading pasca-PIN →
+//! Lalu START TRADING (PIN bila perlu) → buka `/securities/portfolio` → DOM scrape
+//! header equity → upsert `portofolio_equity` → Bearer trading pasca-PIN →
 //! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list + bandarmology
 //! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name).
 //! Lalu (PIN/trading session bila perlu) → `GET carina.stockbit.com/order/v2/list`
@@ -231,7 +233,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");
 
-    println!("Lanjut portofolio (PIN bila perlu → API → emiten_list + bandarmology → upsert)...");
+    println!(
+        "Lanjut portofolio (PIN bila perlu → DOM portofolio_equity → API → emiten_list + bandarmology → upsert)..."
+    );
     let porto_ok = portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks).await?;
     println!("OK: {porto_ok} baris diinsert ke portofolio.");
 

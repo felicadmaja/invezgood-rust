@@ -2,6 +2,8 @@
 //!
 //! Alur: bila tombol START TRADING masih ada → klik → input PIN (`STOCKBUT_PIN` /
 //! `STOCKBIT_PIN`) → Submit → tunggu modal hilang.
+//! Lalu DOM scrape header equity ([`portofolio_equity_worker`]) ke `portofolio_equity`
+//! **sebelum** GET portfolio API.
 //! Setelah itu ambil **Bearer trading** (pasca-PIN / `securitiesAccessToken`),
 //! **bukan** Bearer login web Exodus, lalu GET portfolio API.
 //!
@@ -21,7 +23,7 @@ use std::time::{Duration, Instant};
 use stockbit_browser::goto_stockbit;
 use tokio::time::sleep;
 
-use crate::{bandarmology_worker, emiten_list_worker};
+use crate::{bandarmology_worker, emiten_list_worker, portofolio_equity_worker};
 
 const PORTFOLIO_API_URL: &str = "https://carina.stockbit.com/portfolio/v2/list";
 const STOCKBIT_PORTFOLIO_URL: &str = "https://stockbit.com/securities/portfolio";
@@ -780,8 +782,9 @@ async fn upsert_portofolio(
     Ok(n)
 }
 
-/// START TRADING (opsional) → PIN (opsional) → Bearer trading → portfolio API
-/// → pastikan `emiten_list` + `bandarmology` → upsert `portofolio`.
+/// START TRADING (opsional) → PIN (opsional) → DOM `portofolio_equity` →
+/// Bearer trading → portfolio API → pastikan `emiten_list` + `bandarmology` →
+/// upsert `portofolio`.
 pub async fn scrape_and_insert_portofolio(
     page: &Page,
     session: &Arc<Session>,
@@ -791,6 +794,15 @@ pub async fn scrape_and_insert_portofolio(
 
     println!("Jeda 2 detik setelah PIN / mode trading siap...");
     sleep(Duration::from_secs(2)).await;
+
+    println!("Portofolio equity: DOM scrape header sebelum portfolio API...");
+    let equity_ok = portofolio_equity_worker::scrape_and_insert_portofolio_equity(
+        page,
+        session.as_ref(),
+        keyspace,
+    )
+    .await?;
+    println!("OK: {equity_ok} baris diupsert ke portofolio_equity (sebelum portfolio API).");
 
     let bearer = extract_trading_bearer_after_pin(page).await?;
     let http = reqwest::Client::builder()
