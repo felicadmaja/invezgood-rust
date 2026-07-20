@@ -23,6 +23,10 @@ static INFLIGHT_EMITEN_STOCKBIT: OnceLock<
     Mutex<HashMap<String, watch::Receiver<Option<Result<(), String>>>>>,
 > = OnceLock::new();
 
+static INFLIGHT_BANDAR_ALL_TIME: OnceLock<
+    Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>>,
+> = OnceLock::new();
+
 fn inflight_map() -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<(), String>>>>> {
     INFLIGHT_EMITEN.get_or_init(|| Mutex::new(HashMap::new()))
 }
@@ -30,6 +34,11 @@ fn inflight_map() -> &'static Mutex<HashMap<String, watch::Receiver<Option<Resul
 fn inflight_stockbit_map(
 ) -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<(), String>>>>> {
     INFLIGHT_EMITEN_STOCKBIT.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn inflight_bandar_all_time_map(
+) -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>> {
+    INFLIGHT_BANDAR_ALL_TIME.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn keyspace() -> String {
@@ -362,4 +371,108 @@ fn merge_codes_movers_first(existing: &[String], mover_codes: &[String]) -> Vec<
         out.push(code);
     }
     out
+}
+
+/// Scrape bandarmology untuk satu emiten: bulan berjalan + historis max 180 bulan
+/// (aturan `bandarmology_worker::scrape_bandarmology_for_code_if_missing`).
+/// Single-flight per kode; survive cancel RPC.
+/// Returns jumlah baris bulan yang di-upsert.
+pub async fn scrape_bandarmology_all_the_time_for_code(
+    session: Arc<Session>,
+    kode_emiten: &str,
+) -> Result<usize, String> {
+    let code = kode_emiten.trim().to_ascii_uppercase();
+    if code.is_empty() {
+        return Err("kode_emiten kosong".into());
+    }
+
+    let mut rx = {
+        let mut map = inflight_bandar_all_time_map().lock().await;
+        if let Some(existing) = map.get(&code) {
+            println!(
+                "On-demand bandarmology all-time: {code} sudah berjalan — menunggu hasil..."
+            );
+            existing.clone()
+        } else {
+            let (tx, rx) = watch::channel::<Option<Result<usize, String>>>(None);
+            map.insert(code.clone(), rx.clone());
+            let session = Arc::clone(&session);
+            let code_spawn = code.clone();
+            tokio::spawn(async move {
+                let result = run_bandarmology_all_the_time(session, &code_spawn).await;
+                match &result {
+                    Ok(n) => println!(
+                        "On-demand bandarmology all-time selesai {code_spawn}: {n} bulan di-upsert."
+                    ),
+                    Err(e) => eprintln!(
+                        "On-demand bandarmology all-time GAGAL {code_spawn}: {e}"
+                    ),
+                }
+                let _ = tx.send(Some(result));
+                inflight_bandar_all_time_map().lock().await.remove(&code_spawn);
+            });
+            rx
+        }
+    };
+
+    loop {
+        {
+            let guard = rx.borrow();
+            if let Some(result) = guard.as_ref() {
+                return result.clone();
+            }
+        }
+        if rx.changed().await.is_err() {
+            return Err(format!(
+                "on-demand bandarmology all-time {code}: channel ditutup sebelum ada hasil"
+            ));
+        }
+    }
+}
+
+async fn run_bandarmology_all_the_time(
+    session: Arc<Session>,
+    code: &str,
+) -> Result<usize, String> {
+    let email = std::env::var("STOCKBIT_EMAIL")
+        .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk scrape bandarmology".to_string())?;
+    let password = std::env::var("STOCKBIT_PASSWORD")
+        .map_err(|_| "STOCKBIT_PASSWORD wajib diisi untuk scrape bandarmology".to_string())?;
+    if email.trim().is_empty() || password.trim().is_empty() {
+        return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
+    }
+
+    let _browser_guard = browser_session_lock().lock().await;
+    let ks = keyspace();
+    let today = Local::now().date_naive();
+
+    println!("On-demand bandarmology all-time: mulai untuk {code} (max 180 bulan)...");
+
+    let (mut browser, page) = launch_page()
+        .await
+        .map_err(|e| format!("launch Chrome: {e}"))?;
+
+    let result = async {
+        open_stream_or_login(&page, email.trim(), password.trim())
+            .await
+            .map_err(|e| format!("login Stockbit: {e}"))?;
+
+        let inserted = bandarmology_worker::scrape_bandarmology_for_code_if_missing(
+            &page,
+            session,
+            &ks,
+            today,
+            code,
+        )
+        .await?;
+
+        Ok::<usize, String>(inserted)
+    }
+    .await;
+
+    if let Err(e) = browser.close().await {
+        eprintln!("Peringatan: gagal menutup browser: {e}");
+    }
+
+    result
 }

@@ -894,13 +894,14 @@ async fn scrape_emiten_bandarmology(
 }
 
 /// Scrape bandarmology untuk satu emiten: bulan berjalan (overwrite) + backfill historis.
+/// Returns jumlah baris bulan yang di-upsert.
 pub async fn scrape_bandarmology_for_code_if_missing(
     page: &Page,
     session: Arc<Session>,
     keyspace: &str,
     today: NaiveDate,
     emiten: &str,
-) -> Result<bool, String> {
+) -> Result<usize, String> {
     let code = emiten.trim().to_ascii_uppercase();
     let bearer = extract_stockbit_bearer(page)
         .await
@@ -919,7 +920,7 @@ pub async fn scrape_bandarmology_for_code_if_missing(
     .await
     .map_err(|e| e.to_string())?;
     println!("OK: bandarmology {code} — {inserted} baris bulan di-upsert.");
-    Ok(inserted > 0)
+    Ok(inserted)
 }
 
 /// Marketdetectors API per emiten → upsert Scylla per bulan (`broker_summary`).

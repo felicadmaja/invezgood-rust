@@ -3,13 +3,20 @@ syntax = "proto3";
 package bandarmology;
 
 service Bandarmology {
-  // Lookup baris bandarmology via PK:
+  // Lookup baris bandarmology via PK (hanya baca Scylla, tidak scrape):
   // agg_tahun_bulan_emiten_name = tahun_bulan + '_' + kode_emiten
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetBandarmology(GetBandarmologyRequest) returns (GetBandarmologyResponse);
+  rpc GetBandarmologyFromScylla(GetBandarmologyFromScyllaRequest) returns (GetBandarmologyFromScyllaResponse);
+
+  // Scrape bandarmology 15 tahun kebelakang (max 180 bulan) untuk satu emiten via API Stockbit.
+  // Aturan sama `bandarmology_worker`: bulan berjalan overwrite; historis skip bila sudah ada;
+  // henti bila 2 bulan berturut-turut sudah ada atau 2 bulan kosong dari API.
+  // kode_emiten: tepat 4 huruf; dinormalisasi ke UPPERCASE.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetBandarmologyFromStockbit(GetBandarmologyFromStockbitRequest) returns (GetBandarmologyFromStockbitResponse);
 }
 
-message GetBandarmologyRequest {
+message GetBandarmologyFromScyllaRequest {
   // Wajib format YYYY-MM (contoh "2026-07"); selain itu invalid_argument.
   string tahun_bulan = 1;
   // Kode emiten / ticker (4 huruf); di server di-capitalize ke uppercase (bbca → BBCA).
@@ -17,12 +24,19 @@ message GetBandarmologyRequest {
 }
 
 
-message GetBandarmologyResponse {
+message GetBandarmologyFromScyllaResponse {
   BandarmologyRow row = 1;
 }
 
+message GetBandarmologyFromStockbitRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  string kode_emiten = 1;
+}
 
-
+message GetBandarmologyFromStockbitResponse {
+  bool success = 1;
+  string message = 2;
+}
 message BandarmologyRow {
   string agg_tahun_bulan_emiten_name = 1;
   string emiten_name = 2;

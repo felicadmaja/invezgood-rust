@@ -172,6 +172,7 @@ dependencies = [
  "tonic",
  "tonic-build",
  "user",
+ "worker_scrapping",
 ]
 
 [[package]]
