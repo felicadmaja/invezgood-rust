@@ -12,7 +12,8 @@ use crate::repository::PortofolioRepository;
 use crate::{
     GetAllPortofolioFromScyllaRequest, GetAllPortofolioFromScyllaResponse,
     GetAllPortofolioFromStockbitRequest, GetAllPortofolioFromStockbitResponse,
-    GetPortofolioHistoryByEmitenNameRequest, GetPortofolioHistoryByEmitenNameResponse,
+    GetPortofolioHistoryByEmitenNameFromStockbitRequest,
+    GetPortofolioHistoryByEmitenNameFromStockbitResponse,
     PortofolioRow,
 };
 
@@ -130,10 +131,10 @@ impl PortofolioRpc for PortofolioService {
         }
     }
 
-    async fn get_portofolio_history_by_emiten_name(
+    async fn get_portofolio_history_by_emiten_name_from_stockbit(
         &self,
-        request: Request<GetPortofolioHistoryByEmitenNameRequest>,
-    ) -> Result<Response<GetPortofolioHistoryByEmitenNameResponse>, Status> {
+        request: Request<GetPortofolioHistoryByEmitenNameFromStockbitRequest>,
+    ) -> Result<Response<GetPortofolioHistoryByEmitenNameFromStockbitResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
@@ -142,16 +143,18 @@ impl PortofolioRpc for PortofolioService {
         let kode = match parse_emiten_name(&req.emiten_name) {
             Ok(c) => c,
             Err(message) => {
-                return Ok(Response::new(GetPortofolioHistoryByEmitenNameResponse {
-                    success: false,
-                    message,
-                    row: None,
-                }));
+                return Ok(Response::new(
+                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                        success: false,
+                        message,
+                        row: None,
+                    },
+                ));
             }
         };
 
         println!(
-            "GetPortofolioHistoryByEmitenName {username}: {kode} — order/v2/list + timpa history..."
+            "GetPortofolioHistoryByEmitenNameFromStockbit {username}: {kode} — order/v2/list + timpa history..."
         );
 
         match on_demand::scrape_portofolio_history_for_emiten(Arc::clone(&self.session), &kode)
@@ -169,29 +172,35 @@ impl PortofolioRpc for PortofolioService {
                     "portofolio history {kode}: scrape selesai, {n} entri di-set ke history"
                 );
                 println!(
-                    "GetPortofolioHistoryByEmitenName {} {kode} success=true history={} {}ms",
+                    "GetPortofolioHistoryByEmitenNameFromStockbit {} {kode} success=true history={} {}ms",
                     username,
                     n,
                     started.elapsed().as_millis()
                 );
-                Ok(Response::new(GetPortofolioHistoryByEmitenNameResponse {
-                    success: true,
-                    message,
-                    row,
-                }))
+                Ok(Response::new(
+                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                        success: true,
+                        message,
+                        row,
+                    },
+                ))
             }
             Err(e) => {
-                eprintln!("GetPortofolioHistoryByEmitenName {username}: gagal {kode}: {e}");
+                eprintln!(
+                    "GetPortofolioHistoryByEmitenNameFromStockbit {username}: gagal {kode}: {e}"
+                );
                 println!(
-                    "GetPortofolioHistoryByEmitenName {} {kode} success=false {}ms",
+                    "GetPortofolioHistoryByEmitenNameFromStockbit {} {kode} success=false {}ms",
                     username,
                     started.elapsed().as_millis()
                 );
-                Ok(Response::new(GetPortofolioHistoryByEmitenNameResponse {
-                    success: false,
-                    message: format!("scrape portofolio history gagal: {e}"),
-                    row: None,
-                }))
+                Ok(Response::new(
+                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                        success: false,
+                        message: format!("scrape portofolio history gagal: {e}"),
+                        row: None,
+                    },
+                ))
             }
         }
     }
