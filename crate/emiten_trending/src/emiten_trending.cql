@@ -12,6 +12,7 @@ Kolom dan tipe CQL:
   "emiten_name" text
   "long_name" text — nama perusahaan panjang (Redis / emiten_list / API movers)
   "emiten_icon" text
+  "sector" tinyint — kode sektor (`EmitenSector`, sama `emiten_list.sector`)
   "price" double
   "price_change" double
   "value" text
@@ -22,6 +23,7 @@ Kolom "agg_tahun_bulan_tanggal_emiten_name": text — diisi aplikasi sebagai con
 Kolom "updated_at": timestamp — waktu terakhir baris di-upsert.
 Kolom "long_name": text — nama perusahaan panjang.
 Kolom "emiten_icon": text — path object GCS modul stoksaham (hasil upload icon Movers).
+Kolom "sector": tinyint — kode sektor emiten (sama mapping `emiten_list.sector` / EmitenSector; null = belum diisi).
 Kolom "freq": text — frekuensi transaksi dari kolom Freq tabel Movers Stockbit.
 
 --- Materialized view (MV) ---

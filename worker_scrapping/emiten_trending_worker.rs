@@ -101,6 +101,26 @@ struct EmitenListLongNameRow {
     long_name: String,
 }
 
+#[derive(Debug, DeserializeRow)]
+struct EmitenListSectorRow {
+    sector: Option<i8>,
+}
+
+async fn fetch_emiten_sector_from_list(
+    session: &Session,
+    stmt: &scylla::statement::prepared::PreparedStatement,
+    emiten: &str,
+) -> Result<Option<i8>, Box<dyn std::error::Error>> {
+    let result = session
+        .execute_unpaged(stmt, (emiten,))
+        .await?
+        .into_rows_result()?;
+    Ok(result
+        .maybe_first_row::<EmitenListSectorRow>()?
+        .and_then(|r| r.sector)
+        .filter(|&s| s > 0))
+}
+
 /// Ambil `emiten_list.emiten_icon` bila sudah terisi (hindari download/upload GCS ulang).
 async fn fetch_emiten_icon_from_list(
     session: &Session,
@@ -350,13 +370,14 @@ async fn insert_emiten_trending(
                 emiten_name, \
                 long_name, \
                 emiten_icon, \
+                sector, \
                 price, \
                 price_change, \
                 value, \
                 volume, \
                 freq, \
                 updated_at\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
@@ -382,6 +403,11 @@ async fn insert_emiten_trending(
     let list_long_name_stmt = session
         .prepare(format!(
             "SELECT long_name FROM {keyspace}.emiten_list WHERE code_name = ?"
+        ))
+        .await?;
+    let list_sector_stmt = session
+        .prepare(format!(
+            "SELECT sector FROM {keyspace}.emiten_list WHERE code_name = ?"
         ))
         .await?;
 
@@ -412,6 +438,14 @@ async fn insert_emiten_trending(
             &row.long_name,
         )
         .await;
+        let sector = match fetch_emiten_sector_from_list(session, &list_sector_stmt, &emiten).await
+        {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Peringatan: baca emiten_list.sector {emiten}: {e}");
+                None
+            }
+        };
         // Setiap upsert dari Stockbit movers: `updated_at` = now (baru maupun overwrite hari ini).
         let updated_at = Utc::now();
         session
@@ -424,6 +458,7 @@ async fn insert_emiten_trending(
                     emiten.as_str(),
                     long_name.as_str(),
                     emiten_icon.as_str(),
+                    sector,
                     price,
                     price_change,
                     row.value.as_str(),
@@ -435,8 +470,8 @@ async fn insert_emiten_trending(
             .await?;
         println!(
             "\nemiten_trending upsert {emiten} ({long_name}) ({gainer_or_loser}): \
-             price={price} change={price_change} value={} volume={} freq={} updated_at={updated_at}",
-            row.value, row.volume, row.freq
+             sector={:?} price={price} change={price_change} value={} volume={} freq={} updated_at={updated_at}",
+            sector, row.value, row.volume, row.freq
         );
         n += 1;
 

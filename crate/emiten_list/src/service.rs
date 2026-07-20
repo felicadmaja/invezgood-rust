@@ -301,24 +301,28 @@ impl EmitenListRpc for EmitenListService {
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
-        let (success, message, row) = if updated {
-            let row = self
-                .repo
-                .get_by_code_name(&code_name)
-                .await
-                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
-                .map(EmitenList::into_proto);
-            (
-                true,
-                format!("sector={sector} untuk {code_name} berhasil diupdate"),
-                row,
-            )
-        } else {
-            (
+        let (success, message, row) = match updated {
+            Some(trending_n) => {
+                let row = self
+                    .repo
+                    .get_by_code_name(&code_name)
+                    .await
+                    .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+                    .map(EmitenList::into_proto);
+                (
+                    true,
+                    format!(
+                        "sector={sector} untuk {code_name} diupdate \
+                         (emiten_list + {trending_n} baris emiten_trending)"
+                    ),
+                    row,
+                )
+            }
+            None => (
                 false,
                 format!("emiten_list code_name={code_name} tidak ditemukan"),
                 None,
-            )
+            ),
         };
 
         println!(

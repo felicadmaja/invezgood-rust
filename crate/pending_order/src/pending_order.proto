@@ -7,9 +7,21 @@ service PendingOrder {
   // Request kosong. Response: repeated PendingOrderRow.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllOpenPendingOrder(GetAllOpenPendingOrderRequest) returns (GetAllOpenPendingOrderResponse);
+
+  // Baca MV `pending_order_by_status` — hanya baris status = "MATCH".
+  // Request kosong. Response: repeated PendingOrderRow.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetAllMatchPendingOrder(GetAllMatchPendingOrderRequest) returns (GetAllMatchPendingOrderResponse);
+
+  // Baca MV `pending_order_by_status` — hanya baris status = "REJECTED".
+  // Request kosong. Response: repeated PendingOrderRow.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetAllRejectedPendingOrder(GetAllRejectedPendingOrderRequest) returns (GetAllRejectedPendingOrderResponse);
 }
 
 message GetAllOpenPendingOrderRequest {}
+message GetAllMatchPendingOrderRequest {}
+message GetAllRejectedPendingOrderRequest {}
 
 message PendingOrderRow {
   string order_id = 1;
@@ -31,5 +43,13 @@ message PendingOrderRow {
 }
 
 message GetAllOpenPendingOrderResponse {
+  repeated PendingOrderRow rows = 1;
+}
+
+message GetAllMatchPendingOrderResponse {
+  repeated PendingOrderRow rows = 1;
+}
+
+message GetAllRejectedPendingOrderResponse {
   repeated PendingOrderRow rows = 1;
 }

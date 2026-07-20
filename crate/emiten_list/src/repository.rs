@@ -23,11 +23,15 @@ struct Prepared {
     update_catatan: PreparedStatement,
     update_catatan_owner: PreparedStatement,
     update_foto_owner: PreparedStatement,
+    trending_aggs_by_emiten: PreparedStatement,
+    update_trending_sector: PreparedStatement,
 }
 
 pub struct EmitenListRepository {
     session: Arc<Session>,
     table: String,
+    trending_mv: String,
+    trending_table: String,
     prepared: OnceCell<Prepared>,
 }
 
@@ -37,6 +41,8 @@ impl EmitenListRepository {
         Self {
             session,
             table: format!("{ks}.emiten_list"),
+            trending_mv: format!("{ks}.emiten_trending_by_emiten_name"),
+            trending_table: format!("{ks}.emiten_trending"),
             prepared: OnceCell::new(),
         }
     }
@@ -106,6 +112,18 @@ impl EmitenListRepository {
                 );
                 let update_foto_owner = self.session.prepare(q).await?;
 
+                let q = format!(
+                    "SELECT agg_tahun_bulan_tanggal_emiten_name FROM {} WHERE emiten_name = ?",
+                    self.trending_mv
+                );
+                let trending_aggs_by_emiten = self.session.prepare(q).await?;
+
+                let q = format!(
+                    "UPDATE {} SET sector = ? WHERE agg_tahun_bulan_tanggal_emiten_name = ?",
+                    self.trending_table
+                );
+                let update_trending_sector = self.session.prepare(q).await?;
+
                 Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared {
                     scan,
                     by_code_name,
@@ -117,6 +135,8 @@ impl EmitenListRepository {
                     update_catatan,
                     update_catatan_owner,
                     update_foto_owner,
+                    trending_aggs_by_emiten,
+                    update_trending_sector,
                 })
             })
             .await
@@ -190,21 +210,50 @@ impl EmitenListRepository {
         Ok(true)
     }
 
-    /// Update `sector` (tinyint). Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Update `emiten_list.sector` + sync tinyint yang sama ke semua `emiten_trending.sector`
+    /// untuk emiten yang sama. Mengembalikan `Ok(None)` bila `code_name` tidak ada;
+    /// `Ok(Some(n))` = berhasil, `n` = jumlah baris trending yang di-update.
     pub async fn update_sector(
         &self,
         code_name: &str,
         sector: i8,
-    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<Option<usize>, Box<dyn std::error::Error + Send + Sync>> {
         if self.get_by_code_name(code_name).await?.is_none() {
-            return Ok(false);
+            return Ok(None);
         }
 
         let prepared = self.prepared().await?;
         self.session
             .execute_unpaged(&prepared.update_sector, (sector, code_name))
             .await?;
-        Ok(true)
+
+        #[derive(scylla::DeserializeRow)]
+        struct TrendingAggRow {
+            #[scylla(default_when_null)]
+            agg_tahun_bulan_tanggal_emiten_name: String,
+        }
+
+        let mv = self
+            .session
+            .execute_unpaged(&prepared.trending_aggs_by_emiten, (code_name,))
+            .await?
+            .into_rows_result()?;
+
+        let mut n = 0usize;
+        for row in mv.rows::<TrendingAggRow>()? {
+            let agg = row?.agg_tahun_bulan_tanggal_emiten_name;
+            if agg.is_empty() {
+                continue;
+            }
+            self.session
+                .execute_unpaged(
+                    &prepared.update_trending_sector,
+                    (sector, agg.as_str()),
+                )
+                .await?;
+            n += 1;
+        }
+        Ok(Some(n))
     }
 
     /// Update `is_konglomerasi`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.

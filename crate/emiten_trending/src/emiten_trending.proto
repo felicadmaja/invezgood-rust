@@ -58,6 +58,8 @@ message EmitenTrendingRow {
   string freq = 11;
   // Nama perusahaan panjang.
   string long_name = 12;
+  // Kode sektor (sama EmitenSector / emiten_list.sector tinyint); 0 = UNSPECIFIED.
+  int32 sector = 13;
 }
 
 message GetAllEmitenTrendingResponse {

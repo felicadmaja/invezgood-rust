@@ -9,14 +9,16 @@ use crate::database::keyspace;
 use crate::model::PendingOrder;
 
 const PAGE_SIZE: i32 = 100;
-const STATUS_OPEN: &str = "OPEN";
+pub const STATUS_OPEN: &str = "OPEN";
+pub const STATUS_MATCH: &str = "MATCH";
+pub const STATUS_REJECTED: &str = "REJECTED";
 
 const COLUMNS: &str = "order_id, emiten_name, status, message, side, time_open, \
     lot_open, lot_done, price_order, amount_open, amount_match, amount_match_total, \
     is_gtc, updated_at";
 
 struct Prepared {
-    by_status_open: PreparedStatement,
+    by_status: PreparedStatement,
 }
 
 pub struct PendingOrderRepository {
@@ -42,9 +44,9 @@ impl PendingOrderRepository {
                     "SELECT {COLUMNS} FROM {} WHERE status = ?",
                     self.mv_by_status
                 );
-                let mut by_status_open = self.session.prepare(q).await?;
-                by_status_open.set_page_size(PAGE_SIZE);
-                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared { by_status_open })
+                let mut by_status = self.session.prepare(q).await?;
+                by_status.set_page_size(PAGE_SIZE);
+                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared { by_status })
             })
             .await
     }
@@ -54,14 +56,15 @@ impl PendingOrderRepository {
         Ok(())
     }
 
-    /// Semua pending order berstatus `OPEN` via MV `pending_order_by_status`.
-    pub async fn get_all_open(
+    /// Pending order via MV `pending_order_by_status` untuk `status` tertentu.
+    pub async fn get_all_by_status(
         &self,
+        status: &str,
     ) -> Result<Vec<PendingOrder>, Box<dyn std::error::Error + Send + Sync>> {
         let prepared = self.prepared().await?;
         let pager = self
             .session
-            .execute_iter(prepared.by_status_open.clone(), (STATUS_OPEN,))
+            .execute_iter(prepared.by_status.clone(), (status,))
             .await?;
         let mut rows = pager.rows_stream::<PendingOrder>()?;
         let mut out = Vec::new();
@@ -69,5 +72,23 @@ impl PendingOrderRepository {
             out.push(row?);
         }
         Ok(out)
+    }
+
+    pub async fn get_all_open(
+        &self,
+    ) -> Result<Vec<PendingOrder>, Box<dyn std::error::Error + Send + Sync>> {
+        self.get_all_by_status(STATUS_OPEN).await
+    }
+
+    pub async fn get_all_match(
+        &self,
+    ) -> Result<Vec<PendingOrder>, Box<dyn std::error::Error + Send + Sync>> {
+        self.get_all_by_status(STATUS_MATCH).await
+    }
+
+    pub async fn get_all_rejected(
+        &self,
+    ) -> Result<Vec<PendingOrder>, Box<dyn std::error::Error + Send + Sync>> {
+        self.get_all_by_status(STATUS_REJECTED).await
     }
 }

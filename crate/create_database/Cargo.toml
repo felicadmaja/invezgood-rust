@@ -19,9 +19,14 @@ path = "src/bin/create_rule.rs"
 name = "create_catatan"
 path = "src/bin/create_catatan.rs"
 
+[[bin]]
+name = "backfill_emiten_trending_sector"
+path = "src/bin/backfill_emiten_trending_sector.rs"
+
 [dependencies]
 bcrypt = "0.16"
 dotenvy = "0.15"
+futures-util = "0.3"
 scylla = "1.5"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs"] }
 uuid = { version = "1", features = ["v4"] }

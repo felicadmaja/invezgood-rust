@@ -27,7 +27,8 @@ service EmitenList {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListFundamental(UpdateEmitenListFundamentalRequest) returns (UpdateEmitenListFundamentalResponse);
 
-  // Update kolom `sector` untuk satu emiten (PK code_name).
+  // Update `emiten_list.sector` (tinyint) dan sync nilai yang sama ke semua baris
+  // `emiten_trending.sector` (tinyint) untuk `emiten_name` yang sama (via MV by_emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListSector(UpdateEmitenListSectorRequest) returns (UpdateEmitenListSectorResponse);
 

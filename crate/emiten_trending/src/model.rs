@@ -12,6 +12,7 @@
 //! | emiten_name                             | text      | String                       |
 //! | long_name                               | text      | String                       |
 //! | emiten_icon                             | text      | String                       |
+//! | sector                                  | tinyint   | Option\<i8\>                 |
 //! | price                                   | double    | f64                          |
 //! | price_change                            | double    | f64                          |
 //! | value                                   | text      | String                       |
@@ -47,6 +48,8 @@ pub struct EmitenTrending {
     /// Path object GCS modul `stoksaham` (hasil upload icon Movers).
     #[scylla(default_when_null)]
     pub emiten_icon: String,
+    /// Kode sektor (sama `emiten_list.sector` / EmitenSector); null bila belum diisi.
+    pub sector: Option<i8>,
     #[scylla(default_when_null)]
     pub price: f64,
     #[scylla(default_when_null)]
@@ -71,6 +74,7 @@ impl EmitenTrending {
             emiten_name: self.emiten_name,
             long_name: self.long_name,
             emiten_icon: self.emiten_icon,
+            sector: self.sector.unwrap_or(0).max(0) as i32,
             price: self.price,
             price_change: self.price_change,
             value: self.value,
