@@ -9,8 +9,12 @@ service Bandarmology {
   rpc GetBandarmologyFromScylla(GetBandarmologyFromScyllaRequest) returns (GetBandarmologyFromScyllaResponse);
 
   // Scrape bandarmology 3 tahun kebelakang (max 36 bulan) untuk satu emiten via API Stockbit.
-  // Aturan sama `bandarmology_worker`: bulan berjalan overwrite; historis skip bila sudah ada;
-  // henti bila 2 bulan berturut-turut sudah ada atau 2 bulan kosong dari API.
+  // Aturan sama `bandarmology_worker`:
+  // - bulan berjalan overwrite `broker_summary` (awal bulan → hari ini);
+  // - minggu berjalan: isi `broker_summary_current_w1`…`w4` hanya untuk minggu yang sudah
+  //   dimulai (w1=1–7, w2=8–14, w3=15–21, w4=22–akhir bulan; `to` dibatasi hari ini);
+  // - historis skip bila sudah ada; henti bila 2 bulan berturut-turut sudah ada atau 2 bulan kosong dari API.
+  // Response.row = baris bulan berjalan setelah scrape (termasuk w1–w4 bila ada).
   // kode_emiten: tepat 4 huruf; dinormalisasi ke UPPERCASE.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyFromStockbit(GetBandarmologyFromStockbitRequest) returns (GetBandarmologyFromStockbitResponse);
@@ -36,12 +40,20 @@ message GetBandarmologyFromStockbitRequest {
 message GetBandarmologyFromStockbitResponse {
   bool success = 1;
   string message = 2;
+  // Baris bulan berjalan setelah scrape (broker_summary + w1–w4); kosong jika gagal / belum ada.
+  BandarmologyRow row = 3;
 }
 message BandarmologyRow {
   string agg_tahun_bulan_emiten_name = 1;
   string emiten_name = 2;
   string tahun_bulan = 3;
   BandarmologyDay broker_summary = 4;
+  // Minggu berjalan (bulan saat ini): w1=1–7, w2=8–14, w3=15–21, w4=22–akhir bulan.
+  // Kosong jika minggu belum dimulai / belum di-scrape.
+  BandarmologyDay broker_summary_current_w1 = 5;
+  BandarmologyDay broker_summary_current_w2 = 6;
+  BandarmologyDay broker_summary_current_w3 = 7;
+  BandarmologyDay broker_summary_current_w4 = 8;
 }
 
 message BandarmologyDay {

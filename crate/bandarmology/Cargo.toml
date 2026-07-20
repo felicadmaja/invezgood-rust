@@ -7,7 +7,7 @@ edition = "2021"
 path = "src/lib.rs"
 
 [dependencies]
-chrono = { version = "0.4", default-features = false, features = ["std"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 prost = { version = "0.13", features = ["std", "derive"] }
 scylla = { version = "1.5", features = ["chrono-04"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

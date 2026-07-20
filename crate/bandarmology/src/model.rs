@@ -136,6 +136,18 @@ impl Bandarmology {
             emiten_name: self.emiten_name,
             tahun_bulan: self.tahun_bulan,
             broker_summary: self.broker_summary.map(BandarmologyDay::into_proto),
+            broker_summary_current_w1: self
+                .broker_summary_current_w1
+                .map(BandarmologyDay::into_proto),
+            broker_summary_current_w2: self
+                .broker_summary_current_w2
+                .map(BandarmologyDay::into_proto),
+            broker_summary_current_w3: self
+                .broker_summary_current_w3
+                .map(BandarmologyDay::into_proto),
+            broker_summary_current_w4: self
+                .broker_summary_current_w4
+                .map(BandarmologyDay::into_proto),
         }
     }
 }

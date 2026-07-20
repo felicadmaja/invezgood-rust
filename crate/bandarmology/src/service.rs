@@ -1,13 +1,14 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use chrono::Local;
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::require_auth;
 use worker_scrapping::on_demand;
 
 use crate::bandarmology_server::Bandarmology as BandarmologyRpc;
-use crate::model::Bandarmology;
+use crate::model::{tahun_bulan_from_date, Bandarmology};
 use crate::repository::BandarmologyRepository;
 use crate::{
     GetBandarmologyFromScyllaRequest, GetBandarmologyFromScyllaResponse,
@@ -117,12 +118,13 @@ impl BandarmologyRpc for BandarmologyService {
                 return Ok(Response::new(GetBandarmologyFromStockbitResponse {
                     success: false,
                     message,
+                    row: None,
                 }));
             }
         };
 
         println!(
-            "GetBandarmologyFromStockbit {username}: {kode} — scrape max 36 bulan..."
+            "GetBandarmologyFromStockbit {username}: {kode} — scrape max 36 bulan + minggu w1–w4..."
         );
 
         match on_demand::scrape_bandarmology_all_the_time_for_code(
@@ -132,17 +134,36 @@ impl BandarmologyRpc for BandarmologyService {
         .await
         {
             Ok(n) => {
+                let cur_tb = tahun_bulan_from_date(Local::now().date_naive());
+                let row = self
+                    .repo
+                    .find_by_tahun_bulan_and_emiten(&cur_tb, &kode)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(Bandarmology::into_proto);
+                let weeks = match &row {
+                    Some(r) => format!(
+                        "w1={} w2={} w3={} w4={}",
+                        r.broker_summary_current_w1.is_some(),
+                        r.broker_summary_current_w2.is_some(),
+                        r.broker_summary_current_w3.is_some(),
+                        r.broker_summary_current_w4.is_some(),
+                    ),
+                    None => "row bulan berjalan belum ada".into(),
+                };
                 let message = format!(
-                    "bandarmology {kode}: scrape selesai, {n} baris bulan di-upsert"
+                    "bandarmology {kode}: scrape selesai, {n} baris bulan di-upsert ({cur_tb}; {weeks})"
                 );
                 println!(
-                    "GetBandarmologyFromStockbit {} {kode} success=true {}ms",
+                    "GetBandarmologyFromStockbit {} {kode} success=true {}ms ({weeks})",
                     username,
                     started.elapsed().as_millis()
                 );
                 Ok(Response::new(GetBandarmologyFromStockbitResponse {
                     success: true,
                     message,
+                    row,
                 }))
             }
             Err(e) => {
@@ -157,6 +178,7 @@ impl BandarmologyRpc for BandarmologyService {
                 Ok(Response::new(GetBandarmologyFromStockbitResponse {
                     success: false,
                     message: format!("scrape bandarmology gagal: {e}"),
+                    row: None,
                 }))
             }
         }
