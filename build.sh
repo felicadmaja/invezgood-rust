@@ -18,13 +18,22 @@ source $HOME/.cargo/env
 
 # 1. Jalankan Build Release
 echo "📦 Mengompilasi kode dalam mode release..."
+# Hapus artifact rlib kosong (sering dari build terputus / race) yang memicu E0786 mmap.
+find target/release/deps target/debug/deps -name '*.rlib' -size 0 -delete 2>/dev/null || true
 cargo build --release
 
 if [ $? -eq 0 ]; then
     echo "✅ Build berhasil."
 else
-    echo "❌ Build gagal! Membatalkan deploy."
-    exit 1
+    echo "❌ Build gagal — bersihkan artifact kosong lalu coba sekali lagi..."
+    find target/release/deps target/debug/deps -name '*.rlib' -size 0 -delete 2>/dev/null || true
+    cargo clean -p worker_scrapping 2>/dev/null || true
+    cargo build --release
+    if [ $? -ne 0 ]; then
+        echo "❌ Build gagal! Membatalkan deploy."
+        exit 1
+    fi
+    echo "✅ Build berhasil (setelah retry)."
 fi
 
 mkdir -p logs

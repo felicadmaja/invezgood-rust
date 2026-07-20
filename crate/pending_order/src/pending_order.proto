@@ -3,25 +3,24 @@ syntax = "proto3";
 package pending_order;
 
 service PendingOrder {
-  // Baca MV `pending_order_by_status` — hanya baris status = "OPEN".
+  // Baca semua baris dari tabel Scylla `pending_order` via token-ring scan
+  // (semua status: OPEN / MATCH / REJECTED / dll.).
   // Request kosong. Response: repeated PendingOrderRow.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetAllOpenPendingOrder(GetAllOpenPendingOrderRequest) returns (GetAllOpenPendingOrderResponse);
+  rpc GetAllPendingOrderFromScylla(GetAllPendingOrderFromScyllaRequest)
+      returns (GetAllPendingOrderFromScyllaResponse);
 
-  // Baca MV `pending_order_by_status` — hanya baris status = "MATCH".
-  // Request kosong. Response: repeated PendingOrderRow.
+  // Scrape semua order dari Stockbit lalu upsert `pending_order`.
+  // Alur sama `pending_order_worker`: login → START TRADING/PIN bila perlu →
+  // GET carina.stockbit.com/order/v2/list → TRUNCATE+insert `pending_order`.
+  // Request kosong. Response: repeated PendingOrderRow setelah scrape.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetAllMatchPendingOrder(GetAllMatchPendingOrderRequest) returns (GetAllMatchPendingOrderResponse);
-
-  // Baca MV `pending_order_by_status` — hanya baris status = "REJECTED".
-  // Request kosong. Response: repeated PendingOrderRow.
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetAllRejectedPendingOrder(GetAllRejectedPendingOrderRequest) returns (GetAllRejectedPendingOrderResponse);
+  rpc GetAllPendingOrderFromStockbit(GetAllPendingOrderFromStockbitRequest)
+      returns (GetAllPendingOrderFromStockbitResponse);
 }
 
-message GetAllOpenPendingOrderRequest {}
-message GetAllMatchPendingOrderRequest {}
-message GetAllRejectedPendingOrderRequest {}
+message GetAllPendingOrderFromScyllaRequest {}
+message GetAllPendingOrderFromStockbitRequest {}
 
 message PendingOrderRow {
   string order_id = 1;
@@ -42,14 +41,12 @@ message PendingOrderRow {
   string updated_at = 14;
 }
 
-message GetAllOpenPendingOrderResponse {
+message GetAllPendingOrderFromScyllaResponse {
   repeated PendingOrderRow rows = 1;
 }
 
-message GetAllMatchPendingOrderResponse {
-  repeated PendingOrderRow rows = 1;
-}
-
-message GetAllRejectedPendingOrderResponse {
-  repeated PendingOrderRow rows = 1;
+message GetAllPendingOrderFromStockbitResponse {
+  bool success = 1;
+  string message = 2;
+  repeated PendingOrderRow rows = 3;
 }

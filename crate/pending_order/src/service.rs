@@ -4,24 +4,27 @@ use std::time::Instant;
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::require_auth;
+use worker_scrapping::on_demand;
 
 use crate::model::PendingOrder;
 use crate::pending_order_server::PendingOrder as PendingOrderRpc;
 use crate::repository::PendingOrderRepository;
 use crate::{
-    GetAllMatchPendingOrderRequest, GetAllMatchPendingOrderResponse,
-    GetAllOpenPendingOrderRequest, GetAllOpenPendingOrderResponse,
-    GetAllRejectedPendingOrderRequest, GetAllRejectedPendingOrderResponse, PendingOrderRow,
+    GetAllPendingOrderFromScyllaRequest, GetAllPendingOrderFromScyllaResponse,
+    GetAllPendingOrderFromStockbitRequest, GetAllPendingOrderFromStockbitResponse, PendingOrderRow,
 };
 
 pub struct PendingOrderService {
     repo: PendingOrderRepository,
+    session: Arc<Session>,
 }
 
 impl PendingOrderService {
     pub fn new(session: Arc<Session>) -> Self {
+        let session_for_repo = session.clone();
         Self {
-            repo: PendingOrderRepository::new(session),
+            repo: PendingOrderRepository::new(session_for_repo),
+            session,
         }
     }
 
@@ -36,84 +39,83 @@ fn rows_to_proto(rows: Vec<PendingOrder>) -> Vec<PendingOrderRow> {
 
 #[tonic::async_trait]
 impl PendingOrderRpc for PendingOrderService {
-    async fn get_all_open_pending_order(
+    async fn get_all_pending_order_from_scylla(
         &self,
-        request: Request<GetAllOpenPendingOrderRequest>,
-    ) -> Result<Response<GetAllOpenPendingOrderResponse>, Status> {
+        request: Request<GetAllPendingOrderFromScyllaRequest>,
+    ) -> Result<Response<GetAllPendingOrderFromScyllaResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
 
         let rows = self
             .repo
-            .get_all_open()
+            .get_all()
             .await
             .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
 
         let proto_rows = rows_to_proto(rows);
         println!(
-            "GetAllOpenPendingOrder {} status=OPEN rows={} {}ms",
+            "GetAllPendingOrderFromScylla {} rows={} {}ms",
             username,
             proto_rows.len(),
             started.elapsed().as_millis()
         );
 
-        Ok(Response::new(GetAllOpenPendingOrderResponse {
+        Ok(Response::new(GetAllPendingOrderFromScyllaResponse {
             rows: proto_rows,
         }))
     }
 
-    async fn get_all_match_pending_order(
+    async fn get_all_pending_order_from_stockbit(
         &self,
-        request: Request<GetAllMatchPendingOrderRequest>,
-    ) -> Result<Response<GetAllMatchPendingOrderResponse>, Status> {
+        request: Request<GetAllPendingOrderFromStockbitRequest>,
+    ) -> Result<Response<GetAllPendingOrderFromStockbitResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
+        let _ = request.into_inner();
 
-        let rows = self
-            .repo
-            .get_all_match()
-            .await
-            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
-
-        let proto_rows = rows_to_proto(rows);
         println!(
-            "GetAllMatchPendingOrder {} status=MATCH rows={} {}ms",
-            username,
-            proto_rows.len(),
-            started.elapsed().as_millis()
+            "GetAllPendingOrderFromStockbit {username}: scrape order/v2/list + upsert..."
         );
 
-        Ok(Response::new(GetAllMatchPendingOrderResponse {
-            rows: proto_rows,
-        }))
-    }
-
-    async fn get_all_rejected_pending_order(
-        &self,
-        request: Request<GetAllRejectedPendingOrderRequest>,
-    ) -> Result<Response<GetAllRejectedPendingOrderResponse>, Status> {
-        let started = Instant::now();
-        let claims = require_auth(&request)?;
-        let username = claims.name.clone();
-
-        let rows = self
-            .repo
-            .get_all_rejected()
-            .await
-            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
-
-        let proto_rows = rows_to_proto(rows);
-        println!(
-            "GetAllRejectedPendingOrder {} status=REJECTED rows={} {}ms",
-            username,
-            proto_rows.len(),
-            started.elapsed().as_millis()
-        );
-
-        Ok(Response::new(GetAllRejectedPendingOrderResponse {
-            rows: proto_rows,
-        }))
+        match on_demand::scrape_pending_order_all(Arc::clone(&self.session)).await {
+            Ok(n) => {
+                let rows = self
+                    .repo
+                    .get_all()
+                    .await
+                    .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+                let proto_rows = rows_to_proto(rows);
+                let message = format!(
+                    "pending_order: scrape selesai, {n} baris di-upsert (baca {} baris)",
+                    proto_rows.len()
+                );
+                println!(
+                    "GetAllPendingOrderFromStockbit {} success=true rows={} {}ms",
+                    username,
+                    proto_rows.len(),
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
+                    success: true,
+                    message,
+                    rows: proto_rows,
+                }))
+            }
+            Err(e) => {
+                eprintln!("GetAllPendingOrderFromStockbit {username}: gagal: {e}");
+                println!(
+                    "GetAllPendingOrderFromStockbit {} success=false {}ms",
+                    username,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
+                    success: false,
+                    message: format!("scrape pending_order gagal: {e}"),
+                    rows: vec![],
+                }))
+            }
+        }
     }
 }
