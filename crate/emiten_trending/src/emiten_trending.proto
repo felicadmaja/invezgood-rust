@@ -10,20 +10,23 @@ service EmitenTrending {
   // Hanya jalan saat RPC dipanggil. Maksimal 1× per 1 menit (failed precondition jika terlalu cepat).
   //
   // Urutan tulis ke Scylla (satu sesi browser/login, berurutan):
-  // (1) `emiten_trending` — API market-mover TOP_GAINER, lalu TOP_LOSER (per baris emiten).
-  //     Setelah setiap insert baris hari ini yang benar-benar baru (PK `YYYY-MM-DD_EMITEN`
-  //     belum ada), upsert `emiten_trending_count_by_name`: appearance_count += 1,
-  //     last_tahun_bulan_tanggal = hari ini, updated_at = now.
+  // (1) `emiten_trending` — API market-mover TOP_GAINER, lalu TOP_LOSER (per baris emiten
+  //     yang muncul dari Stockbit). Setiap upsert (baru atau overwrite PK hari ini) mengisi
+  //     `updated_at` = now. Setelah setiap insert baris hari ini yang benar-benar baru
+  //     (PK `YYYY-MM-DD_EMITEN` belum ada), upsert `emiten_trending_count_by_name`:
+  //     appearance_count += 1, last_tahun_bulan_tanggal = hari ini, updated_at = now.
   //     Baris yang sudah ada di tanggal yang sama tidak menambah count lagi.
-  // (2) `emiten_list` — union kode movers hari ini ∪ token-ring scan `code_name` di tabel ini.
-  //     Per kode: upsert scrape (key_stats, corporate_action, company_profile, net_income,
-  //     long_name, emiten_icon, update_at) hanya bila:
-  //       - baris belum ada di `emiten_list`, ATAU
+  // (2) `emiten_list` — seed INSERT `code_name` + `long_name` untuk kode movers yang belum ada
+  //     di tabel (contoh TMPO); baris yang sudah ada tidak ditimpa.
+  // (3) Baca ulang daftar `code_name` dari `emiten_list` (token-ring; sudah termasuk seed),
+  //     movers diproses dulu. Per kode: upsert key_stats + corporate_action + company_profile
+  //     + net_income + long_name + emiten_icon + update_at hanya bila:
+  //       - baris belum ada / baru di-seed, ATAU
   //       - `update_at` kosong / usia sudah ≥ 30 hari
   //     (skip bila `update_at` masih < 30 hari dan emiten_icon sudah terisi).
   //     Tidak mengisi sector / is_konglomerasi / is_fundamental_solid / is_blue_chip /
   //     is_plan_to_trade / catatan / catatan_owner / foto_owner.
-  // (3) `bandarmology` — marketdetectors API untuk daftar `code_name` yang sama dari langkah (2);
+  // (4) `bandarmology` — marketdetectors API untuk daftar `code_name` yang sama dari langkah (3);
   //     insert hanya bila agg bulan ini `YYYY-MM_CODE` belum ada (skip jika sudah ada).
   //
   // Setelah scrape selesai, RPC membaca ulang `emiten_trending` hari ini dan stream hasilnya.

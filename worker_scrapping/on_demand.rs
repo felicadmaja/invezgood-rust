@@ -259,10 +259,9 @@ async fn run_emiten_list_stockbit_scrape(
     result
 }
 
-/// On-demand scrape Top Gainer/Loser (movers) → upsert `emiten_trending`;
-/// lalu upsert `emiten_list` untuk union (kode movers ∪ scan `emiten_list`) —
-/// insert bila belum ada, atau refresh bila `update_at` ≥ 30 hari (skip jika masih fresh);
-/// lalu marketdetectors API → insert `bandarmology`.
+/// On-demand scrape Top Gainer/Loser (movers) → upsert `emiten_trending` + seed `emiten_list`;
+/// lalu baca `code_name` dari `emiten_list` (setelah seed) → keystats/profile/corpaction;
+/// lalu bandarmology untuk daftar yang sama.
 pub async fn scrape_emiten_trending_movers(
     session: Arc<Session>,
 ) -> Result<(usize, usize), String> {
@@ -298,24 +297,17 @@ pub async fn scrape_emiten_trending_movers(
             .map_err(|e| e.to_string())?;
 
         let today = Local::now().date_naive();
-        println!("On-demand: token-ring scan emiten_list.code_name...");
-        let mut emitens = bandarmology_worker::fetch_emiten_list_code_names(session.as_ref(), &ks)
+        // Setelah seed movers → baca ulang emiten_list (sudah termasuk ticker baru).
+        println!("On-demand: token-ring scan emiten_list.code_name (setelah seed movers)...");
+        let existing = bandarmology_worker::fetch_emiten_list_code_names(session.as_ref(), &ks)
             .await
             .map_err(|e| e.to_string())?;
-        let before = emitens.len();
-        for code in &mover_codes {
-            if !emitens.iter().any(|e| e == code) {
-                emitens.push(code.clone());
-            }
-        }
-        emitens.sort();
-        emitens.dedup();
-        let added = emitens.len().saturating_sub(before);
+        let emitens = merge_codes_movers_first(&existing, &mover_codes);
         println!(
-            "On-demand: {} emiten untuk key_stats (emiten_list scan={} + movers baru={}).",
+            "On-demand: {} emiten untuk key_stats/profile/corp/bandarmology (movers dulu={}, scan={}).",
             emitens.len(),
-            before,
-            added
+            mover_codes.len(),
+            existing.len()
         );
 
         let key_stats_ok = emiten_list_worker::scrape_and_insert_key_stats(
@@ -349,4 +341,25 @@ pub async fn scrape_emiten_trending_movers(
     }
 
     result
+}
+
+/// `mover_codes` di depan, lalu sisa `existing` tanpa duplikat.
+fn merge_codes_movers_first(existing: &[String], mover_codes: &[String]) -> Vec<String> {
+    let mut out = Vec::with_capacity(existing.len() + mover_codes.len());
+    let mut seen = std::collections::HashSet::new();
+    for c in mover_codes {
+        let code = c.trim().to_ascii_uppercase();
+        if code.is_empty() || !seen.insert(code.clone()) {
+            continue;
+        }
+        out.push(code);
+    }
+    for c in existing {
+        let code = c.trim().to_ascii_uppercase();
+        if code.is_empty() || !seen.insert(code.clone()) {
+            continue;
+        }
+        out.push(code);
+    }
+    out
 }

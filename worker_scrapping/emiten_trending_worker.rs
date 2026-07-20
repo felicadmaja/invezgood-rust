@@ -356,7 +356,7 @@ async fn insert_emiten_trending(
                 volume, \
                 freq, \
                 updated_at\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, toTimestamp(now()))"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
@@ -412,6 +412,8 @@ async fn insert_emiten_trending(
             &row.long_name,
         )
         .await;
+        // Setiap upsert dari Stockbit movers: `updated_at` = now (baru maupun overwrite hari ini).
+        let updated_at = Utc::now();
         session
             .execute_unpaged(
                 &insert,
@@ -427,12 +429,13 @@ async fn insert_emiten_trending(
                     row.value.as_str(),
                     row.volume.as_str(),
                     row.freq.as_str(),
+                    updated_at,
                 ),
             )
             .await?;
         println!(
-            "\nemiten_trending insert {emiten} ({long_name}) ({gainer_or_loser}): \
-             price={price} change={price_change} value={} volume={} freq={}",
+            "\nemiten_trending upsert {emiten} ({long_name}) ({gainer_or_loser}): \
+             price={price} change={price_change} value={} volume={} freq={} updated_at={updated_at}",
             row.value, row.volume, row.freq
         );
         n += 1;
@@ -463,7 +466,8 @@ async fn insert_emiten_trending(
     Ok(n)
 }
 
-/// Ambil Top Gainer + Top Loser via API market-mover → insert `emiten_trending`.
+/// Ambil Top Gainer + Top Loser via API market-mover → insert `emiten_trending`,
+/// lalu seed `emiten_list` untuk kode movers yang belum ada.
 /// Bearer dari sesi browser (login Stockbit).
 /// Returns `(inserted_gainer, inserted_loser, mover_codes)` — `mover_codes` unik uppercase.
 pub async fn scrape_and_insert_movers(
@@ -505,14 +509,27 @@ pub async fn scrape_and_insert_movers(
     let inserted_loser = insert_emiten_trending(session, keyspace, &loser_rows, "loser").await?;
     println!("OK: {inserted_loser} baris diinsert ke emiten_trending (loser).");
 
-    let mut mover_codes: Vec<String> = gainer_rows
-        .iter()
-        .chain(loser_rows.iter())
-        .map(|r| normalize_emiten_name(&r.symbol))
-        .filter(|c| !c.is_empty())
-        .collect();
+    let mut seed: Vec<(String, String)> = Vec::new();
+    let mut mover_codes: Vec<String> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for row in gainer_rows.iter().chain(loser_rows.iter()) {
+        let code = normalize_emiten_name(&row.symbol);
+        if code.is_empty() || !seen.insert(code.clone()) {
+            continue;
+        }
+        seed.push((code.clone(), row.long_name.trim().to_string()));
+        mover_codes.push(code);
+    }
     mover_codes.sort();
-    mover_codes.dedup();
+    let seeded = crate::emiten_list_worker::ensure_emiten_list_codes_seeded(
+        session, keyspace, &seed,
+    )
+    .await
+    .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    println!(
+        "OK: emiten_list seed dari movers — {seeded} baris baru (dari {} kode movers).",
+        mover_codes.len()
+    );
 
     Ok((inserted_gainer, inserted_loser, mover_codes))
 }

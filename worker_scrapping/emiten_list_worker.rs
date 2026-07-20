@@ -1107,6 +1107,49 @@ async fn scrape_one_emiten_inner(
     Ok(true)
 }
 
+/// Pastikan `code_name` ada di `emiten_list`: INSERT seed (`code_name`, `long_name`)
+/// hanya bila baris belum ada (tidak menimpa kolom scrape yang sudah terisi).
+/// `codes`: `(code_name, long_name)`.
+pub async fn ensure_emiten_list_codes_seeded(
+    session: &Session,
+    keyspace: &str,
+    codes: &[(String, String)],
+) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    let exists_stmt = session
+        .prepare(format!(
+            "SELECT code_name FROM {keyspace}.emiten_list WHERE code_name = ?"
+        ))
+        .await?;
+    let insert_stmt = session
+        .prepare(format!(
+            "INSERT INTO {keyspace}.emiten_list (code_name, long_name) VALUES (?, ?)"
+        ))
+        .await?;
+
+    let mut inserted = 0usize;
+    let mut seen = std::collections::HashSet::new();
+    for (code_raw, long_name_raw) in codes {
+        let code = code_raw.trim().to_ascii_uppercase();
+        if code.is_empty() || !seen.insert(code.clone()) {
+            continue;
+        }
+        let result = session
+            .execute_unpaged(&exists_stmt, (code.as_str(),))
+            .await?
+            .into_rows_result()?;
+        if result.rows_num() > 0 {
+            continue;
+        }
+        let long_name = long_name_raw.trim().to_string();
+        session
+            .execute_unpaged(&insert_stmt, (code.as_str(), long_name.as_str()))
+            .await?;
+        inserted += 1;
+        println!("emiten_list seed: {code} (baru dari movers, long_name={long_name:?})");
+    }
+    Ok(inserted)
+}
+
 /// Key Stats API → Corp. Action + Profile → upsert `emiten_list`.
 /// Upsert bila baris belum ada, atau `update_at` kosong / usia ≥ 30 hari;
 /// skip bila `update_at` masih < 30 hari (dan `emiten_icon` sudah terisi).

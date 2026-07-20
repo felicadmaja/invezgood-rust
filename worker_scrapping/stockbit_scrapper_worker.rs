@@ -188,23 +188,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let today = Local::now().date_naive();
-    println!("Token-ring scan emiten_list.code_name...");
-    let mut emitens = bandarmology_worker::fetch_emiten_list_code_names(&session, &ks)
+    println!("Token-ring scan emiten_list.code_name (setelah seed movers)...");
+    let existing = bandarmology_worker::fetch_emiten_list_code_names(&session, &ks)
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-    let before = emitens.len();
-    for code in &mover_codes {
-        if !emitens.iter().any(|e| e == code) {
-            emitens.push(code.clone());
+    let mut seen = std::collections::HashSet::new();
+    let mut emitens = Vec::with_capacity(existing.len() + mover_codes.len());
+    for c in &mover_codes {
+        let code = c.trim().to_ascii_uppercase();
+        if !code.is_empty() && seen.insert(code.clone()) {
+            emitens.push(code);
         }
     }
-    emitens.sort();
-    emitens.dedup();
+    let movers_front = emitens.len();
+    for c in &existing {
+        let code = c.trim().to_ascii_uppercase();
+        if !code.is_empty() && seen.insert(code.clone()) {
+            emitens.push(code);
+        }
+    }
     println!(
-        "Ditemukan {} emiten (emiten_list scan={} + movers baru={}).",
+        "Ditemukan {} emiten untuk key_stats/profile/corp/bandarmology (movers dulu={}, scan={}).",
         emitens.len(),
-        before,
-        emitens.len().saturating_sub(before)
+        movers_front,
+        existing.len()
     );
 
     // Upsert scrape-only: tidak mengisi sector, is_konglomerasi, is_blue_chip,
