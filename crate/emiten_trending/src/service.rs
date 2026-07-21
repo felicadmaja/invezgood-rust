@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -20,28 +21,28 @@ use crate::{
     GetLatestEmitenTrendingFromStockbitRequest,
 };
 
-/// Cooldown antar invoke `GetLatestEmitenTrendingFromStockbit` (on-demand scrape movers).
-const MOVERS_SCRAPE_COOLDOWN: Duration = Duration::from_secs(60);
+/// Cooldown antar invoke `GetLatestEmitenTrendingFromStockbit` per user.
+const MOVERS_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
-static LAST_MOVERS_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+static LAST_MOVERS_SCRAPE_BY_USER: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
 
-fn movers_scrape_gate() -> &'static Mutex<Option<Instant>> {
-    LAST_MOVERS_SCRAPE.get_or_init(|| Mutex::new(None))
+fn movers_scrape_gate() -> &'static Mutex<HashMap<String, Instant>> {
+    LAST_MOVERS_SCRAPE_BY_USER.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Izinkan invoke scrape movers; tolak dengan failed precondition jika < 1 menit sejak invoke terakhir.
-async fn acquire_movers_scrape_slot() -> Result<(), Status> {
-    let mut last = movers_scrape_gate().lock().await;
-    if let Some(at) = *last {
+/// Izinkan scrape movers untuk `username`; tolak jika < 5 menit sejak invoke terakhir user itu.
+async fn acquire_movers_scrape_slot(username: &str) -> Result<(), Status> {
+    let mut last_by_user = movers_scrape_gate().lock().await;
+    if let Some(at) = last_by_user.get(username).copied() {
         let elapsed = at.elapsed();
         if elapsed < MOVERS_SCRAPE_COOLDOWN {
             let remaining_secs = (MOVERS_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
             return Err(Status::failed_precondition(format!(
-                "Tunggu {remaining_secs} detik lagi"
+                "Rate limit: maksimal 1× / 5 menit per user. Tunggu {remaining_secs} detik lagi"
             )));
         }
     }
-    *last = Some(Instant::now());
+    last_by_user.insert(username.to_string(), Instant::now());
     Ok(())
 }
 
@@ -116,7 +117,7 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         let username = claims.name.clone();
         let _ = request.into_inner();
 
-        acquire_movers_scrape_slot().await?;
+        acquire_movers_scrape_slot(&username).await?;
 
         println!("GetLatestEmitenTrendingFromStockbit {username}: on-demand scrape movers...");
         let started = Instant::now();

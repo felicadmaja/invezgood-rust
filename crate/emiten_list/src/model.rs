@@ -16,7 +16,7 @@
 //! | is_fundamental_solid   | boolean  | bool (default false) |
 //! | is_blue_chip           | boolean  | bool (default false) |
 //! | is_plan_to_trade       | boolean  | bool (default false) |
-//! | catatan                | list\<frozen\<map\<text, text\>\>\> | Vec\<HashMap\<String, String\>\> |
+//! | catatan                | map\<text, text\> | HashMap\<String, String\> |
 //! | catatan_owner          | text     | String |
 //! | foto_owner             | list\<text\> | Vec\<String\> |
 //! | net_income             | map\<text, frozen\<map\<text, text\>\>\> | HashMap\<String, HashMap\<String, String\>\> |
@@ -177,9 +177,9 @@ pub struct EmitenList {
     pub is_blue_chip: bool,
     #[scylla(default_when_null)]
     pub is_plan_to_trade: bool,
-    /// Daftar catatan: tiap elemen map key-value.
+    /// Catatan manual: map key-value.
     #[scylla(default_when_null)]
-    pub catatan: Vec<HashMap<String, String>>,
+    pub catatan: HashMap<String, String>,
     /// Pemilik/penulis catatan.
     #[scylla(default_when_null)]
     pub catatan_owner: String,
@@ -209,11 +209,7 @@ impl EmitenList {
             is_fundamental_solid: self.is_fundamental_solid,
             is_blue_chip: self.is_blue_chip,
             is_plan_to_trade: self.is_plan_to_trade,
-            catatan: self
-                .catatan
-                .into_iter()
-                .map(|entries| CorporateActionKv { entries })
-                .collect(),
+            catatan: self.catatan,
             catatan_owner: self.catatan_owner,
             foto_owner: self.foto_owner,
             net_income: self

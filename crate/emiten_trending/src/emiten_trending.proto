@@ -7,7 +7,8 @@ service EmitenTrending {
   rpc GetAllEmitenTrending(GetAllEmitenTrendingRequest) returns (GetAllEmitenTrendingResponse);
 
   // On-demand scrape Stockbit lalu stream snapshot `emiten_trending` hari ini.
-  // Hanya jalan saat RPC dipanggil. Maksimal 1× per 1 menit (failed precondition jika terlalu cepat).
+  // Hanya jalan saat RPC dipanggil. Rate limit: maksimal 1× per 5 menit per user
+  // (failed precondition jika terlalu cepat).
   //
   // Urutan tulis ke Scylla (satu sesi browser/login, berurutan):
   // (1) `emiten_trending` — API market-mover TOP_GAINER, lalu TOP_LOSER (per baris emiten

@@ -314,11 +314,11 @@ impl EmitenListRepository {
         Ok(true)
     }
 
-    /// Update `catatan` (list map). Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Update `catatan` (map). Mengembalikan `Ok(false)` bila `code_name` tidak ada.
     pub async fn update_catatan(
         &self,
         code_name: &str,
-        catatan: &[HashMap<String, String>],
+        catatan: &HashMap<String, String>,
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         if self.get_by_code_name(code_name).await?.is_none() {
             return Ok(false);
