@@ -8,14 +8,14 @@ service Bandarmology {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyFromScylla(GetBandarmologyFromScyllaRequest) returns (GetBandarmologyFromScyllaResponse);
 
-  // Scrape bandarmology 3 tahun kebelakang (max 36 bulan) untuk satu emiten via API Stockbit.
+  // Scrape bandarmology 1 tahun kebelakang (max 12 bulan) untuk satu emiten via API Stockbit.
   // Aturan sama `bandarmology_worker`:
   // - bulan berjalan overwrite `broker_summary` (awal bulan → hari ini) hanya bila
   //   `updated_at` kosong / bukan hari ini; jika `updated_at` masih hari ini → skip
   //   scrape+upsert bulan berjalan (termasuk w1–w4);
   // - minggu berjalan: isi `broker_summary_current_w1`…`w4` hanya untuk minggu yang sudah
   //   dimulai (w1=1–7, w2=8–14, w3=15–21, w4=22–akhir bulan; `to` dibatasi hari ini);
-  // - historis skip bila sudah ada; henti bila 2 bulan berturut-turut sudah ada atau 2 bulan kosong dari API;
+  // - historis skip bila sudah ada; henti bila 1 bulan sudah ada atau 2 bulan kosong dari API;
   //   upsert juga di-skip bila `updated_at` masih hari ini.
   // Response.row = baris bulan berjalan setelah scrape (termasuk w1–w4 bila ada).
   // kode_emiten: tepat 4 huruf; dinormalisasi ke UPPERCASE.

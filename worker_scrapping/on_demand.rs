@@ -396,7 +396,7 @@ fn merge_codes_movers_first(existing: &[String], mover_codes: &[String]) -> Vec<
     out
 }
 
-/// Scrape bandarmology untuk satu emiten: bulan berjalan + historis max 36 bulan (3 tahun)
+/// Scrape bandarmology untuk satu emiten: bulan berjalan + historis max 12 bulan (1 tahun)
 /// (aturan `bandarmology_worker::scrape_bandarmology_for_code_if_missing`).
 /// Single-flight per kode; survive cancel RPC.
 /// Returns jumlah baris bulan yang di-upsert.
@@ -469,7 +469,7 @@ async fn run_bandarmology_all_the_time(
     let ks = keyspace();
     let today = Local::now().date_naive();
 
-    println!("On-demand bandarmology all-time: mulai untuk {code} (max 36 bulan)...");
+    println!("On-demand bandarmology all-time: mulai untuk {code} (max 12 bulan)...");
 
     let (mut browser, page) = launch_page()
         .await

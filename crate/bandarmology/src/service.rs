@@ -124,7 +124,7 @@ impl BandarmologyRpc for BandarmologyService {
         };
 
         println!(
-            "GetBandarmologyFromStockbit {username}: {kode} — scrape max 36 bulan + minggu w1–w4..."
+            "GetBandarmologyFromStockbit {username}: {kode} — scrape max 12 bulan + minggu w1–w4..."
         );
 
         match on_demand::scrape_bandarmology_all_the_time_for_code(

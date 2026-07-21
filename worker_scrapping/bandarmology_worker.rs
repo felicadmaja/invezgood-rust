@@ -9,8 +9,8 @@
 //!   w1 = tgl 1–7, w2 = 8–14, w3 = 15–21, w4 = 22–akhir bulan →
 //!   `broker_summary_current_w1`…`w4`. Minggu lalu di-skip bila kolom Scylla sudah berisi data
 //!   (W2+ skip w1; W3+ skip w1–w2; W4+ skip w1–w3).
-//! - Bulan sebelumnya (max 36 / 3 tahun): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
-//!   hentikan backfill bila 2 bulan berturut-turut sudah ada, atau 2 bulan berturut-turut kosong dari API.
+//! - Bulan sebelumnya (max 12 / 1 tahun): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
+//!   hentikan backfill bila 1 bulan sudah ada, atau 2 bulan berturut-turut kosong dari API.
 //!   Upsert historis juga di-skip bila `updated_at` masih hari ini.
 //! - Semua emiten diproses **sequential** (satu worker utama), jeda 100 ms antar emiten, 50 ms antar bulan per emiten.
 //! - Bila request API timeout/network error: retry di **background task** tanpa menahan worker utama.
@@ -29,9 +29,9 @@ use tokio::time::sleep;
 
 const API_BASE: &str = "https://exodus.stockbit.com/marketdetectors";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const MAX_HISTORICAL_MONTHS: u32 = 36;
+const MAX_HISTORICAL_MONTHS: u32 = 12;
 const CONSECUTIVE_EMPTY_MONTHS_STOP: usize = 2;
-const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 2;
+const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 1;
 const EMITEN_INTER_DELAY_MS: u64 = 100;
 const MONTH_INTER_DELAY_MS: u64 = 50;
 
@@ -1189,7 +1189,7 @@ async fn scrape_emiten_bandarmology(
             );
             if skip_existing_streak >= CONSECUTIVE_SKIP_EXISTING_STOP {
                 println!(
-                    "  [{code}] hentikan historis: {CONSECUTIVE_SKIP_EXISTING_STOP} bulan berturut-turut sudah ada — lanjut emiten berikutnya"
+                    "  [{code}] hentikan historis: {CONSECUTIVE_SKIP_EXISTING_STOP} bulan sudah ada — lanjut emiten berikutnya"
                 );
                 break;
             }
