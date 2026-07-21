@@ -12,12 +12,10 @@ service Bandarmology {
   // Aturan sama `bandarmology_worker`:
   // - bulan berjalan overwrite `broker_summary` (awal bulan → hari ini) hanya bila
   //   `updated_at` kosong / bukan hari ini; jika `updated_at` masih hari ini → skip fetch summary;
-  // - kolom minggu: **satu** scrape per invoke menurut tanggal hari ini —
-  //   tgl 2–8 → API 1–7 → `broker_summary_current_w1`;
-  //   tgl 9–15 → 8–14 → w2; tgl 16–22 → 15–21 → w3;
-  //   tgl 23–akhir bulan → 22–akhir → w4; tgl 1 → w4 bulan sebelumnya (22–akhir);
-  // - historis di-skip seluruhnya bila baris bulan berjalan `updated_at` masih hari ini; bila tidak,
-  //   skip per bulan bila sudah ada; henti bila 1 bulan sudah ada atau 2 bulan kosong dari API;
+  // - kolom minggu: scrape minggu aktif (slot tanggal) + backfill w1..wN bila kolom masih kosong;
+  //   tgl 2–8 → w1; tgl 9–15 → w2; tgl 16–22 → w3; tgl 23–akhir & tgl 1 → w4;
+  // - historis di-skip seluruhnya bila baris **bulan lalu** sudah ada di Scylla; bila tidak,
+  //   skip per bulan bila sudah ada; henti bila 1 bulan sudah ada atau 1 bulan kosong dari API;
   // Response.row = baris bulan berjalan setelah scrape (termasuk w1–w4 bila ada).
   // kode_emiten: tepat 4 huruf; dinormalisasi ke UPPERCASE.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.

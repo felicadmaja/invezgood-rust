@@ -4,12 +4,11 @@
 //! Per emiten:
 //! - Bulan berjalan: `from` = awal bulan, `to` = hari ini → upsert `broker_summary`
 //!   **hanya bila `updated_at` kosong / bukan hari ini**; jika masih hari ini → skip fetch summary.
-//!   Minggu (`broker_summary_current_w1`…`w4`): **satu** kolom per invoke menurut tanggal hari ini:
-//!   tgl 2–8 → API 1–7 → w1; tgl 9–15 → 8–14 → w2; tgl 16–22 → 15–21 → w3;
-//!   tgl 23–akhir bulan → 22–akhir bulan → w4; tgl 1 → w4 bulan **sebelumnya** (22–akhir).
-//! - Bulan sebelumnya (max 12 / 1 tahun): skip **seluruh** backfill historis bila baris bulan berjalan
-//!   (`updated_at` tanggal lokal = hari ini); bila tidak, skip per bulan bila sudah ada, henti bila
-//!   1 bulan sudah ada atau 2 bulan berturut-turut kosong dari API.
+//!   Minggu (`broker_summary_current_w1`…`w4`): per invoke, isi minggu aktif (slot tanggal)
+//!   **dan** backfill w1..wN bila kolom di Scylla masih kosong (mis. minggu ke-4 → cek w1–w3).
+//! - Bulan sebelumnya (max 12 / 1 tahun): skip **seluruh** backfill historis bila baris **bulan lalu**
+//!   sudah ada di Scylla; bila tidak, skip per bulan bila sudah ada, henti bila
+//!   1 bulan sudah ada atau **1** bulan kosong/gagal dari API.
 //! - Semua emiten diproses **sequential** (satu worker utama), tanpa jeda antar emiten;
 //!   50 ms antar bulan per emiten.
 //! - Bila request API timeout/network error: retry di **background task** tanpa menahan worker utama.
@@ -29,7 +28,7 @@ use tokio::time::sleep;
 const API_BASE: &str = "https://exodus.stockbit.com/marketdetectors";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const MAX_HISTORICAL_MONTHS: u32 = 12;
-const CONSECUTIVE_EMPTY_MONTHS_STOP: usize = 2;
+const CONSECUTIVE_EMPTY_MONTHS_STOP: usize = 1;
 const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 1;
 const MONTH_INTER_DELAY_MS: u64 = 50;
 
@@ -262,6 +261,61 @@ fn set_week_summary(
         3 => *w3 = Some(day),
         4 => *w4 = Some(day),
         _ => {}
+    }
+}
+
+fn week_column_missing(day: &Option<BandarmologyDay>) -> bool {
+    match day {
+        None => true,
+        Some(d) => is_broker_summary_empty(d),
+    }
+}
+
+fn week_api_range(y: i32, m: u32, week: u8) -> Option<(NaiveDate, NaiveDate)> {
+    match week {
+        1 => {
+            let from = NaiveDate::from_ymd_opt(y, m, 1)?;
+            let to = NaiveDate::from_ymd_opt(y, m, 7)?;
+            Some((from, to))
+        }
+        2 => {
+            let from = NaiveDate::from_ymd_opt(y, m, 8)?;
+            let to = NaiveDate::from_ymd_opt(y, m, 14)?;
+            Some((from, to))
+        }
+        3 => {
+            let from = NaiveDate::from_ymd_opt(y, m, 15)?;
+            let to = NaiveDate::from_ymd_opt(y, m, 21)?;
+            Some((from, to))
+        }
+        4 => {
+            let from = NaiveDate::from_ymd_opt(y, m, 22)?;
+            let to = last_day_of_month(y, m);
+            Some((from, to))
+        }
+        _ => None,
+    }
+}
+
+fn parse_tahun_bulan_y_m(tahun_bulan: &str) -> Option<(i32, u32)> {
+    let mut parts = tahun_bulan.split('-');
+    let y: i32 = parts.next()?.parse().ok()?;
+    let m: u32 = parts.next()?.parse().ok()?;
+    Some((y, m))
+}
+
+fn week_column_ref<'a>(
+    week: u8,
+    w1: &'a Option<BandarmologyDay>,
+    w2: &'a Option<BandarmologyDay>,
+    w3: &'a Option<BandarmologyDay>,
+    w4: &'a Option<BandarmologyDay>,
+) -> &'a Option<BandarmologyDay> {
+    match week {
+        1 => w1,
+        2 => w2,
+        3 => w3,
+        _ => w4,
     }
 }
 
@@ -962,8 +1016,11 @@ async fn insert_bandarmology_current_month(
     w2: Option<&BandarmologyDay>,
     w3: Option<&BandarmologyDay>,
     w4: Option<&BandarmologyDay>,
+    force_upsert: bool,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    if should_skip_upsert_updated_today(session, keyspace, tahun_bulan, emiten).await? {
+    if !force_upsert
+        && should_skip_upsert_updated_today(session, keyspace, tahun_bulan, emiten).await?
+    {
         println!(
             "  [{emiten}] skip upsert bulan berjalan {tahun_bulan}: updated_at masih hari ini"
         );
@@ -1014,7 +1071,8 @@ fn is_background_timeout_err(err: &str) -> bool {
     err.contains("retry di background worker")
 }
 
-/// Scrape satu kolom minggu (`w1`–`w4`) sesuai `invoke_week_scrape_slot`, merge baris Scylla, upsert.
+/// Scrape kolom minggu `w1`–`w4` untuk slot invoke: isi minggu aktif + backfill minggu
+/// sebelumnya (w1..wN) bila masih kosong di Scylla.
 async fn scrape_invoke_week_column(
     client: &reqwest::Client,
     bearer: &str,
@@ -1025,16 +1083,13 @@ async fn scrape_invoke_week_column(
     cur_tb: &str,
     month_day: Option<&BandarmologyDay>,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    let Some((week, from, to, week_tb)) = invoke_week_scrape_slot(today) else {
+    let Some((active_week, _, _, week_tb)) = invoke_week_scrape_slot(today) else {
         return Ok(false);
     };
     let week_agg = agg_tahun_bulan_emiten_name(&week_tb, code);
-    if bandarmology_updated_at_is_today(session, keyspace, &week_agg, today).await? {
-        println!(
-            "  [{code}] skip kolom minggu {week_tb} w{week}: updated_at masih hari ini (agg={week_agg})"
-        );
+    let Some((y, m)) = parse_tahun_bulan_y_m(&week_tb) else {
         return Ok(false);
-    }
+    };
 
     let row = load_bandarmology_current_month_row(session, keyspace, &week_agg).await?;
     let mut w1 = row.broker_summary_current_w1;
@@ -1050,32 +1105,59 @@ async fn scrape_invoke_week_column(
         row.broker_summary.unwrap_or_else(empty_day)
     };
 
-    sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
-    println!(
-        "  [{code}] kolom minggu {week_tb} w{week}: API {from}..{to} → broker_summary_current_w{week}"
-    );
-    match fetch_marketdetector_day(client, bearer, code, from, to, None).await {
-        Ok((day, rate)) => {
-            throttle_if_needed(&rate).await;
-            if is_broker_summary_empty(&day) {
-                println!("  [{code}] {week_tb} w{week} kosong — skip kolom");
-                return Ok(false);
-            }
+    let weeks_to_fetch: Vec<u8> = (1..=active_week)
+        .filter(|w| {
+            week_column_missing(week_column_ref(
+                *w, &w1, &w2, &w3, &w4,
+            ))
+        })
+        .collect();
+
+    if weeks_to_fetch.is_empty() {
+        if bandarmology_updated_at_is_today(session, keyspace, &week_agg, today).await? {
             println!(
-                "  [{code}] {week_tb} w{week} net_volume={} brokers_buy={}",
-                day.net_volume,
-                day.broker_buy.len()
+                "  [{code}] skip kolom minggu {week_tb} w1–w{active_week}: sudah terisi, updated_at masih hari ini (agg={week_agg})"
             );
-            set_week_summary(week, day, &mut w1, &mut w2, &mut w3, &mut w4);
         }
-        Err(e) => {
-            let msg = e.to_string();
-            if is_auth_abort(&msg) {
-                return Err(e);
+        return Ok(false);
+    }
+
+    let mut fetched_any = false;
+    for week in weeks_to_fetch {
+        let Some((from, to)) = week_api_range(y, m, week) else {
+            continue;
+        };
+        sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
+        println!(
+            "  [{code}] kolom minggu {week_tb} w{week}: API {from}..{to} → broker_summary_current_w{week} (backfill/kosong)"
+        );
+        match fetch_marketdetector_day(client, bearer, code, from, to, None).await {
+            Ok((day, rate)) => {
+                throttle_if_needed(&rate).await;
+                if is_broker_summary_empty(&day) {
+                    println!("  [{code}] {week_tb} w{week} kosong — skip kolom");
+                    continue;
+                }
+                println!(
+                    "  [{code}] {week_tb} w{week} net_volume={} brokers_buy={}",
+                    day.net_volume,
+                    day.broker_buy.len()
+                );
+                set_week_summary(week, day, &mut w1, &mut w2, &mut w3, &mut w4);
+                fetched_any = true;
             }
-            eprintln!("  [{code}] gagal fetch kolom minggu {week_tb} w{week}: {msg}");
-            return Ok(false);
+            Err(e) => {
+                let msg = e.to_string();
+                if is_auth_abort(&msg) {
+                    return Err(e);
+                }
+                eprintln!("  [{code}] gagal fetch kolom minggu {week_tb} w{week}: {msg}");
+            }
         }
+    }
+
+    if !fetched_any {
+        return Ok(false);
     }
 
     insert_bandarmology_current_month(
@@ -1088,6 +1170,7 @@ async fn scrape_invoke_week_column(
         w2.as_ref(),
         w3.as_ref(),
         w4.as_ref(),
+        true,
     )
     .await
 }
@@ -1182,6 +1265,7 @@ async fn scrape_emiten_bandarmology(
                 row.broker_summary_current_w2.as_ref(),
                 row.broker_summary_current_w3.as_ref(),
                 row.broker_summary_current_w4.as_ref(),
+                false,
             )
             .await?
             {
@@ -1193,11 +1277,19 @@ async fn scrape_emiten_bandarmology(
 
     sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
 
-    if bandarmology_updated_at_is_today(session.as_ref(), keyspace, &cur_agg, today).await? {
-        println!(
-            "  [{code}] skip semua historis: bulan berjalan {cur_tb} updated_at masih hari ini (agg={cur_agg})"
-        );
-    } else {
+    let mut skip_all_historical = false;
+    if let Some(prev) = today.checked_sub_months(Months::new(1)) {
+        let prev_tb = tahun_bulan_str(prev.year(), prev.month());
+        let prev_agg = agg_tahun_bulan_emiten_name(&prev_tb, &code);
+        if bandarmology_exists_by_agg(session.as_ref(), keyspace, &prev_agg).await? {
+            println!(
+                "  [{code}] skip historis: bulan lalu {prev_tb} sudah ada (agg={prev_agg}) — lanjut emiten berikutnya"
+            );
+            skip_all_historical = true;
+        }
+    }
+
+    if !skip_all_historical {
     let mut empty_streak = 0usize;
     let mut skip_existing_streak = 0usize;
     for offset in 1..=MAX_HISTORICAL_MONTHS {
