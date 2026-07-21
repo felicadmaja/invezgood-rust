@@ -5,7 +5,8 @@ package emiten_list;
 service EmitenList {
   // Tanpa parameter request; token-ring scan seluruh baris tabel Scylla `emiten_list`.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetAllEmitenList(GetAllEmitenListRequest) returns (GetAllEmitenListResponse);
+  rpc GetAllEmitenListFromScylla(GetAllEmitenListFromScyllaRequest)
+      returns (GetAllEmitenListFromScyllaResponse);
 
   // Lookup satu baris via PK base table: emiten_list.code_name = code_name.
   // code_name: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
@@ -108,7 +109,7 @@ enum EmitenSector {
   JASA_PERINDUSTRIAN = 46;
 }
 
-message GetAllEmitenListRequest {}
+message GetAllEmitenListFromScyllaRequest {}
 
 message GetEmitenListByCodeNameFromScyllaRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
@@ -304,6 +305,6 @@ message NetIncomeYear {
   map<string, string> periods = 1;
 }
 
-message GetAllEmitenListResponse {
+message GetAllEmitenListFromScyllaResponse {
   repeated EmitenListRow rows = 1;
 }

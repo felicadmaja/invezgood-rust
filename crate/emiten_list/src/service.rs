@@ -10,7 +10,7 @@ use crate::emiten_list_server::EmitenList as EmitenListRpc;
 use crate::model::EmitenList;
 use crate::repository::EmitenListRepository;
 use crate::{
-    EmitenListRow, GetAllEmitenListRequest, GetAllEmitenListResponse,
+    EmitenListRow, GetAllEmitenListFromScyllaRequest, GetAllEmitenListFromScyllaResponse,
     GetEmitenListByCodeNameFromScyllaRequest, GetEmitenListByCodeNameFromScyllaResponse,
     GetEmitenListByCodeNameFromStockbitRequest, GetEmitenListByCodeNameFromStockbitResponse,
     UpdateEmitenListBlueChipRequest, UpdateEmitenListBlueChipResponse,
@@ -55,10 +55,10 @@ impl EmitenListService {
 
 #[tonic::async_trait]
 impl EmitenListRpc for EmitenListService {
-    async fn get_all_emiten_list(
+    async fn get_all_emiten_list_from_scylla(
         &self,
-        request: Request<GetAllEmitenListRequest>,
-    ) -> Result<Response<GetAllEmitenListResponse>, Status> {
+        request: Request<GetAllEmitenListFromScyllaRequest>,
+    ) -> Result<Response<GetAllEmitenListFromScyllaResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
@@ -75,13 +75,13 @@ impl EmitenListRpc for EmitenListService {
             .collect();
 
         println!(
-            "GetAllEmitenList {} rows={} {}ms",
+            "GetAllEmitenListFromScylla {} rows={} {}ms",
             username,
             proto_rows.len(),
             started.elapsed().as_millis()
         );
 
-        Ok(Response::new(GetAllEmitenListResponse {
+        Ok(Response::new(GetAllEmitenListFromScyllaResponse {
             rows: proto_rows,
         }))
     }
