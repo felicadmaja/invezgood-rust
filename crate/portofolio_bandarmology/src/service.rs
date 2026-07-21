@@ -12,6 +12,8 @@ use crate::model::PortofolioBandarmology;
 use crate::portofolio_bandarmology_server::PortofolioBandarmology as PortofolioBandarmologyRpc;
 use crate::repository::PortofolioBandarmologyRepository;
 use crate::{
+    DeletePortofolioBandarmologyRequest, DeletePortofolioBandarmologyResponse,
+    GetPortofolioBandarmologyRequest, GetPortofolioBandarmologyResponse,
     InsertPortofolioBandarmologyRequest, InsertPortofolioBandarmologyResponse,
 };
 
@@ -123,6 +125,97 @@ impl PortofolioBandarmologyRpc for PortofolioBandarmologyService {
                     success: false,
                     message: format!("insert portofolio_bandarmology gagal: {e}"),
                     row: None,
+                }))
+            }
+        }
+    }
+
+    async fn get_portofolio_bandarmology(
+        &self,
+        request: Request<GetPortofolioBandarmologyRequest>,
+    ) -> Result<Response<GetPortofolioBandarmologyResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let kode = parse_emiten_name(&req.emiten_name).map_err(Status::invalid_argument)?;
+
+        let rows = self
+            .repo
+            .find_by_emiten(&kode)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        if rows.is_empty() {
+            println!(
+                "GetPortofolioBandarmology {} {kode} NOT_FOUND {}ms",
+                username,
+                started.elapsed().as_millis()
+            );
+            return Err(Status::not_found(format!(
+                "portofolio_bandarmology emiten_name={kode} tidak ditemukan"
+            )));
+        }
+
+        let proto_rows: Vec<_> = rows
+            .into_iter()
+            .map(PortofolioBandarmology::into_proto)
+            .collect();
+
+        println!(
+            "GetPortofolioBandarmology {} {kode} rows={} {}ms",
+            username,
+            proto_rows.len(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetPortofolioBandarmologyResponse {
+            rows: proto_rows,
+        }))
+    }
+
+    async fn delete_portofolio_bandarmology(
+        &self,
+        request: Request<DeletePortofolioBandarmologyRequest>,
+    ) -> Result<Response<DeletePortofolioBandarmologyResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let _ = request.into_inner();
+
+        println!(
+            "DeletePortofolioBandarmology {username}: scan + hapus orphan (tidak ada di portofolio)..."
+        );
+
+        match portofolio_bandarmology_worker::delete_unused_portofolio_bandarmology(
+            &self.session,
+            &keyspace(),
+        )
+        .await
+        {
+            Ok(n) => {
+                println!(
+                    "DeletePortofolioBandarmology {} success=true deleted_emitens={} {}ms",
+                    username,
+                    n,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(DeletePortofolioBandarmologyResponse {
+                    success: true,
+                    message: "success".into(),
+                }))
+            }
+            Err(e) => {
+                eprintln!("DeletePortofolioBandarmology {username}: gagal: {e}");
+                println!(
+                    "DeletePortofolioBandarmology {} success=false {}ms",
+                    username,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(DeletePortofolioBandarmologyResponse {
+                    success: false,
+                    message: format!("delete portofolio_bandarmology gagal: {e}"),
                 }))
             }
         }

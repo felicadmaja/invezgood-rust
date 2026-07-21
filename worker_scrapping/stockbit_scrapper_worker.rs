@@ -35,7 +35,8 @@
 //! header equity → upsert `portofolio_equity` → Bearer trading pasca-PIN →
 //! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list + bandarmology
 //! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name)
-//! → per emiten salin minggu berjalan ke `portofolio_bandarmology`.
+//! → per emiten salin minggu berjalan ke `portofolio_bandarmology`
+//! → hapus orphan `portofolio_bandarmology` yang sudah tidak ada di `portofolio`.
 //! Lalu (PIN/trading session bila perlu) → `GET carina.stockbit.com/order/v2/list`
 //! → insert `pending_order`.
 //!

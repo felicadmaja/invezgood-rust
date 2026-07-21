@@ -11,7 +11,8 @@
 //! (scrape bila belum ada). Icon: reuse `emiten_list.emiten_icon` bila sudah ada;
 //! download GCS hanya bila belum ada.
 //! Setelah upsert `portofolio`: salin minggu berjalan bandarmology →
-//! `portofolio_bandarmology` (per `emiten_name`, sama RPC `InsertPortofolioBandarmology`).
+//! `portofolio_bandarmology` (per `emiten_name`, sama RPC `InsertPortofolioBandarmology`),
+//! lalu hapus orphan yang tidak ada di `portofolio` (sama RPC `DeletePortofolioBandarmology`).
 
 use chrono::{DateTime, Local, Utc};
 use chromiumoxide::page::Page;
@@ -881,6 +882,14 @@ pub async fn scrape_and_insert_portofolio(
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
         println!("OK: {pb_ok}/{} baris diupsert ke portofolio_bandarmology.", codes.len());
     }
+
+    println!("Portofolio: hapus orphan portofolio_bandarmology (tidak ada di portofolio)...");
+    let del_ok = portofolio_bandarmology_worker::delete_unused_portofolio_bandarmology(
+        session, keyspace,
+    )
+    .await
+    .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    println!("OK: {del_ok} partition orphan dihapus dari portofolio_bandarmology.");
 
     Ok(n)
 }

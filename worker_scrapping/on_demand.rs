@@ -700,6 +700,7 @@ async fn run_portofolio_history_scrape(
 
 /// On-demand scrape semua holdings portfolio → upsert `portofolio`
 /// lalu salin minggu berjalan → `portofolio_bandarmology`
+/// lalu hapus orphan yang tidak ada di `portofolio`
 /// (alur `portofolio_worker::scrape_and_insert_portofolio`).
 /// Single-flight global; survive cancel RPC.
 /// Returns jumlah baris `portofolio` yang di-upsert.

@@ -1596,6 +1596,7 @@ name = "portofolio_bandarmology"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "futures-util",
  "prost",
  "prost-build",
  "protoc-bin-vendored",
