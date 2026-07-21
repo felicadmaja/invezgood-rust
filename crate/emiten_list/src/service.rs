@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -544,7 +545,11 @@ impl EmitenListRpc for EmitenListService {
             }
         };
 
-        let catatan = req.catatan;
+        let catatan: Vec<HashMap<String, String>> = req
+            .catatan
+            .into_iter()
+            .map(|kv| kv.entries)
+            .collect();
         let updated = self
             .repo
             .update_catatan(&code_name, &catatan)

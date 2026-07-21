@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use futures_util::stream::{self, StreamExt, TryStreamExt};
@@ -313,11 +314,11 @@ impl EmitenListRepository {
         Ok(true)
     }
 
-    /// Update `catatan`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Update `catatan` (list map). Mengembalikan `Ok(false)` bila `code_name` tidak ada.
     pub async fn update_catatan(
         &self,
         code_name: &str,
-        catatan: &str,
+        catatan: &[HashMap<String, String>],
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         if self.get_by_code_name(code_name).await?.is_none() {
             return Ok(false);

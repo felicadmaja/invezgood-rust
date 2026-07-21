@@ -192,8 +192,8 @@ message UpdateEmitenListPlanToTradeResponse {
 message UpdateEmitenListCatatanRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
   string code_name = 1;
-  string catatan = 2;
-  
+  // Bentuk CQL list<frozen<map<text, text>>> — tiap elemen map key-value.
+  repeated CorporateActionKv catatan = 2;
 }
 
 message UpdateEmitenListCatatanResponse {
@@ -292,7 +292,8 @@ message EmitenListRow {
   map<string, NetIncomeYear> net_income = 12;
   // Default false — rencana untuk trade.
   bool is_plan_to_trade = 13;
-  string catatan = 14;
+  // Bentuk CQL list<frozen<map<text, text>>> — daftar catatan (tiap elemen map key-value).
+  repeated CorporateActionKv catatan = 14;
   string catatan_owner = 15;
   // Path/URL foto pemilik catatan; bentuk CQL list<text>.
   repeated string foto_owner = 16;
