@@ -7,9 +7,9 @@
 //!   Minggu (`broker_summary_current_w1`…`w4`): **satu** kolom per invoke menurut tanggal hari ini:
 //!   tgl 2–8 → API 1–7 → w1; tgl 9–15 → 8–14 → w2; tgl 16–22 → 15–21 → w3;
 //!   tgl 23–akhir bulan → 22–akhir bulan → w4; tgl 1 → w4 bulan **sebelumnya** (22–akhir).
-//! - Bulan sebelumnya (max 12 / 1 tahun): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
-//!   hentikan backfill bila 1 bulan sudah ada, atau 2 bulan berturut-turut kosong dari API.
-//!   Upsert historis juga di-skip bila `updated_at` masih hari ini.
+//! - Bulan sebelumnya (max 12 / 1 tahun): skip **seluruh** backfill historis bila baris bulan berjalan
+//!   (`updated_at` tanggal lokal = hari ini); bila tidak, skip per bulan bila sudah ada, henti bila
+//!   1 bulan sudah ada atau 2 bulan berturut-turut kosong dari API.
 //! - Semua emiten diproses **sequential** (satu worker utama), tanpa jeda antar emiten;
 //!   50 ms antar bulan per emiten.
 //! - Bila request API timeout/network error: retry di **background task** tanpa menahan worker utama.
@@ -1193,6 +1193,11 @@ async fn scrape_emiten_bandarmology(
 
     sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
 
+    if bandarmology_updated_at_is_today(session.as_ref(), keyspace, &cur_agg, today).await? {
+        println!(
+            "  [{code}] skip semua historis: bulan berjalan {cur_tb} updated_at masih hari ini (agg={cur_agg})"
+        );
+    } else {
     let mut empty_streak = 0usize;
     let mut skip_existing_streak = 0usize;
     for offset in 1..=MAX_HISTORICAL_MONTHS {
@@ -1284,6 +1289,7 @@ async fn scrape_emiten_bandarmology(
             );
             inserted += 1;
         }
+    }
     }
 
     Ok(inserted)

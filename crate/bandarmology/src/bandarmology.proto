@@ -16,8 +16,8 @@ service Bandarmology {
   //   tgl 2–8 → API 1–7 → `broker_summary_current_w1`;
   //   tgl 9–15 → 8–14 → w2; tgl 16–22 → 15–21 → w3;
   //   tgl 23–akhir bulan → 22–akhir → w4; tgl 1 → w4 bulan sebelumnya (22–akhir);
-  // - historis skip bila sudah ada; henti bila 1 bulan sudah ada atau 2 bulan kosong dari API;
-  //   upsert juga di-skip bila `updated_at` masih hari ini.
+  // - historis di-skip seluruhnya bila baris bulan berjalan `updated_at` masih hari ini; bila tidak,
+  //   skip per bulan bila sudah ada; henti bila 1 bulan sudah ada atau 2 bulan kosong dari API;
   // Response.row = baris bulan berjalan setelah scrape (termasuk w1–w4 bila ada).
   // kode_emiten: tepat 4 huruf; dinormalisasi ke UPPERCASE.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
