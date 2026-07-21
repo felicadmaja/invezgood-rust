@@ -26,8 +26,10 @@ module.exports = {
             env: {
                 NODE_ENV: 'production',
             },
-            out_file: './logs/pm2-stockbit_ws-out.log',
-            error_file: './logs/pm2-stockbit_ws-err.log',
+            // Semua stdout/stderr app → satu file di root workspace.
+            // build.sh mengosongkan file ini setiap deploy ulang.
+            out_file: './stockbit_ws.log',
+            error_file: './stockbit_ws.log',
             merge_logs: true,
             time: true,
         },

@@ -13,8 +13,8 @@
 //! Env opsional: `STOCKBIT_2FA_TIMEOUT_SECS` (default 300 = 5 menit).
 //! Env opsional: `STOCKBIT_SESSION_CHECK_SECS` (default 5) — tunggu popup sesi habis di `/stream`.
 //! Env Scylla (insert `emiten_trending`, `emiten_list`, `bandarmology`, `portofolio`,
-//! `portofolio_equity`, `pending_order`): `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional
-//! `SCYLLA_USER` / `SCYLLA_PASSWORD`.
+//! `portofolio_bandarmology`, `portofolio_equity`, `pending_order`): `SCYLLA_URI`,
+//! `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
 //! Env Redis (cache `long_name`, TTL 1 tahun): `REDIS_URL`.
 //! Env Trading PIN: `STOCKBUT_PIN` (atau `STOCKBIT_PIN`).
 //!
@@ -34,7 +34,8 @@
 //! Lalu START TRADING (PIN bila perlu) → buka `/securities/portfolio` → DOM scrape
 //! header equity → upsert `portofolio_equity` → Bearer trading pasca-PIN →
 //! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list + bandarmology
-//! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name).
+//! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name)
+//! → per emiten salin minggu berjalan ke `portofolio_bandarmology`.
 //! Lalu (PIN/trading session bila perlu) → `GET carina.stockbit.com/order/v2/list`
 //! → insert `pending_order`.
 //!

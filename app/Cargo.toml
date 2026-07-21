@@ -17,6 +17,7 @@ emiten_trending_count = { path = "../crate/emiten_trending_count" }
 gcs = { path = "../crate/gcs" }
 pending_order = { path = "../crate/pending_order" }
 portofolio = { path = "../crate/portofolio" }
+portofolio_bandarmology = { path = "../crate/portofolio_bandarmology" }
 portofolio_equity = { path = "../crate/portofolio_equity" }
 tls = { path = "../crate/tls" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }

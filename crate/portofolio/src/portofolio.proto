@@ -11,7 +11,9 @@ service Portofolio {
   // Scrape semua holdings dari Stockbit lalu upsert `portofolio`.
   // Alur sama `portofolio_worker`: login → START TRADING/PIN bila perlu →
   // DOM `portofolio_equity` → GET carina.stockbit.com/portfolio/v2/list →
-  // pastikan emiten_list + bandarmology → TRUNCATE+insert `portofolio`.
+  // pastikan emiten_list + bandarmology → TRUNCATE+insert `portofolio` →
+  // per emiten_name salin minggu berjalan bandarmology → `portofolio_bandarmology`
+  // (sama aturan RPC `InsertPortofolioBandarmology`).
   // Rate limit: maksimal 1× per 5 menit untuk semua user
   // (failed precondition jika terlalu cepat).
   // Request kosong. Response: repeated PortofolioRow setelah scrape.

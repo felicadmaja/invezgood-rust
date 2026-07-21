@@ -2,6 +2,8 @@
 
 # Konfigurasi - GANTI SESUAI NAMA PROYEKMU
 NAMA_APP="stockbit_ws"
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOG_FILE="$ROOT_DIR/stockbit_ws.log"
 
 echo "🚀 Memulai proses deployment..."
 
@@ -38,21 +40,23 @@ fi
 
 mkdir -p logs
 
-# 2. Start atau restart PM2
+# Kosongkan log app sebelum restart (semua output PM2 → stockbit_ws.log).
+: > "$LOG_FILE"
+echo "🧹 Log dikosongkan: $LOG_FILE"
+
+# 2. Start atau restart PM2 (delete+start agar path log ecosystem ikut terpakai)
 echo "🔄 Merestart PM2 app $NAMA_APP..."
 if pm2 describe "$NAMA_APP" >/dev/null 2>&1; then
-    pm2 flush "$NAMA_APP" || true
-    pm2 restart "$NAMA_APP" --update-env
-else
-    echo "ℹ️  Proses $NAMA_APP belum ada — start dari ecosystem.config.js"
-    pm2 start ecosystem.config.js
-    pm2 save
+    pm2 delete "$NAMA_APP" || true
 fi
+pm2 start "$ROOT_DIR/ecosystem.config.js"
+pm2 save
 
 # 3. Cek Status
 echo "📊 Status PM2 saat ini:"
 pm2 status "$NAMA_APP"
 
 echo "✨ Selesai! Aplikasi kamu sudah versi terbaru."
+echo "📄 Log app: $LOG_FILE  (tail -f stockbit_ws.log)"
 
 pm2 logs "$NAMA_APP"

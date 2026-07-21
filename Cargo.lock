@@ -1592,6 +1592,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "portofolio_bandarmology"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "scylla",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
+ "worker_scrapping",
+]
+
+[[package]]
 name = "portofolio_equity"
 version = "0.1.0"
 dependencies = [
@@ -2458,6 +2474,7 @@ dependencies = [
  "gcs",
  "pending_order",
  "portofolio",
+ "portofolio_bandarmology",
  "portofolio_equity",
  "tls",
  "tokio",

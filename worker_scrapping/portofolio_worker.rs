@@ -10,6 +10,8 @@
 //! Sebelum upsert `portofolio`: pastikan `emiten_list` + `bandarmology` terisi
 //! (scrape bila belum ada). Icon: reuse `emiten_list.emiten_icon` bila sudah ada;
 //! download GCS hanya bila belum ada.
+//! Setelah upsert `portofolio`: salin minggu berjalan bandarmology →
+//! `portofolio_bandarmology` (per `emiten_name`, sama RPC `InsertPortofolioBandarmology`).
 
 use chrono::{DateTime, Local, Utc};
 use chromiumoxide::page::Page;
@@ -24,7 +26,10 @@ use std::time::{Duration, Instant};
 use stockbit_browser::goto_stockbit;
 use tokio::time::sleep;
 
-use crate::{bandarmology_worker, emiten_list_worker, portofolio_equity_worker};
+use crate::{
+    bandarmology_worker, emiten_list_worker, portofolio_bandarmology_worker,
+    portofolio_equity_worker,
+};
 
 const PORTFOLIO_API_URL: &str = "https://carina.stockbit.com/portfolio/v2/list";
 const ORDER_LIST_API_URL: &str = "https://carina.stockbit.com/order/v2/list";
@@ -798,7 +803,7 @@ async fn upsert_portofolio(
 
 /// START TRADING (opsional) → PIN (opsional) → DOM `portofolio_equity` →
 /// Bearer trading → portfolio API → pastikan `emiten_list` + `bandarmology` →
-/// upsert `portofolio`.
+/// upsert `portofolio` → salin minggu berjalan ke `portofolio_bandarmology`.
 pub async fn scrape_and_insert_portofolio(
     page: &Page,
     session: &Arc<Session>,
@@ -861,6 +866,22 @@ pub async fn scrape_and_insert_portofolio(
 
     let n = upsert_portofolio(session.as_ref(), keyspace, &rows).await?;
     println!("OK: {n} baris diinsert ke portofolio.");
+
+    if !codes.is_empty() {
+        println!(
+            "Portofolio: salin bandarmology minggu berjalan → portofolio_bandarmology ({} kode)...",
+            codes.len()
+        );
+        let pb_ok = portofolio_bandarmology_worker::insert_portofolio_bandarmology_for_emitens(
+            session.as_ref(),
+            keyspace,
+            &codes,
+        )
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+        println!("OK: {pb_ok}/{} baris diupsert ke portofolio_bandarmology.", codes.len());
+    }
+
     Ok(n)
 }
 
