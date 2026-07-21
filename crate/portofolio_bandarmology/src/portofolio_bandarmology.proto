@@ -8,10 +8,12 @@ service PortofolioBandarmology {
   // 1. Baca Scylla `bandarmology` WHERE agg_tahun_bulan_emiten_name =
   //    format("%Y-%m", now) + '_' + emiten_name (UPPERCASE).
   // 2. Pilih kolom minggu sesuai hari (tanggal kalender lokal) hari ini:
-  //    - tgl 1–8  (inclusive) → broker_summary_current_w1
-  //    - tgl 9–15 (inclusive) → broker_summary_current_w2
-  //    - tgl 16–22 (inclusive) → broker_summary_current_w3
-  //    - tgl 23–31 (inclusive) → broker_summary_current_w4
+  //    - tgl 2–8  (inclusive) → broker_summary_current_w1
+  //      (PK bandarmology = YYYY-MM bulan berjalan + '_' + emiten_name)
+  //    - tgl 9–15 (inclusive) → broker_summary_current_w2 (PK bulan berjalan)
+  //    - tgl 16–22 (inclusive) → broker_summary_current_w3 (PK bulan berjalan)
+  //    - tgl 23–akhir bulan & tgl 1 (inclusive) → broker_summary_current_w4
+  //      (tgl 1: PK bandarmology = YYYY-MM bulan sebelumnya + emiten, selaras scrape bandarmology)
   // 3. Upsert ke `portofolio_bandarmology`:
   //    emiten_name = request.emiten_name (UPPERCASE)
   //    tahun_bulan_tanggal = today (YYYY-MM-DD)

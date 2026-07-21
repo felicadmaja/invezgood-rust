@@ -11,10 +11,11 @@ service Bandarmology {
   // Scrape bandarmology 1 tahun kebelakang (max 12 bulan) untuk satu emiten via API Stockbit.
   // Aturan sama `bandarmology_worker`:
   // - bulan berjalan overwrite `broker_summary` (awal bulan → hari ini) hanya bila
-  //   `updated_at` kosong / bukan hari ini; jika `updated_at` masih hari ini → skip
-  //   scrape+upsert bulan berjalan (termasuk w1–w4);
-  // - minggu berjalan: isi `broker_summary_current_w1`…`w4` hanya untuk minggu yang sudah
-  //   dimulai (w1=1–7, w2=8–14, w3=15–21, w4=22–akhir bulan; `to` dibatasi hari ini);
+  //   `updated_at` kosong / bukan hari ini; jika `updated_at` masih hari ini → skip fetch summary;
+  // - kolom minggu: **satu** scrape per invoke menurut tanggal hari ini —
+  //   tgl 2–8 → API 1–7 → `broker_summary_current_w1`;
+  //   tgl 9–15 → 8–14 → w2; tgl 16–22 → 15–21 → w3;
+  //   tgl 23–akhir bulan → 22–akhir → w4; tgl 1 → w4 bulan sebelumnya (22–akhir);
   // - historis skip bila sudah ada; henti bila 1 bulan sudah ada atau 2 bulan kosong dari API;
   //   upsert juga di-skip bila `updated_at` masih hari ini.
   // Response.row = baris bulan berjalan setelah scrape (termasuk w1–w4 bila ada).
@@ -51,8 +52,8 @@ message BandarmologyRow {
   string emiten_name = 2;
   string tahun_bulan = 3;
   BandarmologyDay broker_summary = 4;
-  // Minggu berjalan (bulan saat ini): w1=1–7, w2=8–14, w3=15–21, w4=22–akhir bulan.
-  // Kosong jika minggu belum dimulai / belum di-scrape.
+  // Minggu berjalan (bulan saat ini / tgl 1 = w4 bulan lalu):
+  // w1=1–7, w2=8–14, w3=15–21, w4=22–akhir bulan — diisi sesuai slot tanggal invoke (lihat RPC).
   BandarmologyDay broker_summary_current_w1 = 5;
   BandarmologyDay broker_summary_current_w2 = 6;
   BandarmologyDay broker_summary_current_w3 = 7;

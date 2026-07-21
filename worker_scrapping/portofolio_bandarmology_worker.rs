@@ -1,9 +1,10 @@
 //! Salin snapshot bandarmology minggu berjalan → `portofolio_bandarmology`.
 //!
 //! Alur sama RPC `InsertPortofolioBandarmology`:
-//! - Baca `bandarmology` PK `YYYY-MM_EMITEN` (bulan hari ini)
-//! - Pilih `broker_summary_current_w1`…`w4` menurut tanggal hari ini:
-//!   1–8 → w1, 9–15 → w2, 16–22 → w3, 23–31 → w4
+//! - Baca `bandarmology` PK sesuai slot minggu (bulan berjalan, kecuali tgl 1 → bulan lalu)
+//! - Pilih `broker_summary_current_w1`…`w4` menurut tanggal hari ini (lokal):
+//!   2–8 → w1, 9–15 → w2, 16–22 → w3, 23–akhir bulan & tgl 1 → w4
+//!   (PK bandarmology: bulan berjalan, kecuali tgl 1 → agg bulan sebelumnya — sama worker bandarmology)
 //! - Upsert `portofolio_bandarmology` (emiten_name, today, day)
 //!
 //! Orphan cleanup sama RPC `DeletePortofolioBandarmology`:
@@ -13,12 +14,12 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::{Local, NaiveDate};
 use futures_util::stream::{self, StreamExt, TryStreamExt};
 use scylla::client::session::Session;
 use scylla::DeserializeRow;
 
-use crate::bandarmology_worker::{bandarmology_agg_key, BandarmologyDay};
+use crate::bandarmology_worker::{portofolio_bandarmology_source, BandarmologyDay};
 
 const TOKEN_SEGMENTS: usize = 16;
 const SCAN_CONCURRENCY: usize = 8;
@@ -45,24 +46,14 @@ struct PortofolioExistsRow {
     emiten_name: String,
 }
 
-/// Minggu aktif menurut tanggal kalender (aturan `InsertPortofolioBandarmology`).
-pub fn current_week_slot(day_of_month: u32) -> u8 {
-    match day_of_month {
-        1..=8 => 1,
-        9..=15 => 2,
-        16..=22 => 3,
-        _ => 4, // 23–31
-    }
-}
-
 fn pick_week_day(
-    day_of_month: u32,
+    week: u8,
     w1: Option<BandarmologyDay>,
     w2: Option<BandarmologyDay>,
     w3: Option<BandarmologyDay>,
     w4: Option<BandarmologyDay>,
 ) -> Option<BandarmologyDay> {
-    match current_week_slot(day_of_month) {
+    match week {
         1 => w1,
         2 => w2,
         3 => w3,
@@ -138,13 +129,14 @@ pub async fn insert_portofolio_bandarmology_for_emiten(
     }
 
     let today: NaiveDate = Local::now().date_naive();
-    let agg = bandarmology_agg_key(today, &emiten);
+    let Some((week, agg)) = portofolio_bandarmology_source(today, &emiten) else {
+        return Ok(false);
+    };
     let (w1, w2, w3, w4) = load_current_month_weeks(session, keyspace, &agg).await?;
 
-    let Some(day) = pick_week_day(today.day(), w1, w2, w3, w4) else {
+    let Some(day) = pick_week_day(week, w1, w2, w3, w4) else {
         println!(
-            "portofolio_bandarmology [{emiten}]: skip — bandarmology `{agg}` / w{} kosong",
-            current_week_slot(today.day())
+            "portofolio_bandarmology [{emiten}]: skip — bandarmology `{agg}` / w{week} kosong"
         );
         return Ok(false);
     };
@@ -162,8 +154,7 @@ pub async fn insert_portofolio_bandarmology_for_emiten(
         .await?;
 
     println!(
-        "portofolio_bandarmology [{emiten}]: upsert {today} dari w{}",
-        current_week_slot(today.day())
+        "portofolio_bandarmology [{emiten}]: upsert {today} dari `{agg}` w{week}"
     );
     Ok(true)
 }
