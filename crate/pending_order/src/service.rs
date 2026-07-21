@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
-use user::require_auth;
+use user::{require_auth, require_stockbit_scrape_hours};
 use worker_scrapping::on_demand;
 
 use crate::model::PendingOrder;
@@ -102,6 +102,7 @@ impl PendingOrderRpc for PendingOrderService {
         let username = claims.name.clone();
         let _ = request.into_inner();
 
+        require_stockbit_scrape_hours()?;
         acquire_pending_order_scrape_slot().await?;
 
         println!(

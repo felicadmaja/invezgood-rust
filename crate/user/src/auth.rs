@@ -1,5 +1,6 @@
 //! Helpers JWT untuk crate lain (portofolio, dll).
 
+use chrono::{Local, Timelike};
 use tonic::{Request, Status};
 
 use crate::jwt::{decode_token, Claims};
@@ -67,4 +68,18 @@ pub fn require_auth<T>(request: &Request<T>) -> Result<Claims, Status> {
     }
     let token = bearer_token(request)?;
     decode_token(token).map_err(|e| Status::unauthenticated(format!("JWT tidak valid: {e}")))
+}
+
+/// Batasi RPC scrape Stockbit on-demand ke jam server lokal 07:00–17:00
+/// (inklusif 07:00, eksklusif 17:00). Di luar itu → `FAILED_PRECONDITION`.
+/// Tidak dipakai oleh bin `worker_scrapping` (cron/manual).
+pub fn require_stockbit_scrape_hours() -> Result<(), Status> {
+    let now = Local::now();
+    let mins = now.hour() * 60 + now.minute();
+    const START_MINS: u32 = 7 * 60; // 07:00
+    const END_MINS: u32 = 17 * 60; // 17:00
+    if mins < START_MINS || mins >= END_MINS {
+        return Err(Status::failed_precondition("Diluar jam 07:00 - 17:00"));
+    }
+    Ok(())
 }

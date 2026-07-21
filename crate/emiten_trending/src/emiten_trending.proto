@@ -8,7 +8,9 @@ service EmitenTrending {
       returns (GetAllEmitenTrendingResponse);
 
   // On-demand scrape Stockbit lalu stream snapshot `emiten_trending` hari ini.
-  // Hanya jalan saat RPC dipanggil. Rate limit: maksimal 1× per 1 menit untuk semua user
+  // Hanya jalan saat RPC dipanggil. Hanya jam server 07:00–17:00
+  // (failed precondition: "Diluar jam 07:00 - 17:00"). Tidak berlaku untuk bin worker.
+  // Rate limit: maksimal 1× per 1 menit untuk semua user
   // (failed precondition jika terlalu cepat).
   //
   // Urutan tulis ke Scylla (satu sesi browser/login, berurutan):

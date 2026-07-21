@@ -27,6 +27,8 @@ Binary:
 /home/baki1/stockbit_ws/target/release/worker_scrapping
 ```
 
+
+
 ## Jalankan manual (uji)
 
 ```bash
@@ -45,6 +47,8 @@ Zona waktu disarankan **Asia/Jakarta** (WIB). Cron memanggil binary langsung (ta
 ```bash
 mkdir -p /home/baki1/stockbit_ws/logs
 ```
+
+
 
 ### 2. Crontab
 
@@ -76,16 +80,22 @@ grep CRON /var/log/syslog 2>/dev/null || journalctl -u cron -n 50
 ls -lt /home/baki1/stockbit_ws/logs/scrapper_*.log | head
 ```
 
+
+
 ## Catatan operasional
 
-| Topik | Keterangan |
-|--------|------------|
-| Durasi | Bisa lama (banyak emiten + bandarmology + portfolio). Hindari overlap: jangan jalankan scrape manual saat jam cron. |
-| PM2 | Worker stop/start `stockbit_ws` sendiri. |
-| HTTP 4xx | Worker abort + `pm2 resume stockbit_ws` agar tidak diblokir. |
-| Sesi Chrome | Profil di `worker_scrapping/browser_data/` — jangan hapus sembarangan. |
-| 2FA | Jika muncul trusted device, set `STOCKBIT_2FA_TIMEOUT_SECS` dan approve di HP. |
-| Rebuild | Setelah `git pull`, jalankan ulang `cargo build --release -p worker_scrapping`. |
+
+| Topik       | Keterangan                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| Durasi      | Bisa lama (banyak emiten + bandarmology + portfolio). Hindari overlap: jangan jalankan scrape manual saat jam cron. |
+| PM2         | Worker stop/start `stockbit_ws` sendiri.                                                                            |
+| HTTP 4xx    | Worker abort + `pm2 resume stockbit_ws` agar tidak diblokir.                                                        |
+| Sesi Chrome | Profil di `worker_scrapping/browser_data/` — jangan hapus sembarangan.                                              |
+| 2FA         | Jika muncul trusted device, set `STOCKBIT_2FA_TIMEOUT_SECS` dan approve di HP.                                      |
+| Rebuild     | Setelah `git pull`, jalankan ulang `cargo build --release -p worker_scrapping`.                                     |
+
+
+
 
 ## Env penting (ringkas)
 
@@ -95,8 +105,11 @@ Salin dari root `.env-example` → `.env`:
 - `SCYLLA_*`, `REDIS_URL`
 - `GCS_*`, `CHROME_EXECUTABLE_PATH` (opsional)
 
+
+
 ## Troubleshooting
 
 - Cron jalan tapi gagal segera: cek log `logs/scrapper_*.log` (path `.env`, Chrome, Scylla).
 - `stockbit_ws` tetap stopped: jalankan `pm2 start stockbit_ws` manual; pastikan worker sempat exit (bukan hang).
 - Job overlap: pastikan run sebelumnya sudah selesai sebelum jam cron berikutnya.
+

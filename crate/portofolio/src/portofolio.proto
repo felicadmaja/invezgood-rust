@@ -18,6 +18,8 @@ service Portofolio {
   // `portofolio` (sama RPC `DeletePortofolioBandarmology`).
   // Rate limit: maksimal 1× per 5 menit untuk semua user
   // (failed precondition jika terlalu cepat).
+  // Hanya jam server 07:00–17:00 (failed precondition: "Diluar jam 07:00 - 17:00").
+  // Tidak berlaku untuk bin worker_scrapping.
   // Request kosong. Response: repeated PortofolioRow setelah scrape.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPortofolioFromStockbit(GetAllPortofolioFromStockbitRequest)

@@ -9,7 +9,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
-use user::require_auth;
+use user::{require_auth, require_stockbit_scrape_hours};
 use worker_scrapping::on_demand;
 
 use crate::emiten_trending_server::EmitenTrending as EmitenTrendingRpc;
@@ -116,6 +116,7 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         let username = claims.name.clone();
         let _ = request.into_inner();
 
+        require_stockbit_scrape_hours()?;
         acquire_movers_scrape_slot().await?;
 
         println!("GetLatestEmitenTrendingFromStockbit {username}: on-demand scrape movers...");
