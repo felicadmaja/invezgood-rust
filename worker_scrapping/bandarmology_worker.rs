@@ -12,7 +12,8 @@
 //! - Bulan sebelumnya (max 12 / 1 tahun): `from`/`to` = awal–akhir bulan; skip bila baris sudah ada;
 //!   hentikan backfill bila 1 bulan sudah ada, atau 2 bulan berturut-turut kosong dari API.
 //!   Upsert historis juga di-skip bila `updated_at` masih hari ini.
-//! - Semua emiten diproses **sequential** (satu worker utama), jeda 100 ms antar emiten, 50 ms antar bulan per emiten.
+//! - Semua emiten diproses **sequential** (satu worker utama), tanpa jeda antar emiten;
+//!   50 ms antar bulan per emiten.
 //! - Bila request API timeout/network error: retry di **background task** tanpa menahan worker utama.
 
 use chrono::{DateTime, Datelike, Duration, Local, Months, NaiveDate, Utc};
@@ -32,7 +33,6 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 const MAX_HISTORICAL_MONTHS: u32 = 12;
 const CONSECUTIVE_EMPTY_MONTHS_STOP: usize = 2;
 const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 1;
-const EMITEN_INTER_DELAY_MS: u64 = 100;
 const MONTH_INTER_DELAY_MS: u64 = 50;
 
 #[derive(Debug, Clone, SerializeValue, DeserializeValue, Deserialize)]
@@ -1349,9 +1349,6 @@ pub async fn scrape_and_insert_bandarmology(
             Ok(_) => {}
             Err(e) if is_auth_abort(&e.to_string()) => return Err(e),
             Err(e) => eprintln!("Bandarmology emiten gagal: {e}"),
-        }
-        if idx + 1 < total {
-            sleep(StdDuration::from_millis(EMITEN_INTER_DELAY_MS)).await;
         }
     }
 
