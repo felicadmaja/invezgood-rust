@@ -13,6 +13,8 @@ service PendingOrder {
   // Scrape semua order dari Stockbit lalu upsert `pending_order`.
   // Alur sama `pending_order_worker`: login → START TRADING/PIN bila perlu →
   // GET carina.stockbit.com/order/v2/list → TRUNCATE+insert `pending_order`.
+  // Rate limit: maksimal 1× per 5 menit untuk semua user
+  // (failed precondition jika terlalu cepat).
   // Request kosong. Response: repeated PendingOrderRow setelah scrape.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPendingOrderFromStockbit(GetAllPendingOrderFromStockbitRequest)

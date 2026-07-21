@@ -12,6 +12,8 @@ service Portofolio {
   // Alur sama `portofolio_worker`: login → START TRADING/PIN bila perlu →
   // DOM `portofolio_equity` → GET carina.stockbit.com/portfolio/v2/list →
   // pastikan emiten_list + bandarmology → TRUNCATE+insert `portofolio`.
+  // Rate limit: maksimal 1× per 5 menit untuk semua user
+  // (failed precondition jika terlalu cepat).
   // Request kosong. Response: repeated PortofolioRow setelah scrape.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPortofolioFromStockbit(GetAllPortofolioFromStockbitRequest)

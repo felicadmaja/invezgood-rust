@@ -1,7 +1,9 @@
 use std::sync::Arc;
-use std::time::Instant;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use scylla::client::session::Session;
+use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use user::require_auth;
 use worker_scrapping::on_demand;
@@ -16,6 +18,31 @@ use crate::{
     GetPortofolioHistoryByEmitenNameFromStockbitResponse,
     PortofolioRow,
 };
+
+/// Cooldown global antar invoke `GetAllPortofolioFromStockbit` (semua user).
+const PORTFOLIO_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
+
+static LAST_PORTFOLIO_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+
+fn portfolio_scrape_gate() -> &'static Mutex<Option<Instant>> {
+    LAST_PORTFOLIO_SCRAPE.get_or_init(|| Mutex::new(None))
+}
+
+/// Izinkan scrape portfolio; tolak jika < 5 menit sejak invoke terakhir (global).
+async fn acquire_portfolio_scrape_slot() -> Result<(), Status> {
+    let mut last = portfolio_scrape_gate().lock().await;
+    if let Some(at) = *last {
+        let elapsed = at.elapsed();
+        if elapsed < PORTFOLIO_SCRAPE_COOLDOWN {
+            let remaining_secs = (PORTFOLIO_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
+            return Err(Status::failed_precondition(format!(
+                "Rate limit: maksimal 1× / 5 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
+            )));
+        }
+    }
+    *last = Some(Instant::now());
+    Ok(())
+}
 
 fn parse_emiten_name(raw: &str) -> Result<String, String> {
     let kode = raw.trim().to_ascii_uppercase();
@@ -86,6 +113,8 @@ impl PortofolioRpc for PortofolioService {
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
         let _ = request.into_inner();
+
+        acquire_portfolio_scrape_slot().await?;
 
         println!(
             "GetAllPortofolioFromStockbit {username}: scrape portfolio API + upsert..."

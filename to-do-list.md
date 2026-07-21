@@ -1,14 +1,5 @@
-tambahkan icon dompet untuk emiten yang sudah ada di porto
-
 scrap data running trade
 
+ganti icon aplikasi , ganti nama aplikasi
 
-nama nama broker
-
-
-ganti icon ganti nama
-
-
-ambil api current price
-
-broker name
+Jika data bandarmology belum ada, pill accum dan dist tidak muncul, seharusnya setelah download bandarmology, langsung tampil pillnya
