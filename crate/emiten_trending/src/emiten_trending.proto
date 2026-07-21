@@ -4,7 +4,8 @@ package emiten_trending;
 
 service EmitenTrending {
   // Daftar trending per tanggal via MV `emiten_trending_by_tahun_bulan_tanggal`.
-  rpc GetAllEmitenTrending(GetAllEmitenTrendingRequest) returns (GetAllEmitenTrendingResponse);
+  rpc GetAllEmitenTrendingFromScylla(GetAllEmitenTrendingFromScyllaRequest)
+      returns (GetAllEmitenTrendingResponse);
 
   // On-demand scrape Stockbit lalu stream snapshot `emiten_trending` hari ini.
   // Hanya jalan saat RPC dipanggil. Rate limit: maksimal 1× per 1 menit untuk semua user
@@ -35,7 +36,7 @@ service EmitenTrending {
       returns (stream GetAllEmitenTrendingResponse);
 }
 
-message GetAllEmitenTrendingRequest {
+message GetAllEmitenTrendingFromScyllaRequest {
   // Format YYYY-MM-DD, contoh "2026-07-16".
   string tahun_bulan_tanggal = 1;
 }

@@ -16,7 +16,7 @@ use crate::emiten_trending_server::EmitenTrending as EmitenTrendingRpc;
 use crate::model::EmitenTrending;
 use crate::repository::EmitenTrendingRepository;
 use crate::{
-    EmitenTrendingRow, GetAllEmitenTrendingRequest, GetAllEmitenTrendingResponse,
+    EmitenTrendingRow, GetAllEmitenTrendingFromScyllaRequest, GetAllEmitenTrendingResponse,
     GetLatestEmitenTrendingFromStockbitRequest,
 };
 
@@ -65,9 +65,9 @@ impl EmitenTrendingService {
 
 #[tonic::async_trait]
 impl EmitenTrendingRpc for EmitenTrendingService {
-    async fn get_all_emiten_trending(
+    async fn get_all_emiten_trending_from_scylla(
         &self,
-        request: Request<GetAllEmitenTrendingRequest>,
+        request: Request<GetAllEmitenTrendingFromScyllaRequest>,
     ) -> Result<Response<GetAllEmitenTrendingResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
@@ -95,7 +95,7 @@ impl EmitenTrendingRpc for EmitenTrendingService {
             rows.into_iter().map(EmitenTrending::into_proto).collect();
 
         println!(
-            "GetAllEmitenTrending {} {}ms",
+            "GetAllEmitenTrendingFromScylla {} {}ms",
             username,
             started.elapsed().as_millis()
         );
