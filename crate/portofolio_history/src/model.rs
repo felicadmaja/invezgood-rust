@@ -8,11 +8,9 @@
 //! |---------------------|----------|------|
 //! | emiten_name (PK)    | text     | String |
 //! | tahun_bulan_tanggal | date (CK DESC) | NaiveDate |
-//! | history             | map\<timestamp, frozen\<portofolio_history_item\>\> | HashMap\<DateTime\<Utc\>, PortofolioHistoryItem\> |
+//! | history             | list\<frozen\<portofolio_history_item\>\> | Vec\<PortofolioHistoryItem\> |
 
-use std::collections::HashMap;
-
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::NaiveDate;
 use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
 
 use crate::{
@@ -23,31 +21,28 @@ use crate::{
 #[derive(Debug, Clone, DeserializeValue, SerializeValue)]
 pub struct PortofolioHistoryItem {
     #[scylla(default_when_null)]
-    pub order_id: String,
-    #[scylla(default_when_null)]
-    pub message: String,
+    pub command: String,
     #[scylla(default_when_null)]
     pub symbol: String,
     #[scylla(default_when_null)]
-    pub side: String,
+    pub price: f64,
     #[scylla(default_when_null)]
-    pub lot_done: i32,
+    pub lot: f64,
     #[scylla(default_when_null)]
-    pub price_average: f64,
+    pub amount: f64,
     #[scylla(default_when_null)]
-    pub amount_matched: f64,
+    pub status: String,
 }
 
 impl PortofolioHistoryItem {
     pub fn into_proto(self) -> ProtoHistoryItem {
         ProtoHistoryItem {
-            order_id: self.order_id,
-            message: self.message,
+            command: self.command,
             symbol: self.symbol,
-            side: self.side,
-            lot_done: self.lot_done,
-            price_average: self.price_average,
-            amount_matched: self.amount_matched,
+            price: self.price,
+            lot: self.lot,
+            amount: self.amount,
+            status: self.status,
         }
     }
 }
@@ -59,20 +54,19 @@ pub struct PortofolioHistory {
     pub emiten_name: String,
     pub tahun_bulan_tanggal: NaiveDate,
     #[scylla(default_when_null)]
-    pub history: HashMap<DateTime<Utc>, PortofolioHistoryItem>,
+    pub history: Vec<PortofolioHistoryItem>,
 }
 
 impl PortofolioHistory {
     pub fn into_proto(self) -> PortofolioHistoryRow {
-        let history: HashMap<String, ProtoHistoryItem> = self
-            .history
-            .into_iter()
-            .map(|(ts, item)| (ts.to_rfc3339(), item.into_proto()))
-            .collect();
         PortofolioHistoryRow {
             emiten_name: self.emiten_name,
             tahun_bulan_tanggal: self.tahun_bulan_tanggal.format("%Y-%m-%d").to_string(),
-            history,
+            history: self
+                .history
+                .into_iter()
+                .map(PortofolioHistoryItem::into_proto)
+                .collect(),
         }
     }
 }

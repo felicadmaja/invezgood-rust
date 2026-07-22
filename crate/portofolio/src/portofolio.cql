@@ -25,13 +25,12 @@ Catatan: kolom `history` dihapus dari tabel ini; riwayat order disimpan di
 --- UDT ---
 (1) "stockbit"."portofolio_history_item" — masih dipakai oleh tabel `portofolio_history`
   (bukan kolom tabel `portofolio` lagi):
-  "order_id" text
-  "message" text
+  "command" text
   "symbol" text
-  "side" text
-  "lot_done" int
-  "price_average" double
-  "amount_matched" double
+  "price" double
+  "lot" double
+  "amount" double
+  "status" text
 
 --- Materialized view (MV) ---
 Tidak ada: MV "stockbit"."portofolio_by_emiten_name" (legacy) di-drop saat migrasi; lookup langsung lewat PRIMARY KEY (("emiten_name")).

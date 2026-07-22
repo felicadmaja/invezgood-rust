@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -200,7 +199,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                     Ok(None) => Some(PortofolioHistoryRow {
                         emiten_name: kode.clone(),
                         tahun_bulan_tanggal: today.format("%Y-%m-%d").to_string(),
-                        history: HashMap::new(),
+                        history: Vec::new(),
                     }),
                     Err(e) => {
                         eprintln!(
