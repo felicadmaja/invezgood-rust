@@ -52,6 +52,7 @@
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 //! Setiap run: clear lalu tulis ulang log ke `worker_scrapping/stockbit_scrapper_worker.log`
 //! (stdout/stderr di-tee ke file + terminal).
+//! Append waktu eksekusi (satu baris per run) ke `stockbit_scrapper_woker_timewindow.log`.
 
 use worker_scrapping::{
     bandarmology_worker, emiten_list_worker, emiten_trending_worker, pending_order_worker,
@@ -74,6 +75,20 @@ use stockbit_browser::{
 };
 
 const SCRAPPER_LOG_FILE: &str = "stockbit_scrapper_worker.log";
+/// Hanya stempel waktu eksekusi (append, satu baris per run). Nama file sesuai konvensi user.
+const TIMEWINDOW_LOG_FILE: &str = "stockbit_scrapper_woker_timewindow.log";
+
+/// Append satu baris waktu eksekusi ke timewindow log (tidak di-truncate).
+fn append_timewindow_log(started_at: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(TIMEWINDOW_LOG_FILE);
+    let mut f = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)?;
+    writeln!(f, "{started_at}")?;
+    f.flush()?;
+    Ok(())
+}
 
 /// Kosongkan log file, tulis stempel waktu run di baris pertama, lalu tee stdout+stderr ke file dan terminal.
 fn init_scrapper_log() -> Result<(), Box<dyn std::error::Error>> {
@@ -84,12 +99,14 @@ fn init_scrapper_log() -> Result<(), Box<dyn std::error::Error>> {
         .truncate(true)
         .open(&log_path)?;
 
-    let started_at = Local::now().format("%Y-%m-%d %H:%M:%S %z");
+    let started_at = Local::now().format("%Y-%m-%d %H:%M:%S %z").to_string();
     writeln!(
         log,
         "=== stockbit_scrapper_worker started at {started_at} ===\n"
     )?;
     log.flush()?;
+
+    append_timewindow_log(&started_at)?;
 
     let log = Arc::new(Mutex::new(log));
 
@@ -104,6 +121,12 @@ fn init_scrapper_log() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     println!("Log file: {} (di-clear tiap awal run)", log_path.display());
+    println!(
+        "Timewindow log: {} (append waktu eksekusi)",
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(TIMEWINDOW_LOG_FILE)
+            .display()
+    );
     println!("Run started at {started_at}");
     Ok(())
 }
