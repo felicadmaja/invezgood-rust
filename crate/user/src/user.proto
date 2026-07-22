@@ -19,6 +19,8 @@ service User {
   // yang sama** (gate `acquire_*` per alur):
   // - auto sudah jalan → user invoke RPC #1–#5 bisa kena failed_precondition
   // - user sudah invoke RPC #1–#5 → auto skip alur itu (lanjut yang lain)
+  // Env NEW_BUILD_LANGSUNG_SCRAPE=false: setelah restart, skip auto-scrape siklus ready pertama
+  // (cek web tetap); scrape menunggu interval poller berikutnya.
   // 1. GetAllPortofolioFromStockbit          (1×/5 menit)
   // 2. GetAllPortofolioEquityFromStockbit    (1×/5 menit)
   // 3. GetPortofolioHistoryByEmitenNameFromStockbit (batch holdings; 1×/1 detik)

@@ -9,6 +9,8 @@
 //! - Bulan sebelumnya (max 12 / 1 tahun): skip **seluruh** backfill historis bila baris **bulan lalu**
 //!   sudah ada di Scylla; bila tidak, skip per bulan bila sudah ada, henti bila
 //!   1 bulan sudah ada atau **1** bulan kosong/gagal dari API.
+//! - Skip state (`updated_at` hari ini / historis sudah ada / minggu lengkap) di-cache Redis
+//!   sampai 23:59 lokal agar tidak hit Scylla berulang per emiten di run berikutnya.
 //! - Semua emiten diproses **sequential** (satu worker utama), tanpa jeda antar emiten;
 //!   50 ms antar bulan per emiten.
 //! - Bila request API timeout/network error: retry di **background task** tanpa menahan worker utama.
@@ -375,6 +377,12 @@ async fn bandarmology_exists_by_agg(
     keyspace: &str,
     agg: &str,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    if crate::redis_bandarmology_skip::get_skip_exists(agg)
+        .await
+        .unwrap_or(false)
+    {
+        return Ok(true);
+    }
     let exists_stmt = session
         .prepare(format!(
             "SELECT agg_tahun_bulan_emiten_name \
@@ -382,7 +390,11 @@ async fn bandarmology_exists_by_agg(
              WHERE agg_tahun_bulan_emiten_name = ?"
         ))
         .await?;
-    bandarmology_exists(session, &exists_stmt, agg).await
+    let exists = bandarmology_exists(session, &exists_stmt, agg).await?;
+    if exists {
+        crate::redis_bandarmology_skip::set_skip_exists(agg).await;
+    }
+    Ok(exists)
 }
 
 /// Ambil daftar `emiten_name` dari tabel `emiten_list` via token-ring scan.
@@ -480,16 +492,27 @@ async fn bandarmology_updated_at(
 
 /// `true` bila baris sudah di-upsert hari ini (`updated_at` tanggal lokal = `today`).
 /// Tidak ada baris / `updated_at` null → `false` (boleh upsert).
+/// Hit Redis dulu (TTL s/d 23:59); miss → Scylla, lalu cache bila true.
 async fn bandarmology_updated_at_is_today(
     session: &Session,
     keyspace: &str,
     agg: &str,
     today: NaiveDate,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    Ok(match bandarmology_updated_at(session, keyspace, agg).await? {
+    if crate::redis_bandarmology_skip::get_skip_current(agg)
+        .await
+        .unwrap_or(false)
+    {
+        return Ok(true);
+    }
+    let is_today = match bandarmology_updated_at(session, keyspace, agg).await? {
         Some(ts) => is_updated_at_today(ts, today),
         None => false,
-    })
+    };
+    if is_today {
+        crate::redis_bandarmology_skip::set_skip_current(agg).await;
+    }
+    Ok(is_today)
 }
 
 /// Skip upsert bila `updated_at` masih hari ini (zona lokal).
@@ -993,6 +1016,8 @@ async fn insert_bandarmology(
             (agg.as_str(), emiten, tahun_bulan, broker_summary, updated_at),
         )
         .await?;
+    crate::redis_bandarmology_skip::set_skip_current(&agg).await;
+    crate::redis_bandarmology_skip::set_skip_exists(&agg).await;
     Ok(true)
 }
 
@@ -1052,6 +1077,8 @@ async fn insert_bandarmology_current_month(
             ),
         )
         .await?;
+    crate::redis_bandarmology_skip::set_skip_current(&agg).await;
+    crate::redis_bandarmology_skip::set_skip_exists(&agg).await;
     Ok(true)
 }
 
@@ -1083,6 +1110,16 @@ async fn scrape_invoke_week_column(
         return Ok(false);
     };
 
+    if crate::redis_bandarmology_skip::get_skip_weeks(&week_agg)
+        .await
+        .unwrap_or(false)
+    {
+        println!(
+            "  [{code}] skip kolom minggu {week_tb} w1–w{active_week}: Redis cache s/d 23:59 (agg={week_agg})"
+        );
+        return Ok(false);
+    }
+
     let row = load_bandarmology_current_month_row(session, keyspace, &week_agg).await?;
     let mut w1 = row.broker_summary_current_w1;
     let mut w2 = row.broker_summary_current_w2;
@@ -1107,6 +1144,7 @@ async fn scrape_invoke_week_column(
 
     if weeks_to_fetch.is_empty() {
         if bandarmology_updated_at_is_today(session, keyspace, &week_agg, today).await? {
+            crate::redis_bandarmology_skip::set_skip_weeks(&week_agg).await;
             println!(
                 "  [{code}] skip kolom minggu {week_tb} w1–w{active_week}: sudah terisi, updated_at masih hari ini (agg={week_agg})"
             );
@@ -1152,7 +1190,7 @@ async fn scrape_invoke_week_column(
         return Ok(false);
     }
 
-    insert_bandarmology_current_month(
+    let wrote = insert_bandarmology_current_month(
         session,
         keyspace,
         code,
@@ -1164,7 +1202,17 @@ async fn scrape_invoke_week_column(
         w4.as_ref(),
         true,
     )
-    .await
+    .await?;
+    if wrote {
+        // Setelah upsert minggu: cek apakah w1..active sudah terisi → cache skip minggu.
+        let all_filled = (1..=active_week).all(|w| {
+            !week_column_missing(week_column_ref(w, &w1, &w2, &w3, &w4))
+        });
+        if all_filled {
+            crate::redis_bandarmology_skip::set_skip_weeks(&week_agg).await;
+        }
+    }
+    Ok(wrote)
 }
 
 async fn scrape_emiten_bandarmology(
@@ -1180,8 +1228,42 @@ async fn scrape_emiten_bandarmology(
 
     let (cur_from, cur_to, cur_tb) = current_month_range(today);
     let cur_agg = agg_tahun_bulan_emiten_name(&cur_tb, &code);
-    let skip_current =
-        bandarmology_updated_at_is_today(session.as_ref(), keyspace, &cur_agg, today).await?;
+    let week_agg_opt = invoke_week_scrape_slot(today)
+        .map(|(_, _, _, week_tb)| agg_tahun_bulan_emiten_name(&week_tb, &code));
+    let prev_opt = today.checked_sub_months(Months::new(1)).map(|prev| {
+        let prev_tb = tahun_bulan_str(prev.year(), prev.month());
+        let prev_agg = agg_tahun_bulan_emiten_name(&prev_tb, &code);
+        (prev_tb, prev_agg)
+    });
+
+    let redis_current = crate::redis_bandarmology_skip::get_skip_current(&cur_agg)
+        .await
+        .unwrap_or(false);
+    let redis_weeks = match week_agg_opt.as_deref() {
+        Some(agg) => crate::redis_bandarmology_skip::get_skip_weeks(agg)
+            .await
+            .unwrap_or(false),
+        None => true,
+    };
+    let redis_hist = match prev_opt.as_ref() {
+        Some((_, agg)) => crate::redis_bandarmology_skip::get_skip_exists(agg)
+            .await
+            .unwrap_or(false),
+        None => true,
+    };
+    if redis_current && redis_weeks && redis_hist {
+        println!(
+            "  [{code}] skip seluruh scrape: Redis cache s/d 23:59 (current+weeks+historis)"
+        );
+        log_last_bandar_rate("  ");
+        return Ok(0);
+    }
+
+    let skip_current = if redis_current {
+        true
+    } else {
+        bandarmology_updated_at_is_today(session.as_ref(), keyspace, &cur_agg, today).await?
+    };
 
     let mut month_day: Option<BandarmologyDay> = None;
 
@@ -1270,10 +1352,10 @@ async fn scrape_emiten_bandarmology(
     sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
 
     let mut skip_all_historical = false;
-    if let Some(prev) = today.checked_sub_months(Months::new(1)) {
-        let prev_tb = tahun_bulan_str(prev.year(), prev.month());
-        let prev_agg = agg_tahun_bulan_emiten_name(&prev_tb, &code);
-        if bandarmology_exists_by_agg(session.as_ref(), keyspace, &prev_agg).await? {
+    if let Some((prev_tb, prev_agg)) = prev_opt.as_ref() {
+        if redis_hist
+            || bandarmology_exists_by_agg(session.as_ref(), keyspace, prev_agg).await?
+        {
             println!(
                 "  [{code}] skip historis: bulan lalu {prev_tb} sudah ada (agg={prev_agg}) — lanjut emiten berikutnya"
             );

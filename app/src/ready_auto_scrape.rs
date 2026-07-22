@@ -3,6 +3,10 @@
 //! Dipicu **setiap siklus poller** (interval acak 13–15 menit) bila `ready=true`
 //! dan `poll_seq > 0` (hasil cek web nyata — bukan hydrate Redis).
 //!
+//! Env `NEW_BUILD_LANGSUNG_SCRAPE` / `NEW_BUILD_LANNGSUNG_SCRAPE` (default `true`):
+//! bila `false`, siklus ready **pertama** setelah restart di-skip (cek web tetap jalan);
+//! scrape menunggu interval poller berikutnya (13–15 menit).
+//!
 //! Urutan:
 //! 1. GetAllPortofolioFromStockbit
 //! 2. GetAllPortofolioEquityFromStockbit
@@ -39,6 +43,24 @@ fn log_auto_skip(rpc: &str, err: &Status) {
     }
 }
 
+/// `true` = setelah restart, siklus ready pertama boleh auto-scrape (default).
+/// `false` = skip scrape pertama; tunggu interval poller berikutnya.
+fn new_build_langsung_scrape() -> bool {
+    for key in ["NEW_BUILD_LANGSUNG_SCRAPE", "NEW_BUILD_LANNGSUNG_SCRAPE"] {
+        if let Ok(v) = std::env::var(key) {
+            let v = v.trim();
+            if v.is_empty() {
+                continue;
+            }
+            return !(v.eq_ignore_ascii_case("false")
+                || v == "0"
+                || v.eq_ignore_ascii_case("no")
+                || v.eq_ignore_ascii_case("off"));
+        }
+    }
+    true
+}
+
 pub fn spawn_on_stockbit_ready(
     poller: Arc<ReadinessPoller>,
     portofolio: PortofolioService,
@@ -47,9 +69,11 @@ pub fn spawn_on_stockbit_ready(
     pending_order: PendingOrderService,
     emiten_trending: EmitenTrendingService,
 ) {
+    let skip_first_scrape = !new_build_langsung_scrape();
     let mut rx = poller.subscribe();
     tokio::spawn(async move {
         let mut last_poll_seq = 0u64;
+        let mut first_ready_cycle = true;
         loop {
             let update = rx.borrow_and_update().clone();
             let (ready, poll_seq) = update
@@ -59,6 +83,15 @@ pub fn spawn_on_stockbit_ready(
 
             if ready && poll_seq > 0 && poll_seq != last_poll_seq {
                 last_poll_seq = poll_seq;
+                if first_ready_cycle {
+                    first_ready_cycle = false;
+                    if skip_first_scrape {
+                        println!(
+                            "Readiness poll_seq={poll_seq} ready → skip auto scrape (NEW_BUILD_LANGSUNG_SCRAPE=false); tunggu siklus poller berikutnya"
+                        );
+                        continue;
+                    }
+                }
                 if let Err(e) = require_stockbit_scrape_hours() {
                     println!(
                         "Readiness poll_seq={poll_seq} ready → skip auto Stockbit scrapes: {}",
