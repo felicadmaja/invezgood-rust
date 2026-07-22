@@ -1,0 +1,23 @@
+---
+description: Verifikasi perubahan Rust cukup dengan cargo check (lebih cepat)
+alwaysApply: true
+---
+
+# Verifikasi: `cargo check` saja
+
+Setelah mengubah kode Rust di project ini, validasi cukup dengan:
+
+```bash
+cargo check
+```
+
+## Wajib
+
+- **Jangan** jalankan `cargo build`, `./build.sh`, atau `cargo test` hanya untuk cek compile setelah edit, kecuali user meminta eksplisit.
+- Prefer `cargo check` (atau `cargo check -p <crate>` jika perubahan terbatas di satu crate) agar lebih cepat.
+- Perbaiki error yang muncul dari `cargo check` sebelum menganggap tugas selesai.
+
+## Pengecualian
+
+- User meminta build/binary/test secara eksplisit.
+- Perlu menjalankan binary/worker untuk verifikasi runtime (bukan sekadar cek compile).

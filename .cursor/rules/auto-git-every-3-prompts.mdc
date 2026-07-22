@@ -14,6 +14,8 @@ Agent **tidak perlu** menjalankan `git add` / `commit` / `push` manual kecuali h
 - State: `.cursor/auto-git-counter` (integer, mulai 0).
 - Setiap agent selesai menangani prompt user: counter +1.
 - Saat counter mencapai 3: reset ke 0, lalu git workflow.
+- Debug log: `.cursor/auto-git.log` (gitignore `*.log`).
+- Pastikan **Cursor Settings → Hooks** enabled; tanpa itu script tidak pernah dipanggil.
 
 ## Git workflow (hanya saat counter = 3)
 

@@ -731,6 +731,9 @@ async fn upsert_portofolio(
             )
             .await?;
         n += 1;
+        if n > 1 {
+            println!();
+        }
         println!(
             "Insert portofolio [{n}/{}]: {emiten} ({long_name}) \
              balance_lot={} available_lot={} avg={:.4} last={} \

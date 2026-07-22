@@ -974,7 +974,6 @@ async fn probe_bearer_ok(http: &reqwest::Client, token: &str) -> Result<u16, Str
 pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitError> {
     let _ = page.evaluate(ensure_auth_capture_js()).await?;
 
-    println!("Stockbit bearer: warm-up SPA (buka keystats agar Authorization tertangkap)...");
     // Reset capture sebelum navigasi supaya token baru dari SPA yang dipakai.
     let _ = page
         .evaluate(r#"(() => { window.__sbCapturedBearer = ''; return 0; })()"#)
@@ -989,7 +988,6 @@ pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitErro
             .into_value::<u64>()
             .unwrap_or(0);
         if n > 0 {
-            println!("Stockbit bearer: network.capture siap (len={n}).");
             break;
         }
     }
@@ -1081,29 +1079,6 @@ pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitErro
 
     let candidates: Vec<serde_json::Value> =
         serde_json::from_str(&scanned).unwrap_or_default();
-    {
-        let summary: Vec<String> = candidates
-            .iter()
-            .map(|h| {
-                format!(
-                    "{} iss={} type={} len={}",
-                    h.get("source").and_then(|x| x.as_str()).unwrap_or("-"),
-                    h.get("iss").and_then(|x| x.as_str()).unwrap_or("-"),
-                    h.get("token_type").and_then(|x| x.as_str()).unwrap_or("-"),
-                    h.get("len").and_then(|x| x.as_u64()).unwrap_or(0),
-                )
-            })
-            .collect();
-        println!(
-            "Stockbit bearer candidates ({}): {}",
-            summary.len(),
-            if summary.is_empty() {
-                "(none)".into()
-            } else {
-                summary.join(" | ")
-            }
-        );
-    }
 
     let mut ordered: Vec<(String, String, String)> = Vec::new();
     for h in &candidates {
@@ -1143,25 +1118,13 @@ pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitErro
         .build()
         .map_err(|e| StockbitError::from(e.to_string()))?;
 
-    let mut probe_log = Vec::new();
-    for (source, token, iss) in &ordered {
+    for (_source, token, _iss) in &ordered {
         match probe_bearer_ok(&http, token).await {
-            Ok(status) => {
-                probe_log.push(format!("{source} len={} status={status}", token.len()));
-                if (200..300).contains(&status) {
-                    println!("Stockbit bearer probe: {}", probe_log.join(" | "));
-                    println!(
-                        "Stockbit bearer dipilih: source={source} iss={iss} len={}",
-                        token.len()
-                    );
-                    return Ok(token.clone());
-                }
+            Ok(status) if (200..300).contains(&status) => {
+                return Ok(token.clone());
             }
-            Err(e) => probe_log.push(format!("{source} len={} err={e}", token.len())),
+            _ => {}
         }
-    }
-    if !probe_log.is_empty() {
-        println!("Stockbit bearer probe: {}", probe_log.join(" | "));
     }
 
     Err(
