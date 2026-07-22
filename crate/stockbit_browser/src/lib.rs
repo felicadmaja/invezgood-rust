@@ -6,9 +6,11 @@
 //! `STOCKBIT_2FA_TIMEOUT_SECS`, `STOCKBIT_SESSION_CHECK_SECS` (default random 60–300 untuk
 //! jendela cek di `/stream`; default 5 untuk worker), `STOCKBIT_BROWSER_DATA_DIR`,
 //! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 300–600 —
-//! interval background poller untuk `IsStockbitReady`).
+//! interval background poller untuk `IsStockbitReady`), `REDIS_URL` (state readiness).
 //!
 //! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
+
+mod redis_readiness;
 
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::handler::viewport::Viewport;
@@ -19,7 +21,7 @@ use rand::Rng;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, watch, Mutex, RwLock};
+use tokio::sync::{mpsc, watch, Mutex};
 use tokio::time::sleep;
 
 /// Mutex global: satu Chrome profil — readiness poller dan on-demand scrape
@@ -73,33 +75,36 @@ fn next_poll_secs() -> u64 {
 }
 
 /// Background poller: cek stockbit.com setiap 300–600 detik (5–10 menit).
-/// RPC `IsStockbitReady` hanya membaca status terakhir — tidak trigger cek langsung.
-/// Subscriber [`Self::subscribe`] mendapat update tiap hasil cek (mis. auto-scrape portofolio).
+/// Status terakhir disimpan di Redis (`stockbit:readiness`); RPC hanya baca Redis.
+/// [`Self::subscribe`] = notifikasi in-process tiap publish (auto-scrape portofolio).
 #[derive(Clone)]
 pub struct ReadinessPoller {
-    latest: Arc<RwLock<Option<ReadinessUpdate>>>,
     notify: watch::Sender<Option<ReadinessUpdate>>,
 }
 
 impl ReadinessPoller {
     /// Mulai loop polling di background.
-    /// Cek pertama segera (bukan dari RPC); berikutnya setiap 300–600 detik.
+    /// Hydrate dari Redis dulu; cek pertama segera; berikutnya setiap 300–600 detik.
     pub fn start() -> Arc<Self> {
         let (notify, _) = watch::channel(None);
-        let poller = Arc::new(Self {
-            latest: Arc::new(RwLock::new(None)),
-            notify,
-        });
+        let poller = Arc::new(Self { notify });
         let runner = Arc::clone(&poller);
         tokio::spawn(async move {
+            if let Some(cached) = redis_readiness::get().await {
+                println!(
+                    "Stockbit readiness poller: hydrate Redis ready={} msg={:?}",
+                    cached.ready, cached.message
+                );
+                let _ = runner.notify.send(Some(cached));
+            }
             runner.run_loop().await;
         });
         poller
     }
 
-    /// Status terakhir dari pooling (None = belum pernah dicek).
+    /// Status terakhir dari Redis (None = belum pernah dicek / Redis miss).
     pub async fn latest(&self) -> Option<ReadinessUpdate> {
-        self.latest.read().await.clone()
+        redis_readiness::get().await
     }
 
     /// Subscribe hasil cek poller (termasuk `ready=true` setelah sesi OK).
@@ -108,10 +113,7 @@ impl ReadinessPoller {
     }
 
     async fn publish(&self, update: ReadinessUpdate) {
-        {
-            let mut guard = self.latest.write().await;
-            *guard = Some(update.clone());
-        }
+        redis_readiness::set(&update).await;
         let _ = self.notify.send(Some(update));
     }
 

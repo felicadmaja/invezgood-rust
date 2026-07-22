@@ -306,7 +306,8 @@ async fn run_emiten_list_stockbit_scrape(
 
 /// On-demand scrape Top Gainer/Loser (movers) → upsert `emiten_trending` + seed `emiten_list`;
 /// lalu baca `code_name` dari `emiten_list` (setelah seed) → keystats/profile/corpaction;
-/// lalu bandarmology untuk daftar emiten yang sama (aturan skip sama `bandarmology_worker`).
+/// lalu bandarmology **hanya** untuk kode TOP_GAINER + TOP_LOSER dari invoke ini
+/// (aturan skip sama `bandarmology_worker`).
 pub async fn scrape_emiten_trending_movers(
     session: Arc<Session>,
 ) -> Result<(usize, usize), String> {
@@ -348,7 +349,7 @@ pub async fn scrape_emiten_trending_movers(
             .map_err(|e| e.to_string())?;
         let emitens = merge_codes_movers_first(&existing, &mover_codes);
         println!(
-            "On-demand: {} emiten untuk key_stats/profile/corp/bandarmology (movers dulu={}, scan={}).",
+            "On-demand: {} emiten untuk key_stats/profile/corp (movers dulu={}, scan={}).",
             emitens.len(),
             mover_codes.len(),
             existing.len()
@@ -365,13 +366,16 @@ pub async fn scrape_emiten_trending_movers(
         println!("On-demand: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");
 
         let today = Local::now().date_naive();
-        println!("On-demand: bandarmology via marketdetectors API (aturan skip sama worker)...");
+        println!(
+            "On-demand: bandarmology via marketdetectors API (hanya {} movers TOP_GAINER/TOP_LOSER)...",
+            mover_codes.len()
+        );
         let bandar_ok = bandarmology_worker::scrape_and_insert_bandarmology(
             &page,
             &session,
             &ks,
             today,
-            &emitens,
+            &mover_codes,
         )
         .await
         .map_err(|e| e.to_string())?;

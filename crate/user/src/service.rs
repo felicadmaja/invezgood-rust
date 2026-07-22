@@ -32,7 +32,7 @@ impl UserService {
         Self {
             repo: UserRepository::new(session),
             // Background poller: cek stockbit.com acak setiap 5–10 menit.
-            // RPC stream hanya membaca cache — tidak hit web langsung.
+            // RPC stream hanya membaca Redis (`stockbit:readiness`) — tidak hit web langsung.
             readiness: ReadinessPoller::start(),
         }
     }
