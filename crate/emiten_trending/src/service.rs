@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// Cooldown global antar invoke `GetLatestEmitenTrendingFromStockbit` (semua user).
-const MOVERS_SCRAPE_COOLDOWN: Duration = Duration::from_secs(60);
+const MOVERS_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
 static LAST_MOVERS_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
@@ -29,7 +29,7 @@ fn movers_scrape_gate() -> &'static Mutex<Option<Instant>> {
     LAST_MOVERS_SCRAPE.get_or_init(|| Mutex::new(None))
 }
 
-/// Izinkan scrape movers; tolak jika < 1 menit sejak invoke terakhir (global, semua user).
+/// Izinkan scrape movers; tolak jika < 5 menit sejak invoke terakhir (global, semua user).
 async fn acquire_movers_scrape_slot() -> Result<(), Status> {
     let mut last = movers_scrape_gate().lock().await;
     if let Some(at) = *last {
@@ -37,7 +37,7 @@ async fn acquire_movers_scrape_slot() -> Result<(), Status> {
         if elapsed < MOVERS_SCRAPE_COOLDOWN {
             let remaining_secs = (MOVERS_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
             return Err(Status::failed_precondition(format!(
-                "Rate limit: maksimal 1× / 1 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
+                "Rate limit: maksimal 1× / 5 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
             )));
         }
     }

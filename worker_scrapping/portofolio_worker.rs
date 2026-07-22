@@ -812,8 +812,8 @@ pub async fn scrape_and_insert_portofolio(
 ) -> Result<usize, Box<dyn std::error::Error>> {
     ensure_trading_session(page).await?;
 
-    println!("Jeda 2 detik setelah PIN / mode trading siap...");
-    sleep(Duration::from_secs(2)).await;
+    println!("Jeda 1 detik setelah PIN / mode trading siap...");
+    sleep(Duration::from_secs(1)).await;
 
     println!("Portofolio equity: DOM scrape header sebelum portfolio API...");
     let equity_ok = portofolio_equity_worker::scrape_and_insert_portofolio_equity(
@@ -1044,8 +1044,8 @@ pub async fn scrape_and_replace_portofolio_history(
     }
 
     ensure_trading_session(page).await?;
-    println!("Portofolio history: jeda 2 detik setelah PIN / mode trading siap...");
-    sleep(Duration::from_secs(2)).await;
+    println!("Portofolio history: jeda 1 detik setelah PIN / mode trading siap...");
+    sleep(Duration::from_secs(1)).await;
 
     let bearer = extract_trading_bearer_after_pin(page).await?;
     let http = reqwest::Client::builder()

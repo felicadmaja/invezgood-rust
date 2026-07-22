@@ -574,8 +574,8 @@ async fn run_portofolio_equity_scrape(session: Arc<Session>) -> Result<usize, St
             .await
             .map_err(|e| format!("trading session / PIN: {e}"))?;
 
-        println!("On-demand portofolio_equity: jeda 2 detik setelah PIN...");
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        println!("On-demand portofolio_equity: jeda 1 detik setelah PIN...");
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
         let n = crate::portofolio_equity_worker::scrape_and_insert_portofolio_equity(
             &page,

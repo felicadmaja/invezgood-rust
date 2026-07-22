@@ -257,8 +257,8 @@ pub async fn scrape_and_insert_pending_order(
 ) -> Result<usize, Box<dyn std::error::Error>> {
     portofolio_worker::ensure_trading_session(page).await?;
 
-    println!("Pending order: jeda 2 detik setelah PIN / mode trading siap...");
-    sleep(Duration::from_secs(2)).await;
+    println!("Pending order: jeda 1 detik setelah PIN / mode trading siap...");
+    sleep(Duration::from_secs(1)).await;
 
     let bearer = portofolio_worker::extract_trading_bearer_after_pin(page).await?;
     let http = reqwest::Client::builder()

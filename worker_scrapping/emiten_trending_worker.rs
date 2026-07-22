@@ -537,12 +537,16 @@ pub async fn scrape_and_insert_movers(
     println!("Market mover: TOP_LOSER...");
     let loser_rows = fetch_market_mover(&http, &bearer, "MOVER_TYPE_TOP_LOSER").await?;
     println!("Top Loser: {} baris dari API.", loser_rows.len());
-    if loser_rows.is_empty() {
-        return Err("Top Loser kosong dari API market-mover".into());
-    }
-
-    let inserted_loser = insert_emiten_trending(session, keyspace, &loser_rows, "loser").await?;
-    println!("OK: {inserted_loser} baris diinsert ke emiten_trending (loser).");
+    let inserted_loser = if loser_rows.is_empty() {
+        eprintln!(
+            "Peringatan: Top Loser kosong dari API market-mover — skip insert loser, lanjut langkah berikutnya."
+        );
+        0
+    } else {
+        let n = insert_emiten_trending(session, keyspace, &loser_rows, "loser").await?;
+        println!("OK: {n} baris diinsert ke emiten_trending (loser).");
+        n
+    };
 
     let mut seed: Vec<(String, String)> = Vec::new();
     let mut mover_codes: Vec<String> = Vec::new();
