@@ -1,8 +1,8 @@
 //! Portofolio history via API `carina.stockbit.com/order/v2/list?filter_criteria.stock_code=`.
 //! Upsert ke tabel Scylla `portofolio_history` (bukan kolom `portofolio.history`).
 //!
-//! Alur: START TRADING/PIN bila perlu → Bearer trading → GET order list per emiten →
-//! INSERT `(emiten_name, tahun_bulan_tanggal=today, history)`.
+//! Alur: START TRADING/PIN bila perlu → Bearer trading → GET order list per emiten
+//! (jeda 100 ms antar emiten) → INSERT `(emiten_name, tahun_bulan_tanggal=today, history)`.
 
 use chrono::{DateTime, Local, Utc};
 use chromiumoxide::page::Page;
@@ -19,6 +19,8 @@ use crate::portofolio_worker::{ensure_trading_session, extract_trading_bearer_af
 const ORDER_LIST_API_URL: &str = "https://carina.stockbit.com/order/v2/list";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+/// Jeda antar emiten pada batch order/v2/list (hindari HTTP 429).
+const EMITEN_INTER_DELAY_MS: u64 = 100;
 
 /// UDT `portofolio_history_item` untuk INSERT/SELECT map history.
 #[derive(Debug, Clone, SerializeValue, DeserializeValue)]
@@ -279,6 +281,9 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
 
     let mut ok = 0usize;
     for (i, raw) in emitens.iter().enumerate() {
+        if i > 0 {
+            sleep(Duration::from_millis(EMITEN_INTER_DELAY_MS)).await;
+        }
         let code = raw.trim().to_ascii_uppercase();
         if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
             continue;

@@ -30,7 +30,7 @@
 //! (Bearer dari sesi login; `broker_summary` + satu kolom minggu w1–w4 per slot tanggal invoke)
 //! → upsert `bandarmology`.
 //! Throttle otomatis bila `x-rate-limit-remaining` hampir habis.
-//! Jika API mengembalikan HTTP 4xx: worker dihentikan segera + `pm2 resume stockbit_ws`
+//! Jika API mengembalikan HTTP 4xx: worker dihentikan segera + `pm2 start stockbit_ws`
 //! (hindari diblokir server).
 //! Lalu START TRADING (PIN bila perlu) → buka `/securities/portfolio` → DOM scrape
 //! header equity → upsert `portofolio_equity` → Bearer trading pasca-PIN →

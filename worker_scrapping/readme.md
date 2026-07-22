@@ -89,7 +89,7 @@ ls -lt /home/baki1/stockbit_ws/logs/scrapper_*.log | head
 | ----------- | ------------------------------------------------------------------------------------------------------------------- |
 | Durasi      | Bisa lama (banyak emiten + bandarmology + portfolio). Hindari overlap: jangan jalankan scrape manual saat jam cron. |
 | PM2         | Worker stop/start `stockbit_ws` sendiri.                                                                            |
-| HTTP 4xx    | Worker abort + `pm2 resume stockbit_ws` agar tidak diblokir.                                                        |
+| HTTP 4xx    | Worker abort + `pm2 start stockbit_ws` agar tidak diblokir.                                                         |
 | Sesi Chrome | Profil di `worker_scrapping/browser_data/` — jangan hapus sembarangan.                                              |
 | 2FA         | Jika muncul trusted device, set `STOCKBIT_2FA_TIMEOUT_SECS` dan approve di HP.                                      |
 | Rebuild     | Setelah `git pull`, jalankan ulang `cargo build --release -p worker_scrapping`.                                     |
