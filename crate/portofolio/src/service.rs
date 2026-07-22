@@ -70,6 +70,15 @@ impl PortofolioService {
             .map_err(|e| Status::internal(e))
     }
 
+    /// Auto poller ready: scrape tanpa rate limit RPC (tetap single-flight on_demand).
+    pub async fn scrape_from_stockbit_on_ready(
+        &self,
+    ) -> Result<(usize, Vec<String>), Status> {
+        on_demand::scrape_portofolio_all(Arc::clone(&self.session))
+            .await
+            .map_err(|e| Status::internal(e))
+    }
+
     /// Kode holding saat ini di Scylla `portofolio` (untuk batch history).
     pub async fn list_holding_codes(&self) -> Result<Vec<String>, Status> {
         let rows = self

@@ -19,6 +19,7 @@ use chromiumoxide::page::{Page, ScreenshotParams};
 use futures::StreamExt;
 use rand::Rng;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch, Mutex};
@@ -51,6 +52,13 @@ pub type StockbitError = Box<dyn std::error::Error + Send + Sync>;
 pub struct ReadinessUpdate {
     pub ready: bool,
     pub message: String,
+    /// Naik tiap hasil cek poller background. `0` = hydrate Redis (bukan tick poll).
+    pub poll_seq: u64,
+}
+
+fn next_poll_seq() -> u64 {
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    SEQ.fetch_add(1, Ordering::Relaxed) + 1
 }
 
 fn poll_interval_range() -> (u64, u64) {
@@ -90,7 +98,8 @@ impl ReadinessPoller {
         let poller = Arc::new(Self { notify });
         let runner = Arc::clone(&poller);
         tokio::spawn(async move {
-            if let Some(cached) = redis_readiness::get().await {
+            if let Some(mut cached) = redis_readiness::get().await {
+                cached.poll_seq = 0; // hydrate saja — jangan trigger auto-scrape
                 println!(
                     "Stockbit readiness poller: hydrate Redis ready={} msg={:?}",
                     cached.ready, cached.message
@@ -146,6 +155,7 @@ impl ReadinessPoller {
                     self.publish(ReadinessUpdate {
                         ready: false,
                         message: format!("Error: {e}"),
+                        poll_seq: next_poll_seq(),
                     })
                     .await;
                 }
@@ -806,6 +816,7 @@ async fn send_update(tx: &mpsc::Sender<ReadinessUpdate>, ready: bool, message: &
         .send(ReadinessUpdate {
             ready,
             message: message.to_string(),
+            poll_seq: next_poll_seq(),
         })
         .await;
 }

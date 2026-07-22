@@ -8,27 +8,30 @@ service EmitenList {
   rpc GetAllEmitenListFromScylla(GetAllEmitenListFromScyllaRequest)
       returns (GetAllEmitenListFromScyllaResponse);
 
-  // Lookup satu baris via PK base table: emiten_list.code_name = code_name.
-  // code_name: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  // Lookup satu baris via PK base table: emiten_list.emiten_name = emiten_name.
+  // emiten_name: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
   // Hanya baca dari Scylla; tidak scrape Stockbit. Bila tidak ada → NOT_FOUND.
   // Response `EmitenListRow.net_income`: tahun → { Q1..Q4 / Annualised / TTM… → nilai }.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetEmitenListByCodeNameFromScylla(GetEmitenListByCodeNameFromScyllaRequest) returns (GetEmitenListByCodeNameFromScyllaResponse);
+  rpc GetEmitenListByEmitenNameFromScylla(GetEmitenListByEmitenNameFromScyllaRequest) returns (GetEmitenListByEmitenNameFromScyllaResponse);
 
 
-  // buatkan rpc GetMultiEmitenListFromScylla(GetMultiEmitenListFromScyllaRequest) returns (GetMultiEmitenListFromScyllaResponse);
-  // request: repeated string kode_emiten;
-
+  // Lookup banyak emiten via PK (hanya baca Scylla, tidak scrape).
+  // emiten_name dinormalisasi UPPERCASE; duplikat di-skip; kode invalid diabaikan.
+  // Response hanya baris yang ada di Scylla (yang tidak ketemu tidak ikut).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetMultiEmitenListFromScylla(GetMultiEmitenListFromScyllaRequest)
+      returns (GetMultiEmitenListFromScyllaResponse);
 
   // Lookup satu emiten: baca Scylla dulu; scrape Key Stats + Corp.Action + Profile dari Stockbit
   // hanya bila baris tidak ada atau `update_at` kosong / sudah ≥ 30 hari; upsert lalu baca baris lengkap.
   // Bila baris belum ada di `emiten_list`: selain upsert emiten, scrape API bandarmology untuk kode tersebut.
-  // code_name: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  // Bila code_name tidak ditemukan di API Stockbit → NOT_FOUND "Nama emiten tidak ada di BEI".
+  // emiten_name: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  // Bila emiten_name tidak ditemukan di API Stockbit → NOT_FOUND "Nama emiten tidak ada di BEI".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetEmitenListByCodeNameFromStockbit(GetEmitenListByCodeNameFromStockbitRequest) returns (GetEmitenListByCodeNameFromStockbitResponse);
+  rpc GetEmitenListByEmitenNameFromStockbit(GetEmitenListByEmitenNameFromStockbitRequest) returns (GetEmitenListByEmitenNameFromStockbitResponse);
 
-  // Update kolom `is_fundamental_solid` untuk satu emiten (PK code_name).
+  // Update kolom `is_fundamental_solid` untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListFundamental(UpdateEmitenListFundamentalRequest) returns (UpdateEmitenListFundamentalResponse);
 
@@ -37,27 +40,27 @@ service EmitenList {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListSector(UpdateEmitenListSectorRequest) returns (UpdateEmitenListSectorResponse);
 
-  // Update kolom `is_konglomerasi` untuk satu emiten (PK code_name).
+  // Update kolom `is_konglomerasi` untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListKonglomerasi(UpdateEmitenListKonglomerasiRequest) returns (UpdateEmitenListKonglomerasiResponse);
 
-  // Update kolom `is_blue_chip` untuk satu emiten (PK code_name).
+  // Update kolom `is_blue_chip` untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListBlueChip(UpdateEmitenListBlueChipRequest) returns (UpdateEmitenListBlueChipResponse);
 
-  // Update kolom `catatan` untuk satu emiten (PK code_name).
+  // Update kolom `catatan` untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListCatatan(UpdateEmitenListCatatanRequest) returns (UpdateEmitenListCatatanResponse);
 
-  // Update kolom `catatan_owner` untuk satu emiten (PK code_name).
+  // Update kolom `catatan_owner` untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListCatatanOwner(UpdateEmitenListCatatanOwnerRequest) returns (UpdateEmitenListCatatanOwnerResponse);
 
-  // Update kolom `foto_owner` (list<path GCS>) untuk satu emiten (PK code_name).
+  // Update kolom `foto_owner` (list<path GCS>) untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListPhotoProfileOwner(UpdateEmitenListPhotoProfileOwnerRequest) returns (UpdateEmitenListPhotoProfileOwnerResponse);
 
-  // Update kolom `is_plan_to_trade` untuk satu emiten (PK code_name).
+  // Update kolom `is_plan_to_trade` untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListPlanToTrade(UpdateEmitenListPlanToTradeRequest) returns (UpdateEmitenListPlanToTradeResponse);
 }
@@ -115,28 +118,37 @@ enum EmitenSector {
 
 message GetAllEmitenListFromScyllaRequest {}
 
-message GetEmitenListByCodeNameFromScyllaRequest {
+message GetEmitenListByEmitenNameFromScyllaRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  string code_name = 1;
+  string emiten_name = 1;
 }
 
-message GetEmitenListByCodeNameFromScyllaResponse {
+message GetEmitenListByEmitenNameFromScyllaResponse {
   EmitenListRow row = 1;
 }
 
-message GetEmitenListByCodeNameFromStockbitRequest {
-  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  // Jika tidak ditemukan di API Stockbit → error NOT_FOUND: "Nama emiten tidak ada di BEI".
-  string code_name = 1;
+message GetMultiEmitenListFromScyllaRequest {
+  // Daftar kode emiten (4 huruf); dinormalisasi UPPERCASE; duplikat di-skip.
+  repeated string emiten_name = 1;
 }
 
-message GetEmitenListByCodeNameFromStockbitResponse {
+message GetMultiEmitenListFromScyllaResponse {
+  repeated EmitenListRow rows = 1;
+}
+
+message GetEmitenListByEmitenNameFromStockbitRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  // Jika tidak ditemukan di API Stockbit → error NOT_FOUND: "Nama emiten tidak ada di BEI".
+  string emiten_name = 1;
+}
+
+message GetEmitenListByEmitenNameFromStockbitResponse {
   EmitenListRow row = 1;
 }
 
 message UpdateEmitenListFundamentalRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  string code_name = 1;
+  string emiten_name = 1;
   bool is_fundamental_solid = 2;
 }
 
@@ -148,7 +160,7 @@ message UpdateEmitenListFundamentalResponse {
 
 message UpdateEmitenListSectorRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  string code_name = 1;
+  string emiten_name = 1;
   EmitenSector sector = 2;
 }
 
@@ -160,7 +172,7 @@ message UpdateEmitenListSectorResponse {
 
 message UpdateEmitenListKonglomerasiRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  string code_name = 1;
+  string emiten_name = 1;
   bool is_konglomerasi = 2;
 }
 
@@ -172,7 +184,7 @@ message UpdateEmitenListKonglomerasiResponse {
 
 message UpdateEmitenListBlueChipRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  string code_name = 1;
+  string emiten_name = 1;
   bool is_blue_chip = 2;
 }
 
@@ -184,7 +196,7 @@ message UpdateEmitenListBlueChipResponse {
 
 message UpdateEmitenListPlanToTradeRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  string code_name = 1;
+  string emiten_name = 1;
   bool is_plan_to_trade = 2;
 }
 
@@ -196,7 +208,7 @@ message UpdateEmitenListPlanToTradeResponse {
 
 message UpdateEmitenListCatatanRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  string code_name = 1;
+  string emiten_name = 1;
   // Bentuk CQL map<text, text>.
   map<string, string> catatan = 2;
 }
@@ -209,7 +221,7 @@ message UpdateEmitenListCatatanResponse {
 
 message UpdateEmitenListCatatanOwnerRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  string code_name = 1;
+  string emiten_name = 1;
   string catatan_owner = 2;
 }
 
@@ -221,7 +233,7 @@ message UpdateEmitenListCatatanOwnerResponse {
 
 message UpdateEmitenListPhotoProfileOwnerRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  string code_name = 1;
+  string emiten_name = 1;
   // Path object GCS; disimpan ke kolom Scylla `foto_owner` (list<text>).
   repeated string foto_owner_gcs_path = 2;
 }
@@ -273,7 +285,7 @@ message CompanyProfile {
 }
 
 message EmitenListRow {
-  string code_name = 1;
+  string emiten_name = 1;
   string long_name = 2;
   // map<label, value> dari UI Key Stats, termasuk Cash Flow Statement TTM:
   // "Cash From Operations (TTM)", "Cash From Investing (TTM)",

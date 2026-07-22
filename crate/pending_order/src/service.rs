@@ -66,6 +66,13 @@ impl PendingOrderService {
             .await
             .map_err(|e| Status::internal(e))
     }
+
+    /// Auto poller ready: scrape tanpa rate limit RPC.
+    pub async fn scrape_from_stockbit_on_ready(&self) -> Result<usize, Status> {
+        on_demand::scrape_pending_order_all(Arc::clone(&self.session))
+            .await
+            .map_err(|e| Status::internal(e))
+    }
 }
 
 fn rows_to_proto(rows: Vec<PendingOrder>) -> Vec<PendingOrderRow> {

@@ -22,7 +22,7 @@
 //! → insert `emiten_trending` (termasuk `long_name`: Redis → `emiten_list` → API movers).
 //! Bila PK hari ini baru (insert murni), upsert juga `emiten_trending_count_by_name`
 //! (`appearance_count + 1`, `last_tahun_bulan_tanggal` = hari ini, `updated_at` = now).
-//! Lalu token-ring scan `emiten_list.code_name` → Key Stats + Corp. Action + Profile API
+//! Lalu token-ring scan `emiten_list.emiten_name` → Key Stats + Corp. Action + Profile API
 //! (`keystats/ratio`, `corpaction`, `emitten/{CODE}/profile`) → upsert `emiten_list`
 //! (hanya kolom scrape; tidak mengisi `sector`, `is_konglomerasi`, `is_fundamental_solid`,
 //! `is_blue_chip`, `catatan`, `catatan_owner`, `foto_owner`).
@@ -275,8 +275,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let today = Local::now().date_naive();
-    println!("Token-ring scan emiten_list.code_name (setelah seed movers)...");
-    let existing = bandarmology_worker::fetch_emiten_list_code_names(&session, &ks)
+    println!("Token-ring scan emiten_list.emiten_name (setelah seed movers)...");
+    let existing = bandarmology_worker::fetch_emiten_list_emiten_names(&session, &ks)
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     let mut seen = std::collections::HashSet::new();

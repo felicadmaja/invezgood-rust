@@ -717,7 +717,7 @@ async fn resolve_long_name(
 
     let stmt = session
         .prepare(format!(
-            "SELECT long_name FROM {keyspace}.emiten_list WHERE code_name = ?"
+            "SELECT long_name FROM {keyspace}.emiten_list WHERE emiten_name = ?"
         ))
         .await?;
     let result = session
@@ -813,7 +813,7 @@ async fn fetch_long_name_from_search(
 async fn upsert_emiten_list(
     session: &Session,
     keyspace: &str,
-    code_name: &str,
+    emiten_name: &str,
     long_name: &str,
     emiten_icon: &str,
     key_stats: &HashMap<String, String>,
@@ -824,7 +824,7 @@ async fn upsert_emiten_list(
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.emiten_list (\
-                code_name, long_name, emiten_icon, key_stats, net_income, \
+                emiten_name, long_name, emiten_icon, key_stats, net_income, \
                 corporate_action, company_profile\
             ) VALUES (?, ?, ?, ?, ?, ?, ?)"
         ))
@@ -834,7 +834,7 @@ async fn upsert_emiten_list(
         .execute_unpaged(
             &insert,
             (
-                code_name,
+                emiten_name,
                 long_name,
                 emiten_icon,
                 key_stats,
@@ -845,20 +845,20 @@ async fn upsert_emiten_list(
         )
         .await?;
 
-    touch_emiten_list_update_at(session, keyspace, code_name).await
+    touch_emiten_list_update_at(session, keyspace, emiten_name).await
 }
 
 async fn touch_emiten_list_update_at(
     session: &Session,
     keyspace: &str,
-    code_name: &str,
+    emiten_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let update = session
         .prepare(format!(
-            "UPDATE {keyspace}.emiten_list SET update_at = toTimestamp(now()) WHERE code_name = ?"
+            "UPDATE {keyspace}.emiten_list SET update_at = toTimestamp(now()) WHERE emiten_name = ?"
         ))
         .await?;
-    session.execute_unpaged(&update, (code_name,)).await?;
+    session.execute_unpaged(&update, (emiten_name,)).await?;
     Ok(())
 }
 
@@ -866,15 +866,15 @@ async fn touch_emiten_list_update_at(
 async fn is_update_at_fresh(
     session: &Session,
     keyspace: &str,
-    code_name: &str,
+    emiten_name: &str,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let q = session
         .prepare(format!(
-            "SELECT update_at, emiten_icon FROM {keyspace}.emiten_list WHERE code_name = ?"
+            "SELECT update_at, emiten_icon FROM {keyspace}.emiten_list WHERE emiten_name = ?"
         ))
         .await?;
     let result = session
-        .execute_unpaged(&q, (code_name,))
+        .execute_unpaged(&q, (emiten_name,))
         .await?
         .into_rows_result()?;
 
@@ -927,7 +927,7 @@ async fn resolve_emiten_icon(
 ) -> Result<String, Box<dyn std::error::Error>> {
     let existing = session
         .prepare(format!(
-            "SELECT emiten_icon FROM {keyspace}.emiten_list WHERE code_name = ?"
+            "SELECT emiten_icon FROM {keyspace}.emiten_list WHERE emiten_name = ?"
         ))
         .await;
     if let Ok(stmt) = existing {
@@ -975,12 +975,12 @@ async fn scrape_one_emiten(
     .await
 }
 
-/// Key Stats API + Corp. Action + Profile untuk satu `code_name` (tanpa skip fresh).
+/// Key Stats API + Corp. Action + Profile untuk satu `emiten_name` (tanpa skip fresh).
 pub async fn scrape_emiten_list_for_code(
     page: &Page,
     session: &Session,
     keyspace: &str,
-    code_name: &str,
+    emiten_name: &str,
 ) -> Result<(), String> {
     let bearer = extract_stockbit_bearer(page)
         .await
@@ -993,7 +993,7 @@ pub async fn scrape_emiten_list_for_code(
         .build()
         .map_err(|e| e.to_string())?;
     scrape_one_emiten_inner(
-        &http, &bearer, session, keyspace, code_name, 1, 1, false,
+        &http, &bearer, session, keyspace, emiten_name, 1, 1, false,
     )
     .await
     .map_err(|e| e.to_string())?;
@@ -1113,9 +1113,9 @@ async fn scrape_one_emiten_inner(
     Ok(true)
 }
 
-/// Pastikan `code_name` ada di `emiten_list`: INSERT seed (`code_name`, `long_name`)
+/// Pastikan `emiten_name` ada di `emiten_list`: INSERT seed (`emiten_name`, `long_name`)
 /// hanya bila baris belum ada (tidak menimpa kolom scrape yang sudah terisi).
-/// `codes`: `(code_name, long_name)`.
+/// `codes`: `(emiten_name, long_name)`.
 pub async fn ensure_emiten_list_codes_seeded(
     session: &Session,
     keyspace: &str,
@@ -1123,12 +1123,12 @@ pub async fn ensure_emiten_list_codes_seeded(
 ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
     let exists_stmt = session
         .prepare(format!(
-            "SELECT code_name FROM {keyspace}.emiten_list WHERE code_name = ?"
+            "SELECT emiten_name FROM {keyspace}.emiten_list WHERE emiten_name = ?"
         ))
         .await?;
     let insert_stmt = session
         .prepare(format!(
-            "INSERT INTO {keyspace}.emiten_list (code_name, long_name) VALUES (?, ?)"
+            "INSERT INTO {keyspace}.emiten_list (emiten_name, long_name) VALUES (?, ?)"
         ))
         .await?;
 

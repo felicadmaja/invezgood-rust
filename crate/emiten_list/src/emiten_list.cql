@@ -5,10 +5,10 @@ Replikasi (saat CREATE KEYSPACE): class SimpleStrategy, replication factor 1.
 
 --- Tabel dasar (base table) ---
 Nama penuh: "stockbit"."emiten_list"
-Primary key: (("code_name")) — "code_name" text.
+Primary key: (("emiten_name")) — "emiten_name" text.
 Tidak ada clustering key.
 Kolom dan tipe CQL, kata demi kata:
-  "code_name" text — partition key
+  "emiten_name" text — partition key
   "long_name" text
   "emiten_icon" text
   "key_stats" map<text, text>
@@ -25,7 +25,7 @@ Kolom dan tipe CQL, kata demi kata:
   "net_income" map<text, frozen<map<text, text>>>
   "is_plan_to_trade" boolean
 Sumber: DDL bin create_emiten_list + ALTER TABLE (sector, is_fundamental_solid, is_blue_chip, catatan, catatan_owner, foto_owner, net_income, is_plan_to_trade); foto_owner diubah text → list<text> (DROP+ADD, MV by_is_blue_chip di-recreate); catatan diubah text → list → map<text, text> (recreate table + MV karena Scylla menolak reuse nama collection dengan tipe berbeda); diisi aplikasi pada INSERT/UPDATE.
-Kolom "code_name": text — kode/nama emiten (contoh BBCA, BBRI).
+Kolom "emiten_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
 Kolom "emiten_icon": text — path object GCS modul stoksaham (mis. stoksaham/icon/BBCA.png).
 Kolom "key_stats": map<text, text> — statistik kunci emiten (pasangan key-value); contoh dari UI Key Stats: "Market Cap", "Enterprise Value", "Current Share Outstanding", "Free Float", Income Statement ("Revenue (TTM)", "Gross Profit (TTM)", "EBITDA (TTM)", "Net Income (TTM)"), Solvency ("Current Ratio (Quarter)", "Debt to Equity Ratio (Quarter)", dll.), margin Profitability, Cash Flow Statement ("Cash From Operations (TTM)", "Cash From Investing (TTM)", "Cash From Financing (TTM)", "Capital expenditure (TTM)", "Free cash flow (TTM)"), dll.
@@ -43,11 +43,11 @@ Kolom "foto_owner": list<text> — daftar path/URL foto pemilik catatan (kosong/
 Kolom "update_at": timestamp — waktu terakhir data emiten diperbarui.
 
 --- Materialized view (MV) ---
-(1) "stockbit"."emiten_list_by_is_blue_chip" — base "emiten_list"; PRIMARY KEY (("is_blue_chip"), "code_name"); CLUSTERING ORDER BY ("code_name" ASC); SELECT *; WHERE is_blue_chip IS NOT NULL AND code_name IS NOT NULL. Lookup daftar blue chip: WHERE is_blue_chip = true.
-Legacy "emiten_list_by_name" di-drop saat migrasi; lookup by ticker tetap lewat PRIMARY KEY base (("code_name")).
+(1) "stockbit"."emiten_list_by_is_blue_chip" — base "emiten_list"; PRIMARY KEY (("is_blue_chip"), "emiten_name"); CLUSTERING ORDER BY ("emiten_name" ASC); SELECT *; WHERE is_blue_chip IS NOT NULL AND emiten_name IS NOT NULL. Lookup daftar blue chip: WHERE is_blue_chip = true.
+Legacy "emiten_list_by_name" di-drop saat migrasi; lookup by ticker tetap lewat PRIMARY KEY base (("emiten_name")).
 
 --- Secondary index ---
-Tidak ada: tidak dibuat CREATE INDEX / SAI pada "stockbit"."emiten_list"; akses lewat PRIMARY KEY (("code_name")).
+Tidak ada: tidak dibuat CREATE INDEX / SAI pada "stockbit"."emiten_list"; akses lewat PRIMARY KEY (("emiten_name")).
 
 --- User-defined type (UDT) ---
 (1) "stockbit"."emiten_shareholder_gt1" — pemegang saham >1%: name, type, location, domicile, scriples, scrip, total_shares, percentage (semua text).

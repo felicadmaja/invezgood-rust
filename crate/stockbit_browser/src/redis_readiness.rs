@@ -60,7 +60,11 @@ pub async fn get() -> Option<ReadinessUpdate> {
     let ready_raw = map.get("ready").map(String::as_str).unwrap_or("0");
     let ready = ready_raw == "1" || ready_raw.eq_ignore_ascii_case("true");
     let message = map.get("message").cloned().unwrap_or_default();
-    Some(ReadinessUpdate { ready, message })
+    Some(ReadinessUpdate {
+        ready,
+        message,
+        poll_seq: 0,
+    })
 }
 
 /// Simpan status readiness ke Redis. Error hanya di-log.

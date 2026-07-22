@@ -4,7 +4,7 @@
 //!
 //! | Kolom CQL         | Tipe CQL | Rust |
 //! |-------------------|----------|------|
-//! | code_name (PK)    | text     | String |
+//! | emiten_name (PK)    | text     | String |
 //! | long_name         | text     | String |
 //! | emiten_icon       | text     | String |
 //! | key_stats         | map\<text, text\> | HashMap\<String, String\> |
@@ -152,11 +152,11 @@ fn corporate_action_to_proto(
 }
 
 /// Baris tabel dasar `emiten_list`.
-/// PK: `(("code_name"))`.
+/// PK: `(("emiten_name"))`.
 #[derive(Debug, Clone, DeserializeRow)]
 pub struct EmitenList {
     #[scylla(default_when_null)]
-    pub code_name: String,
+    pub emiten_name: String,
     #[scylla(default_when_null)]
     pub long_name: String,
     #[scylla(default_when_null)]
@@ -194,7 +194,7 @@ pub struct EmitenList {
 impl EmitenList {
     pub fn into_proto(self) -> EmitenListRow {
         EmitenListRow {
-            code_name: self.code_name,
+            emiten_name: self.emiten_name,
             long_name: self.long_name,
             emiten_icon: self.emiten_icon,
             key_stats: self.key_stats,

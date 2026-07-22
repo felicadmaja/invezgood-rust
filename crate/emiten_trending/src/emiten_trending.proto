@@ -20,9 +20,9 @@ service EmitenTrending {
   //     (PK `YYYY-MM-DD_EMITEN` belum ada), upsert `emiten_trending_count_by_name`:
   //     appearance_count += 1, last_tahun_bulan_tanggal = hari ini, updated_at = now.
   //     Baris yang sudah ada di tanggal yang sama tidak menambah count lagi.
-  // (2) `emiten_list` — seed INSERT `code_name` + `long_name` untuk kode movers yang belum ada
+  // (2) `emiten_list` — seed INSERT `emiten_name` + `long_name` untuk kode movers yang belum ada
   //     di tabel (contoh TMPO); baris yang sudah ada tidak ditimpa.
-  // (3) Baca ulang daftar `code_name` dari `emiten_list` (token-ring; sudah termasuk seed),
+  // (3) Baca ulang daftar `emiten_name` dari `emiten_list` (token-ring; sudah termasuk seed),
   //     movers diproses dulu. Per kode: upsert key_stats + corporate_action + company_profile
   //     + net_income + long_name + emiten_icon + update_at hanya bila:
   //       - baris belum ada / baru di-seed, ATAU

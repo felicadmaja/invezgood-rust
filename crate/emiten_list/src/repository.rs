@@ -15,7 +15,7 @@ const PAGE_SIZE: i32 = 100;
 
 struct Prepared {
     scan: PreparedStatement,
-    by_code_name: PreparedStatement,
+    by_emiten_name: PreparedStatement,
     update_fundamental_solid: PreparedStatement,
     update_sector: PreparedStatement,
     update_konglomerasi: PreparedStatement,
@@ -51,64 +51,64 @@ impl EmitenListRepository {
     async fn prepared(&self) -> Result<&Prepared, Box<dyn std::error::Error + Send + Sync>> {
         self.prepared
             .get_or_try_init(|| async {
-                const COLUMNS: &str = "code_name, long_name, emiten_icon, key_stats, corporate_action, \
+                const COLUMNS: &str = "emiten_name, long_name, emiten_icon, key_stats, corporate_action, \
                      company_profile, update_at, is_konglomerasi, sector, is_fundamental_solid, is_blue_chip, \
                      is_plan_to_trade, catatan, catatan_owner, foto_owner, net_income";
                 let q = format!(
                     "SELECT {COLUMNS} FROM {} \
-                     WHERE token(code_name) >= ? AND token(code_name) <= ?",
+                     WHERE token(emiten_name) >= ? AND token(emiten_name) <= ?",
                     self.table
                 );
                 let mut scan = self.session.prepare(q).await?;
                 scan.set_page_size(PAGE_SIZE);
 
-                let q = format!("SELECT {COLUMNS} FROM {} WHERE code_name = ?", self.table);
-                let by_code_name = self.session.prepare(q).await?;
+                let q = format!("SELECT {COLUMNS} FROM {} WHERE emiten_name = ?", self.table);
+                let by_emiten_name = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "UPDATE {} SET is_fundamental_solid = ? WHERE code_name = ?",
+                    "UPDATE {} SET is_fundamental_solid = ? WHERE emiten_name = ?",
                     self.table
                 );
                 let update_fundamental_solid = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "UPDATE {} SET sector = ? WHERE code_name = ?",
+                    "UPDATE {} SET sector = ? WHERE emiten_name = ?",
                     self.table
                 );
                 let update_sector = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "UPDATE {} SET is_konglomerasi = ? WHERE code_name = ?",
+                    "UPDATE {} SET is_konglomerasi = ? WHERE emiten_name = ?",
                     self.table
                 );
                 let update_konglomerasi = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "UPDATE {} SET is_blue_chip = ? WHERE code_name = ?",
+                    "UPDATE {} SET is_blue_chip = ? WHERE emiten_name = ?",
                     self.table
                 );
                 let update_blue_chip = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "UPDATE {} SET is_plan_to_trade = ? WHERE code_name = ?",
+                    "UPDATE {} SET is_plan_to_trade = ? WHERE emiten_name = ?",
                     self.table
                 );
                 let update_plan_to_trade = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "UPDATE {} SET catatan = ? WHERE code_name = ?",
+                    "UPDATE {} SET catatan = ? WHERE emiten_name = ?",
                     self.table
                 );
                 let update_catatan = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "UPDATE {} SET catatan_owner = ? WHERE code_name = ?",
+                    "UPDATE {} SET catatan_owner = ? WHERE emiten_name = ?",
                     self.table
                 );
                 let update_catatan_owner = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "UPDATE {} SET foto_owner = ? WHERE code_name = ?",
+                    "UPDATE {} SET foto_owner = ? WHERE emiten_name = ?",
                     self.table
                 );
                 let update_foto_owner = self.session.prepare(q).await?;
@@ -127,7 +127,7 @@ impl EmitenListRepository {
 
                 Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared {
                     scan,
-                    by_code_name,
+                    by_emiten_name,
                     update_fundamental_solid,
                     update_sector,
                     update_konglomerasi,
@@ -177,27 +177,41 @@ impl EmitenListRepository {
         Ok(segment_rows.into_iter().flatten().collect())
     }
 
-    /// Lookup satu baris via PK base table: `WHERE code_name = ?`.
-    pub async fn get_by_code_name(
+    /// Lookup satu baris via PK base table: `WHERE emiten_name = ?`.
+    pub async fn get_by_emiten_name(
         &self,
-        code_name: &str,
+        emiten_name: &str,
     ) -> Result<Option<EmitenList>, Box<dyn std::error::Error + Send + Sync>> {
         let prepared = self.prepared().await?;
         let result = self
             .session
-            .execute_unpaged(&prepared.by_code_name, (code_name,))
+            .execute_unpaged(&prepared.by_emiten_name, (emiten_name,))
             .await?
             .into_rows_result()?;
         Ok(result.maybe_first_row::<EmitenList>()?)
     }
 
-    /// Update `is_fundamental_solid`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Lookup banyak emiten via PK. Yang tidak ada di-skip.
+    pub async fn get_many_by_emiten_names(
+        &self,
+        emiten_names: &[String],
+    ) -> Result<Vec<EmitenList>, Box<dyn std::error::Error + Send + Sync>> {
+        let mut out = Vec::with_capacity(emiten_names.len());
+        for name in emiten_names {
+            if let Some(row) = self.get_by_emiten_name(name).await? {
+                out.push(row);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Update `is_fundamental_solid`. Mengembalikan `Ok(false)` bila `emiten_name` tidak ada.
     pub async fn update_fundamental_solid(
         &self,
-        code_name: &str,
+        emiten_name: &str,
         is_fundamental_solid: bool,
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-        if self.get_by_code_name(code_name).await?.is_none() {
+        if self.get_by_emiten_name(emiten_name).await?.is_none() {
             return Ok(false);
         }
 
@@ -205,27 +219,27 @@ impl EmitenListRepository {
         self.session
             .execute_unpaged(
                 &prepared.update_fundamental_solid,
-                (is_fundamental_solid, code_name),
+                (is_fundamental_solid, emiten_name),
             )
             .await?;
         Ok(true)
     }
 
     /// Update `emiten_list.sector` + sync tinyint yang sama ke semua `emiten_trending.sector`
-    /// untuk emiten yang sama. Mengembalikan `Ok(None)` bila `code_name` tidak ada;
+    /// untuk emiten yang sama. Mengembalikan `Ok(None)` bila `emiten_name` tidak ada;
     /// `Ok(Some(n))` = berhasil, `n` = jumlah baris trending yang di-update.
     pub async fn update_sector(
         &self,
-        code_name: &str,
+        emiten_name: &str,
         sector: i8,
     ) -> Result<Option<usize>, Box<dyn std::error::Error + Send + Sync>> {
-        if self.get_by_code_name(code_name).await?.is_none() {
+        if self.get_by_emiten_name(emiten_name).await?.is_none() {
             return Ok(None);
         }
 
         let prepared = self.prepared().await?;
         self.session
-            .execute_unpaged(&prepared.update_sector, (sector, code_name))
+            .execute_unpaged(&prepared.update_sector, (sector, emiten_name))
             .await?;
 
         #[derive(scylla::DeserializeRow)]
@@ -236,7 +250,7 @@ impl EmitenListRepository {
 
         let mv = self
             .session
-            .execute_unpaged(&prepared.trending_aggs_by_emiten, (code_name,))
+            .execute_unpaged(&prepared.trending_aggs_by_emiten, (emiten_name,))
             .await?
             .into_rows_result()?;
 
@@ -257,13 +271,13 @@ impl EmitenListRepository {
         Ok(Some(n))
     }
 
-    /// Update `is_konglomerasi`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Update `is_konglomerasi`. Mengembalikan `Ok(false)` bila `emiten_name` tidak ada.
     pub async fn update_konglomerasi(
         &self,
-        code_name: &str,
+        emiten_name: &str,
         is_konglomerasi: bool,
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-        if self.get_by_code_name(code_name).await?.is_none() {
+        if self.get_by_emiten_name(emiten_name).await?.is_none() {
             return Ok(false);
         }
 
@@ -271,36 +285,36 @@ impl EmitenListRepository {
         self.session
             .execute_unpaged(
                 &prepared.update_konglomerasi,
-                (is_konglomerasi, code_name),
+                (is_konglomerasi, emiten_name),
             )
             .await?;
         Ok(true)
     }
 
-    /// Update `is_blue_chip`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Update `is_blue_chip`. Mengembalikan `Ok(false)` bila `emiten_name` tidak ada.
     pub async fn update_blue_chip(
         &self,
-        code_name: &str,
+        emiten_name: &str,
         is_blue_chip: bool,
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-        if self.get_by_code_name(code_name).await?.is_none() {
+        if self.get_by_emiten_name(emiten_name).await?.is_none() {
             return Ok(false);
         }
 
         let prepared = self.prepared().await?;
         self.session
-            .execute_unpaged(&prepared.update_blue_chip, (is_blue_chip, code_name))
+            .execute_unpaged(&prepared.update_blue_chip, (is_blue_chip, emiten_name))
             .await?;
         Ok(true)
     }
 
-    /// Update `is_plan_to_trade`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Update `is_plan_to_trade`. Mengembalikan `Ok(false)` bila `emiten_name` tidak ada.
     pub async fn update_plan_to_trade(
         &self,
-        code_name: &str,
+        emiten_name: &str,
         is_plan_to_trade: bool,
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-        if self.get_by_code_name(code_name).await?.is_none() {
+        if self.get_by_emiten_name(emiten_name).await?.is_none() {
             return Ok(false);
         }
 
@@ -308,36 +322,36 @@ impl EmitenListRepository {
         self.session
             .execute_unpaged(
                 &prepared.update_plan_to_trade,
-                (is_plan_to_trade, code_name),
+                (is_plan_to_trade, emiten_name),
             )
             .await?;
         Ok(true)
     }
 
-    /// Update `catatan` (map). Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Update `catatan` (map). Mengembalikan `Ok(false)` bila `emiten_name` tidak ada.
     pub async fn update_catatan(
         &self,
-        code_name: &str,
+        emiten_name: &str,
         catatan: &HashMap<String, String>,
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-        if self.get_by_code_name(code_name).await?.is_none() {
+        if self.get_by_emiten_name(emiten_name).await?.is_none() {
             return Ok(false);
         }
 
         let prepared = self.prepared().await?;
         self.session
-            .execute_unpaged(&prepared.update_catatan, (catatan, code_name))
+            .execute_unpaged(&prepared.update_catatan, (catatan, emiten_name))
             .await?;
         Ok(true)
     }
 
-    /// Update `catatan_owner`. Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Update `catatan_owner`. Mengembalikan `Ok(false)` bila `emiten_name` tidak ada.
     pub async fn update_catatan_owner(
         &self,
-        code_name: &str,
+        emiten_name: &str,
         catatan_owner: &str,
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-        if self.get_by_code_name(code_name).await?.is_none() {
+        if self.get_by_emiten_name(emiten_name).await?.is_none() {
             return Ok(false);
         }
 
@@ -345,25 +359,25 @@ impl EmitenListRepository {
         self.session
             .execute_unpaged(
                 &prepared.update_catatan_owner,
-                (catatan_owner, code_name),
+                (catatan_owner, emiten_name),
             )
             .await?;
         Ok(true)
     }
 
-    /// Update `foto_owner` (list<path>). Mengembalikan `Ok(false)` bila `code_name` tidak ada.
+    /// Update `foto_owner` (list<path>). Mengembalikan `Ok(false)` bila `emiten_name` tidak ada.
     pub async fn update_foto_owner(
         &self,
-        code_name: &str,
+        emiten_name: &str,
         foto_owner: &[String],
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-        if self.get_by_code_name(code_name).await?.is_none() {
+        if self.get_by_emiten_name(emiten_name).await?.is_none() {
             return Ok(false);
         }
 
         let prepared = self.prepared().await?;
         self.session
-            .execute_unpaged(&prepared.update_foto_owner, (foto_owner, code_name))
+            .execute_unpaged(&prepared.update_foto_owner, (foto_owner, emiten_name))
             .await?;
         Ok(true)
     }

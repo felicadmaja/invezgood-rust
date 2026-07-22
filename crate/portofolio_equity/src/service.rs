@@ -32,6 +32,13 @@ impl PortofolioEquityService {
     pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.repo.warm_prepared().await
     }
+
+    /// Scrape equity DOM (sama RPC). Jam 07–17 dicek pemanggil.
+    pub async fn scrape_from_stockbit_if_allowed(&self) -> Result<usize, Status> {
+        on_demand::scrape_portofolio_equity(Arc::clone(&self.session))
+            .await
+            .map_err(|e| Status::internal(e))
+    }
 }
 
 fn rows_to_proto(rows: Vec<PortofolioEquity>) -> Vec<PortofolioEquityRow> {

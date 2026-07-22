@@ -1,6 +1,6 @@
 //! On-demand scrape Stockbit (movers, emiten_list, bandarmology, portofolio, pending_order, equity, history).
 //!
-//! Scrape dijalankan di `tokio::spawn` + single-flight per `code_name`, supaya
+//! Scrape dijalankan di `tokio::spawn` + single-flight per `emiten_name`, supaya
 //! cancel/timeout di sisi gRPC client **tidak** membatalkan scrape yang sedang jalan
 //! (pola log: login OK → client retry berulang sebelum bearer warm-up selesai).
 
@@ -98,11 +98,11 @@ fn keyspace() -> String {
 /// untuk code yang sama menunggu hasil yang sama.
 pub async fn ensure_emiten_data_for_code(
     session: Arc<Session>,
-    code_name: &str,
+    emiten_name: &str,
 ) -> Result<(), String> {
-    let code = code_name.trim().to_ascii_uppercase();
+    let code = emiten_name.trim().to_ascii_uppercase();
     if code.is_empty() {
-        return Err("code_name kosong".into());
+        return Err("emiten_name kosong".into());
     }
 
     let mut rx = {
@@ -197,17 +197,17 @@ async fn run_ensure_emiten_scrape(
     result
 }
 
-/// Scrape Key Stats + Corp.Action + Profile dari Stockbit API untuk satu `code_name`
+/// Scrape Key Stats + Corp.Action + Profile dari Stockbit API untuk satu `emiten_name`
 /// (tanpa cek Scylla / `update_at`); upsert `emiten_list`.
 /// Bila `also_bandarmology`: setelah emiten_list, scrape API bandarmology untuk kode tersebut.
 pub async fn scrape_emiten_list_from_stockbit_for_code(
     session: Arc<Session>,
-    code_name: &str,
+    emiten_name: &str,
     also_bandarmology: bool,
 ) -> Result<(), String> {
-    let code = code_name.trim().to_ascii_uppercase();
+    let code = emiten_name.trim().to_ascii_uppercase();
     if code.is_empty() {
-        return Err("code_name kosong".into());
+        return Err("emiten_name kosong".into());
     }
 
     let mut rx = {
@@ -314,7 +314,7 @@ async fn run_emiten_list_stockbit_scrape(
 }
 
 /// On-demand scrape Top Gainer/Loser (movers) → upsert `emiten_trending` + seed `emiten_list`;
-/// lalu baca `code_name` dari `emiten_list` (setelah seed) → keystats/profile/corpaction;
+/// lalu baca `emiten_name` dari `emiten_list` (setelah seed) → keystats/profile/corpaction;
 /// lalu bandarmology **hanya** untuk kode TOP_GAINER + TOP_LOSER dari invoke ini
 /// (aturan skip sama `bandarmology_worker`).
 pub async fn scrape_emiten_trending_movers(
@@ -352,8 +352,8 @@ pub async fn scrape_emiten_trending_movers(
             .map_err(|e| e.to_string())?;
 
         // Setelah seed movers → baca ulang emiten_list (sudah termasuk ticker baru).
-        println!("On-demand: token-ring scan emiten_list.code_name (setelah seed movers)...");
-        let existing = bandarmology_worker::fetch_emiten_list_code_names(session.as_ref(), &ks)
+        println!("On-demand: token-ring scan emiten_list.emiten_name (setelah seed movers)...");
+        let existing = bandarmology_worker::fetch_emiten_list_emiten_names(session.as_ref(), &ks)
             .await
             .map_err(|e| e.to_string())?;
         let emitens = merge_codes_movers_first(&existing, &mover_codes);

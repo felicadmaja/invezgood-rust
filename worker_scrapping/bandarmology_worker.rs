@@ -99,8 +99,8 @@ pub struct BandarmologyDay {
 }
 
 #[derive(Debug, DeserializeRow)]
-struct CodeNameRow {
-    code_name: String,
+struct EmitenNameRow {
+    emiten_name: String,
 }
 
 #[derive(Debug, DeserializeRow)]
@@ -385,15 +385,15 @@ async fn bandarmology_exists_by_agg(
     bandarmology_exists(session, &exists_stmt, agg).await
 }
 
-/// Ambil daftar `code_name` dari tabel `emiten_list` via token-ring scan.
-pub async fn fetch_emiten_list_code_names(
+/// Ambil daftar `emiten_name` dari tabel `emiten_list` via token-ring scan.
+pub async fn fetch_emiten_list_emiten_names(
     session: &Session,
     keyspace: &str,
 ) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
     let mut scan = session
         .prepare(format!(
-            "SELECT code_name FROM {keyspace}.emiten_list \
-             WHERE token(code_name) >= ? AND token(code_name) <= ?"
+            "SELECT emiten_name FROM {keyspace}.emiten_list \
+             WHERE token(emiten_name) >= ? AND token(emiten_name) <= ?"
         ))
         .await?;
     scan.set_page_size(TOKEN_SCAN_PAGE_SIZE);
@@ -403,10 +403,10 @@ pub async fn fetch_emiten_list_code_names(
         let start = token_segment_start(seg, TOKEN_SEGMENTS);
         let end = token_segment_end(seg, TOKEN_SEGMENTS);
         let pager = session.execute_iter(scan.clone(), (start, end)).await?;
-        let mut rows = pager.rows_stream::<CodeNameRow>()?;
+        let mut rows = pager.rows_stream::<EmitenNameRow>()?;
         while let Some(row) = rows.next().await {
-            let CodeNameRow { code_name } = row?;
-            let n = code_name.trim().to_ascii_uppercase();
+            let EmitenNameRow { emiten_name } = row?;
+            let n = emiten_name.trim().to_ascii_uppercase();
             if !n.is_empty() {
                 names.insert(n);
             }
@@ -421,7 +421,7 @@ pub async fn fetch_today_emiten_names(
     keyspace: &str,
     _today: NaiveDate,
 ) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
-    fetch_emiten_list_code_names(session, keyspace).await
+    fetch_emiten_list_emiten_names(session, keyspace).await
 }
 
 async fn bandarmology_exists(

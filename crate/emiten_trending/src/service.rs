@@ -70,6 +70,14 @@ impl EmitenTrendingService {
             .map_err(|e| Status::internal(e))?;
         Ok(())
     }
+
+    /// Auto poller ready: scrape tanpa rate limit RPC.
+    pub async fn scrape_from_stockbit_on_ready(&self) -> Result<(), Status> {
+        on_demand::scrape_emiten_trending_movers(Arc::clone(&self.session))
+            .await
+            .map_err(|e| Status::internal(e))?;
+        Ok(())
+    }
 }
 
 #[tonic::async_trait]

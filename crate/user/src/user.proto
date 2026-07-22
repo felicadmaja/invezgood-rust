@@ -14,11 +14,13 @@ service User {
   // (dan heartbeat berkala). RPC tidak hit stockbit.com langsung.
   // Jika poller mendeteksi sesi habis: login ulang otomatis; bila gagal, retry
   // dengan jeda acak 10–30 detik sampai berhasil.
-  // Bila status ready: server juga auto-invoke (jam 07:00–17:00; rate limit tiap alur
-  // sama RPC masing-masing; tidak lewat gRPC client), berurutan:
-  // GetAllPortofolioFromStockbit → GetPortofolioHistoryByEmitenNameFromStockbit
-  // (batch semua holding) → GetAllPendingOrderFromStockbit →
-  // GetLatestEmitenTrendingFromStockbit.
+  // Bila status ready: tiap siklus poller (acak 5–7 menit) server auto-invoke berurutan
+  // (jam 07:00–17:00; tanpa rate limit RPC agar pasti jalan tiap tick; tidak lewat gRPC client):
+  // 1. GetAllPortofolioFromStockbit
+  // 2. GetAllPortofolioEquityFromStockbit
+  // 3. GetPortofolioHistoryByEmitenNameFromStockbit (batch semua holding)
+  // 4. GetAllPendingOrderFromStockbit
+  // 5. GetLatestEmitenTrendingFromStockbit
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
 

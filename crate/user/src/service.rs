@@ -126,6 +126,7 @@ impl UserRpc for UserService {
                         ready: false,
                         message: "Menunggu pengecekan berkala ke stockbit.com (interval 5–7 menit)"
                             .to_string(),
+                        poll_seq: 0,
                     }
                 });
 

@@ -11,8 +11,9 @@ use crate::model::EmitenList;
 use crate::repository::EmitenListRepository;
 use crate::{
     EmitenListRow, GetAllEmitenListFromScyllaRequest, GetAllEmitenListFromScyllaResponse,
-    GetEmitenListByCodeNameFromScyllaRequest, GetEmitenListByCodeNameFromScyllaResponse,
-    GetEmitenListByCodeNameFromStockbitRequest, GetEmitenListByCodeNameFromStockbitResponse,
+    GetEmitenListByEmitenNameFromScyllaRequest, GetEmitenListByEmitenNameFromScyllaResponse,
+    GetEmitenListByEmitenNameFromStockbitRequest, GetEmitenListByEmitenNameFromStockbitResponse,
+    GetMultiEmitenListFromScyllaRequest, GetMultiEmitenListFromScyllaResponse,
     UpdateEmitenListBlueChipRequest, UpdateEmitenListBlueChipResponse,
     UpdateEmitenListCatatanOwnerRequest, UpdateEmitenListCatatanOwnerResponse,
     UpdateEmitenListCatatanRequest, UpdateEmitenListCatatanResponse,
@@ -26,12 +27,27 @@ use crate::{
 const MAX_EMITEN_SECTOR: i32 = 46;
 
 /// Trim + UPPERCASE; wajib tepat 4 huruf ASCII alphabet (A–Z).
-fn parse_code_name(raw: &str) -> Result<String, String> {
+fn parse_emiten_name(raw: &str) -> Result<String, String> {
     let code = raw.trim().to_ascii_uppercase();
     if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
-        return Err("code_name wajib tepat 4 huruf alphabet (contoh BBCA)".into());
+        return Err("emiten_name wajib tepat 4 huruf alphabet (contoh BBCA)".into());
     }
     Ok(code)
+}
+
+/// Normalisasi daftar: UPPERCASE, tepat 4 huruf, unik (urutan tetap).
+fn normalize_emiten_names(raw: &[String]) -> Vec<String> {
+    let mut out = Vec::with_capacity(raw.len());
+    let mut seen = std::collections::HashSet::new();
+    for item in raw {
+        let Ok(name) = parse_emiten_name(item) else {
+            continue;
+        };
+        if seen.insert(name.clone()) {
+            out.push(name);
+        }
+    }
+    out
 }
 
 pub struct EmitenListService {
@@ -86,52 +102,89 @@ impl EmitenListRpc for EmitenListService {
         }))
     }
 
-    async fn get_emiten_list_by_code_name_from_scylla(
+    async fn get_emiten_list_by_emiten_name_from_scylla(
         &self,
-        request: Request<GetEmitenListByCodeNameFromScyllaRequest>,
-    ) -> Result<Response<GetEmitenListByCodeNameFromScyllaResponse>, Status> {
+        request: Request<GetEmitenListByEmitenNameFromScyllaRequest>,
+    ) -> Result<Response<GetEmitenListByEmitenNameFromScyllaResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
 
-        let code_name = parse_code_name(&request.into_inner().code_name)
+        let emiten_name = parse_emiten_name(&request.into_inner().emiten_name)
             .map_err(Status::invalid_argument)?;
 
         let row = self
             .repo
-            .get_by_code_name(&code_name)
+            .get_by_emiten_name(&emiten_name)
             .await
             .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
             .ok_or_else(|| {
-                Status::not_found(format!("emiten_list code_name={code_name} tidak ditemukan"))
+                Status::not_found(format!("emiten_list emiten_name={emiten_name} tidak ditemukan"))
             })?;
 
         println!(
-            "GetEmitenListByCodeNameFromScylla {} {} {}ms",
+            "GetEmitenListByEmitenNameFromScylla {} {} {}ms",
             username,
-            code_name,
+            emiten_name,
             started.elapsed().as_millis()
         );
 
-        Ok(Response::new(GetEmitenListByCodeNameFromScyllaResponse {
+        Ok(Response::new(GetEmitenListByEmitenNameFromScyllaResponse {
             row: Some(row.into_proto()),
         }))
     }
 
-    async fn get_emiten_list_by_code_name_from_stockbit(
+    async fn get_multi_emiten_list_from_scylla(
         &self,
-        request: Request<GetEmitenListByCodeNameFromStockbitRequest>,
-    ) -> Result<Response<GetEmitenListByCodeNameFromStockbitResponse>, Status> {
+        request: Request<GetMultiEmitenListFromScyllaRequest>,
+    ) -> Result<Response<GetMultiEmitenListFromScyllaResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let names = normalize_emiten_names(&req.emiten_name);
+        if names.is_empty() {
+            return Err(Status::invalid_argument(
+                "emiten_name wajib diisi minimal 1 kode valid (4 huruf)",
+            ));
+        }
+
+        let rows = self
+            .repo
+            .get_many_by_emiten_names(&names)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        let proto_rows: Vec<EmitenListRow> =
+            rows.into_iter().map(EmitenList::into_proto).collect();
+        println!(
+            "GetMultiEmitenListFromScylla {} req={} found={} {}ms",
+            username,
+            names.len(),
+            proto_rows.len(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetMultiEmitenListFromScyllaResponse {
+            rows: proto_rows,
+        }))
+    }
+
+    async fn get_emiten_list_by_emiten_name_from_stockbit(
+        &self,
+        request: Request<GetEmitenListByEmitenNameFromStockbitRequest>,
+    ) -> Result<Response<GetEmitenListByEmitenNameFromStockbitResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
 
-        let code_name = parse_code_name(&request.into_inner().code_name)
+        let emiten_name = parse_emiten_name(&request.into_inner().emiten_name)
             .map_err(Status::invalid_argument)?;
 
         let mut row: Option<EmitenList> = self
             .repo
-            .get_by_code_name(&code_name)
+            .get_by_emiten_name(&emiten_name)
             .await
             .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
 
@@ -150,7 +203,7 @@ impl EmitenListRpc for EmitenListService {
                 "update_at stale (≥30 hari)"
             };
             println!(
-                "GetEmitenListByCodeNameFromStockbit {username}: {code_name} {reason} — scrape Stockbit{}...",
+                "GetEmitenListByEmitenNameFromStockbit {username}: {emiten_name} {reason} — scrape Stockbit{}...",
                 if emiten_missing {
                     " (+ bandarmology)"
                 } else {
@@ -159,14 +212,14 @@ impl EmitenListRpc for EmitenListService {
             );
             if let Err(e) = on_demand::scrape_emiten_list_from_stockbit_for_code(
                 self.session.clone(),
-                &code_name,
+                &emiten_name,
                 emiten_missing,
             )
             .await
             {
                 let err = e.to_string();
                 eprintln!(
-                    "GetEmitenListByCodeNameFromStockbit {username}: scrape gagal {code_name}: {err}"
+                    "GetEmitenListByEmitenNameFromStockbit {username}: scrape gagal {emiten_name}: {err}"
                 );
                 if err.contains(worker_scrapping::emiten_list_worker::EMITEN_NOT_ON_BEI) {
                     return Err(Status::not_found(
@@ -178,25 +231,25 @@ impl EmitenListRpc for EmitenListService {
 
             row = self
                 .repo
-                .get_by_code_name(&code_name)
+                .get_by_emiten_name(&emiten_name)
                 .await
                 .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
         }
 
         let row = row.ok_or_else(|| {
             Status::not_found(format!(
-                "emiten_list code_name={code_name} tidak ditemukan setelah scrape"
+                "emiten_list emiten_name={emiten_name} tidak ditemukan setelah scrape"
             ))
         })?;
 
         println!(
-            "GetEmitenListByCodeNameFromStockbit {} {} {}ms",
+            "GetEmitenListByEmitenNameFromStockbit {} {} {}ms",
             username,
-            code_name,
+            emiten_name,
             started.elapsed().as_millis()
         );
 
-        Ok(Response::new(GetEmitenListByCodeNameFromStockbitResponse {
+        Ok(Response::new(GetEmitenListByEmitenNameFromStockbitResponse {
             row: Some(row.into_proto()),
         }))
     }
@@ -210,7 +263,7 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = match parse_code_name(&req.code_name) {
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
             Ok(c) => c,
             Err(message) => {
                 return Ok(Response::new(UpdateEmitenListFundamentalResponse {
@@ -223,21 +276,21 @@ impl EmitenListRpc for EmitenListService {
 
         let updated = self
             .repo
-            .update_fundamental_solid(&code_name, req.is_fundamental_solid)
+            .update_fundamental_solid(&emiten_name, req.is_fundamental_solid)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
         let (success, message, row) = if updated {
             let row = self
                 .repo
-                .get_by_code_name(&code_name)
+                .get_by_emiten_name(&emiten_name)
                 .await
                 .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
                 .map(EmitenList::into_proto);
             (
                 true,
                 format!(
-                    "is_fundamental_solid={} untuk {code_name} berhasil diupdate",
+                    "is_fundamental_solid={} untuk {emiten_name} berhasil diupdate",
                     req.is_fundamental_solid
                 ),
                 row,
@@ -245,13 +298,13 @@ impl EmitenListRpc for EmitenListService {
         } else {
             (
                 false,
-                format!("emiten_list code_name={code_name} tidak ditemukan"),
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
                 None,
             )
         };
 
         println!(
-            "UpdateEmitenListFundamental {} {code_name} success={success} {}ms",
+            "UpdateEmitenListFundamental {} {emiten_name} success={success} {}ms",
             username,
             started.elapsed().as_millis()
         );
@@ -272,7 +325,7 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = match parse_code_name(&req.code_name) {
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
             Ok(c) => c,
             Err(message) => {
                 return Ok(Response::new(UpdateEmitenListSectorResponse {
@@ -297,7 +350,7 @@ impl EmitenListRpc for EmitenListService {
         let sector = req.sector as i8;
         let updated = self
             .repo
-            .update_sector(&code_name, sector)
+            .update_sector(&emiten_name, sector)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
@@ -305,14 +358,14 @@ impl EmitenListRpc for EmitenListService {
             Some(trending_n) => {
                 let row = self
                     .repo
-                    .get_by_code_name(&code_name)
+                    .get_by_emiten_name(&emiten_name)
                     .await
                     .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
                     .map(EmitenList::into_proto);
                 (
                     true,
                     format!(
-                        "sector={sector} untuk {code_name} diupdate \
+                        "sector={sector} untuk {emiten_name} diupdate \
                          (emiten_list + {trending_n} baris emiten_trending)"
                     ),
                     row,
@@ -320,13 +373,13 @@ impl EmitenListRpc for EmitenListService {
             }
             None => (
                 false,
-                format!("emiten_list code_name={code_name} tidak ditemukan"),
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
                 None,
             ),
         };
 
         println!(
-            "UpdateEmitenListSector {} {code_name} success={success} {}ms",
+            "UpdateEmitenListSector {} {emiten_name} success={success} {}ms",
             username,
             started.elapsed().as_millis()
         );
@@ -347,7 +400,7 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = match parse_code_name(&req.code_name) {
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
             Ok(c) => c,
             Err(message) => {
                 return Ok(Response::new(UpdateEmitenListKonglomerasiResponse {
@@ -360,21 +413,21 @@ impl EmitenListRpc for EmitenListService {
 
         let updated = self
             .repo
-            .update_konglomerasi(&code_name, req.is_konglomerasi)
+            .update_konglomerasi(&emiten_name, req.is_konglomerasi)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
         let (success, message, row) = if updated {
             let row = self
                 .repo
-                .get_by_code_name(&code_name)
+                .get_by_emiten_name(&emiten_name)
                 .await
                 .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
                 .map(EmitenList::into_proto);
             (
                 true,
                 format!(
-                    "is_konglomerasi={} untuk {code_name} berhasil diupdate",
+                    "is_konglomerasi={} untuk {emiten_name} berhasil diupdate",
                     req.is_konglomerasi
                 ),
                 row,
@@ -382,13 +435,13 @@ impl EmitenListRpc for EmitenListService {
         } else {
             (
                 false,
-                format!("emiten_list code_name={code_name} tidak ditemukan"),
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
                 None,
             )
         };
 
         println!(
-            "UpdateEmitenListKonglomerasi {} {code_name} success={success} {}ms",
+            "UpdateEmitenListKonglomerasi {} {emiten_name} success={success} {}ms",
             username,
             started.elapsed().as_millis()
         );
@@ -409,7 +462,7 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = match parse_code_name(&req.code_name) {
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
             Ok(c) => c,
             Err(message) => {
                 return Ok(Response::new(UpdateEmitenListBlueChipResponse {
@@ -422,21 +475,21 @@ impl EmitenListRpc for EmitenListService {
 
         let updated = self
             .repo
-            .update_blue_chip(&code_name, req.is_blue_chip)
+            .update_blue_chip(&emiten_name, req.is_blue_chip)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
         let (success, message, row) = if updated {
             let row = self
                 .repo
-                .get_by_code_name(&code_name)
+                .get_by_emiten_name(&emiten_name)
                 .await
                 .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
                 .map(EmitenList::into_proto);
             (
                 true,
                 format!(
-                    "is_blue_chip={} untuk {code_name} berhasil diupdate",
+                    "is_blue_chip={} untuk {emiten_name} berhasil diupdate",
                     req.is_blue_chip
                 ),
                 row,
@@ -444,13 +497,13 @@ impl EmitenListRpc for EmitenListService {
         } else {
             (
                 false,
-                format!("emiten_list code_name={code_name} tidak ditemukan"),
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
                 None,
             )
         };
 
         println!(
-            "UpdateEmitenListBlueChip {} {code_name} success={success} {}ms",
+            "UpdateEmitenListBlueChip {} {emiten_name} success={success} {}ms",
             username,
             started.elapsed().as_millis()
         );
@@ -471,7 +524,7 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = match parse_code_name(&req.code_name) {
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
             Ok(c) => c,
             Err(message) => {
                 return Ok(Response::new(UpdateEmitenListPlanToTradeResponse {
@@ -484,21 +537,21 @@ impl EmitenListRpc for EmitenListService {
 
         let updated = self
             .repo
-            .update_plan_to_trade(&code_name, req.is_plan_to_trade)
+            .update_plan_to_trade(&emiten_name, req.is_plan_to_trade)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
         let (success, message, row) = if updated {
             let row = self
                 .repo
-                .get_by_code_name(&code_name)
+                .get_by_emiten_name(&emiten_name)
                 .await
                 .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
                 .map(EmitenList::into_proto);
             (
                 true,
                 format!(
-                    "is_plan_to_trade={} untuk {code_name} berhasil diupdate",
+                    "is_plan_to_trade={} untuk {emiten_name} berhasil diupdate",
                     req.is_plan_to_trade
                 ),
                 row,
@@ -506,13 +559,13 @@ impl EmitenListRpc for EmitenListService {
         } else {
             (
                 false,
-                format!("emiten_list code_name={code_name} tidak ditemukan"),
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
                 None,
             )
         };
 
         println!(
-            "UpdateEmitenListPlanToTrade {} {code_name} success={success} {}ms",
+            "UpdateEmitenListPlanToTrade {} {emiten_name} success={success} {}ms",
             username,
             started.elapsed().as_millis()
         );
@@ -533,7 +586,7 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = match parse_code_name(&req.code_name) {
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
             Ok(c) => c,
             Err(message) => {
                 return Ok(Response::new(UpdateEmitenListCatatanResponse {
@@ -547,32 +600,32 @@ impl EmitenListRpc for EmitenListService {
         let catatan = req.catatan;
         let updated = self
             .repo
-            .update_catatan(&code_name, &catatan)
+            .update_catatan(&emiten_name, &catatan)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
         let (success, message, row) = if updated {
             let row = self
                 .repo
-                .get_by_code_name(&code_name)
+                .get_by_emiten_name(&emiten_name)
                 .await
                 .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
                 .map(EmitenList::into_proto);
             (
                 true,
-                format!("catatan untuk {code_name} berhasil diupdate"),
+                format!("catatan untuk {emiten_name} berhasil diupdate"),
                 row,
             )
         } else {
             (
                 false,
-                format!("emiten_list code_name={code_name} tidak ditemukan"),
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
                 None,
             )
         };
 
         println!(
-            "UpdateEmitenListCatatan {} {code_name} success={success} {}ms",
+            "UpdateEmitenListCatatan {} {emiten_name} success={success} {}ms",
             username,
             started.elapsed().as_millis()
         );
@@ -593,7 +646,7 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = match parse_code_name(&req.code_name) {
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
             Ok(c) => c,
             Err(message) => {
                 return Ok(Response::new(UpdateEmitenListCatatanOwnerResponse {
@@ -607,32 +660,32 @@ impl EmitenListRpc for EmitenListService {
         let catatan_owner = req.catatan_owner.trim().to_string();
         let updated = self
             .repo
-            .update_catatan_owner(&code_name, &catatan_owner)
+            .update_catatan_owner(&emiten_name, &catatan_owner)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
         let (success, message, row) = if updated {
             let row = self
                 .repo
-                .get_by_code_name(&code_name)
+                .get_by_emiten_name(&emiten_name)
                 .await
                 .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
                 .map(EmitenList::into_proto);
             (
                 true,
-                format!("catatan_owner untuk {code_name} berhasil diupdate"),
+                format!("catatan_owner untuk {emiten_name} berhasil diupdate"),
                 row,
             )
         } else {
             (
                 false,
-                format!("emiten_list code_name={code_name} tidak ditemukan"),
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
                 None,
             )
         };
 
         println!(
-            "UpdateEmitenListCatatanOwner {} {code_name} success={success} {}ms",
+            "UpdateEmitenListCatatanOwner {} {emiten_name} success={success} {}ms",
             username,
             started.elapsed().as_millis()
         );
@@ -653,7 +706,7 @@ impl EmitenListRpc for EmitenListService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let code_name = match parse_code_name(&req.code_name) {
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
             Ok(c) => c,
             Err(message) => {
                 return Ok(Response::new(UpdateEmitenListPhotoProfileOwnerResponse {
@@ -672,32 +725,32 @@ impl EmitenListRpc for EmitenListService {
             .collect();
         let updated = self
             .repo
-            .update_foto_owner(&code_name, &foto_owner)
+            .update_foto_owner(&emiten_name, &foto_owner)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
         let (success, message, row) = if updated {
             let row = self
                 .repo
-                .get_by_code_name(&code_name)
+                .get_by_emiten_name(&emiten_name)
                 .await
                 .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
                 .map(EmitenList::into_proto);
             (
                 true,
-                format!("foto_owner untuk {code_name} berhasil diupdate"),
+                format!("foto_owner untuk {emiten_name} berhasil diupdate"),
                 row,
             )
         } else {
             (
                 false,
-                format!("emiten_list code_name={code_name} tidak ditemukan"),
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
                 None,
             )
         };
 
         println!(
-            "UpdateEmitenListPhotoProfileOwner {} {code_name} success={success} {}ms",
+            "UpdateEmitenListPhotoProfileOwner {} {emiten_name} success={success} {}ms",
             username,
             started.elapsed().as_millis()
         );

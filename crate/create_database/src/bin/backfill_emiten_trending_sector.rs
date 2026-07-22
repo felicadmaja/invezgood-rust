@@ -15,7 +15,7 @@ const SCAN_CONCURRENCY: usize = 8;
 #[derive(Debug, DeserializeRow)]
 struct ListSectorRow {
     #[scylla(default_when_null)]
-    code_name: String,
+    emiten_name: String,
     sector: Option<i8>,
 }
 
@@ -71,8 +71,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut scan = session
         .prepare(format!(
-            "SELECT code_name, sector FROM {ks}.emiten_list \
-             WHERE token(code_name) >= ? AND token(code_name) <= ?"
+            "SELECT emiten_name, sector FROM {ks}.emiten_list \
+             WHERE token(emiten_name) >= ? AND token(emiten_name) <= ?"
         ))
         .await?;
     scan.set_page_size(200);
@@ -118,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut emitens_with_sector = 0usize;
 
     for row in list_rows {
-        let code = row.code_name.trim().to_ascii_uppercase();
+        let code = row.emiten_name.trim().to_ascii_uppercase();
         if code.is_empty() {
             continue;
         }

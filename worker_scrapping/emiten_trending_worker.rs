@@ -420,17 +420,17 @@ async fn insert_emiten_trending(
 
     let list_icon_stmt = session
         .prepare(format!(
-            "SELECT emiten_icon FROM {keyspace}.emiten_list WHERE code_name = ?"
+            "SELECT emiten_icon FROM {keyspace}.emiten_list WHERE emiten_name = ?"
         ))
         .await?;
     let list_long_name_stmt = session
         .prepare(format!(
-            "SELECT long_name FROM {keyspace}.emiten_list WHERE code_name = ?"
+            "SELECT long_name FROM {keyspace}.emiten_list WHERE emiten_name = ?"
         ))
         .await?;
     let list_sector_stmt = session
         .prepare(format!(
-            "SELECT sector FROM {keyspace}.emiten_list WHERE code_name = ?"
+            "SELECT sector FROM {keyspace}.emiten_list WHERE emiten_name = ?"
         ))
         .await?;
 

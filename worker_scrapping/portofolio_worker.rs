@@ -109,7 +109,7 @@ async fn emiten_list_icon(
 ) -> Result<String, Box<dyn std::error::Error>> {
     let stmt = session
         .prepare(format!(
-            "SELECT emiten_icon FROM {keyspace}.emiten_list WHERE code_name = ?"
+            "SELECT emiten_icon FROM {keyspace}.emiten_list WHERE emiten_name = ?"
         ))
         .await?;
     let result = session
@@ -133,7 +133,7 @@ async fn emiten_list_long_name(
 ) -> Result<String, Box<dyn std::error::Error>> {
     let stmt = session
         .prepare(format!(
-            "SELECT long_name FROM {keyspace}.emiten_list WHERE code_name = ?"
+            "SELECT long_name FROM {keyspace}.emiten_list WHERE emiten_name = ?"
         ))
         .await?;
     let result = session
