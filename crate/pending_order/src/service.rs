@@ -58,6 +58,14 @@ impl PendingOrderService {
     pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.repo.warm_prepared().await
     }
+
+    /// Rate limit 1×/5 menit + scrape pending order (sama RPC). Jam 07–17 dicek pemanggil.
+    pub async fn scrape_from_stockbit_if_allowed(&self) -> Result<usize, Status> {
+        acquire_pending_order_scrape_slot().await?;
+        on_demand::scrape_pending_order_all(Arc::clone(&self.session))
+            .await
+            .map_err(|e| Status::internal(e))
+    }
 }
 
 fn rows_to_proto(rows: Vec<PendingOrder>) -> Vec<PendingOrderRow> {

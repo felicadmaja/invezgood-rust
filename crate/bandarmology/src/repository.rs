@@ -64,4 +64,22 @@ impl BandarmologyRepository {
             .into_rows_result()?;
         Ok(result.maybe_first_row::<Bandarmology>()?)
     }
+
+    /// Lookup banyak emiten untuk satu `tahun_bulan` (PK per kode). Yang tidak ada di-skip.
+    pub async fn find_many_by_tahun_bulan_and_emitens(
+        &self,
+        tahun_bulan: &str,
+        kode_emitens: &[String],
+    ) -> Result<Vec<Bandarmology>, Box<dyn std::error::Error + Send + Sync>> {
+        let mut out = Vec::with_capacity(kode_emitens.len());
+        for kode in kode_emitens {
+            if let Some(row) = self
+                .find_by_tahun_bulan_and_emiten(tahun_bulan, kode)
+                .await?
+            {
+                out.push(row);
+            }
+        }
+        Ok(out)
+    }
 }

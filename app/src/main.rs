@@ -10,6 +10,8 @@
 //! TLS (opsional): `USE_TLS=true`, `TLS_CERT_DIR` (default folder certificate mrgs),
 //! `TLS_CERT_FILE`, `TLS_KEY_FILE`.
 
+mod ready_auto_scrape;
+
 use bandarmology::bandarmology_server::BandarmologyServer;
 use bandarmology::BandarmologyService;
 use broker::broker_server::BrokerServer;
@@ -55,7 +57,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let user_svc = UserService::new(session.clone());
     let portofolio_svc = PortofolioService::new(session.clone());
-    portofolio_svc.spawn_scrape_on_stockbit_ready(user_svc.readiness_poller());
     let portofolio_bandarmology_svc = PortofolioBandarmologyService::new(session.clone());
     let portofolio_equity_svc = PortofolioEquityService::new(session.clone());
     let portofolio_history_svc = PortofolioHistoryService::new(session.clone());
@@ -67,6 +68,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pending_order_svc = PendingOrderService::new(session.clone());
     let gcs_svc = GcsGrpcService::from_env()
         .map_err(|e| format!("GCS env: {e}"))?;
+
+    ready_auto_scrape::spawn_on_stockbit_ready(
+        user_svc.readiness_poller(),
+        PortofolioService::new(session.clone()),
+        PortofolioHistoryService::new(session.clone()),
+        PendingOrderService::new(session.clone()),
+        EmitenTrendingService::new(session.clone()),
+    );
 
     // Semua warm_prepared harus selesai di sini — sebelum router.serve.
     // Binary utama wajib gagal startup bila warm/prepare gagal.

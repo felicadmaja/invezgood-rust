@@ -8,14 +8,17 @@ service User {
   // (header: Authorization: Bearer <token>).
   rpc Login(LoginRequest) returns (LoginResponse);
 
-  // Status kesiapan sesi Stockbit dari background poller (cek web acak tiap 5–10 menit).
+  // Status kesiapan sesi Stockbit dari background poller (cek web acak tiap 5–7 menit).
   // State terakhir di Redis key `stockbit:readiness` (bukan memory proses).
   // Client cukup subscribe 1x — stream tetap terbuka; server push saat status berubah
   // (dan heartbeat berkala). RPC tidak hit stockbit.com langsung.
   // Jika poller mendeteksi sesi habis: login ulang otomatis; bila gagal, retry
   // dengan jeda acak 10–30 detik sampai berhasil.
-  // Bila status ready: server juga auto-invoke alur GetAllPortofolioFromStockbit
-  // (jam 07:00–17:00 + rate limit 1×/5 menit; tidak lewat gRPC client).
+  // Bila status ready: server juga auto-invoke (jam 07:00–17:00; rate limit tiap alur
+  // sama RPC masing-masing; tidak lewat gRPC client), berurutan:
+  // GetAllPortofolioFromStockbit → GetPortofolioHistoryByEmitenNameFromStockbit
+  // (batch semua holding) → GetAllPendingOrderFromStockbit →
+  // GetLatestEmitenTrendingFromStockbit.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
 

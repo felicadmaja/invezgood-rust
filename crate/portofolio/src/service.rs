@@ -3,7 +3,6 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use scylla::client::session::Session;
-use stockbit_browser::ReadinessPoller;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use user::{require_auth, require_stockbit_scrape_hours};
@@ -60,51 +59,29 @@ impl PortofolioService {
         self.repo.warm_prepared().await
     }
 
-    /// Saat poller `IsStockbitReady` mendapat `ready=true`, jalankan scrape sama
-    /// `GetAllPortofolioFromStockbit` (jam 07–17 + rate limit 1×/5 menit).
-    pub fn spawn_scrape_on_stockbit_ready(&self, poller: Arc<ReadinessPoller>) {
-        let session = Arc::clone(&self.session);
-        let mut rx = poller.subscribe();
-        tokio::spawn(async move {
-            loop {
-                let ready = rx
-                    .borrow_and_update()
-                    .as_ref()
-                    .map(|u| u.ready)
-                    .unwrap_or(false);
-                if ready {
-                    if let Err(e) = require_stockbit_scrape_hours() {
-                        println!(
-                            "Readiness ready → skip auto GetAllPortofolioFromStockbit: {}",
-                            e.message()
-                        );
-                    } else if let Err(e) = acquire_portfolio_scrape_slot().await {
-                        println!(
-                            "Readiness ready → skip auto GetAllPortofolioFromStockbit: {}",
-                            e.message()
-                        );
-                    } else {
-                        println!(
-                            "Readiness ready → auto invoke GetAllPortofolioFromStockbit (scrape)..."
-                        );
-                        match on_demand::scrape_portofolio_all(Arc::clone(&session)).await {
-                            Ok(n) => {
-                                println!(
-                                    "Auto GetAllPortofolioFromStockbit selesai: {n} baris di-upsert."
-                                );
-                            }
-                            Err(e) => {
-                                eprintln!("Auto GetAllPortofolioFromStockbit GAGAL: {e}");
-                            }
-                        }
-                    }
-                }
+    /// Jam 07–17 dicek pemanggil. Rate limit 1×/5 menit + scrape (sama RPC).
+    /// Returns `(baris_upsert, kode_holding)`.
+    pub async fn scrape_from_stockbit_if_allowed(
+        &self,
+    ) -> Result<(usize, Vec<String>), Status> {
+        acquire_portfolio_scrape_slot().await?;
+        on_demand::scrape_portofolio_all(Arc::clone(&self.session))
+            .await
+            .map_err(|e| Status::internal(e))
+    }
 
-                if rx.changed().await.is_err() {
-                    break;
-                }
-            }
-        });
+    /// Kode holding saat ini di Scylla `portofolio` (untuk batch history).
+    pub async fn list_holding_codes(&self) -> Result<Vec<String>, Status> {
+        let rows = self
+            .repo
+            .get_all()
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+        Ok(rows
+            .into_iter()
+            .map(|r| r.emiten_name.trim().to_ascii_uppercase())
+            .filter(|c| !c.is_empty())
+            .collect())
     }
 }
 
@@ -159,7 +136,7 @@ impl PortofolioRpc for PortofolioService {
         );
 
         match on_demand::scrape_portofolio_all(Arc::clone(&self.session)).await {
-            Ok(n) => {
+            Ok((n, _)) => {
                 let rows = self
                     .repo
                     .get_all()

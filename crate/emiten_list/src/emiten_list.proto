@@ -16,6 +16,10 @@ service EmitenList {
   rpc GetEmitenListByCodeNameFromScylla(GetEmitenListByCodeNameFromScyllaRequest) returns (GetEmitenListByCodeNameFromScyllaResponse);
 
 
+  // buatkan rpc GetMultiEmitenListFromScylla(GetMultiEmitenListFromScyllaRequest) returns (GetMultiEmitenListFromScyllaResponse);
+  // request: repeated string kode_emiten;
+
+
   // Lookup satu emiten: baca Scylla dulu; scrape Key Stats + Corp.Action + Profile dari Stockbit
   // hanya bila baris tidak ada atau `update_at` kosong / sudah ≥ 30 hari; upsert lalu baca baris lengkap.
   // Bila baris belum ada di `emiten_list`: selain upsert emiten, scrape API bandarmology untuk kode tersebut.

@@ -13,6 +13,7 @@ use crate::repository::BandarmologyRepository;
 use crate::{
     GetBandarmologyFromScyllaRequest, GetBandarmologyFromScyllaResponse,
     GetBandarmologyFromStockbitRequest, GetBandarmologyFromStockbitResponse,
+    GetMultiBandarmologyFromScyllaRequest, GetMultiBandarmologyFromScyllaResponse,
 };
 
 /// True bila string tepat pola `YYYY-MM` (4 digit-tahun, 2 digit-bulan).
@@ -30,6 +31,39 @@ fn parse_kode_emiten(raw: &str) -> Result<String, String> {
         return Err("kode_emiten harus tepat 4 huruf alfabet (contoh: BBCA)".into());
     }
     Ok(kode)
+}
+
+fn parse_tahun_bulan(raw: &str) -> Result<String, Status> {
+    let tahun_bulan = raw.trim();
+    if !is_yyyy_mm(tahun_bulan) {
+        return Err(Status::invalid_argument(
+            "tahun_bulan harus format YYYY-MM (contoh: 2026-07)",
+        ));
+    }
+    let month = tahun_bulan[5..7].parse::<u8>().map_err(|_| {
+        Status::invalid_argument("tahun_bulan harus format YYYY-MM (contoh: 2026-07)")
+    })?;
+    if !(1..=12).contains(&month) {
+        return Err(Status::invalid_argument(
+            "tahun_bulan harus bulan valid 01–12 (contoh: 2026-07)",
+        ));
+    }
+    Ok(tahun_bulan.to_string())
+}
+
+/// Normalisasi daftar kode: UPPERCASE, tepat 4 huruf, unik (urutan tetap).
+fn normalize_kode_emitens(raw: &[String]) -> Vec<String> {
+    let mut out = Vec::with_capacity(raw.len());
+    let mut seen = std::collections::HashSet::new();
+    for item in raw {
+        let Ok(kode) = parse_kode_emiten(item) else {
+            continue;
+        };
+        if seen.insert(kode.clone()) {
+            out.push(kode);
+        }
+    }
+    out
 }
 
 pub struct BandarmologyService {
@@ -62,27 +96,12 @@ impl BandarmologyRpc for BandarmologyService {
         let username = claims.name.clone();
         let req = request.into_inner();
 
-        let tahun_bulan = req.tahun_bulan.trim();
-        if !is_yyyy_mm(tahun_bulan) {
-            return Err(Status::invalid_argument(
-                "tahun_bulan harus format YYYY-MM (contoh: 2026-07)",
-            ));
-        }
-
-        let month = tahun_bulan[5..7].parse::<u8>().map_err(|_| {
-            Status::invalid_argument("tahun_bulan harus format YYYY-MM (contoh: 2026-07)")
-        })?;
-        if !(1..=12).contains(&month) {
-            return Err(Status::invalid_argument(
-                "tahun_bulan harus bulan valid 01–12 (contoh: 2026-07)",
-            ));
-        }
-
+        let tahun_bulan = parse_tahun_bulan(&req.tahun_bulan)?;
         let kode = parse_kode_emiten(&req.kode_emiten).map_err(Status::invalid_argument)?;
 
         let row = self
             .repo
-            .find_by_tahun_bulan_and_emiten(tahun_bulan, &kode)
+            .find_by_tahun_bulan_and_emiten(&tahun_bulan, &kode)
             .await
             .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
             .ok_or_else(|| {
@@ -100,6 +119,44 @@ impl BandarmologyRpc for BandarmologyService {
 
         Ok(Response::new(GetBandarmologyFromScyllaResponse {
             row: Some(Bandarmology::into_proto(row)),
+        }))
+    }
+
+    async fn get_multi_bandarmology_from_scylla(
+        &self,
+        request: Request<GetMultiBandarmologyFromScyllaRequest>,
+    ) -> Result<Response<GetMultiBandarmologyFromScyllaResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let tahun_bulan = parse_tahun_bulan(&req.tahun_bulan)?;
+        let kodes = normalize_kode_emitens(&req.kode_emiten);
+        if kodes.is_empty() {
+            return Err(Status::invalid_argument(
+                "kode_emiten wajib diisi minimal 1 kode valid (4 huruf)",
+            ));
+        }
+
+        let rows = self
+            .repo
+            .find_many_by_tahun_bulan_and_emitens(&tahun_bulan, &kodes)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        let proto_rows: Vec<_> = rows.into_iter().map(Bandarmology::into_proto).collect();
+        println!(
+            "GetMultiBandarmologyFromScylla {} {} req={} found={} {}ms",
+            username,
+            tahun_bulan,
+            kodes.len(),
+            proto_rows.len(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetMultiBandarmologyFromScyllaResponse {
+            rows: proto_rows,
         }))
     }
 

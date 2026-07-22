@@ -8,6 +8,14 @@ service Bandarmology {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyFromScylla(GetBandarmologyFromScyllaRequest) returns (GetBandarmologyFromScyllaResponse);
 
+  // Lookup banyak emiten untuk satu `tahun_bulan` (hanya baca Scylla, tidak scrape).
+  // Per kode: PK `tahun_bulan + '_' + kode_emiten` (sama GetBandarmologyFromScylla).
+  // kode_emiten dinormalisasi UPPERCASE; duplikat di-skip; kode invalid diabaikan.
+  // Response hanya baris yang ada di Scylla (yang tidak ketemu tidak ikut).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetMultiBandarmologyFromScylla(GetMultiBandarmologyFromScyllaRequest)
+      returns (GetMultiBandarmologyFromScyllaResponse);
+
   // Scrape bandarmology 1 tahun kebelakang (max 12 bulan) untuk satu emiten via API Stockbit.
   // Aturan sama `bandarmology_worker`:
   // - bulan berjalan overwrite `broker_summary` (awal bulan → hari ini) hanya bila
@@ -23,15 +31,25 @@ service Bandarmology {
 }
 
 message GetBandarmologyFromScyllaRequest {
-  // Wajib format YYYY-MM (contoh "2026-07"); selain itu invalid_argument.---
+  // Wajib format YYYY-MM (contoh "2026-07"); selain itu invalid_argument.
   string tahun_bulan = 1;
   // Kode emiten / ticker (4 huruf); di server di-capitalize ke uppercase (bbca → BBCA).
   string kode_emiten = 2;
 }
 
-
 message GetBandarmologyFromScyllaResponse {
   BandarmologyRow row = 1;
+}
+
+message GetMultiBandarmologyFromScyllaRequest {
+  // Wajib format YYYY-MM (contoh "2026-07"); selain itu invalid_argument.
+  string tahun_bulan = 1;
+  // Daftar kode emiten (4 huruf); dinormalisasi UPPERCASE; duplikat di-skip.
+  repeated string kode_emiten = 2;
+}
+
+message GetMultiBandarmologyFromScyllaResponse {
+  repeated BandarmologyRow rows = 1;
 }
 
 message GetBandarmologyFromStockbitRequest {

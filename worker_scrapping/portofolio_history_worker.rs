@@ -326,22 +326,9 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
             i + 1,
             emitens.len()
         );
-        match fetch_order_history_by_stock_code(&http, &bearer, &code).await {
-            Ok((history, rate)) => {
-                last_rate = rate;
-                let n = history.len();
-                match upsert_portofolio_history_today(session.as_ref(), keyspace, &code, &history)
-                    .await
-                {
-                    Ok(today) => {
-                        ok += 1;
-                        println!(
-                            "OK: portofolio_history {code} {today} diupsert dengan {n} entri."
-                        );
-                    }
-                    Err(e) => eprintln!("portofolio_history [{code}]: upsert gagal: {e}"),
-                }
-            }
+        let (history, rate) = match fetch_order_history_by_stock_code(&http, &bearer, &code).await
+        {
+            Ok(v) => v,
             Err(e) => {
                 let msg = e.to_string();
                 if msg.contains("PORTFOLIO_HISTORY_HTTP_4XX") {
@@ -350,8 +337,20 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
                     );
                     break;
                 }
-                eprintln!("portofolio_history [{code}]: fetch gagal: {e}");
+                eprintln!("portofolio_history [{code}]: fetch gagal: {msg}");
+                continue;
             }
+        };
+        last_rate = rate;
+        let n = history.len();
+        match upsert_portofolio_history_today(session.as_ref(), keyspace, &code, &history).await {
+            Ok(today) => {
+                ok += 1;
+                println!(
+                    "OK: portofolio_history {code} {today} diupsert dengan {n} entri."
+                );
+            }
+            Err(e) => eprintln!("portofolio_history [{code}]: upsert gagal: {e}"),
         }
     }
     Ok(ok)

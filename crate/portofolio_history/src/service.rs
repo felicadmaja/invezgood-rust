@@ -68,6 +68,15 @@ impl PortofolioHistoryService {
     pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.repo.warm_prepared().await
     }
+
+    /// Batch history untuk holdings (alur worker / setara invoke RPC per emiten).
+    /// Tidak memakai rate limit 1×/5 detik RPC (sama pengecualian worker scrap).
+    pub async fn scrape_holdings_from_stockbit(
+        &self,
+        codes: &[String],
+    ) -> Result<usize, String> {
+        on_demand::scrape_portofolio_history_for_emitens(Arc::clone(&self.session), codes).await
+    }
 }
 
 #[tonic::async_trait]
