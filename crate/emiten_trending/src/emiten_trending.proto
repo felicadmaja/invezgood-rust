@@ -30,7 +30,10 @@ service EmitenTrending {
   //     (skip bila `update_at` masih < 30 hari dan emiten_icon sudah terisi).
   //     Tidak mengisi sector / is_konglomerasi / is_fundamental_solid / is_blue_chip /
   //     is_plan_to_trade / catatan / catatan_owner / foto_owner.
-  //     Tidak scrape `bandarmology` (gunakan RPC bandarmology terpisah bila perlu).
+  // (4) `bandarmology` — scrape marketdetectors untuk daftar emiten yang sama (movers dulu),
+  //     dengan aturan skip sama `bandarmology_worker` / RPC GetBandarmologyFromStockbit:
+  //     bulan berjalan skip fetch bila `updated_at` masih hari ini; kolom minggu backfill
+  //     bila kosong; historis skip bila bulan lalu sudah ada / per bulan sudah ada.
   //
   // Setelah scrape selesai, RPC membaca ulang `emiten_trending` hari ini dan stream hasilnya.
   // Request kosong. Wajib Authorization: Bearer <JWT valid>.

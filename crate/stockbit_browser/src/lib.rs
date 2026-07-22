@@ -5,7 +5,7 @@
 //! Env: `STOCKBIT_EMAIL`, `STOCKBIT_PASSWORD`, opsional `CHROME_EXECUTABLE_PATH`,
 //! `STOCKBIT_2FA_TIMEOUT_SECS`, `STOCKBIT_SESSION_CHECK_SECS` (default random 60–300 untuk
 //! jendela cek di `/stream`; default 5 untuk worker), `STOCKBIT_BROWSER_DATA_DIR`,
-//! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 120–300 —
+//! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 300–600 —
 //! interval background poller untuk `IsStockbitReady`).
 //!
 //! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
@@ -31,8 +31,8 @@ pub fn browser_session_lock() -> &'static Mutex<()> {
 }
 
 /// Interval default antar pengecekan web Stockbit (detik).
-pub const READY_POLL_MIN_SECS: u64 = 2 * 60;
-pub const READY_POLL_MAX_SECS: u64 = 5 * 60;
+pub const READY_POLL_MIN_SECS: u64 = 5 * 60;
+pub const READY_POLL_MAX_SECS: u64 = 10 * 60;
 
 /// Jeda acak antar retry login bila sesi habis / login gagal (detik).
 pub const LOGIN_RETRY_MIN_SECS: u64 = 10;
@@ -72,7 +72,7 @@ fn next_poll_secs() -> u64 {
     rand::thread_rng().gen_range(min..=max)
 }
 
-/// Background poller: cek stockbit.com setiap 120–300 detik (2–5 menit).
+/// Background poller: cek stockbit.com setiap 300–600 detik (5–10 menit).
 /// RPC `IsStockbitReady` hanya membaca status terakhir — tidak trigger cek langsung.
 #[derive(Clone)]
 pub struct ReadinessPoller {
@@ -81,7 +81,7 @@ pub struct ReadinessPoller {
 
 impl ReadinessPoller {
     /// Mulai loop polling di background.
-    /// Cek pertama segera (bukan dari RPC); berikutnya setiap 120–300 detik.
+    /// Cek pertama segera (bukan dari RPC); berikutnya setiap 300–600 detik.
     pub fn start() -> Arc<Self> {
         let poller = Arc::new(Self {
             latest: Arc::new(RwLock::new(None)),
