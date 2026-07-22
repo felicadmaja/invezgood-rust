@@ -12,6 +12,7 @@ members = [
     "crate/portofolio",
     "crate/portofolio_bandarmology",
     "crate/portofolio_equity",
+    "crate/portofolio_history",
     "crate/stockbit_browser",
     "crate/tls",
     "crate/user",

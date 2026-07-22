@@ -38,15 +38,13 @@ impl PortofolioRepository {
             .get_or_try_init(|| async {
                 let scan_q = format!(
                     "SELECT emiten_name, long_name, emiten_icon, balance_lot, available_lot, \
-                     average_price, current_price, invested, market_value, potential_p_l, percentage, \
-                     history \
+                     average_price, current_price, invested, market_value, potential_p_l, percentage \
                      FROM {} WHERE token(emiten_name) >= ? AND token(emiten_name) <= ?",
                     self.table
                 );
                 let by_emiten_q = format!(
                     "SELECT emiten_name, long_name, emiten_icon, balance_lot, available_lot, \
-                     average_price, current_price, invested, market_value, potential_p_l, percentage, \
-                     history \
+                     average_price, current_price, invested, market_value, potential_p_l, percentage \
                      FROM {} WHERE emiten_name = ? LIMIT 1",
                     self.table
                 );

@@ -18,13 +18,13 @@ Kolom dan tipe CQL:
   "market_value" double
   "potential_p_l" double
   "percentage" double
-  "history" map<timestamp, frozen<portofolio_history_item>>
 
-Kolom "history": map keyed by waktu order (timestamp ISO, contoh 2026-07-20T07:20:55Z)
-→ nilai UDT `portofolio_history_item` (satu entri matched order).
+Catatan: kolom `history` dihapus dari tabel ini; riwayat order disimpan di
+`stockbit.portofolio_history` (lihat `crate/portofolio_history`).
 
 --- UDT ---
-(1) "stockbit"."portofolio_history_item"
+(1) "stockbit"."portofolio_history_item" — masih dipakai oleh tabel `portofolio_history`
+  (bukan kolom tabel `portofolio` lagi):
   "order_id" text
   "message" text
   "symbol" text

@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package portofolio_history;
+
+service PortofolioHistory {
+  // HISTORY DARI PEMBELIAN
+  // Ambil riwayat order per emiten dari Stockbit lalu upsert ke `portofolio_history`.
+  // Alur: login → START TRADING/PIN bila perlu →
+  // GET carina.stockbit.com/order/v2/list?filter_criteria.stock_code={emiten_name}
+  // → INSERT portofolio_history (emiten_name, tahun_bulan_tanggal=today, history=map).
+  // Key map = waktu order (`time.match`, fallback `time.open` / `time.order`) RFC3339.
+  // emiten_name: tepat 4 huruf; dinormalisasi ke UPPERCASE.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetPortofolioHistoryByEmitenNameFromStockbit(GetPortofolioHistoryByEmitenNameFromStockbitRequest)
+      returns (GetPortofolioHistoryByEmitenNameFromStockbitResponse);
+}
+
+message GetPortofolioHistoryByEmitenNameFromStockbitRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE (asbi → ASBI).
+  string emiten_name = 1;
+}
+
+message PortofolioHistoryItem {
+  string order_id = 1;
+  string message = 2;
+  string symbol = 3;
+  string side = 4;
+  int32 lot_done = 5;
+  double price_average = 6;
+  double amount_matched = 7;
+}
+
+message PortofolioHistoryRow {
+  string emiten_name = 1;
+  // Tanggal snapshot YYYY-MM-DD (hari invoke scrape).
+  string tahun_bulan_tanggal = 2;
+  // Key = timestamp RFC3339 (contoh "2026-07-20T07:20:55Z").
+  map<string, PortofolioHistoryItem> history = 3;
+}
+
+message GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+  bool success = 1;
+  string message = 2;
+  // Baris `portofolio_history` hari ini setelah upsert; kosong jika gagal.
+  PortofolioHistoryRow row = 3;
+}

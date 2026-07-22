@@ -13,10 +13,7 @@ use crate::portofolio_server::Portofolio as PortofolioRpc;
 use crate::repository::PortofolioRepository;
 use crate::{
     GetAllPortofolioFromScyllaRequest, GetAllPortofolioFromScyllaResponse,
-    GetAllPortofolioFromStockbitRequest, GetAllPortofolioFromStockbitResponse,
-    GetPortofolioHistoryByEmitenNameFromStockbitRequest,
-    GetPortofolioHistoryByEmitenNameFromStockbitResponse,
-    PortofolioRow,
+    GetAllPortofolioFromStockbitRequest, GetAllPortofolioFromStockbitResponse, PortofolioRow,
 };
 
 /// Cooldown global antar invoke `GetAllPortofolioFromStockbit` (semua user).
@@ -42,14 +39,6 @@ async fn acquire_portfolio_scrape_slot() -> Result<(), Status> {
     }
     *last = Some(Instant::now());
     Ok(())
-}
-
-fn parse_emiten_name(raw: &str) -> Result<String, String> {
-    let kode = raw.trim().to_ascii_uppercase();
-    if kode.len() != 4 || !kode.chars().all(|c| c.is_ascii_alphabetic()) {
-        return Err("emiten_name harus tepat 4 huruf alfabet (contoh: ASBI)".into());
-    }
-    Ok(kode)
 }
 
 pub struct PortofolioService {
@@ -157,80 +146,6 @@ impl PortofolioRpc for PortofolioService {
                     message: format!("scrape portofolio gagal: {e}"),
                     rows: vec![],
                 }))
-            }
-        }
-    }
-
-    async fn get_portofolio_history_by_emiten_name_from_stockbit(
-        &self,
-        request: Request<GetPortofolioHistoryByEmitenNameFromStockbitRequest>,
-    ) -> Result<Response<GetPortofolioHistoryByEmitenNameFromStockbitResponse>, Status> {
-        let started = Instant::now();
-        let claims = require_auth(&request)?;
-        let username = claims.name.clone();
-        let req = request.into_inner();
-
-        let kode = match parse_emiten_name(&req.emiten_name) {
-            Ok(c) => c,
-            Err(message) => {
-                return Ok(Response::new(
-                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
-                        success: false,
-                        message,
-                        row: None,
-                    },
-                ));
-            }
-        };
-
-        println!(
-            "GetPortofolioHistoryByEmitenNameFromStockbit {username}: {kode} — order/v2/list + timpa history..."
-        );
-
-        match on_demand::scrape_portofolio_history_for_emiten(Arc::clone(&self.session), &kode)
-            .await
-        {
-            Ok(n) => {
-                let row = self
-                    .repo
-                    .find_by_emiten(&kode)
-                    .await
-                    .ok()
-                    .flatten()
-                    .map(Portofolio::into_proto);
-                let message = format!(
-                    "portofolio history {kode}: scrape selesai, {n} entri di-set ke history"
-                );
-                println!(
-                    "GetPortofolioHistoryByEmitenNameFromStockbit {} {kode} success=true history={} {}ms",
-                    username,
-                    n,
-                    started.elapsed().as_millis()
-                );
-                Ok(Response::new(
-                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
-                        success: true,
-                        message,
-                        row,
-                    },
-                ))
-            }
-            Err(e) => {
-                eprintln!(
-                    "GetPortofolioHistoryByEmitenNameFromStockbit {username}: gagal {kode}: {e}"
-                );
-                println!(
-                    "GetPortofolioHistoryByEmitenNameFromStockbit {} {kode} success=false {}ms",
-                    username,
-                    started.elapsed().as_millis()
-                );
-                Ok(Response::new(
-                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
-                        success: false,
-                        message: format!("scrape portofolio history gagal: {e}"),
-                        row: None,
-                    },
-                ))
             }
         }
     }

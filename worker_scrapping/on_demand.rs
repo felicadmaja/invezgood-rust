@@ -597,8 +597,8 @@ async fn run_portofolio_equity_scrape(session: Arc<Session>) -> Result<usize, St
 }
 
 /// On-demand: login → PIN → GET order/v2/list?filter_criteria.stock_code= →
-/// timpa `portofolio.history`. Single-flight per emiten; survive cancel RPC.
-/// Returns jumlah entri history yang di-set.
+/// upsert `portofolio_history` (hari ini). Single-flight per emiten; survive cancel RPC.
+/// Returns jumlah entri history yang di-upsert.
 pub async fn scrape_portofolio_history_for_emiten(
     session: Arc<Session>,
     emiten_name: &str,
@@ -678,13 +678,14 @@ async fn run_portofolio_history_scrape(
             .await
             .map_err(|e| format!("login Stockbit: {e}"))?;
 
-        let n = crate::portofolio_worker::scrape_and_replace_portofolio_history(
+        let n = crate::portofolio_history_worker::scrape_and_replace_portofolio_history(
             &page,
             session.as_ref(),
             &ks,
             code,
         )
         .await
+        .map(|(n, _, _)| n)
         .map_err(|e| e.to_string())?;
 
         Ok::<usize, String>(n)
@@ -765,7 +766,7 @@ async fn run_portofolio_all_scrape(session: Arc<Session>) -> Result<usize, Strin
             .await
             .map_err(|e| format!("login Stockbit: {e}"))?;
 
-        let n = crate::portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks)
+        let (n, _) = crate::portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks)
             .await
             .map_err(|e| e.to_string())?;
 

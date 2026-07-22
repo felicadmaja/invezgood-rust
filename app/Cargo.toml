@@ -19,6 +19,7 @@ pending_order = { path = "../crate/pending_order" }
 portofolio = { path = "../crate/portofolio" }
 portofolio_bandarmology = { path = "../crate/portofolio_bandarmology" }
 portofolio_equity = { path = "../crate/portofolio_equity" }
+portofolio_history = { path = "../crate/portofolio_history" }
 tls = { path = "../crate/tls" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 tonic = { version = "0.12", features = ["transport", "tls"] }

@@ -1625,6 +1625,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "portofolio_history"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "scylla",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
+ "worker_scrapping",
+]
+
+[[package]]
 name = "potential_utf"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2477,6 +2493,7 @@ dependencies = [
  "portofolio",
  "portofolio_bandarmology",
  "portofolio_equity",
+ "portofolio_history",
  "tls",
  "tokio",
  "tonic",

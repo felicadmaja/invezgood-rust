@@ -13,8 +13,8 @@
 //! Env opsional: `STOCKBIT_2FA_TIMEOUT_SECS` (default 300 = 5 menit).
 //! Env opsional: `STOCKBIT_SESSION_CHECK_SECS` (default 5) — tunggu popup sesi habis di `/stream`.
 //! Env Scylla (insert `emiten_trending`, `emiten_list`, `bandarmology`, `portofolio`,
-//! `portofolio_bandarmology`, `portofolio_equity`, `pending_order`): `SCYLLA_URI`,
-//! `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
+//! `portofolio_bandarmology`, `portofolio_history`, `portofolio_equity`, `pending_order`):
+//! `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
 //! Env Redis (cache `long_name`, TTL 1 tahun): `REDIS_URL`.
 //! Env Trading PIN: `STOCKBUT_PIN` (atau `STOCKBIT_PIN`).
 //!
@@ -37,7 +37,8 @@
 //! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list + bandarmology
 //! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name)
 //! → per emiten salin minggu berjalan ke `portofolio_bandarmology`
-//! → hapus orphan `portofolio_bandarmology` yang sudah tidak ada di `portofolio`.
+//! → hapus orphan `portofolio_bandarmology` yang sudah tidak ada di `portofolio`
+//! → per emiten holdings scrape order history → upsert `portofolio_history`.
 //! Lalu (PIN/trading session bila perlu) → `GET carina.stockbit.com/order/v2/list`
 //! → insert `pending_order`.
 //!
@@ -45,7 +46,7 @@
 
 use worker_scrapping::{
     bandarmology_worker, emiten_list_worker, emiten_trending_worker, pending_order_worker,
-    portofolio_worker,
+    portofolio_history_worker, portofolio_worker,
 };
 
 use chrono::Local;
@@ -239,8 +240,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "Lanjut portofolio (PIN bila perlu → DOM portofolio_equity → API → emiten_list + bandarmology → upsert)..."
     );
-    let porto_ok = portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks).await?;
+    let (porto_ok, porto_codes) =
+        portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks).await?;
     println!("OK: {porto_ok} baris diinsert ke portofolio.");
+
+    if !porto_codes.is_empty() {
+        println!(
+            "Lanjut portofolio_history (order/v2/list per emiten → upsert, {} kode)...",
+            porto_codes.len()
+        );
+        let hist_ok = portofolio_history_worker::scrape_and_upsert_portofolio_history_for_emitens(
+            &page,
+            &session,
+            &ks,
+            &porto_codes,
+        )
+        .await?;
+        println!(
+            "OK: {hist_ok}/{} emiten diupsert ke portofolio_history.",
+            porto_codes.len()
+        );
+    }
 
     println!("Lanjut pending_order (PIN bila perlu → order/v2/list → upsert)...");
     let pending_ok =
