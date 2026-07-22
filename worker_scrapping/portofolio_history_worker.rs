@@ -2,7 +2,8 @@
 //! Upsert ke tabel Scylla `portofolio_history` (bukan kolom `portofolio.history`).
 //!
 //! Alur: START TRADING/PIN bila perlu → Bearer trading → GET order list per emiten
-//! (jeda 200 ms antar emiten) → INSERT `(emiten_name, tahun_bulan_tanggal=today, history)`.
+//! (jeda adaptif dari x-rate-limit-*: 100 ms bila kuota menipis, 0 bila tebal)
+//! → INSERT `(emiten_name, tahun_bulan_tanggal=today, history)`.
 
 use chrono::{DateTime, Local, Utc};
 use chromiumoxide::page::Page;
@@ -14,13 +15,12 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
+use crate::http_abort::RateLimitInfo;
 use crate::portofolio_worker::{ensure_trading_session, extract_trading_bearer_after_pin};
 
 const ORDER_LIST_API_URL: &str = "https://carina.stockbit.com/order/v2/list";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-/// Jeda antar emiten pada batch order/v2/list (hindari HTTP 429).
-const EMITEN_INTER_DELAY_MS: u64 = 200;
 
 /// UDT `portofolio_history_item` untuk INSERT/SELECT map history.
 #[derive(Debug, Clone, SerializeValue, DeserializeValue)]
@@ -143,7 +143,8 @@ async fn fetch_order_history_by_stock_code(
     http: &reqwest::Client,
     bearer: &str,
     stock_code: &str,
-) -> Result<HashMap<DateTime<Utc>, PortofolioHistoryItemUd>, Box<dyn std::error::Error>> {
+) -> Result<(HashMap<DateTime<Utc>, PortofolioHistoryItemUd>, RateLimitInfo), Box<dyn std::error::Error>>
+{
     let url = format!(
         "{ORDER_LIST_API_URL}?filter_criteria.stock_code={}",
         urlencoding_simple(stock_code)
@@ -160,27 +161,28 @@ async fn fetch_order_history_by_stock_code(
         .await?;
 
     let status = resp.status();
-    let rate = crate::http_abort::rate_limit_headers_log(resp.headers());
-    println!("  order/v2/list {stock_code} → HTTP {status} | {rate}");
+    let rate = RateLimitInfo::from_headers(resp.headers());
+    let rate_log = crate::http_abort::rate_limit_headers_log(resp.headers());
+    println!("  order/v2/list {stock_code} → HTTP {status} | {rate_log}");
     let body = resp.text().await.unwrap_or_default();
     // Jangan abort seluruh app: 4xx (mis. 429) di-handle caller — hentikan batch history saja.
     if crate::http_abort::is_http_4xx(status) && status != reqwest::StatusCode::NOT_FOUND {
         let preview: String = body.chars().take(280).collect();
         return Err(format!(
-            "PORTFOLIO_HISTORY_HTTP_4XX {status} order/v2/list stock={stock_code}: {preview} | {rate}"
+            "PORTFOLIO_HISTORY_HTTP_4XX {status} order/v2/list stock={stock_code}: {preview} | {rate_log}"
         )
         .into());
     }
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
         return Err(format!(
-            "order/v2/list (stock={stock_code}) HTTP {status}: {preview} | {rate}"
+            "order/v2/list (stock={stock_code}) HTTP {status}: {preview} | {rate_log}"
         )
         .into());
     }
     let v: Value = serde_json::from_str(&body)
         .map_err(|e| format!("order/v2/list JSON: {e}"))?;
-    Ok(parse_order_history_map(&v))
+    Ok((parse_order_history_map(&v), rate))
 }
 
 /// Baca baris `portofolio_history` untuk emiten + tanggal.
@@ -262,7 +264,7 @@ pub async fn scrape_and_replace_portofolio_history(
     println!(
         "Portofolio history API: GET {ORDER_LIST_API_URL}?filter_criteria.stock_code={code}..."
     );
-    let history = fetch_order_history_by_stock_code(&http, &bearer, &code).await?;
+    let (history, _rate) = fetch_order_history_by_stock_code(&http, &bearer, &code).await?;
     let n = history.len();
     let today = upsert_portofolio_history_today(session, keyspace, &code, &history).await?;
     println!(
@@ -296,13 +298,24 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
         .build()?;
 
     let mut ok = 0usize;
+    let mut last_rate = RateLimitInfo::default();
     for (i, raw) in emitens.iter().enumerate() {
         if i > 0 {
-            sleep(Duration::from_millis(EMITEN_INTER_DELAY_MS)).await;
+            let delay = last_rate.inter_emiten_delay_ms();
+            if delay > 0 {
+                println!(
+                    "  jeda adaptif {delay}ms (kuota menipis; {})",
+                    last_rate.log_line()
+                );
+                sleep(Duration::from_millis(delay)).await;
+            }
         }
         let code = raw.trim().to_ascii_uppercase();
         if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
             continue;
+        }
+        if i > 0 {
+            println!();
         }
         println!(
             "Portofolio history [{}/{}] {code}: GET order/v2/list...",
@@ -310,7 +323,8 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
             emitens.len()
         );
         match fetch_order_history_by_stock_code(&http, &bearer, &code).await {
-            Ok(history) => {
+            Ok((history, rate)) => {
+                last_rate = rate;
                 let n = history.len();
                 match upsert_portofolio_history_today(session.as_ref(), keyspace, &code, &history)
                     .await

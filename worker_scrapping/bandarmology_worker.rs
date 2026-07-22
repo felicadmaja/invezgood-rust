@@ -20,10 +20,12 @@ use scylla::client::session::Session;
 use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
 use serde::Deserialize;
 use std::collections::BTreeSet;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration as StdDuration;
 use stockbit_browser::extract_stockbit_bearer;
 use tokio::time::sleep;
+
+use crate::http_abort::{rate_limit_headers_log, RateLimitInfo};
 
 const API_BASE: &str = "https://exodus.stockbit.com/marketdetectors";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -31,6 +33,33 @@ const MAX_HISTORICAL_MONTHS: u32 = 12;
 const CONSECUTIVE_EMPTY_MONTHS_STOP: usize = 1;
 const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 1;
 const MONTH_INTER_DELAY_MS: u64 = 50;
+
+/// Rate-limit terakhir dari response marketdetectors (untuk log saat emiten di-skip tanpa API).
+static LAST_BANDAR_RATE: Mutex<RateLimitInfo> = Mutex::new(RateLimitInfo {
+    limit: None,
+    remaining: None,
+    reset_secs: 0,
+});
+
+fn remember_bandar_rate(rate: RateLimitInfo) {
+    if let Ok(mut g) = LAST_BANDAR_RATE.lock() {
+        *g = rate;
+    }
+}
+
+fn log_last_bandar_rate(prefix: &str) {
+    let Ok(rate) = LAST_BANDAR_RATE.lock() else {
+        return;
+    };
+    if rate.limit.is_none() && rate.remaining.is_none() {
+        println!("{prefix}rate-limit: (belum ada response API di run ini)");
+        return;
+    }
+    println!(
+        "{prefix}rate-limit terakhir: {} retry-after=-",
+        rate.log_line()
+    );
+}
 
 #[derive(Debug, Clone, SerializeValue, DeserializeValue, Deserialize)]
 pub struct BandarmologyTopStats {
@@ -636,49 +665,7 @@ fn map_api_day(data: &ApiData) -> BandarmologyDay {
     }
 }
 
-struct RateLimitState {
-    limit: Option<i64>,
-    remaining: Option<i64>,
-    reset_secs: u64,
-}
-
-impl RateLimitState {
-    fn from_headers(headers: &reqwest::header::HeaderMap) -> Self {
-        let limit = headers
-            .get("x-rate-limit-limit")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse().ok());
-        let remaining = headers
-            .get("x-rate-limit-remaining")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse().ok());
-        let reset_secs = headers
-            .get("x-rate-limit-reset")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(0);
-        Self {
-            limit,
-            remaining,
-            reset_secs,
-        }
-    }
-
-    fn log_line(&self) -> String {
-        format!(
-            "x-rate-limit-limit={} x-rate-limit-remaining={} x-rate-limit-reset={}",
-            self.limit
-                .map(|v| v.to_string())
-                .unwrap_or_else(|| "-".into()),
-            self.remaining
-                .map(|v| v.to_string())
-                .unwrap_or_else(|| "-".into()),
-            self.reset_secs
-        )
-    }
-}
-
-async fn throttle_if_needed(state: &RateLimitState) {
+async fn throttle_if_needed(state: &RateLimitInfo) {
     match state.remaining {
         Some(r) if r <= 0 => {
             let wait = state.reset_secs.max(2);
@@ -811,7 +798,7 @@ async fn fetch_marketdetector_day_blocking_retries(
     emiten: &str,
     from: NaiveDate,
     to: NaiveDate,
-) -> Result<(BandarmologyDay, RateLimitState), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(BandarmologyDay, RateLimitInfo), Box<dyn std::error::Error + Send + Sync>> {
     let url = marketdetector_url(emiten, from, to);
     let mut timeout_retries = 0u32;
     loop {
@@ -877,10 +864,14 @@ async fn parse_marketdetector_response(
     from: NaiveDate,
     to: NaiveDate,
     timeout_retries: &mut u32,
-) -> Result<Option<(BandarmologyDay, RateLimitState)>, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<Option<(BandarmologyDay, RateLimitInfo)>, Box<dyn std::error::Error + Send + Sync>> {
     let status = resp.status();
-    let rate = RateLimitState::from_headers(resp.headers());
-    println!("  API {emiten} {from}..{to} → HTTP {status} | {}", rate.log_line());
+    let rate = RateLimitInfo::from_headers(resp.headers());
+    remember_bandar_rate(rate);
+    println!(
+        "  API {emiten} {from}..{to} → HTTP {status} | {}",
+        rate_limit_headers_log(resp.headers())
+    );
 
     crate::http_abort::abort_app_if_http_4xx(
         status,
@@ -930,7 +921,7 @@ async fn fetch_marketdetector_day(
     from: NaiveDate,
     to: NaiveDate,
     bg_insert: Option<BackgroundInsertCtx>,
-) -> Result<(BandarmologyDay, RateLimitState), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(BandarmologyDay, RateLimitInfo), Box<dyn std::error::Error + Send + Sync>> {
     let url = marketdetector_url(emiten, from, to);
     let mut http_retries = 0u32;
     loop {
@@ -1473,6 +1464,7 @@ pub async fn scrape_and_insert_bandarmology(
             Err(e) if is_auth_abort(&e.to_string()) => return Err(e),
             Err(e) => eprintln!("Bandarmology emiten gagal: {e}"),
         }
+        log_last_bandar_rate("  ");
     }
 
     println!(

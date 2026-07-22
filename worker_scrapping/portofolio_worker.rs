@@ -496,7 +496,6 @@ pub async fn extract_trading_bearer_after_pin(
         .evaluate(r#"(() => { window.__sbCapturedBearer = ''; return 0; })()"#)
         .await;
 
-    println!("Portofolio: warm-up trading (buka {STOCKBIT_PORTFOLIO_URL}) agar Bearer carina tertangkap...");
     goto_stockbit(page, STOCKBIT_PORTFOLIO_URL)
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
@@ -510,7 +509,6 @@ pub async fn extract_trading_bearer_after_pin(
             .into_value::<u64>()
             .unwrap_or(0);
         if n > 0 {
-            println!("Portofolio: network.capture trading siap (len={n}).");
             break;
         }
     }
@@ -546,57 +544,23 @@ pub async fn extract_trading_bearer_after_pin(
         .unwrap_or_else(|_| "[]".to_string());
 
     let candidates: Vec<Value> = serde_json::from_str(&scanned).unwrap_or_default();
-    {
-        let summary: Vec<String> = candidates
-            .iter()
-            .map(|h| {
-                format!(
-                    "{} len={}",
-                    h.get("source").and_then(|x| x.as_str()).unwrap_or("-"),
-                    h.get("len").and_then(|x| x.as_u64()).unwrap_or(0),
-                )
-            })
-            .collect();
-        println!(
-            "Portofolio trading bearer candidates ({}): {}",
-            summary.len(),
-            if summary.is_empty() {
-                "(none)".into()
-            } else {
-                summary.join(" | ")
-            }
-        );
-    }
 
     let http = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(45))
         .build()?;
 
-    let mut probe_log = Vec::new();
     for h in &candidates {
-        let source = h.get("source").and_then(|x| x.as_str()).unwrap_or("-");
         let token = h.get("token").and_then(|x| x.as_str()).unwrap_or("");
         if !token.starts_with("eyJ") {
             continue;
         }
         match probe_trading_bearer(&http, token).await {
-            Ok(status) => {
-                probe_log.push(format!("{source} len={} status={status}", token.len()));
-                if (200..300).contains(&status) {
-                    println!("Portofolio trading bearer probe: {}", probe_log.join(" | "));
-                    println!(
-                        "Portofolio trading bearer dipilih: source={source} len={}",
-                        token.len()
-                    );
-                    return Ok(token.to_string());
-                }
+            Ok(status) if (200..300).contains(&status) => {
+                return Ok(token.to_string());
             }
-            Err(e) => probe_log.push(format!("{source} len={} err={e}", token.len())),
+            _ => {}
         }
-    }
-    if !probe_log.is_empty() {
-        println!("Portofolio trading bearer probe: {}", probe_log.join(" | "));
     }
     Err(
         "Bearer trading untuk carina.stockbit.com/portfolio tidak ditemukan. \
@@ -698,11 +662,13 @@ async fn fetch_portfolio_list(
         .await?;
 
     let status = resp.status();
+    let rate = crate::http_abort::rate_limit_headers_log(resp.headers());
+    println!("  portfolio/v2/list → HTTP {status} | {rate}");
     crate::http_abort::abort_app_if_http_4xx(status, "portfolio/v2/list");
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
-        return Err(format!("portfolio/v2/list HTTP {status}: {preview}").into());
+        return Err(format!("portfolio/v2/list HTTP {status}: {preview} | {rate}").into());
     }
 
     let v: Value = serde_json::from_str(&body)

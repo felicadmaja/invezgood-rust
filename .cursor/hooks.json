@@ -3,7 +3,8 @@
   "hooks": {
     "stop": [
       {
-        "command": "bash .cursor/hooks/auto-git-every-3-prompts.sh"
+        "command": ".cursor/hooks/auto-git-every-3-prompts.sh",
+        "timeout": 120
       }
     ]
   }
