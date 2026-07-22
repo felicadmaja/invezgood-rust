@@ -1,7 +1,7 @@
 //! Pending order via API `carina.stockbit.com/order/v2/list` → upsert `pending_order`.
 //!
 //! Alur sama portofolio: START TRADING + PIN (`STOCKBUT_PIN` / `STOCKBIT_PIN`) bila perlu,
-//! lalu Bearer trading pasca-PIN → GET order list → insert Scylla `pending_order`.
+//! lalu Bearer trading pasca-PIN → GET order list (log + jeda `rate_limit_delay`) → insert Scylla.
 //!
 //! Mapping JSON → kolom (lihat `pending_order.cql` / `contoh_data.json`):
 //! - `order_id` ← `order_id`
@@ -28,6 +28,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::portofolio_worker;
+use crate::rate_limit_delay::RateLimitInfo;
 
 const ORDER_LIST_API_URL: &str = "https://carina.stockbit.com/order/v2/list";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
@@ -151,7 +152,7 @@ fn parse_order_list_json(v: &Value) -> Vec<PendingOrderRow> {
 async fn fetch_order_list(
     http: &reqwest::Client,
     bearer: &str,
-) -> Result<Vec<PendingOrderRow>, Box<dyn std::error::Error>> {
+) -> Result<(Vec<PendingOrderRow>, RateLimitInfo), Box<dyn std::error::Error>> {
     let resp = http
         .get(ORDER_LIST_API_URL)
         .header("Authorization", format!("Bearer {bearer}"))
@@ -164,16 +165,19 @@ async fn fetch_order_list(
         .await?;
 
     let status = resp.status();
+    let rate = RateLimitInfo::from_headers(resp.headers());
+    let rate_log = crate::rate_limit_delay::rate_limit_headers_log(resp.headers());
+    println!("  order/v2/list (pending_order) → HTTP {status} | {rate_log}");
     crate::http_abort::abort_app_if_http_4xx(status, "order/v2/list");
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
-        return Err(format!("order/v2/list HTTP {status}: {preview}").into());
+        return Err(format!("order/v2/list HTTP {status}: {preview} | {rate_log}").into());
     }
 
     let v: Value =
         serde_json::from_str(&body).map_err(|e| format!("order/v2/list JSON: {e}"))?;
-    Ok(parse_order_list_json(&v))
+    Ok((parse_order_list_json(&v), rate))
 }
 
 async fn upsert_pending_orders(
@@ -268,7 +272,18 @@ pub async fn scrape_and_insert_pending_order(
         .build()?;
 
     println!("Pending order API: GET {ORDER_LIST_API_URL}...");
-    let rows = fetch_order_list(&http, &bearer).await?;
+    let (rows, rate) = fetch_order_list(&http, &bearer).await?;
+    let delay_ms = rate.inter_emiten_delay_ms();
+    if delay_ms > 0 {
+        println!(
+            "  jeda adaptif {delay_ms}ms (remaining={}; {})",
+            rate.remaining
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "-".into()),
+            rate.log_line()
+        );
+        sleep(Duration::from_millis(delay_ms)).await;
+    }
     println!("Pending order: {} baris dari API.", rows.len());
 
     if rows.is_empty() {

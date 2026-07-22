@@ -2,7 +2,7 @@
 //! Upsert ke tabel Scylla `portofolio_history` (bukan kolom `portofolio.history`).
 //!
 //! Alur: START TRADING/PIN bila perlu → Bearer trading → GET order list per emiten
-//! (jeda adaptif dari x-rate-limit-remaining: ≥4=0, 3=100ms, 2=200ms, 1=300ms, ≤0=1000ms)
+//! (jeda adaptif dari x-rate-limit-remaining: ≥4=0, 3=200ms, 2=300ms, 1=400ms, ≤0=1000ms)
 //! → INSERT `(emiten_name, tahun_bulan_tanggal=today, history)`.
 
 use chrono::{DateTime, Local, Utc};

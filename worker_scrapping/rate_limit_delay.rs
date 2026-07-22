@@ -5,9 +5,9 @@
 //! | `x-rate-limit-remaining` | Jeda |
 //! |--------------------------|------|
 //! | ≥ 4                      | 0 (tanpa jeda) |
-//! | 3                        | 100 ms |
-//! | 2                        | 200 ms |
-//! | 1                        | 300 ms |
+//! | 3                        | 200 ms |
+//! | 2                        | 300 ms |
+//! | 1                        | 400 ms |
 //! | ≤ 0                      | 1000 ms |
 //!
 //! Header terkait yang dilog: `x-rate-limit-limit`, `x-rate-limit-reset`, `retry-after`.
@@ -63,9 +63,9 @@ impl RateLimitInfo {
 pub fn delay_ms_for_remaining(remaining: Option<i64>) -> u64 {
     match remaining {
         Some(r) if r <= 0 => 1000,
-        Some(1) => 300,
-        Some(2) => 200,
-        Some(3) => 100,
+        Some(1) => 400,
+        Some(2) => 300,
+        Some(3) => 200,
         _ => 0,
     }
 }
@@ -101,9 +101,9 @@ mod tests {
         assert_eq!(delay_ms_for_remaining(None), 0);
         assert_eq!(delay_ms_for_remaining(Some(10)), 0);
         assert_eq!(delay_ms_for_remaining(Some(4)), 0);
-        assert_eq!(delay_ms_for_remaining(Some(3)), 100);
-        assert_eq!(delay_ms_for_remaining(Some(2)), 200);
-        assert_eq!(delay_ms_for_remaining(Some(1)), 300);
+        assert_eq!(delay_ms_for_remaining(Some(3)), 200);
+        assert_eq!(delay_ms_for_remaining(Some(2)), 300);
+        assert_eq!(delay_ms_for_remaining(Some(1)), 400);
         assert_eq!(delay_ms_for_remaining(Some(0)), 1000);
         assert_eq!(delay_ms_for_remaining(Some(-1)), 1000);
     }

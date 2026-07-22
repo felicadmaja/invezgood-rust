@@ -649,7 +649,7 @@ fn parse_portfolio_list_json(v: &Value) -> Vec<PortoRow> {
 async fn fetch_portfolio_list(
     http: &reqwest::Client,
     bearer: &str,
-) -> Result<Vec<PortoRow>, Box<dyn std::error::Error>> {
+) -> Result<(Vec<PortoRow>, crate::rate_limit_delay::RateLimitInfo), Box<dyn std::error::Error>> {
     let resp = http
         .get(PORTFOLIO_API_URL)
         .header("Authorization", format!("Bearer {bearer}"))
@@ -662,6 +662,7 @@ async fn fetch_portfolio_list(
         .await?;
 
     let status = resp.status();
+    let rate_info = crate::rate_limit_delay::RateLimitInfo::from_headers(resp.headers());
     let rate = crate::rate_limit_delay::rate_limit_headers_log(resp.headers());
     println!("  portfolio/v2/list → HTTP {status} | {rate}");
     crate::http_abort::abort_app_if_http_4xx(status, "portfolio/v2/list");
@@ -677,7 +678,7 @@ async fn fetch_portfolio_list(
     if rows.is_empty() {
         return Err("portfolio/v2/list: data.results kosong".into());
     }
-    Ok(rows)
+    Ok((rows, rate_info))
 }
 
 async fn upsert_portofolio(
@@ -789,7 +790,18 @@ pub async fn scrape_and_insert_portofolio(
         .build()?;
 
     println!("Portofolio API: GET {PORTFOLIO_API_URL}...");
-    let rows = fetch_portfolio_list(&http, &bearer).await?;
+    let (rows, rate) = fetch_portfolio_list(&http, &bearer).await?;
+    let delay_ms = rate.inter_emiten_delay_ms();
+    if delay_ms > 0 {
+        println!(
+            "  jeda adaptif {delay_ms}ms (portfolio/v2/list; remaining={}; {})",
+            rate.remaining
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "-".into()),
+            rate.log_line()
+        );
+        sleep(Duration::from_millis(delay_ms)).await;
+    }
     println!("Portofolio: {} baris dari API.", rows.len());
 
     let mut codes: Vec<String> = rows

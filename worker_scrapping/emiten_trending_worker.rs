@@ -13,6 +13,9 @@ use serde_json::Value;
 use std::sync::OnceLock;
 use std::time::Duration;
 use stockbit_browser::extract_stockbit_bearer;
+use tokio::time::sleep;
+
+use crate::rate_limit_delay::RateLimitInfo;
 
 const MARKET_MOVER_URL: &str = "https://exodus.stockbit.com/order-trade/market-mover";
 const FILTER_STOCKS_QUERY: &str = concat!(
@@ -211,7 +214,7 @@ async fn fetch_market_mover(
     http: &reqwest::Client,
     bearer: &str,
     mover_type: &str,
-) -> Result<Vec<MoversRow>, Box<dyn std::error::Error>> {
+) -> Result<(Vec<MoversRow>, RateLimitInfo), Box<dyn std::error::Error>> {
     let url = format!("{MARKET_MOVER_URL}?mover_type={mover_type}&{FILTER_STOCKS_QUERY}");
     let resp = http
         .get(&url)
@@ -224,6 +227,9 @@ async fn fetch_market_mover(
         .await?;
 
     let status = resp.status();
+    let rate = RateLimitInfo::from_headers(resp.headers());
+    let rate_log = crate::rate_limit_delay::rate_limit_headers_log(resp.headers());
+    println!("  market-mover {mover_type} → HTTP {status} | {rate_log}");
     crate::http_abort::abort_app_if_http_4xx(
         status,
         &format!("market-mover {mover_type}"),
@@ -231,7 +237,9 @@ async fn fetch_market_mover(
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
-        return Err(format!("market-mover {mover_type} HTTP {status}: {preview}").into());
+        return Err(
+            format!("market-mover {mover_type} HTTP {status}: {preview} | {rate_log}").into(),
+        );
     }
 
     let v: Value = serde_json::from_str(&body)
@@ -306,7 +314,22 @@ async fn fetch_market_mover(
             freq,
         });
     }
-    Ok(rows)
+    Ok((rows, rate))
+}
+
+async fn apply_rate_limit_delay(rate: &RateLimitInfo, context: &str) {
+    let delay_ms = rate.inter_emiten_delay_ms();
+    if delay_ms == 0 {
+        return;
+    }
+    println!(
+        "  jeda adaptif {delay_ms}ms ({context}; remaining={}; {})",
+        rate.remaining
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "-".into()),
+        rate.log_line()
+    );
+    sleep(Duration::from_millis(delay_ms)).await;
 }
 
 async fn emiten_trending_exists_today(
@@ -524,7 +547,9 @@ pub async fn scrape_and_insert_movers(
         .build()?;
 
     println!("Market mover: TOP_GAINER...");
-    let gainer_rows = fetch_market_mover(&http, &bearer, "MOVER_TYPE_TOP_GAINER").await?;
+    let (gainer_rows, gainer_rate) =
+        fetch_market_mover(&http, &bearer, "MOVER_TYPE_TOP_GAINER").await?;
+    apply_rate_limit_delay(&gainer_rate, "market-mover TOP_GAINER").await;
     println!("Top Gainer: {} baris dari API.", gainer_rows.len());
     if gainer_rows.is_empty() {
         return Err("Top Gainer kosong dari API market-mover".into());
@@ -535,7 +560,9 @@ pub async fn scrape_and_insert_movers(
     println!("OK: {inserted_gainer} baris diinsert ke emiten_trending (gainer).");
 
     println!("Market mover: TOP_LOSER...");
-    let loser_rows = fetch_market_mover(&http, &bearer, "MOVER_TYPE_TOP_LOSER").await?;
+    let (loser_rows, loser_rate) =
+        fetch_market_mover(&http, &bearer, "MOVER_TYPE_TOP_LOSER").await?;
+    apply_rate_limit_delay(&loser_rate, "market-mover TOP_LOSER").await;
     println!("Top Loser: {} baris dari API.", loser_rows.len());
     let inserted_loser = if loser_rows.is_empty() {
         eprintln!(
