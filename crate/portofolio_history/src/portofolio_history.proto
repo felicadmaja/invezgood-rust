@@ -3,6 +3,14 @@ syntax = "proto3";
 package portofolio_history;
 
 service PortofolioHistory {
+  // Baca `portofolio_history` dari Scylla saja (tanpa scrape Stockbit).
+  // Request/response sama bentuk Stockbit RPC; baris = snapshot terbaru per emiten
+  // (clustering tahun_bulan_tanggal DESC, LIMIT 1).
+  // emiten_name: tepat 4 huruf; dinormalisasi ke UPPERCASE.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetPortofolioHistoryByEmitenNameFromScylla(GetPortofolioHistoryByEmitenNameFromStockbitRequest)
+      returns (GetPortofolioHistoryByEmitenNameFromStockbitResponse);
+
   // HISTORY DARI PEMBELIAN
   // Ambil riwayat order per emiten dari Stockbit lalu upsert ke `portofolio_history`.
   // Alur: login → START TRADING/PIN bila perlu →

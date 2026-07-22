@@ -160,18 +160,23 @@ async fn fetch_order_history_by_stock_code(
         .await?;
 
     let status = resp.status();
+    let rate = crate::http_abort::rate_limit_headers_log(resp.headers());
+    println!("  order/v2/list {stock_code} → HTTP {status} | {rate}");
     let body = resp.text().await.unwrap_or_default();
     // Jangan abort seluruh app: 4xx (mis. 429) di-handle caller — hentikan batch history saja.
     if crate::http_abort::is_http_4xx(status) && status != reqwest::StatusCode::NOT_FOUND {
         let preview: String = body.chars().take(280).collect();
         return Err(format!(
-            "PORTFOLIO_HISTORY_HTTP_4XX {status} order/v2/list stock={stock_code}: {preview}"
+            "PORTFOLIO_HISTORY_HTTP_4XX {status} order/v2/list stock={stock_code}: {preview} | {rate}"
         )
         .into());
     }
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
-        return Err(format!("order/v2/list (stock={stock_code}) HTTP {status}: {preview}").into());
+        return Err(format!(
+            "order/v2/list (stock={stock_code}) HTTP {status}: {preview} | {rate}"
+        )
+        .into());
     }
     let v: Value = serde_json::from_str(&body)
         .map_err(|e| format!("order/v2/list JSON: {e}"))?;

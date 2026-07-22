@@ -3,6 +3,7 @@
 //! `std::process::exit` tidak menjalankan `Drop`, jadi PM2 `stockbit_ws` di-start
 //! kembali di sini sebelum exit (app biasanya di-`stop` saat worker jalan).
 
+use reqwest::header::HeaderMap;
 use reqwest::StatusCode;
 use std::process::Command;
 
@@ -10,6 +11,27 @@ const PM2_APP_NAME: &str = "stockbit_ws";
 
 pub fn is_http_4xx(status: StatusCode) -> bool {
     status.is_client_error()
+}
+
+/// Ringkas header kuota umum Stockbit (`x-rate-limit-*`, `retry-after`).
+/// Nilai `-` jika header tidak dikirim server.
+pub fn rate_limit_headers_log(headers: &HeaderMap) -> String {
+    let limit = header_str(headers, "x-rate-limit-limit");
+    let remaining = header_str(headers, "x-rate-limit-remaining");
+    let reset = header_str(headers, "x-rate-limit-reset");
+    let retry_after = header_str(headers, "retry-after");
+    format!(
+        "x-rate-limit-limit={limit} x-rate-limit-remaining={remaining} \
+         x-rate-limit-reset={reset} retry-after={retry_after}"
+    )
+}
+
+fn header_str(headers: &HeaderMap, name: &str) -> String {
+    headers
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "-".into())
 }
 
 fn pm2_start_stockbit_ws() {

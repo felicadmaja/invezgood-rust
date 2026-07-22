@@ -43,6 +43,8 @@
 //! → insert `pending_order`.
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
+//! Setiap run: clear lalu tulis ulang log ke `worker_scrapping/stockbit_scrapper_worker.log`
+//! (stdout/stderr di-tee ke file + terminal).
 
 use worker_scrapping::{
     bandarmology_worker, emiten_list_worker, emiten_trending_worker, pending_order_worker,
@@ -52,13 +54,86 @@ use worker_scrapping::{
 use chrono::Local;
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
+use std::fs::OpenOptions;
+use std::io::{pipe, Read, Write};
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use stockbit_browser::{
     dismiss_profile_avatar_modal, launch_page, open_stream_or_login,
 };
+
+const SCRAPPER_LOG_FILE: &str = "stockbit_scrapper_worker.log";
+
+/// Kosongkan log file, lalu tee stdout+stderr ke file dan terminal.
+fn init_scrapper_log() -> Result<(), Box<dyn std::error::Error>> {
+    let log_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(SCRAPPER_LOG_FILE);
+    let log = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&log_path)?;
+    let log = Arc::new(Mutex::new(log));
+
+    install_stdio_tee(Arc::clone(&log), libc::STDOUT_FILENO)?;
+    install_stdio_tee(log, libc::STDERR_FILENO)?;
+
+    // Setelah redirect ke pipe, Rust stdout jadi block-buffered — flush berkala.
+    std::thread::spawn(|| loop {
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stderr().flush();
+        std::thread::sleep(Duration::from_millis(200));
+    });
+
+    println!("Log file: {} (di-clear tiap awal run)", log_path.display());
+    Ok(())
+}
+
+fn install_stdio_tee(
+    log: Arc<Mutex<std::fs::File>>,
+    target_fd: i32,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (mut reader, writer) = pipe()?;
+    let writer_fd = writer.as_raw_fd();
+
+    let orig_fd = unsafe { libc::dup(target_fd) };
+    if orig_fd < 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    if unsafe { libc::dup2(writer_fd, target_fd) } < 0 {
+        unsafe {
+            libc::close(orig_fd);
+        }
+        return Err(std::io::Error::last_os_error().into());
+    }
+    // fd 1/2 memegang writer; Jangan drop `writer` sampai proses selesai.
+    std::mem::forget(writer);
+
+    std::thread::spawn(move || {
+        let mut console = unsafe { std::fs::File::from_raw_fd(orig_fd) };
+        let mut buf = [0u8; 8192];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let chunk = &buf[..n];
+                    let _ = console.write_all(chunk);
+                    let _ = console.flush();
+                    if let Ok(mut f) = log.lock() {
+                        let _ = f.write_all(chunk);
+                        let _ = f.flush();
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    Ok(())
+}
 
 const PM2_APP_NAME: &str = "stockbit_ws";
 
@@ -159,6 +234,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         dotenvy::dotenv().ok();
     }
+
+    init_scrapper_log()?;
 
     // Stop gRPC `stockbit_ws` selama scrap; start ulang saat selesai atau Ctrl+C.
     let pm2_guard = Pm2RestartGuard::arm();

@@ -570,12 +570,14 @@ async fn run_portofolio_equity_scrape(session: Arc<Session>) -> Result<usize, St
             .await
             .map_err(|e| format!("login Stockbit: {e}"))?;
 
-        crate::portofolio_worker::ensure_trading_session(&page)
+        let pin_entered = crate::portofolio_worker::ensure_trading_session(&page)
             .await
             .map_err(|e| format!("trading session / PIN: {e}"))?;
 
-        println!("On-demand portofolio_equity: jeda 1 detik setelah PIN...");
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        if pin_entered {
+            println!("On-demand portofolio_equity: jeda 1 detik setelah input PIN...");
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
 
         let n = crate::portofolio_equity_worker::scrape_and_insert_portofolio_equity(
             &page,

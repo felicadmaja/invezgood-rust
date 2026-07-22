@@ -798,10 +798,11 @@ pub async fn scrape_and_insert_portofolio(
     session: &Arc<Session>,
     keyspace: &str,
 ) -> Result<(usize, Vec<String>), Box<dyn std::error::Error>> {
-    ensure_trading_session(page).await?;
-
-    println!("Jeda 1 detik setelah PIN / mode trading siap...");
-    sleep(Duration::from_secs(1)).await;
+    let pin_entered = ensure_trading_session(page).await?;
+    if pin_entered {
+        println!("Jeda 1 detik setelah input PIN...");
+        sleep(Duration::from_secs(1)).await;
+    }
 
     println!("Portofolio equity: DOM scrape header sebelum portfolio API...");
     let equity_ok = portofolio_equity_worker::scrape_and_insert_portofolio_equity(

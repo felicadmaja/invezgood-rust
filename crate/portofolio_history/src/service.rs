@@ -44,6 +44,84 @@ impl PortofolioHistoryService {
 
 #[tonic::async_trait]
 impl PortofolioHistoryRpc for PortofolioHistoryService {
+    async fn get_portofolio_history_by_emiten_name_from_scylla(
+        &self,
+        request: Request<GetPortofolioHistoryByEmitenNameFromStockbitRequest>,
+    ) -> Result<Response<GetPortofolioHistoryByEmitenNameFromStockbitResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let kode = match parse_emiten_name(&req.emiten_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(
+                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                        success: false,
+                        message,
+                        row: None,
+                    },
+                ));
+            }
+        };
+
+        match self.repo.find_latest_by_emiten(&kode).await {
+            Ok(Some(r)) => {
+                let n = r.history.len();
+                let date = r.tahun_bulan_tanggal;
+                let row = Some(r.into_proto());
+                let message =
+                    format!("portofolio_history {kode}: {n} entri dari Scylla ({date})");
+                println!(
+                    "GetPortofolioHistoryByEmitenNameFromScylla {} {kode} success=true history={} {}ms",
+                    username,
+                    n,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(
+                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                        success: true,
+                        message,
+                        row,
+                    },
+                ))
+            }
+            Ok(None) => {
+                let message = format!("portofolio_history {kode}: tidak ada di Scylla");
+                println!(
+                    "GetPortofolioHistoryByEmitenNameFromScylla {} {kode} success=false {}ms",
+                    username,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(
+                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                        success: false,
+                        message,
+                        row: None,
+                    },
+                ))
+            }
+            Err(e) => {
+                eprintln!(
+                    "GetPortofolioHistoryByEmitenNameFromScylla {username}: gagal {kode}: {e}"
+                );
+                println!(
+                    "GetPortofolioHistoryByEmitenNameFromScylla {} {kode} success=false {}ms",
+                    username,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(
+                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                        success: false,
+                        message: format!("baca portofolio_history gagal: {e}"),
+                        row: None,
+                    },
+                ))
+            }
+        }
+    }
+
     async fn get_portofolio_history_by_emiten_name_from_stockbit(
         &self,
         request: Request<GetPortofolioHistoryByEmitenNameFromStockbitRequest>,
