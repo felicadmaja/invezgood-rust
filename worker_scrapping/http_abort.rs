@@ -54,12 +54,36 @@ impl RateLimitInfo {
         }
     }
 
-    /// Jeda antar emiten: 100 ms jika kuota menipis; 0 jika masih tebal / header absen.
+    /// Jeda antar emiten (ms): 0 jika kuota tebal; 200–1000 ms jika menipis.
+    /// `prev_remaining`: remaining response sebelumnya — bila belum naik / turun, jeda lebih panjang.
     pub fn inter_emiten_delay_ms(&self) -> u64 {
-        if self.is_quota_thin() {
-            100
+        self.inter_emiten_delay_ms_with_prev(None)
+    }
+
+    pub fn inter_emiten_delay_ms_with_prev(&self, prev_remaining: Option<i64>) -> u64 {
+        if !self.is_quota_thin() {
+            return 0;
+        }
+        let Some(r) = self.remaining else {
+            return 200;
+        };
+        // Remaining 0, atau belum naik dibanding request sebelumnya → jeda lebih panjang.
+        let not_recovering = r <= 0 || prev_remaining.is_some_and(|p| r <= p);
+        if !not_recovering {
+            return 200;
+        }
+        // Pakai reset window bila ada; clamp 200–1000 ms.
+        if self.reset_secs > 0 {
+            return self
+                .reset_secs
+                .saturating_mul(1000)
+                .clamp(200, 1000);
+        }
+        // remaining=0 tanpa reset → 1000 ms; tipis tapi >0 → skala 300–800 ms.
+        if r <= 0 {
+            1000
         } else {
-            0
+            (300 + (5u64.saturating_sub(r as u64)) * 100).clamp(200, 1000)
         }
     }
 }

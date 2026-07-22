@@ -666,25 +666,61 @@ fn map_api_day(data: &ApiData) -> BandarmologyDay {
 }
 
 async fn throttle_if_needed(state: &RateLimitInfo) {
-    match state.remaining {
-        Some(r) if r <= 0 => {
-            let wait = state.reset_secs.max(2);
-            println!(
-                "Bandarmology API: rate-limit remaining=0 — throttle {wait}s... ({})",
-                state.log_line()
-            );
-            sleep(StdDuration::from_secs(wait)).await;
-        }
-        Some(r) if r <= 2 => {
-            let wait = state.reset_secs.max(1);
-            println!(
-                "Bandarmology API: rate-limit remaining={r} — throttle {wait}s... ({})",
-                state.log_line()
-            );
-            sleep(StdDuration::from_secs(wait)).await;
-        }
-        _ => {}
+    let Some(r) = state.remaining else {
+        return;
+    };
+
+    // Habis / hampir habis → tunggu reset (detik).
+    if r <= 0 {
+        let wait = state.reset_secs.max(2);
+        println!(
+            "Bandarmology API: rate-limit remaining=0 — throttle {wait}s... ({})",
+            state.log_line()
+        );
+        sleep(StdDuration::from_secs(wait)).await;
+        return;
     }
+    if r <= 2 {
+        let wait = state.reset_secs.max(1);
+        println!(
+            "Bandarmology API: rate-limit remaining={r} — throttle {wait}s... ({})",
+            state.log_line()
+        );
+        sleep(StdDuration::from_secs(wait)).await;
+        return;
+    }
+
+    // Menipis: remaining ≤ 80% limit (min 2) → jeda ms adaptif.
+    let thin_at = state
+        .limit
+        .filter(|lim| *lim > 0)
+        .map(|lim| ((lim * 4) / 5).max(2))
+        .unwrap_or(2);
+    if r > thin_at {
+        return;
+    }
+
+    let delay_ms = if state.reset_secs > 0 {
+        state
+            .reset_secs
+            .saturating_mul(200)
+            .clamp(100, 3_000)
+    } else {
+        // Makin tipis → jeda lebih panjang (150ms … 1.5s).
+        (150u64 + (thin_at - r) as u64 * 150).min(1_500)
+    };
+    println!(
+        "Bandarmology API: rate-limit remaining={r} menipis — jeda {delay_ms}ms... ({})",
+        state.log_line()
+    );
+    sleep(StdDuration::from_millis(delay_ms)).await;
+}
+
+fn last_bandar_rate_snapshot() -> RateLimitInfo {
+    LAST_BANDAR_RATE
+        .lock()
+        .map(|g| *g)
+        .unwrap_or_default()
 }
 
 const API_TIMEOUT_MAX_RETRIES: u32 = 5;
@@ -1440,6 +1476,10 @@ pub async fn scrape_and_insert_bandarmology(
     let mut emitens_ok = 0usize;
 
     for (idx, emiten) in emitens.iter().enumerate() {
+        if idx > 0 {
+            // Jeda antar emiten bila kuota dari response terakhir sudah menipis.
+            throttle_if_needed(&last_bandar_rate_snapshot()).await;
+        }
         println!(
             "\n=== Bandarmology API [{}/{}] emiten={} ===",
             idx + 1,

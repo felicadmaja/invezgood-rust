@@ -2,7 +2,7 @@
 //! Upsert ke tabel Scylla `portofolio_history` (bukan kolom `portofolio.history`).
 //!
 //! Alur: START TRADING/PIN bila perlu → Bearer trading → GET order list per emiten
-//! (jeda adaptif dari x-rate-limit-*: 100 ms bila kuota menipis, 0 bila tebal)
+//! (jeda adaptif dari x-rate-limit-*: 200–1000 ms bila kuota menipis / remaining belum naik, 0 bila tebal)
 //! → INSERT `(emiten_name, tahun_bulan_tanggal=today, history)`.
 
 use chrono::{DateTime, Local, Utc};
@@ -299,9 +299,10 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
 
     let mut ok = 0usize;
     let mut last_rate = RateLimitInfo::default();
+    let mut prev_remaining: Option<i64> = None;
     for (i, raw) in emitens.iter().enumerate() {
         if i > 0 {
-            let delay = last_rate.inter_emiten_delay_ms();
+            let delay = last_rate.inter_emiten_delay_ms_with_prev(prev_remaining);
             if delay > 0 {
                 println!(
                     "  jeda adaptif {delay}ms (kuota menipis; {})",
@@ -324,6 +325,7 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
         );
         match fetch_order_history_by_stock_code(&http, &bearer, &code).await {
             Ok((history, rate)) => {
+                prev_remaining = last_rate.remaining;
                 last_rate = rate;
                 let n = history.len();
                 match upsert_portofolio_history_today(session.as_ref(), keyspace, &code, &history)
