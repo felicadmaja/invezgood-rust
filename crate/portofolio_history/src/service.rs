@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use chrono::Local;
 use scylla::client::session::Session;
+use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use user::require_auth;
 use worker_scrapping::on_demand;
@@ -14,6 +16,32 @@ use crate::{
     GetPortofolioHistoryByEmitenNameFromStockbitRequest,
     GetPortofolioHistoryByEmitenNameFromStockbitResponse, PortofolioHistoryRow,
 };
+
+/// Cooldown global antar invoke `GetPortofolioHistoryByEmitenNameFromStockbit` (semua user).
+/// Tidak berlaku untuk `worker_scrapping` (tidak lewat RPC ini).
+const HISTORY_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5);
+
+static LAST_HISTORY_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+
+fn history_scrape_gate() -> &'static Mutex<Option<Instant>> {
+    LAST_HISTORY_SCRAPE.get_or_init(|| Mutex::new(None))
+}
+
+/// Izinkan scrape history; tolak jika < 5 detik sejak invoke terakhir (global).
+async fn acquire_history_scrape_slot() -> Result<(), Status> {
+    let mut last = history_scrape_gate().lock().await;
+    if let Some(at) = *last {
+        let elapsed = at.elapsed();
+        if elapsed < HISTORY_SCRAPE_COOLDOWN {
+            let remaining_secs = (HISTORY_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
+            return Err(Status::failed_precondition(format!(
+                "Rate limit: maksimal 1× / 5 detik untuk semua user. Tunggu {remaining_secs} detik lagi"
+            )));
+        }
+    }
+    *last = Some(Instant::now());
+    Ok(())
+}
 
 fn parse_emiten_name(raw: &str) -> Result<String, String> {
     let kode = raw.trim().to_ascii_uppercase();
@@ -129,6 +157,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
+        acquire_history_scrape_slot().await?;
         let req = request.into_inner();
 
         let kode = match parse_emiten_name(&req.emiten_name) {
