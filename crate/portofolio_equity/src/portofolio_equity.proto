@@ -12,6 +12,9 @@ service PortofolioEquity {
   // Scrape header equity dari https://stockbit.com/securities/portfolio (DOM)
   // lalu upsert `portofolio_equity` — alur sama `portofolio_equity_worker`
   // (login → START TRADING/PIN bila perlu → buka portfolio → tunggu header → insert).
+  // Rate limit: maksimal 1× per 5 menit untuk semua user
+  // (failed precondition jika terlalu cepat). Juga terpakai oleh auto IsStockbitReady.
+  // Hanya jam server 07:00–17:00 (failed precondition: "Diluar jam 07:00 - 17:00").
   // Request kosong. Response: repeated PortofolioEquityRow (isi setelah scrape).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPortofolioEquityFromStockbit(GetAllPortofolioEquityFromStockbitRequest)

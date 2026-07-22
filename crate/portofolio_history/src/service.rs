@@ -19,7 +19,7 @@ use crate::{
 
 /// Cooldown global antar invoke `GetPortofolioHistoryByEmitenNameFromStockbit` (semua user).
 /// Tidak berlaku untuk `worker_scrapping` (tidak lewat RPC ini).
-const HISTORY_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5);
+const HISTORY_SCRAPE_COOLDOWN: Duration = Duration::from_secs(1);
 
 static LAST_HISTORY_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
@@ -27,7 +27,7 @@ fn history_scrape_gate() -> &'static Mutex<Option<Instant>> {
     LAST_HISTORY_SCRAPE.get_or_init(|| Mutex::new(None))
 }
 
-/// Izinkan scrape history; tolak jika < 5 detik sejak invoke terakhir (global).
+/// Izinkan scrape history; tolak jika < 1 detik sejak invoke terakhir (global).
 async fn acquire_history_scrape_slot() -> Result<(), Status> {
     let mut last = history_scrape_gate().lock().await;
     if let Some(at) = *last {
@@ -35,7 +35,7 @@ async fn acquire_history_scrape_slot() -> Result<(), Status> {
         if elapsed < HISTORY_SCRAPE_COOLDOWN {
             let remaining_secs = (HISTORY_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
             return Err(Status::failed_precondition(format!(
-                "Rate limit: maksimal 1× / 5 detik untuk semua user. Tunggu {remaining_secs} detik lagi"
+                "Rate limit: maksimal 1× / 1 detik untuk semua user. Tunggu {remaining_secs} detik lagi"
             )));
         }
     }
@@ -69,13 +69,16 @@ impl PortofolioHistoryService {
         self.repo.warm_prepared().await
     }
 
-    /// Batch history untuk holdings (alur worker / setara invoke RPC per emiten).
-    /// Tidak memakai rate limit 1×/5 detik RPC (sama pengecualian worker scrap).
-    pub async fn scrape_holdings_from_stockbit(
+    /// Batch history holdings + konsumsi rate limit RPC 1×/1 detik (sama user invoke).
+    /// Dipakai auto `IsStockbitReady`.
+    pub async fn scrape_holdings_from_stockbit_if_allowed(
         &self,
         codes: &[String],
-    ) -> Result<usize, String> {
-        on_demand::scrape_portofolio_history_for_emitens(Arc::clone(&self.session), codes).await
+    ) -> Result<usize, Status> {
+        acquire_history_scrape_slot().await?;
+        on_demand::scrape_portofolio_history_for_emitens(Arc::clone(&self.session), codes)
+            .await
+            .map_err(|e| Status::internal(e))
     }
 }
 

@@ -1,9 +1,11 @@
 use std::sync::Arc;
-use std::time::Instant;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use scylla::client::session::Session;
+use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
-use user::require_auth;
+use user::{require_auth, require_stockbit_scrape_hours};
 use worker_scrapping::on_demand;
 
 use crate::model::PortofolioEquity;
@@ -14,6 +16,30 @@ use crate::{
     GetAllPortofolioEquityFromStockbitRequest, GetAllPortofolioEquityFromStockbitResponse,
     PortofolioEquityRow,
 };
+
+/// Cooldown global antar invoke `GetAllPortofolioEquityFromStockbit` (semua user).
+const EQUITY_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
+
+static LAST_EQUITY_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+
+fn equity_scrape_gate() -> &'static Mutex<Option<Instant>> {
+    LAST_EQUITY_SCRAPE.get_or_init(|| Mutex::new(None))
+}
+
+async fn acquire_equity_scrape_slot() -> Result<(), Status> {
+    let mut last = equity_scrape_gate().lock().await;
+    if let Some(at) = *last {
+        let elapsed = at.elapsed();
+        if elapsed < EQUITY_SCRAPE_COOLDOWN {
+            let remaining_secs = (EQUITY_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
+            return Err(Status::failed_precondition(format!(
+                "Rate limit: maksimal 1× / 5 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
+            )));
+        }
+    }
+    *last = Some(Instant::now());
+    Ok(())
+}
 
 pub struct PortofolioEquityService {
     repo: PortofolioEquityRepository,
@@ -33,8 +59,10 @@ impl PortofolioEquityService {
         self.repo.warm_prepared().await
     }
 
-    /// Scrape equity DOM (sama RPC). Jam 07–17 dicek pemanggil.
+    /// Rate limit 1×/5 menit + scrape (sama RPC). Jam 07–17 dicek pemanggil.
+    /// Dipakai juga auto `IsStockbitReady` — jatah rate limit terpakai bersama user RPC.
     pub async fn scrape_from_stockbit_if_allowed(&self) -> Result<usize, Status> {
+        acquire_equity_scrape_slot().await?;
         on_demand::scrape_portofolio_equity(Arc::clone(&self.session))
             .await
             .map_err(|e| Status::internal(e))
@@ -83,6 +111,9 @@ impl PortofolioEquityRpc for PortofolioEquityService {
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
         let _ = request.into_inner();
+
+        require_stockbit_scrape_hours()?;
+        acquire_equity_scrape_slot().await?;
 
         println!(
             "GetAllPortofolioEquityFromStockbit {username}: scrape DOM header equity..."

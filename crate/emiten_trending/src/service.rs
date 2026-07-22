@@ -63,16 +63,9 @@ impl EmitenTrendingService {
     }
 
     /// Rate limit 1×/5 menit + scrape movers (sama RPC). Jam 07–17 dicek pemanggil.
+    /// Dipakai juga auto `IsStockbitReady` — jatah rate limit terpakai bersama user RPC.
     pub async fn scrape_from_stockbit_if_allowed(&self) -> Result<(), Status> {
         acquire_movers_scrape_slot().await?;
-        on_demand::scrape_emiten_trending_movers(Arc::clone(&self.session))
-            .await
-            .map_err(|e| Status::internal(e))?;
-        Ok(())
-    }
-
-    /// Auto poller ready: scrape tanpa rate limit RPC.
-    pub async fn scrape_from_stockbit_on_ready(&self) -> Result<(), Status> {
         on_demand::scrape_emiten_trending_movers(Arc::clone(&self.session))
             .await
             .map_err(|e| Status::internal(e))?;
