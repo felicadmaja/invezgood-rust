@@ -3,6 +3,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use scylla::client::session::Session;
+use stockbit_browser::ReadinessPoller;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use user::{require_auth, require_stockbit_scrape_hours};
@@ -57,6 +58,53 @@ impl PortofolioService {
 
     pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.repo.warm_prepared().await
+    }
+
+    /// Saat poller `IsStockbitReady` mendapat `ready=true`, jalankan scrape sama
+    /// `GetAllPortofolioFromStockbit` (jam 07–17 + rate limit 1×/5 menit).
+    pub fn spawn_scrape_on_stockbit_ready(&self, poller: Arc<ReadinessPoller>) {
+        let session = Arc::clone(&self.session);
+        let mut rx = poller.subscribe();
+        tokio::spawn(async move {
+            loop {
+                let ready = rx
+                    .borrow_and_update()
+                    .as_ref()
+                    .map(|u| u.ready)
+                    .unwrap_or(false);
+                if ready {
+                    if let Err(e) = require_stockbit_scrape_hours() {
+                        println!(
+                            "Readiness ready → skip auto GetAllPortofolioFromStockbit: {}",
+                            e.message()
+                        );
+                    } else if let Err(e) = acquire_portfolio_scrape_slot().await {
+                        println!(
+                            "Readiness ready → skip auto GetAllPortofolioFromStockbit: {}",
+                            e.message()
+                        );
+                    } else {
+                        println!(
+                            "Readiness ready → auto invoke GetAllPortofolioFromStockbit (scrape)..."
+                        );
+                        match on_demand::scrape_portofolio_all(Arc::clone(&session)).await {
+                            Ok(n) => {
+                                println!(
+                                    "Auto GetAllPortofolioFromStockbit selesai: {n} baris di-upsert."
+                                );
+                            }
+                            Err(e) => {
+                                eprintln!("Auto GetAllPortofolioFromStockbit GAGAL: {e}");
+                            }
+                        }
+                    }
+                }
+
+                if rx.changed().await.is_err() {
+                    break;
+                }
+            }
+        });
     }
 }
 

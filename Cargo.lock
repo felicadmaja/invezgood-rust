@@ -1584,6 +1584,7 @@ dependencies = [
  "prost-build",
  "protoc-bin-vendored",
  "scylla",
+ "stockbit_browser",
  "tokio",
  "tonic",
  "tonic-build",

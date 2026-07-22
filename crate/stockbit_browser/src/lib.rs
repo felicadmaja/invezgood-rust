@@ -19,7 +19,7 @@ use rand::Rng;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{mpsc, watch, Mutex, RwLock};
 use tokio::time::sleep;
 
 /// Mutex global: satu Chrome profil — readiness poller dan on-demand scrape
@@ -74,17 +74,21 @@ fn next_poll_secs() -> u64 {
 
 /// Background poller: cek stockbit.com setiap 300–600 detik (5–10 menit).
 /// RPC `IsStockbitReady` hanya membaca status terakhir — tidak trigger cek langsung.
+/// Subscriber [`Self::subscribe`] mendapat update tiap hasil cek (mis. auto-scrape portofolio).
 #[derive(Clone)]
 pub struct ReadinessPoller {
     latest: Arc<RwLock<Option<ReadinessUpdate>>>,
+    notify: watch::Sender<Option<ReadinessUpdate>>,
 }
 
 impl ReadinessPoller {
     /// Mulai loop polling di background.
     /// Cek pertama segera (bukan dari RPC); berikutnya setiap 300–600 detik.
     pub fn start() -> Arc<Self> {
+        let (notify, _) = watch::channel(None);
         let poller = Arc::new(Self {
             latest: Arc::new(RwLock::new(None)),
+            notify,
         });
         let runner = Arc::clone(&poller);
         tokio::spawn(async move {
@@ -98,9 +102,17 @@ impl ReadinessPoller {
         self.latest.read().await.clone()
     }
 
+    /// Subscribe hasil cek poller (termasuk `ready=true` setelah sesi OK).
+    pub fn subscribe(&self) -> watch::Receiver<Option<ReadinessUpdate>> {
+        self.notify.subscribe()
+    }
+
     async fn publish(&self, update: ReadinessUpdate) {
-        let mut guard = self.latest.write().await;
-        *guard = Some(update);
+        {
+            let mut guard = self.latest.write().await;
+            *guard = Some(update.clone());
+        }
+        let _ = self.notify.send(Some(update));
     }
 
     async fn run_loop(self: Arc<Self>) {

@@ -55,6 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let user_svc = UserService::new(session.clone());
     let portofolio_svc = PortofolioService::new(session.clone());
+    portofolio_svc.spawn_scrape_on_stockbit_ready(user_svc.readiness_poller());
     let portofolio_bandarmology_svc = PortofolioBandarmologyService::new(session.clone());
     let portofolio_equity_svc = PortofolioEquityService::new(session.clone());
     let portofolio_history_svc = PortofolioHistoryService::new(session.clone());

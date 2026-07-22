@@ -11,8 +11,9 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 futures-util = "0.3"
 prost = { version = "0.13", features = ["std", "derive"] }
 scylla = { version = "1.5", features = ["chrono-04"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 tonic = { version = "0.12", features = ["transport"] }
+stockbit_browser = { path = "../stockbit_browser" }
 user = { path = "../user" }
 worker_scrapping = { path = "../../worker_scrapping" }
 

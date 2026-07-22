@@ -40,6 +40,11 @@ impl UserService {
     pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.repo.warm_prepared_statements().await
     }
+
+    /// Poller readiness (untuk subscribe auto-scrape / monitoring).
+    pub fn readiness_poller(&self) -> Arc<ReadinessPoller> {
+        Arc::clone(&self.readiness)
+    }
 }
 
 #[tonic::async_trait]
