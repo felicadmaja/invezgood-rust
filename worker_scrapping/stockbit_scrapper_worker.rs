@@ -39,7 +39,13 @@
 //! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name)
 //! → per emiten salin minggu berjalan ke `portofolio_bandarmology`
 //! → hapus orphan `portofolio_bandarmology` yang sudah tidak ada di `portofolio`
-//! → per emiten holdings scrape order history → upsert `portofolio_history`.
+//! → per emiten holdings: sama RPC `GetPortofolioHistoryByEmitenNameFromStockbit` —
+//!   `GET carina.stockbit.com/history?page=1&limit=200&period=all&stock={CODE}`
+//!   (paginate s/d `meta.max_page`) → group by item.`date` (`20 Jul 2026` → date)
+//!   → upsert `portofolio_history` PK `((emiten_name), tahun_bulan_tanggal DESC)`:
+//!   `emiten_name`=symbol, `tahun_bulan_tanggal`=tanggal transaksi,
+//!   `history`=list\<frozen\<portofolio_history_item\>\>
+//!   (command, symbol, price, lot, amount, status).
 //! Lalu (PIN/trading session bila perlu) → `GET carina.stockbit.com/order/v2/list`
 //! → insert `pending_order`.
 //!
@@ -69,14 +75,22 @@ use stockbit_browser::{
 
 const SCRAPPER_LOG_FILE: &str = "stockbit_scrapper_worker.log";
 
-/// Kosongkan log file, lalu tee stdout+stderr ke file dan terminal.
+/// Kosongkan log file, tulis stempel waktu run di baris pertama, lalu tee stdout+stderr ke file dan terminal.
 fn init_scrapper_log() -> Result<(), Box<dyn std::error::Error>> {
     let log_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(SCRAPPER_LOG_FILE);
-    let log = OpenOptions::new()
+    let mut log = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
         .open(&log_path)?;
+
+    let started_at = Local::now().format("%Y-%m-%d %H:%M:%S %z");
+    writeln!(
+        log,
+        "=== stockbit_scrapper_worker started at {started_at} ===\n"
+    )?;
+    log.flush()?;
+
     let log = Arc::new(Mutex::new(log));
 
     install_stdio_tee(Arc::clone(&log), libc::STDOUT_FILENO)?;
@@ -90,6 +104,7 @@ fn init_scrapper_log() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     println!("Log file: {} (di-clear tiap awal run)", log_path.display());
+    println!("Run started at {started_at}");
     Ok(())
 }
 
@@ -327,7 +342,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if !porto_codes.is_empty() {
         println!(
-            "Lanjut portofolio_history (order/v2/list per emiten → upsert, {} kode)...",
+            "Lanjut portofolio_history (sama GetPortofolioHistoryByEmitenNameFromStockbit): \
+             GET /history?stock=… → upsert per tanggal transaksi, {} kode holding...",
             porto_codes.len()
         );
         let hist_ok = portofolio_history_worker::scrape_and_upsert_portofolio_history_for_emitens(
@@ -338,9 +354,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
         println!(
-            "OK: {hist_ok}/{} emiten diupsert ke portofolio_history.",
+            "OK: {hist_ok}/{} emiten diupsert ke portofolio_history \
+             (emiten_name + tahun_bulan_tanggal + history list UDT).",
             porto_codes.len()
         );
+    } else {
+        println!("Skip portofolio_history: tidak ada kode holding di portofolio.");
     }
 
     println!("Lanjut pending_order (PIN bila perlu → order/v2/list → upsert)...");

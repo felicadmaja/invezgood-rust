@@ -624,8 +624,8 @@ async fn run_portofolio_equity_scrape(session: Arc<Session>) -> Result<usize, St
     result
 }
 
-/// On-demand: login → PIN → GET order/v2/list?filter_criteria.stock_code= →
-/// upsert `portofolio_history` (hari ini). Single-flight per emiten; survive cancel RPC.
+/// On-demand: login → PIN → GET carina `/history?stock=` →
+/// upsert `portofolio_history` per tanggal transaksi. Single-flight per emiten; survive cancel RPC.
 /// Returns jumlah entri history yang di-upsert.
 pub async fn scrape_portofolio_history_for_emiten(
     session: Arc<Session>,
@@ -695,7 +695,7 @@ async fn run_portofolio_history_scrape(
     let _browser_guard = browser_session_lock().lock().await;
     let ks = keyspace();
 
-    println!("On-demand portofolio history: login → PIN → order list {code}...");
+    println!("On-demand portofolio history: login → PIN → /history {code}...");
 
     let (mut browser, page) = launch_page()
         .await

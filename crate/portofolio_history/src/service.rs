@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use chrono::Local;
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
@@ -13,7 +12,7 @@ use crate::portofolio_history_server::PortofolioHistory as PortofolioHistoryRpc;
 use crate::repository::PortofolioHistoryRepository;
 use crate::{
     GetPortofolioHistoryByEmitenNameFromStockbitRequest,
-    GetPortofolioHistoryByEmitenNameFromStockbitResponse, PortofolioHistoryRow,
+    GetPortofolioHistoryByEmitenNameFromStockbitResponse,
 };
 
 /// Cooldown global antar invoke `GetPortofolioHistoryByEmitenNameFromStockbit` (semua user).
@@ -186,21 +185,16 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         };
 
         println!(
-            "GetPortofolioHistoryByEmitenNameFromStockbit {username}: {kode} — order/v2/list + upsert portofolio_history..."
+            "GetPortofolioHistoryByEmitenNameFromStockbit {username}: {kode} — /history + upsert portofolio_history..."
         );
 
         match on_demand::scrape_portofolio_history_for_emiten(Arc::clone(&self.session), &kode)
             .await
         {
             Ok(n) => {
-                let today = Local::now().date_naive();
-                let row = match self.repo.find_by_emiten_and_date(&kode, today).await {
+                let row = match self.repo.find_latest_by_emiten(&kode).await {
                     Ok(Some(r)) => Some(r.into_proto()),
-                    Ok(None) => Some(PortofolioHistoryRow {
-                        emiten_name: kode.clone(),
-                        tahun_bulan_tanggal: today.format("%Y-%m-%d").to_string(),
-                        history: Vec::new(),
-                    }),
+                    Ok(None) => None,
                     Err(e) => {
                         eprintln!(
                             "GetPortofolioHistoryByEmitenNameFromStockbit {username}: baca ulang gagal: {e}"
@@ -208,8 +202,12 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                         None
                     }
                 };
+                let date_note = row
+                    .as_ref()
+                    .map(|r| r.tahun_bulan_tanggal.as_str())
+                    .unwrap_or("-");
                 let message = format!(
-                    "portofolio_history {kode}: scrape selesai, {n} entri di-upsert ({today})"
+                    "portofolio_history {kode}: scrape selesai, {n} entri di-upsert (terbaru {date_note})"
                 );
                 println!(
                     "GetPortofolioHistoryByEmitenNameFromStockbit {} {kode} success=true history={} {}ms",
