@@ -16,23 +16,31 @@
 //! 4. Token-ring scan `emiten_list` → semua `emiten_name`
 //! 5. Hapus Redis skip-cache bandarmology + `TRUNCATE` tabel `bandarmology` (timpa data lama)
 //! 6. Scrape API `exodus.stockbit.com/marketdetectors/{CODE}` per emiten → upsert Scylla
-//!    (bulan berjalan + historis max 12 bulan; aturan sama `bandarmology_worker`)
+//!    (bulan berjalan + historis max 12 bulan; log detail sama `bandarmology_worker`)
 //! 7. `pm2 start stockbit_ws`
+//!
+//! Log: stdout/stderr di-tee ke layar + `worker_scrapping/scrap_bandarmology_all.log`
+//! (di-clear tiap run; baris pertama = stempel waktu).
 //!
 //! Env: `STOCKBIT_EMAIL`, `STOCKBIT_PASSWORD`, `SCYLLA_*`, `REDIS_URL`, opsional Chrome.
 
 use chrono::Local;
 use scylla::client::session::Session;
 use scylla::client::session_builder::SessionBuilder;
+use std::fs::OpenOptions;
+use std::io::{pipe, Read, Write};
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use stockbit_browser::{dismiss_profile_avatar_modal, launch_page, open_stream_or_login};
 use worker_scrapping::bandarmology_worker;
 use worker_scrapping::redis_bandarmology_skip;
 
 const PM2_APP_NAME: &str = "stockbit_ws";
+const LOG_FILE: &str = "scrap_bandarmology_all.log";
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -43,6 +51,81 @@ fn workspace_root() -> PathBuf {
 
 fn keyspace() -> String {
     std::env::var("SCYLLA_KEYSPACE").unwrap_or_else(|_| "stockbit".to_string())
+}
+
+/// Kosongkan log file, tulis stempel waktu, tee stdout+stderr ke file + terminal (live).
+fn init_log() -> Result<(), Box<dyn std::error::Error>> {
+    let log_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(LOG_FILE);
+    let mut log = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&log_path)?;
+
+    let started_at = Local::now().format("%Y-%m-%d %H:%M:%S %z");
+    writeln!(
+        log,
+        "=== scrap_bandarmology_all started at {started_at} ===\n"
+    )?;
+    log.flush()?;
+
+    let log = Arc::new(Mutex::new(log));
+    install_stdio_tee(Arc::clone(&log), libc::STDOUT_FILENO)?;
+    install_stdio_tee(log, libc::STDERR_FILENO)?;
+
+    // Setelah redirect ke pipe, Rust stdout jadi block-buffered — flush berkala agar
+    // println dari `bandarmology_worker` langsung tampil di layar.
+    std::thread::spawn(|| loop {
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stderr().flush();
+        std::thread::sleep(Duration::from_millis(200));
+    });
+
+    println!("Log file: {} (di-clear tiap awal run)", log_path.display());
+    println!("Run started at {started_at}");
+    Ok(())
+}
+
+fn install_stdio_tee(
+    log: Arc<Mutex<std::fs::File>>,
+    target_fd: i32,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (mut reader, writer) = pipe()?;
+    let writer_fd = writer.as_raw_fd();
+
+    let orig_fd = unsafe { libc::dup(target_fd) };
+    if orig_fd < 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    if unsafe { libc::dup2(writer_fd, target_fd) } < 0 {
+        unsafe {
+            libc::close(orig_fd);
+        }
+        return Err(std::io::Error::last_os_error().into());
+    }
+    std::mem::forget(writer);
+
+    std::thread::spawn(move || {
+        let mut console = unsafe { std::fs::File::from_raw_fd(orig_fd) };
+        let mut buf = [0u8; 8192];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let chunk = &buf[..n];
+                    let _ = console.write_all(chunk);
+                    let _ = console.flush();
+                    if let Ok(mut f) = log.lock() {
+                        let _ = f.write_all(chunk);
+                        let _ = f.flush();
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    Ok(())
 }
 
 async fn connect_scylla() -> Result<Arc<Session>, Box<dyn std::error::Error>> {
@@ -134,9 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     worker_scrapping::http_abort::enable_worker_abort_on_http_4xx();
-
-    let started_at = Local::now().format("%Y-%m-%d %H:%M:%S %z");
-    println!("=== scrap_bandarmology_all started at {started_at} ===");
+    init_log()?;
 
     let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
     let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
@@ -192,6 +273,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "Scrape bandarmology API untuk {} emiten (today={today}) — sequential upsert...",
         emitens.len()
+    );
+    println!(
+        "(log detail per emiten / bulan / rate-limit dari bandarmology_worker — tampil di layar + {LOG_FILE})"
     );
     let ok = bandarmology_worker::scrape_and_insert_bandarmology(
         &page,

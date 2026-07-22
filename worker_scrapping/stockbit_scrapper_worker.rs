@@ -26,16 +26,13 @@
 //! (`keystats/ratio`, `corpaction`, `emitten/{CODE}/profile`) → upsert `emiten_list`
 //! (hanya kolom scrape; tidak mengisi `sector`, `is_konglomerasi`, `is_fundamental_solid`,
 //! `is_blue_chip`, `catatan`, `catatan_owner`, `foto_owner`).
-//! Kemudian Bandar Detector via API `exodus.stockbit.com/marketdetectors/{CODE}`
-//! (Bearer dari sesi login; `broker_summary` + satu kolom minggu w1–w4 per slot tanggal invoke)
-//! → upsert `bandarmology`.
 //! Throttle otomatis bila `x-rate-limit-remaining` hampir habis.
 //! Jika API mengembalikan HTTP 4xx: worker dihentikan segera + `pm2 start stockbit_ws`
 //! (hindari diblokir server). Abort ini **hanya** di bin worker (`STOCKBIT_WORKER_ABORT_ON_HTTP_4XX`);
 //! invoke via RPC `stockbit_ws` tidak menghentikan app.
 //! Lalu START TRADING (PIN bila perlu) → buka `/securities/portfolio` → DOM scrape
 //! header equity → upsert `portofolio_equity` → Bearer trading pasca-PIN →
-//! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list + bandarmology
+//! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list (+ bandarmology bila perlu)
 //! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name)
 //! → per emiten salin minggu berjalan ke `portofolio_bandarmology`
 //! → hapus orphan `portofolio_bandarmology` yang sudah tidak ada di `portofolio`
@@ -48,6 +45,9 @@
 //!   (command, symbol, price, lot, amount, status).
 //! Lalu (PIN/trading session bila perlu) → `GET carina.stockbit.com/order/v2/list`
 //! → insert `pending_order`.
+//! Terakhir: Bandar Detector via API `exodus.stockbit.com/marketdetectors/{CODE}`
+//! (Bearer dari sesi login; `broker_summary` + minggu w1–w4) → upsert `bandarmology`
+//! untuk semua emiten dari `emiten_list` (movers dulu, lalu scan).
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 //! Setiap run: clear lalu tulis ulang log ke `worker_scrapping/stockbit_scrapper_worker.log`
@@ -314,7 +314,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     println!(
-        "Ditemukan {} emiten untuk key_stats/profile/corp/bandarmology (movers dulu={}, scan={}).",
+        "Ditemukan {} emiten untuk key_stats/profile/corp (+ bandarmology di akhir; movers dulu={}, scan={}).",
         emitens.len(),
         movers_front,
         existing.len()
@@ -325,13 +325,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key_stats_ok =
         emiten_list_worker::scrape_and_insert_key_stats(&page, &session, &ks, &emitens).await?;
     println!("OK: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");
-
-    println!("Bandarmology via marketdetectors API (Bearer dari sesi browser)...");
-    let bandar_ok =
-        bandarmology_worker::scrape_and_insert_bandarmology(&page, &session, &ks, today, &emitens)
-            .await
-            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-    println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");
 
     println!(
         "Lanjut portofolio (PIN bila perlu → DOM portofolio_equity → API → emiten_list + bandarmology → upsert)..."
@@ -366,6 +359,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pending_ok =
         pending_order_worker::scrape_and_insert_pending_order(&page, &session, &ks).await?;
     println!("OK: {pending_ok} baris diinsert ke pending_order.");
+
+    println!("Terakhir: Bandarmology via marketdetectors API (Bearer dari sesi browser)...");
+    let bandar_ok =
+        bandarmology_worker::scrape_and_insert_bandarmology(&page, &session, &ks, today, &emitens)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");
 
     let final_url = page.url().await?.unwrap_or_default();
     let final_title = page.get_title().await?.unwrap_or_default();
