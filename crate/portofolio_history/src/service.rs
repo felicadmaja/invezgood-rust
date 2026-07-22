@@ -7,7 +7,7 @@ use chrono::Local;
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
-use user::require_auth;
+use user::{require_auth, require_stockbit_scrape_hours};
 use worker_scrapping::on_demand;
 
 use crate::portofolio_history_server::PortofolioHistory as PortofolioHistoryRpc;
@@ -70,7 +70,7 @@ impl PortofolioHistoryService {
     }
 
     /// Batch history holdings + konsumsi rate limit RPC 1×/1 detik (sama user invoke).
-    /// Dipakai auto `IsStockbitReady`.
+    /// Dipakai auto `IsStockbitReady` (jam scrape dicek pemanggil).
     pub async fn scrape_holdings_from_stockbit_if_allowed(
         &self,
         codes: &[String],
@@ -169,6 +169,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
+        require_stockbit_scrape_hours()?;
         acquire_history_scrape_slot().await?;
         let req = request.into_inner();
 

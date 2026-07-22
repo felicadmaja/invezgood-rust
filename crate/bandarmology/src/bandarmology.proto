@@ -16,6 +16,16 @@ service Bandarmology {
   rpc GetMultiBandarmologyFromScylla(GetMultiBandarmologyFromScyllaRequest)
       returns (GetMultiBandarmologyFromScyllaResponse);
 
+  // Lookup banyak bulan untuk satu emiten (hanya baca Scylla, tidak scrape).
+  // Per bulan: PK `tahun_bulan + '_' + emiten_name` (sama GetBandarmologyFromScylla).
+  // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE.
+  // tahun_bulan: YYYY-MM; duplikat di-skip; format invalid diabaikan.
+  // Response: map tahun_bulan → BandarmologyRow (hanya bulan yang ketemu di Scylla).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetMultiMonthlySingleEmitenBandarmologyFromScylla(
+      GetMultiMonthlySingleEmitenBandarmologyFromScyllaRequest)
+      returns (GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse);
+
   // Scrape bandarmology 1 tahun kebelakang (max 12 bulan) untuk satu emiten via API Stockbit.
   // Aturan sama `bandarmology_worker`:
   // - bulan berjalan overwrite `broker_summary` (awal bulan → hari ini) hanya bila
@@ -50,6 +60,18 @@ message GetMultiBandarmologyFromScyllaRequest {
 
 message GetMultiBandarmologyFromScyllaResponse {
   repeated BandarmologyRow rows = 1;
+}
+
+message GetMultiMonthlySingleEmitenBandarmologyFromScyllaRequest {
+  // Kode emiten / ticker: tepat 4 huruf; dinormalisasi UPPERCASE (bbca → BBCA).
+  string emiten_name = 1;
+  // Daftar bulan YYYY-MM; duplikat di-skip; format invalid diabaikan.
+  repeated string tahun_bulan = 2;
+}
+
+message GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse {
+  // Key = tahun_bulan (YYYY-MM); value = baris bandarmology bila ada di Scylla.
+  map<string, BandarmologyRow> tahun_bulan_to_row = 1;
 }
 
 message GetBandarmologyFromStockbitRequest {

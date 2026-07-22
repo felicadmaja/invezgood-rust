@@ -15,7 +15,8 @@ service PendingOrder {
   // GET carina.stockbit.com/order/v2/list → TRUNCATE+insert `pending_order`.
   // Rate limit: maksimal 1× per 5 menit untuk semua user
   // (failed precondition jika terlalu cepat).
-  // Hanya jam server 07:00–17:00 (failed precondition: "Diluar jam 07:00 - 17:00").
+  // Hanya jam server 09:00–12:00 dan 13:30–16:00
+  // (failed precondition: "Diluar jam 09:00-12:00 dan 13:30-16:00").
   // Tidak berlaku untuk bin worker_scrapping.
   // Request kosong. Response: repeated PendingOrderRow setelah scrape.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.

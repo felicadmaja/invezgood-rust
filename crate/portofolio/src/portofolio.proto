@@ -18,7 +18,8 @@ service Portofolio {
   // `portofolio` (sama RPC `DeletePortofolioBandarmology`).
   // Rate limit: maksimal 1× per 5 menit untuk semua user
   // (failed precondition jika terlalu cepat).
-  // Hanya jam server 07:00–17:00 (failed precondition: "Diluar jam 07:00 - 17:00").
+  // Hanya jam server 09:00–12:00 dan 13:30–16:00
+  // (failed precondition: "Diluar jam 09:00-12:00 dan 13:30-16:00").
   // Tidak berlaku untuk bin worker_scrapping.
   // Juga dijalankan otomatis saat poller IsStockbitReady = ready (jam + rate limit sama),
   // bersama history holdings, pending_order, dan emiten_trending.

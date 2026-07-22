@@ -1,6 +1,6 @@
 //! Auto-scrape saat poller `IsStockbitReady` = ready.
 //!
-//! Dipicu **setiap siklus poller** (interval acak 10–13 menit) bila `ready=true`
+//! Dipicu **setiap siklus poller** (interval acak 7–10 menit) bila `ready=true`
 //! dan `poll_seq > 0` (hasil cek web nyata — bukan hydrate Redis).
 //!
 //! Urutan:
@@ -10,7 +10,7 @@
 //! 4. GetAllPendingOrderFromStockbit
 //! 5. GetLatestEmitenTrendingFromStockbit
 //!
-//! Jam 07–17. Tiap alur memakai **rate limit RPC yang sama** (`acquire_*`):
+//! Jam 09:00–12:00 dan 13:30–16:00. Tiap alur memakai **rate limit RPC yang sama** (`acquire_*`):
 //! - auto pakai jatah → user RPC bisa kena limit
 //! - user RPC pakai jatah → auto skip alur itu (lanjut ke berikutnya)
 

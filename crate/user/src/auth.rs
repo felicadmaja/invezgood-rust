@@ -70,16 +70,24 @@ pub fn require_auth<T>(request: &Request<T>) -> Result<Claims, Status> {
     decode_token(token).map_err(|e| Status::unauthenticated(format!("JWT tidak valid: {e}")))
 }
 
-/// Batasi RPC scrape Stockbit on-demand ke jam server lokal 07:00–17:00
-/// (inklusif 07:00, eksklusif 17:00). Di luar itu → `FAILED_PRECONDITION`.
+/// Batasi RPC scrape Stockbit on-demand ke jam server lokal:
+/// **09:00–12:00** dan **13:30–16:00** (inklusif awal, eksklusif akhir tiap jendela).
+/// Di luar itu → `FAILED_PRECONDITION`.
 /// Tidak dipakai oleh bin `worker_scrapping` (cron/manual).
+/// Dipakai juga auto-scrape dari `IsStockbitReady`.
 pub fn require_stockbit_scrape_hours() -> Result<(), Status> {
     let now = Local::now();
     let mins = now.hour() * 60 + now.minute();
-    const START_MINS: u32 = 7 * 60; // 07:00
-    const END_MINS: u32 = 17 * 60; // 17:00
-    if mins < START_MINS || mins >= END_MINS {
-        return Err(Status::failed_precondition("Diluar jam 07:00 - 17:00"));
+    const MORNING_START: u32 = 9 * 60; // 09:00
+    const MORNING_END: u32 = 12 * 60; // 12:00
+    const AFTERNOON_START: u32 = 13 * 60 + 30; // 13:30
+    const AFTERNOON_END: u32 = 16 * 60; // 16:00
+    let in_morning = mins >= MORNING_START && mins < MORNING_END;
+    let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
+    if !in_morning && !in_afternoon {
+        return Err(Status::failed_precondition(
+            "Diluar jam 09:00-12:00 dan 13:30-16:00",
+        ));
     }
     Ok(())
 }

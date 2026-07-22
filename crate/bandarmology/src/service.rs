@@ -14,6 +14,8 @@ use crate::{
     GetBandarmologyFromScyllaRequest, GetBandarmologyFromScyllaResponse,
     GetBandarmologyFromStockbitRequest, GetBandarmologyFromStockbitResponse,
     GetMultiBandarmologyFromScyllaRequest, GetMultiBandarmologyFromScyllaResponse,
+    GetMultiMonthlySingleEmitenBandarmologyFromScyllaRequest,
+    GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse,
 };
 
 /// True bila string tepat pola `YYYY-MM` (4 digit-tahun, 2 digit-bulan).
@@ -61,6 +63,21 @@ fn normalize_kode_emitens(raw: &[String]) -> Vec<String> {
         };
         if seen.insert(kode.clone()) {
             out.push(kode);
+        }
+    }
+    out
+}
+
+/// Normalisasi daftar bulan YYYY-MM unik (urutan tetap); format invalid diabaikan.
+fn normalize_tahun_bulans(raw: &[String]) -> Vec<String> {
+    let mut out = Vec::with_capacity(raw.len());
+    let mut seen = std::collections::HashSet::new();
+    for item in raw {
+        let Ok(tb) = parse_tahun_bulan(item) else {
+            continue;
+        };
+        if seen.insert(tb.clone()) {
+            out.push(tb);
         }
     }
     out
@@ -158,6 +175,50 @@ impl BandarmologyRpc for BandarmologyService {
         Ok(Response::new(GetMultiBandarmologyFromScyllaResponse {
             rows: proto_rows,
         }))
+    }
+
+    async fn get_multi_monthly_single_emiten_bandarmology_from_scylla(
+        &self,
+        request: Request<GetMultiMonthlySingleEmitenBandarmologyFromScyllaRequest>,
+    ) -> Result<Response<GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let emiten = parse_kode_emiten(&req.emiten_name).map_err(|e| {
+            Status::invalid_argument(e.replace("kode_emiten", "emiten_name"))
+        })?;
+        let months = normalize_tahun_bulans(&req.tahun_bulan);
+        if months.is_empty() {
+            return Err(Status::invalid_argument(
+                "tahun_bulan wajib diisi minimal 1 bulan valid (YYYY-MM)",
+            ));
+        }
+
+        let found = self
+            .repo
+            .find_many_by_emiten_and_tahun_bulans(&emiten, &months)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        let mut tahun_bulan_to_row = std::collections::HashMap::with_capacity(found.len());
+        for (tb, row) in found {
+            tahun_bulan_to_row.insert(tb, Bandarmology::into_proto(row));
+        }
+
+        println!(
+            "GetMultiMonthlySingleEmitenBandarmologyFromScylla {} {} req={} found={} {}ms",
+            username,
+            emiten,
+            months.len(),
+            tahun_bulan_to_row.len(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(
+            GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse { tahun_bulan_to_row },
+        ))
     }
 
     async fn get_bandarmology_from_stockbit(
