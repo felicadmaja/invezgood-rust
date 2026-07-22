@@ -1,4 +1,5 @@
 === Struktur migrasi stockbit.pending_order (schema summary) ===
+=== AKAN DI TRUNCATE SETIAP ADA DATA MASUK ===
 
 Keyspace: "stockbit"
 

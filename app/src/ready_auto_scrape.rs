@@ -1,6 +1,6 @@
 //! Auto-scrape saat poller `IsStockbitReady` = ready.
 //!
-//! Dipicu **setiap siklus poller** (interval acak 7–10 menit) bila `ready=true`
+//! Dipicu **setiap siklus poller** (interval acak 13–15 menit) bila `ready=true`
 //! dan `poll_seq > 0` (hasil cek web nyata — bukan hydrate Redis).
 //!
 //! Urutan:
