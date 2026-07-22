@@ -10,4 +10,5 @@ pub mod portofolio_bandarmology_worker;
 pub mod portofolio_equity_worker;
 pub mod portofolio_history_worker;
 pub mod portofolio_worker;
+pub mod rate_limit_delay;
 pub mod redis_long_name;

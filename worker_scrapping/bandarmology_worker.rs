@@ -25,7 +25,7 @@ use std::time::Duration as StdDuration;
 use stockbit_browser::extract_stockbit_bearer;
 use tokio::time::sleep;
 
-use crate::http_abort::{rate_limit_headers_log, RateLimitInfo};
+use crate::rate_limit_delay::{rate_limit_headers_log, RateLimitInfo};
 
 const API_BASE: &str = "https://exodus.stockbit.com/marketdetectors";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -666,51 +666,16 @@ fn map_api_day(data: &ApiData) -> BandarmologyDay {
 }
 
 async fn throttle_if_needed(state: &RateLimitInfo) {
-    let Some(r) = state.remaining else {
-        return;
-    };
-
-    // Habis / hampir habis → tunggu reset (detik).
-    if r <= 0 {
-        let wait = state.reset_secs.max(2);
-        println!(
-            "Bandarmology API: rate-limit remaining=0 — throttle {wait}s... ({})",
-            state.log_line()
-        );
-        sleep(StdDuration::from_secs(wait)).await;
+    let delay_ms = state.inter_emiten_delay_ms();
+    if delay_ms == 0 {
         return;
     }
-    if r <= 2 {
-        let wait = state.reset_secs.max(1);
-        println!(
-            "Bandarmology API: rate-limit remaining={r} — throttle {wait}s... ({})",
-            state.log_line()
-        );
-        sleep(StdDuration::from_secs(wait)).await;
-        return;
-    }
-
-    // Menipis: remaining ≤ 80% limit (min 2) → jeda ms adaptif.
-    let thin_at = state
-        .limit
-        .filter(|lim| *lim > 0)
-        .map(|lim| ((lim * 4) / 5).max(2))
-        .unwrap_or(2);
-    if r > thin_at {
-        return;
-    }
-
-    let delay_ms = if state.reset_secs > 0 {
-        state
-            .reset_secs
-            .saturating_mul(200)
-            .clamp(100, 3_000)
-    } else {
-        // Makin tipis → jeda lebih panjang (150ms … 1.5s).
-        (150u64 + (thin_at - r) as u64 * 150).min(1_500)
-    };
+    let r = state
+        .remaining
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| "-".into());
     println!(
-        "Bandarmology API: rate-limit remaining={r} menipis — jeda {delay_ms}ms... ({})",
+        "Bandarmology API: rate-limit remaining={r} — jeda {delay_ms}ms... ({})",
         state.log_line()
     );
     sleep(StdDuration::from_millis(delay_ms)).await;

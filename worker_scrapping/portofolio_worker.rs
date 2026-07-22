@@ -662,7 +662,7 @@ async fn fetch_portfolio_list(
         .await?;
 
     let status = resp.status();
-    let rate = crate::http_abort::rate_limit_headers_log(resp.headers());
+    let rate = crate::rate_limit_delay::rate_limit_headers_log(resp.headers());
     println!("  portfolio/v2/list → HTTP {status} | {rate}");
     crate::http_abort::abort_app_if_http_4xx(status, "portfolio/v2/list");
     let body = resp.text().await.unwrap_or_default();

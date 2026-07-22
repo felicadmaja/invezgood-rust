@@ -2,7 +2,7 @@
 //! Upsert ke tabel Scylla `portofolio_history` (bukan kolom `portofolio.history`).
 //!
 //! Alur: START TRADING/PIN bila perlu → Bearer trading → GET order list per emiten
-//! (jeda adaptif dari x-rate-limit-*: 200–1000 ms bila kuota menipis / remaining belum naik, 0 bila tebal)
+//! (jeda adaptif dari x-rate-limit-remaining: ≥4=0, 3=100ms, 2=200ms, 1=300ms, ≤0=1000ms)
 //! → INSERT `(emiten_name, tahun_bulan_tanggal=today, history)`.
 
 use chrono::{DateTime, Local, Utc};
@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use crate::http_abort::RateLimitInfo;
+use crate::rate_limit_delay::RateLimitInfo;
 use crate::portofolio_worker::{ensure_trading_session, extract_trading_bearer_after_pin};
 
 const ORDER_LIST_API_URL: &str = "https://carina.stockbit.com/order/v2/list";
@@ -162,7 +162,7 @@ async fn fetch_order_history_by_stock_code(
 
     let status = resp.status();
     let rate = RateLimitInfo::from_headers(resp.headers());
-    let rate_log = crate::http_abort::rate_limit_headers_log(resp.headers());
+    let rate_log = crate::rate_limit_delay::rate_limit_headers_log(resp.headers());
     println!("  order/v2/list {stock_code} → HTTP {status} | {rate_log}");
     let body = resp.text().await.unwrap_or_default();
     // Jangan abort seluruh app: 4xx (mis. 429) di-handle caller — hentikan batch history saja.
@@ -299,13 +299,16 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
 
     let mut ok = 0usize;
     let mut last_rate = RateLimitInfo::default();
-    let mut prev_remaining: Option<i64> = None;
     for (i, raw) in emitens.iter().enumerate() {
         if i > 0 {
-            let delay = last_rate.inter_emiten_delay_ms_with_prev(prev_remaining);
+            let delay = last_rate.inter_emiten_delay_ms();
             if delay > 0 {
                 println!(
-                    "  jeda adaptif {delay}ms (kuota menipis; {})",
+                    "  jeda adaptif {delay}ms (remaining={}; {})",
+                    last_rate
+                        .remaining
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "-".into()),
                     last_rate.log_line()
                 );
                 sleep(Duration::from_millis(delay)).await;
@@ -325,7 +328,6 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
         );
         match fetch_order_history_by_stock_code(&http, &bearer, &code).await {
             Ok((history, rate)) => {
-                prev_remaining = last_rate.remaining;
                 last_rate = rate;
                 let n = history.len();
                 match upsert_portofolio_history_today(session.as_ref(), keyspace, &code, &history)
