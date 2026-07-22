@@ -17,7 +17,6 @@ Worker ini **bukan** proses PM2 `stockbit_ws`. Ia dijalankan terpisah (manual at
 Dari root repo:
 
 ```bash
-cd /home/baki1/stockbit_ws
 cargo build --release -p worker_scrapping
 ```
 
@@ -32,7 +31,6 @@ Binary:
 ## Jalankan manual (uji)
 
 ```bash
-cd /home/baki1/stockbit_ws
 ./target/release/worker_scrapping
 ```
 

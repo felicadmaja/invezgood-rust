@@ -2,7 +2,7 @@
 //! Upsert ke tabel Scylla `portofolio_history` (bukan kolom `portofolio.history`).
 //!
 //! Alur: START TRADING/PIN bila perlu → Bearer trading → GET order list per emiten
-//! (jeda 100 ms antar emiten) → INSERT `(emiten_name, tahun_bulan_tanggal=today, history)`.
+//! (jeda 200 ms antar emiten) → INSERT `(emiten_name, tahun_bulan_tanggal=today, history)`.
 
 use chrono::{DateTime, Local, Utc};
 use chromiumoxide::page::Page;
@@ -20,7 +20,7 @@ const ORDER_LIST_API_URL: &str = "https://carina.stockbit.com/order/v2/list";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 /// Jeda antar emiten pada batch order/v2/list (hindari HTTP 429).
-const EMITEN_INTER_DELAY_MS: u64 = 100;
+const EMITEN_INTER_DELAY_MS: u64 = 200;
 
 /// UDT `portofolio_history_item` untuk INSERT/SELECT map history.
 #[derive(Debug, Clone, SerializeValue, DeserializeValue)]
@@ -160,8 +160,15 @@ async fn fetch_order_history_by_stock_code(
         .await?;
 
     let status = resp.status();
-    crate::http_abort::abort_app_if_http_4xx(status, "order/v2/list?filter_criteria.stock_code");
     let body = resp.text().await.unwrap_or_default();
+    // Jangan abort seluruh app: 4xx (mis. 429) di-handle caller — hentikan batch history saja.
+    if crate::http_abort::is_http_4xx(status) && status != reqwest::StatusCode::NOT_FOUND {
+        let preview: String = body.chars().take(280).collect();
+        return Err(format!(
+            "PORTFOLIO_HISTORY_HTTP_4XX {status} order/v2/list stock={stock_code}: {preview}"
+        )
+        .into());
+    }
     if !status.is_success() {
         let preview: String = body.chars().take(280).collect();
         return Err(format!("order/v2/list (stock={stock_code}) HTTP {status}: {preview}").into());
@@ -235,9 +242,11 @@ pub async fn scrape_and_replace_portofolio_history(
         return Err("emiten_name harus tepat 4 huruf alfabet".into());
     }
 
-    ensure_trading_session(page).await?;
-    println!("Portofolio history: jeda 1 detik setelah PIN / mode trading siap...");
-    sleep(Duration::from_secs(1)).await;
+    let pin_entered = ensure_trading_session(page).await?;
+    if pin_entered {
+        println!("Portofolio history: jeda 1 detik setelah input PIN...");
+        sleep(Duration::from_secs(1)).await;
+    }
 
     let bearer = extract_trading_bearer_after_pin(page).await?;
     let http = reqwest::Client::builder()
@@ -269,9 +278,11 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
         return Ok(0);
     }
 
-    ensure_trading_session(page).await?;
-    println!("Portofolio history batch: jeda 1 detik setelah PIN / mode trading siap...");
-    sleep(Duration::from_secs(1)).await;
+    let pin_entered = ensure_trading_session(page).await?;
+    if pin_entered {
+        println!("Portofolio history batch: jeda 1 detik setelah input PIN...");
+        sleep(Duration::from_secs(1)).await;
+    }
 
     let bearer = extract_trading_bearer_after_pin(page).await?;
     let http = reqwest::Client::builder()
@@ -308,7 +319,16 @@ pub async fn scrape_and_upsert_portofolio_history_for_emitens(
                     Err(e) => eprintln!("portofolio_history [{code}]: upsert gagal: {e}"),
                 }
             }
-            Err(e) => eprintln!("portofolio_history [{code}]: fetch gagal: {e}"),
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("PORTFOLIO_HISTORY_HTTP_4XX") {
+                    eprintln!(
+                        "Portofolio history: hentikan batch GET API ({msg}) — lanjut proses berikutnya."
+                    );
+                    break;
+                }
+                eprintln!("portofolio_history [{code}]: fetch gagal: {e}");
+            }
         }
     }
     Ok(ok)

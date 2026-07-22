@@ -406,10 +406,11 @@ async fn wait_pin_modal_gone(page: &Page, timeout: Duration) -> Result<(), Box<d
 }
 
 /// Masuk mode trading: klik START TRADING + PIN bila perlu; lewati bila tombol sudah hilang.
-pub async fn ensure_trading_session(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+/// Returns `true` jika PIN baru saja diinput; `false` jika sudah mode trading.
+pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
     if !is_start_trading_visible(page).await? {
         println!("START TRADING tidak terlihat — sudah mode trading, lewati PIN.");
-        return Ok(());
+        return Ok(false);
     }
 
     println!("Portofolio: klik START TRADING...");
@@ -419,7 +420,7 @@ pub async fn ensure_trading_session(page: &Page) -> Result<(), Box<dyn std::erro
     type_pin_natural(page, &pin).await?;
     click_pin_submit(page).await?;
     wait_pin_modal_gone(page, Duration::from_secs(45)).await?;
-    Ok(())
+    Ok(true)
 }
 
 fn ensure_auth_capture_js() -> &'static str {
