@@ -26,7 +26,17 @@ Binary:
 /home/baki1/stockbit_ws/target/release/worker_scrapping
 ```
 
+## On-demand: scrape semua bandarmology (`scrap_bandarmology_all`)
 
+One-shot terpisah dari worker utama. Ambil semua `emiten_name` dari `emiten_list` (token-ring),
+`TRUNCATE` tabel `bandarmology`, lalu scrape API marketdetectors per emiten → upsert.
+
+```bash
+cargo run -p worker_scrapping --bin scrap_bandarmology_all
+# atau
+cargo build --release -p worker_scrapping --bin scrap_bandarmology_all
+./target/release/scrap_bandarmology_all
+```
 
 ## Jalankan manual (uji)
 

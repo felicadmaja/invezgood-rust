@@ -155,3 +155,45 @@ pub async fn set_skip_weeks(agg: &str) {
     }
     set_flag(&key_weeks(agg)).await;
 }
+
+/// Hapus semua key skip bandarmology (`stockbit:bandarmology:skip:*`). Returns jumlah key terhapus.
+pub async fn clear_all_skip_keys() -> usize {
+    let mut conn = match connection().await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Redis bandarmology skip clear: koneksi gagal ({e})");
+            return 0;
+        }
+    };
+    let pattern = "stockbit:bandarmology:skip:*";
+    let mut cursor: u64 = 0;
+    let mut deleted = 0usize;
+    loop {
+        let (next, keys): (u64, Vec<String>) = match redis::cmd("SCAN")
+            .arg(cursor)
+            .arg("MATCH")
+            .arg(pattern)
+            .arg("COUNT")
+            .arg(200)
+            .query_async(&mut conn)
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("Redis bandarmology skip SCAN: {e}");
+                break;
+            }
+        };
+        if !keys.is_empty() {
+            match redis::cmd("DEL").arg(&keys).query_async::<u64>(&mut conn).await {
+                Ok(n) => deleted += n as usize,
+                Err(e) => eprintln!("Redis bandarmology skip DEL: {e}"),
+            }
+        }
+        cursor = next;
+        if cursor == 0 {
+            break;
+        }
+    }
+    deleted
+}

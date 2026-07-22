@@ -10,6 +10,10 @@ path = "lib.rs"
 name = "worker_scrapping"
 path = "stockbit_scrapper_worker.rs"
 
+[[bin]]
+name = "scrap_bandarmology_all"
+path = "scrap_bandarmology_all.rs"
+
 [dependencies]
 stockbit_browser = { path = "../crate/stockbit_browser" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
