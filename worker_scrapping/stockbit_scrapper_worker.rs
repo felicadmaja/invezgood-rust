@@ -31,7 +31,8 @@
 //! → upsert `bandarmology`.
 //! Throttle otomatis bila `x-rate-limit-remaining` hampir habis.
 //! Jika API mengembalikan HTTP 4xx: worker dihentikan segera + `pm2 start stockbit_ws`
-//! (hindari diblokir server).
+//! (hindari diblokir server). Abort ini **hanya** di bin worker (`STOCKBIT_WORKER_ABORT_ON_HTTP_4XX`);
+//! invoke via RPC `stockbit_ws` tidak menghentikan app.
 //! Lalu START TRADING (PIN bila perlu) → buka `/securities/portfolio` → DOM scrape
 //! header equity → upsert `portofolio_equity` → Bearer trading pasca-PIN →
 //! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list + bandarmology
@@ -234,6 +235,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         dotenvy::dotenv().ok();
     }
+
+    // Abort proses worker pada HTTP 4xx (RPC/stockbit_ws tidak set flag ini).
+    worker_scrapping::http_abort::enable_worker_abort_on_http_4xx();
 
     init_scrapper_log()?;
 

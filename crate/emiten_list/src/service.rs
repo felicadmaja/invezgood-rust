@@ -221,10 +221,20 @@ impl EmitenListRpc for EmitenListService {
                 eprintln!(
                     "GetEmitenListByEmitenNameFromStockbit {username}: scrape gagal {emiten_name}: {err}"
                 );
-                if err.contains(worker_scrapping::emiten_list_worker::EMITEN_NOT_ON_BEI) {
-                    return Err(Status::not_found(
-                        worker_scrapping::emiten_list_worker::EMITEN_NOT_ON_BEI,
-                    ));
+                // HTTP 400 / emiten tidak di BEI → response kosong ke frontend (bukan error gRPC).
+                if err.contains(worker_scrapping::emiten_list_worker::EMITEN_NOT_ON_BEI)
+                    || err.contains("HTTP 400")
+                    || err.contains("400 Bad Request")
+                {
+                    println!(
+                        "GetEmitenListByEmitenNameFromStockbit {} {} empty (HTTP 400 / not on BEI) {}ms",
+                        username,
+                        emiten_name,
+                        started.elapsed().as_millis()
+                    );
+                    return Ok(Response::new(GetEmitenListByEmitenNameFromStockbitResponse {
+                        row: None,
+                    }));
                 }
                 return Err(Status::internal(format!("scrape Stockbit gagal: {err}")));
             }
@@ -236,11 +246,17 @@ impl EmitenListRpc for EmitenListService {
                 .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
         }
 
-        let row = row.ok_or_else(|| {
-            Status::not_found(format!(
-                "emiten_list emiten_name={emiten_name} tidak ditemukan setelah scrape"
-            ))
-        })?;
+        let Some(row) = row else {
+            println!(
+                "GetEmitenListByEmitenNameFromStockbit {} {} empty (tidak ada di Scylla) {}ms",
+                username,
+                emiten_name,
+                started.elapsed().as_millis()
+            );
+            return Ok(Response::new(GetEmitenListByEmitenNameFromStockbitResponse {
+                row: None,
+            }));
+        };
 
         println!(
             "GetEmitenListByEmitenNameFromStockbit {} {} {}ms",
