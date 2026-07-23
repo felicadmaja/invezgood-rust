@@ -38,6 +38,20 @@ cargo build --release -p worker_scrapping --bin scrap_bandarmology_all
 ./target/release/scrap_bandarmology_all
 ```
 
+## On-demand: isi kolom minggu bandarmology saja (`bandarmology_fill_this_week`)
+
+One-shot: token-ring `emiten_list` → API marketdetectors **slot minggu hari ini saja** (w1–w4)
+→ force upsert `bandarmology` (abaikan `updated_at`). Tidak scrape historis / tidak TRUNCATE.
+
+```bash
+cargo run -p worker_scrapping --bin bandarmology_fill_this_week
+# atau
+cargo build --release -p worker_scrapping --bin bandarmology_fill_this_week
+./target/release/bandarmology_fill_this_week
+```
+
+Log: `worker_scrapping/bandarmology_fill_this_week.log`
+
 ## Jalankan manual (uji)
 
 ```bash

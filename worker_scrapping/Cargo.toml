@@ -14,6 +14,10 @@ path = "stockbit_scrapper_worker.rs"
 name = "scrap_bandarmology_all"
 path = "scrap_bandarmology_all.rs"
 
+[[bin]]
+name = "bandarmology_fill_this_week"
+path = "bandarmology_fill_this_week.rs"
+
 [dependencies]
 stockbit_browser = { path = "../crate/stockbit_browser" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

@@ -1,29 +1,24 @@
-//! On-demand one-shot: scrape bandarmology untuk **semua** `emiten_list.emiten_name`.
-//!
-//! Tidak dijalankan oleh PM2 / `stockbit_scrapper_worker`. Jalankan manual:
+//! One-shot: isi kolom **minggu aktif** saja di `bandarmology` untuk semua `emiten_list.emiten_name`.
 //!
 //! ```bash
-//! HATI HATI AKAN TRUNCATE BANDERMOLOGY cargo run -p worker_scrapping --bin scrap_bandarmology_all
+//! cargo run -p worker_scrapping --bin bandarmology_fill_this_week
 //! # atau
-//! HATI HATI AKAN TRUNCATE BANDERMOLOGY  cargo build --release -p worker_scrapping --bin scrap_bandarmology_all
-//! HATI HATI AKAN TRUNCATE BANDERMOLOGY  ./target/release/scrap_bandarmology_all
+//! cargo build --release -p worker_scrapping --bin bandarmology_fill_this_week
+//! ./target/release/bandarmology_fill_this_week
 //! ```
 //!
 //! Alur:
 //! 1. Load `.env` workspace
 //! 2. `pm2 stop stockbit_ws` (hindari bentrok Chrome profil)
-//! 3. Login Stockbit (browser) → Bearer
+//! 3. Login Stockbit → Bearer
 //! 4. Token-ring scan `emiten_list` → semua `emiten_name`
-//! 5. Hapus Redis skip-cache bandarmology + `TRUNCATE` tabel `bandarmology` (timpa data lama)
-//! 6. Scrape API `exodus.stockbit.com/marketdetectors/{CODE}` per emiten → upsert Scylla
-//!    (bulan berjalan + historis **max 180 bulan** via env `BANDARMOLOGY_MAX_HISTORICAL_MONTHS`;
-//!    log detail sama `bandarmology_worker`; worker/RPC lain tetap default 12 bulan)
+//! 5. API marketdetectors per emiten: **hanya slot minggu hari ini** (w1–w4 menurut tanggal)
+//! 6. Force upsert Scylla (abaikan `updated_at` / Redis skip)
 //! 7. `pm2 start stockbit_ws`
 //!
-//! Log: stdout/stderr di-tee ke layar + `worker_scrapping/scrap_bandarmology_all.log`
-//! (di-clear tiap run; baris pertama = stempel waktu).
+//! Tidak scrape historis, tidak overwrite `broker_summary` bulan berjalan (tetap dari baris lama bila ada).
 //!
-//! Env: `STOCKBIT_EMAIL`, `STOCKBIT_PASSWORD`, `SCYLLA_*`, `REDIS_URL`, opsional Chrome.
+//! Log: `worker_scrapping/bandarmology_fill_this_week.log` (di-clear tiap run).
 
 use chrono::Local;
 use scylla::client::session::Session;
@@ -38,10 +33,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use stockbit_browser::{dismiss_profile_avatar_modal, launch_page, open_stream_or_login};
 use worker_scrapping::bandarmology_worker;
-use worker_scrapping::redis_bandarmology_skip;
 
 const PM2_APP_NAME: &str = "stockbit_ws";
-const LOG_FILE: &str = "scrap_bandarmology_all.log";
+const LOG_FILE: &str = "bandarmology_fill_this_week.log";
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -54,7 +48,6 @@ fn keyspace() -> String {
     std::env::var("SCYLLA_KEYSPACE").unwrap_or_else(|_| "stockbit".to_string())
 }
 
-/// Kosongkan log file, tulis stempel waktu, tee stdout+stderr ke file + terminal (live).
 fn init_log() -> Result<(), Box<dyn std::error::Error>> {
     let log_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(LOG_FILE);
     let mut log = OpenOptions::new()
@@ -66,7 +59,7 @@ fn init_log() -> Result<(), Box<dyn std::error::Error>> {
     let started_at = Local::now().format("%Y-%m-%d %H:%M:%S %z");
     writeln!(
         log,
-        "=== scrap_bandarmology_all started at {started_at} ===\n"
+        "=== bandarmology_fill_this_week started at {started_at} ===\n"
     )?;
     log.flush()?;
 
@@ -74,8 +67,6 @@ fn init_log() -> Result<(), Box<dyn std::error::Error>> {
     install_stdio_tee(Arc::clone(&log), libc::STDOUT_FILENO)?;
     install_stdio_tee(log, libc::STDERR_FILENO)?;
 
-    // Setelah redirect ke pipe, Rust stdout jadi block-buffered — flush berkala agar
-    // println dari `bandarmology_worker` langsung tampil di layar.
     std::thread::spawn(|| loop {
         let _ = std::io::stdout().flush();
         let _ = std::io::stderr().flush();
@@ -197,17 +188,6 @@ impl Drop for Pm2RestartGuard {
     }
 }
 
-async fn truncate_bandarmology(
-    session: &Session,
-    keyspace: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let cql = format!("TRUNCATE TABLE {keyspace}.bandarmology");
-    println!("Scylla: {cql}");
-    session.query_unpaged(cql, &[]).await?;
-    println!("Scylla: bandarmology dikosongkan (TRUNCATE).");
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let workspace_env = workspace_root().join(".env");
@@ -218,8 +198,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     worker_scrapping::http_abort::enable_worker_abort_on_http_4xx();
-    // Hanya binary ini: historis sampai 180 bulan (~15 tahun). Worker/RPC lain tidak set → tetap 12.
-    std::env::set_var("BANDARMOLOGY_MAX_HISTORICAL_MONTHS", "180");
     init_log()?;
 
     let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
@@ -266,29 +244,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    println!("Hapus Redis skip-cache bandarmology (s/d 23:59)...");
-    let n_redis = redis_bandarmology_skip::clear_all_skip_keys().await;
-    println!("Redis: {n_redis} key skip dihapus.");
-
-    truncate_bandarmology(session.as_ref(), &ks).await?;
-
     let today = Local::now().date_naive();
-    println!(
-        "Scrape bandarmology API untuk {} emiten (today={today}) — sequential upsert \
-         (historis max {} bulan)...",
-        emitens.len(),
-        std::env::var("BANDARMOLOGY_MAX_HISTORICAL_MONTHS").unwrap_or_else(|_| "12".into())
-    );
-    println!(
-        "(log detail per emiten / bulan / rate-limit dari bandarmology_worker — tampil di layar + {LOG_FILE})"
-    );
-    let ok =
-        bandarmology_worker::scrape_and_insert_bandarmology(&page, &session, &ks, today, &emitens)
-            .await
-            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    let ok = bandarmology_worker::scrape_and_insert_this_week_only(
+        &page,
+        &session,
+        &ks,
+        today,
+        &emitens,
+    )
+    .await
+    .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
     println!(
-        "Selesai scrap_bandarmology_all: {ok}/{} emiten OK (upsert ke {ks}.bandarmology).",
+        "Selesai bandarmology_fill_this_week: {ok}/{} emiten di-upsert (minggu aktif, today={today}).",
         emitens.len()
     );
 

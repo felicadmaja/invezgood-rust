@@ -91,7 +91,7 @@ message BandarmologyRow {
   string tahun_bulan = 3;
   BandarmologyDay broker_summary = 4;
   // Minggu berjalan (bulan saat ini / tgl 1 = w4 bulan lalu):
-  // w1=1–7, w2=8–14, w3=15–21, w4=22–akhir bulan — diisi sesuai slot tanggal invoke (lihat RPC).
+  // w1=1–7, w2=8–14, w3=15–21, w4=22–kemarin (bulan berjalan) / 22–akhir (bulan sudah lewat)
   BandarmologyDay broker_summary_current_w1 = 5;
   BandarmologyDay broker_summary_current_w2 = 6;
   BandarmologyDay broker_summary_current_w3 = 7;
