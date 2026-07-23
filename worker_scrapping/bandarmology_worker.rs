@@ -31,10 +31,20 @@ use crate::rate_limit_delay::{rate_limit_headers_log, RateLimitInfo};
 
 const API_BASE: &str = "https://exodus.stockbit.com/marketdetectors";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const MAX_HISTORICAL_MONTHS: u32 = 12;
+/// Default historis: 12 bulan. Override via env `BANDARMOLOGY_MAX_HISTORICAL_MONTHS`
+/// (dipakai `scrap_bandarmology_all` = 180). Caller lain tanpa env tetap 12.
+const MAX_HISTORICAL_MONTHS_DEFAULT: u32 = 12;
 const CONSECUTIVE_EMPTY_MONTHS_STOP: usize = 1;
 const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 1;
 const MONTH_INTER_DELAY_MS: u64 = 50;
+
+fn max_historical_months() -> u32 {
+    std::env::var("BANDARMOLOGY_MAX_HISTORICAL_MONTHS")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(MAX_HISTORICAL_MONTHS_DEFAULT)
+}
 
 /// Rate-limit terakhir dari response marketdetectors (untuk log saat emiten di-skip tanpa API).
 static LAST_BANDAR_RATE: Mutex<RateLimitInfo> = Mutex::new(RateLimitInfo {
@@ -1366,7 +1376,7 @@ async fn scrape_emiten_bandarmology(
     if !skip_all_historical {
     let mut empty_streak = 0usize;
     let mut skip_existing_streak = 0usize;
-    for offset in 1..=MAX_HISTORICAL_MONTHS {
+    for offset in 1..=max_historical_months() {
         if offset > 1 {
             sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
         }

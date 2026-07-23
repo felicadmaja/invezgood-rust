@@ -16,7 +16,8 @@
 //! 4. Token-ring scan `emiten_list` → semua `emiten_name`
 //! 5. Hapus Redis skip-cache bandarmology + `TRUNCATE` tabel `bandarmology` (timpa data lama)
 //! 6. Scrape API `exodus.stockbit.com/marketdetectors/{CODE}` per emiten → upsert Scylla
-//!    (bulan berjalan + historis max 12 bulan; log detail sama `bandarmology_worker`)
+//!    (bulan berjalan + historis **max 180 bulan** via env `BANDARMOLOGY_MAX_HISTORICAL_MONTHS`;
+//!    log detail sama `bandarmology_worker`; worker/RPC lain tetap default 12 bulan)
 //! 7. `pm2 start stockbit_ws`
 //!
 //! Log: stdout/stderr di-tee ke layar + `worker_scrapping/scrap_bandarmology_all.log`
@@ -217,6 +218,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     worker_scrapping::http_abort::enable_worker_abort_on_http_4xx();
+    // Hanya binary ini: historis sampai 180 bulan (~15 tahun). Worker/RPC lain tidak set → tetap 12.
+    std::env::set_var("BANDARMOLOGY_MAX_HISTORICAL_MONTHS", "180");
     init_log()?;
 
     let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
@@ -271,8 +274,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let today = Local::now().date_naive();
     println!(
-        "Scrape bandarmology API untuk {} emiten (today={today}) — sequential upsert...",
-        emitens.len()
+        "Scrape bandarmology API untuk {} emiten (today={today}) — sequential upsert \
+         (historis max {} bulan)...",
+        emitens.len(),
+        std::env::var("BANDARMOLOGY_MAX_HISTORICAL_MONTHS").unwrap_or_else(|_| "12".into())
     );
     println!(
         "(log detail per emiten / bulan / rate-limit dari bandarmology_worker — tampil di layar + {LOG_FILE})"
