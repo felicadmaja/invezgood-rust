@@ -1,6 +1,6 @@
 //! Salin snapshot bandarmology minggu berjalan → `portofolio_bandarmology`.
 //!
-//! Alur sama RPC `InsertPortofolioBandarmology`:
+//! Alur salin snapshot bandarmology minggu berjalan → `portofolio_bandarmology`:
 //! - Baca `bandarmology` PK sesuai slot minggu (bulan berjalan, kecuali tgl 1 → bulan lalu)
 //! - Pilih `broker_summary_current_w1`…`w4` menurut tanggal hari ini (lokal):
 //!   2–8 → w1, 9–15 → w2, 16–22 → w3, 23–akhir bulan & tgl 1 → w4
@@ -123,12 +123,21 @@ pub async fn insert_portofolio_bandarmology_for_emiten(
     keyspace: &str,
     emiten_name: &str,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    insert_portofolio_bandarmology_for_emiten_on(session, keyspace, emiten_name, Local::now().date_naive())
+        .await
+}
+
+async fn insert_portofolio_bandarmology_for_emiten_on(
+    session: &Session,
+    keyspace: &str,
+    emiten_name: &str,
+    today: NaiveDate,
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     let emiten = emiten_name.trim().to_ascii_uppercase();
     if emiten.is_empty() {
         return Ok(false);
     }
 
-    let today: NaiveDate = Local::now().date_naive();
     let Some((week, agg)) = portofolio_bandarmology_source(today, &emiten) else {
         return Ok(false);
     };
@@ -157,6 +166,31 @@ pub async fn insert_portofolio_bandarmology_for_emiten(
         "portofolio_bandarmology [{emiten}]: upsert {today} dari `{agg}` w{week}"
     );
     Ok(true)
+}
+
+/// Salin minggu berjalan `bandarmology` → `portofolio_bandarmology` untuk banyak emiten.
+/// Selalu INSERT (timpa baris `tahun_bulan_tanggal` hari ini); tidak cek Redis / `updated_at`.
+/// Dipakai `bandarmology_fill_this_week` sebelum refresh API `bandarmology`.
+pub async fn insert_portofolio_bandarmology_for_emitens_force(
+    session: &Session,
+    keyspace: &str,
+    today: NaiveDate,
+    emitens: &[String],
+) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    let mut ok = 0usize;
+    for raw in emitens {
+        match insert_portofolio_bandarmology_for_emiten_on(session, keyspace, raw, today).await {
+            Ok(true) => ok += 1,
+            Ok(false) => {}
+            Err(e) => {
+                eprintln!(
+                    "portofolio_bandarmology [{}]: gagal: {e}",
+                    raw.trim().to_ascii_uppercase()
+                );
+            }
+        }
+    }
+    Ok(ok)
 }
 
 /// Upsert banyak emiten; error per-emiten di-log, tidak menghentikan batch.

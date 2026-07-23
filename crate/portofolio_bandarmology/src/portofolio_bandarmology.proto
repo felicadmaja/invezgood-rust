@@ -3,27 +3,6 @@ syntax = "proto3";
 package portofolio_bandarmology;
 
 service PortofolioBandarmology {
-  // Salin snapshot bandarmology minggu berjalan ke tabel `portofolio_bandarmology`.
-  // Alur:
-  // 1. Baca Scylla `bandarmology` WHERE agg_tahun_bulan_emiten_name =
-  //    format("%Y-%m", now) + '_' + emiten_name (UPPERCASE).
-  // 2. Pilih kolom minggu sesuai hari (tanggal kalender lokal) hari ini:
-  //    - tgl 2–8  (inclusive) → broker_summary_current_w1
-  //      (PK bandarmology = YYYY-MM bulan berjalan + '_' + emiten_name)
-  //    - tgl 9–15 (inclusive) → broker_summary_current_w2 (PK bulan berjalan)
-  //    - tgl 16–22 (inclusive) → broker_summary_current_w3 (PK bulan berjalan)
-  //    - tgl 23–akhir bulan & tgl 1 (inclusive) → broker_summary_current_w4
-  //      (tgl 1: PK bandarmology = YYYY-MM bulan sebelumnya + emiten, selaras scrape bandarmology)
-  // 3. Upsert ke `portofolio_bandarmology`:
-  //    emiten_name = request.emiten_name (UPPERCASE)
-  //    tahun_bulan_tanggal = today (YYYY-MM-DD)
-  //    bandarmology = UDT yang dipilih di langkah 2
-  // Gagal bila baris bandarmology tidak ada / kolom minggu kosong → NOT_FOUND.
-  // emiten_name: tepat 4 huruf; dinormalisasi ke UPPERCASE.
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc InsertPortofolioBandarmology(InsertPortofolioBandarmologyRequest)
-      returns (InsertPortofolioBandarmologyResponse);
-
   // Baca semua baris `portofolio_bandarmology` untuk satu emiten (PK partition).
   // Urutan clustering: tahun_bulan_tanggal DESC (terbaru dulu).
   // emiten_name: tepat 4 huruf alfabet; dinormalisasi ke UPPERCASE.
@@ -44,18 +23,6 @@ service PortofolioBandarmology {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc DeletePortofolioBandarmology(DeletePortofolioBandarmologyRequest)
       returns (DeletePortofolioBandarmologyResponse);
-}
-
-message InsertPortofolioBandarmologyRequest {
-  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE (bbca → BBCA).
-  string emiten_name = 1;
-}
-
-message InsertPortofolioBandarmologyResponse {
-  bool success = 1;
-  string message = 2;
-  // Baris yang baru di-upsert; kosong jika gagal.
-  PortofolioBandarmologyRow row = 3;
 }
 
 message GetPortofolioBandarmologyRequest {

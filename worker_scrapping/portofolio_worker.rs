@@ -11,7 +11,7 @@
 //! (scrape bila belum ada). Icon: reuse `emiten_list.emiten_icon` bila sudah ada;
 //! download GCS hanya bila belum ada.
 //! Setelah upsert `portofolio`: salin minggu berjalan bandarmology →
-//! `portofolio_bandarmology` (per `emiten_name`, sama RPC `InsertPortofolioBandarmology`),
+//! `portofolio_bandarmology` (per `emiten_name`, via `portofolio_bandarmology_worker`),
 //! lalu hapus orphan yang tidak ada di `portofolio` (sama RPC `DeletePortofolioBandarmology`).
 
 use chrono::Local;

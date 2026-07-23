@@ -13,7 +13,7 @@ service Portofolio {
   // DOM `portofolio_equity` → GET carina.stockbit.com/portfolio/v2/list →
   // pastikan emiten_list + bandarmology → TRUNCATE+insert `portofolio` →
   // per emiten_name salin minggu berjalan bandarmology → `portofolio_bandarmology`
-  // (sama aturan RPC `InsertPortofolioBandarmology`) →
+  // (aturan `portofolio_bandarmology_worker`) →
   // hapus orphan `portofolio_bandarmology` yang emiten-nya sudah tidak ada di
   // `portofolio` (sama RPC `DeletePortofolioBandarmology`).
   // Rate limit: maksimal 1× per 5 menit untuk semua user

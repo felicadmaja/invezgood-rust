@@ -12,9 +12,10 @@
 //! 2. `pm2 stop stockbit_ws` (hindari bentrok Chrome profil)
 //! 3. Login Stockbit → Bearer
 //! 4. Token-ring scan `emiten_list` → semua `emiten_name`
-//! 5. API marketdetectors per emiten: **hanya slot minggu hari ini** (w1–w4 menurut tanggal)
-//! 6. Force upsert Scylla (abaikan `updated_at` / Redis skip)
-//! 7. `pm2 start stockbit_ws`
+//! 5. Salin minggu berjalan `bandarmology` → `portofolio_bandarmology` (force upsert, timpa hari ini)
+//! 6. API marketdetectors per emiten: **hanya slot minggu hari ini** (w1–w4 menurut tanggal)
+//! 7. Force upsert Scylla `bandarmology` (abaikan `updated_at` / Redis skip)
+//! 8. `pm2 start stockbit_ws`
 //!
 //! Tidak scrape historis, tidak overwrite `broker_summary` bulan berjalan (tetap dari baris lama bila ada).
 //!
@@ -32,7 +33,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use stockbit_browser::{dismiss_profile_avatar_modal, launch_page, open_stream_or_login};
-use worker_scrapping::bandarmology_worker;
+use worker_scrapping::{bandarmology_worker, portofolio_bandarmology_worker};
 
 const PM2_APP_NAME: &str = "stockbit_ws";
 const LOG_FILE: &str = "bandarmology_fill_this_week.log";
@@ -245,6 +246,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let today = Local::now().date_naive();
+
+    println!(
+        "Salin bandarmology minggu berjalan → portofolio_bandarmology (force upsert, {} emiten)...",
+        emitens.len()
+    );
+    let pb_ok = portofolio_bandarmology_worker::insert_portofolio_bandarmology_for_emitens_force(
+        session.as_ref(),
+        &ks,
+        today,
+        &emitens,
+    )
+    .await
+    .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    println!(
+        "OK: {pb_ok}/{} baris portofolio_bandarmology di-upsert (sebelum refresh bandarmology).",
+        emitens.len()
+    );
+
     let ok = bandarmology_worker::scrape_and_insert_this_week_only(
         &page,
         &session,
@@ -256,7 +275,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
     println!(
-        "Selesai bandarmology_fill_this_week: {ok}/{} emiten di-upsert (minggu aktif, today={today}).",
+        "Selesai bandarmology_fill_this_week: portofolio_bandarmology={pb_ok}/{}, bandarmology={ok}/{} (minggu aktif, today={today}).",
+        emitens.len(),
         emitens.len()
     );
 
