@@ -25,6 +25,7 @@ struct Prepared {
     update_catatan_owner: PreparedStatement,
     update_foto_owner: PreparedStatement,
     update_takeprofit_wyckoff: PreparedStatement,
+    update_wyckoff_phase_element: PreparedStatement,
     trending_aggs_by_emiten: PreparedStatement,
     update_trending_sector: PreparedStatement,
 }
@@ -54,7 +55,8 @@ impl EmitenListRepository {
             .get_or_try_init(|| async {
                 const COLUMNS: &str = "emiten_name, long_name, emiten_icon, key_stats, corporate_action, \
                      company_profile, update_at, is_konglomerasi, sector, is_fundamental_solid, is_blue_chip, \
-                     is_plan_to_trade, catatan, catatan_owner, foto_owner, net_income, takeprofit_wyckoff";
+                     is_plan_to_trade, catatan, catatan_owner, foto_owner, net_income, takeprofit_wyckoff, \
+                     wyckoff_phase_element";
                 let q = format!(
                     "SELECT {COLUMNS} FROM {} \
                      WHERE token(emiten_name) >= ? AND token(emiten_name) <= ?",
@@ -121,6 +123,12 @@ impl EmitenListRepository {
                 let update_takeprofit_wyckoff = self.session.prepare(q).await?;
 
                 let q = format!(
+                    "UPDATE {} SET wyckoff_phase_element = ? WHERE emiten_name = ?",
+                    self.table
+                );
+                let update_wyckoff_phase_element = self.session.prepare(q).await?;
+
+                let q = format!(
                     "SELECT agg_tahun_bulan_tanggal_emiten_name FROM {} WHERE emiten_name = ?",
                     self.trending_mv
                 );
@@ -144,6 +152,7 @@ impl EmitenListRepository {
                     update_catatan_owner,
                     update_foto_owner,
                     update_takeprofit_wyckoff,
+                    update_wyckoff_phase_element,
                     trending_aggs_by_emiten,
                     update_trending_sector,
                 })
@@ -405,6 +414,26 @@ impl EmitenListRepository {
             .execute_unpaged(
                 &prepared.update_takeprofit_wyckoff,
                 (takeprofit_wyckoff, emiten_name),
+            )
+            .await?;
+        Ok(true)
+    }
+
+    /// Update `wyckoff_phase_element` (map). Mengembalikan `Ok(false)` bila `emiten_name` tidak ada.
+    pub async fn update_wyckoff_phase_element(
+        &self,
+        emiten_name: &str,
+        wyckoff_phase_element: &HashMap<String, Vec<String>>,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if self.get_by_emiten_name(emiten_name).await?.is_none() {
+            return Ok(false);
+        }
+
+        let prepared = self.prepared().await?;
+        self.session
+            .execute_unpaged(
+                &prepared.update_wyckoff_phase_element,
+                (wyckoff_phase_element, emiten_name),
             )
             .await?;
         Ok(true)

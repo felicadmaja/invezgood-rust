@@ -21,6 +21,7 @@
 //! | foto_owner             | list\<text\> | Vec\<String\> |
 //! | net_income             | map\<text, frozen\<map\<text, text\>\>\> | HashMap\<String, HashMap\<String, String\>\> |
 //! | takeprofit_wyckoff     | map\<text, text\> | HashMap\<String, String\> |
+//! | wyckoff_phase_element  | map\<text, frozen\<list\<text\>\>\> | HashMap\<String, Vec\<String\>\> |
 
 use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
@@ -29,7 +30,7 @@ use std::collections::HashMap;
 use crate::{
     CompanyProfile as ProtoCompanyProfile, CorporateActionDetailList, CorporateActionGroup,
     CorporateActionKv, EmitenListRow, EmitenShareholder as ProtoShareholder,
-    EmitenShareholderGt1 as ProtoShareholderGt1, NetIncomeYear,
+    EmitenShareholderGt1 as ProtoShareholderGt1, NetIncomeYear, TextList,
 };
 
 fn sector_to_proto(sector: Option<i8>) -> i32 {
@@ -193,6 +194,9 @@ pub struct EmitenList {
     /// Take-profit / Wyckoff: map key-value (nilai disimpan sebagai text).
     #[scylla(default_when_null)]
     pub takeprofit_wyckoff: HashMap<String, String>,
+    /// Fase/elemen Wyckoff: key teks → list int.
+    #[scylla(default_when_null)]
+    pub wyckoff_phase_element: HashMap<String, Vec<String>>,
 }
 
 impl EmitenList {
@@ -222,6 +226,11 @@ impl EmitenList {
                 .map(|(year, periods)| (year, NetIncomeYear { periods }))
                 .collect(),
             takeprofit_wyckoff: self.takeprofit_wyckoff,
+            wyckoff_phase_element: self
+                .wyckoff_phase_element
+                .into_iter()
+                .map(|(k, values)| (k, TextList { values }))
+                .collect(),
         }
     }
 }

@@ -73,6 +73,15 @@ service EmitenList {
   // Update kolom `takeprofit_wyckoff` (map<text,text>) untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateTakeProfitWyckoff(UpdateTakeProfitWyckoffRequest) returns (UpdateTakeProfitWyckoffResponse);
+
+
+  // Update kolom `wyckoff_phase_element` untuk satu emiten (PK emiten_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateWyckoffPhaseElement(UpdateWyckoffPhaseElementRequest) returns (UpdateWyckoffPhaseElementResponse);
+
+  // Baca kolom `wyckoff_phase_element` untuk satu emiten (PK emiten_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetWyckoffPhaseElement(GetWyckoffPhaseElementRequest) returns (GetWyckoffPhaseElementResponse);
 }
 
 // Kode sektor emiten; disimpan di Scylla `emiten_list.sector` sebagai tinyint.
@@ -279,6 +288,33 @@ message UpdateTakeProfitWyckoffResponse {
   string message = 2;
 }
 
+// Wrapper list untuk nilai map CQL `frozen<list<text>>`.
+message TextList {
+  repeated string values = 1;
+}
+
+message GetWyckoffPhaseElementRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  string emiten_name = 1;
+}
+
+message GetWyckoffPhaseElementResponse {
+  // Bentuk CQL map<text, frozen<list<text>>>; kosong bila belum di-set.
+  map<string, TextList> wyckoff_phase_element = 1;
+}
+
+message UpdateWyckoffPhaseElementRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  string emiten_name = 1;
+  // Bentuk CQL map<text, frozen<list<text>>>.
+  map<string, TextList> wyckoff_phase_element = 2;
+}
+
+message UpdateWyckoffPhaseElementResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 // Satu pasangan atribut aksi korporasi, contoh {"Cum Date": "20 Apr 26"}.
 message CorporateActionKv {
   map<string, string> entries = 1;
@@ -352,6 +388,8 @@ message EmitenListRow {
   // Bentuk CQL map<text, text> — take-profit / Wyckoff (key-value string).
   // Diisi RPC UpdateTakeProfitWyckoff: n_kolom, harga_xo_frequent, low, takeprofit_1, takeprofit_2.
   map<string, string> takeprofit_wyckoff = 17;
+  // Bentuk CQL map<text, frozen<list<text>>> — fase/elemen Wyckoff.
+  map<string, TextList> wyckoff_phase_element = 18;
 }
 
 // Satu tahun net income: periode (Q1..Q4, Annualised, TTM ...) → nilai teks.

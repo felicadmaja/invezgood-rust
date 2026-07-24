@@ -24,6 +24,8 @@ use crate::{
     UpdateEmitenListSectorRequest, UpdateEmitenListSectorResponse,
     GetTakeProfitWyckoffRequest, GetTakeProfitWyckoffResponse,
     UpdateTakeProfitWyckoffRequest, UpdateTakeProfitWyckoffResponse,
+    GetWyckoffPhaseElementRequest, GetWyckoffPhaseElementResponse,
+    UpdateWyckoffPhaseElementRequest, UpdateWyckoffPhaseElementResponse,
 };
 
 const MAX_EMITEN_SECTOR: i32 = 46;
@@ -814,6 +816,44 @@ impl EmitenListRpc for EmitenListService {
         }))
     }
 
+    async fn get_wyckoff_phase_element(
+        &self,
+        request: Request<GetWyckoffPhaseElementRequest>,
+    ) -> Result<Response<GetWyckoffPhaseElementResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+
+        let emiten_name = parse_emiten_name(&request.into_inner().emiten_name)
+            .map_err(Status::invalid_argument)?;
+
+        let row = self
+            .repo
+            .get_by_emiten_name(&emiten_name)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+            .ok_or_else(|| {
+                Status::not_found(format!(
+                    "emiten_list emiten_name={emiten_name} tidak ditemukan"
+                ))
+            })?;
+
+        println!(
+            "GetWyckoffPhaseElement {} {} {}ms",
+            username,
+            emiten_name,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetWyckoffPhaseElementResponse {
+            wyckoff_phase_element: row
+                .wyckoff_phase_element
+                .into_iter()
+                .map(|(k, values)| (k, crate::TextList { values }))
+                .collect(),
+        }))
+    }
+
     async fn update_take_profit_wyckoff(
         &self,
         request: Request<UpdateTakeProfitWyckoffRequest>,
@@ -869,6 +909,61 @@ impl EmitenListRpc for EmitenListService {
         );
 
         Ok(Response::new(UpdateTakeProfitWyckoffResponse {
+            success,
+            message,
+        }))
+    }
+
+    async fn update_wyckoff_phase_element(
+        &self,
+        request: Request<UpdateWyckoffPhaseElementRequest>,
+    ) -> Result<Response<UpdateWyckoffPhaseElementResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateWyckoffPhaseElementResponse {
+                    success: false,
+                    message,
+                }));
+            }
+        };
+
+        let wyckoff_phase_element: std::collections::HashMap<String, Vec<String>> = req
+            .wyckoff_phase_element
+            .into_iter()
+            .map(|(k, v)| (k, v.values))
+            .collect();
+
+        let updated = self
+            .repo
+            .update_wyckoff_phase_element(&emiten_name, &wyckoff_phase_element)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
+
+        let (success, message) = if updated {
+            (
+                true,
+                format!("wyckoff_phase_element untuk {emiten_name} berhasil diupdate"),
+            )
+        } else {
+            (
+                false,
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
+            )
+        };
+
+        println!(
+            "UpdateWyckoffPhaseElement {} {emiten_name} success={success} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(UpdateWyckoffPhaseElementResponse {
             success,
             message,
         }))
