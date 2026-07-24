@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package wyckoff_glossary;
+
+service WyckoffGlossary {
+  // Insert satu entri ke tabel Scylla `wyckoff_glossary` (PK name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc InsertWyckoffGlossary(InsertWyckoffGlossaryRequest) returns (InsertWyckoffGlossaryResponse);
+}
+
+message InsertWyckoffGlossaryRequest {
+  string name = 1;
+  string description = 2;
+}
+
+message InsertWyckoffGlossaryResponse {
+  bool success = 1;
+  string message = 2;
+}

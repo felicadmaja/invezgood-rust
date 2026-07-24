@@ -15,6 +15,7 @@ members = [
     "crate/stockbit_browser",
     "crate/tls",
     "crate/user",
+    "crate/wyckoff_glosary",
     "worker_scrapping",
 ]
 resolver = "2"

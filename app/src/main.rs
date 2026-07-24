@@ -37,6 +37,8 @@ use portofolio_history::PortofolioHistoryService;
 use tonic_reflection::server::Builder as ReflectionBuilder;
 use user::user_server::UserServer;
 use user::{AuthInterceptor, UserService};
+use wyckoff_glossary::wyckoff_glossary_server::WyckoffGlossaryServer;
+use wyckoff_glossary::WyckoffGlossaryService;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -68,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pending_order_svc = PendingOrderService::new(session.clone());
     let gcs_svc = GcsGrpcService::from_env()
         .map_err(|e| format!("GCS env: {e}"))?;
+    let wyckoff_glossary_svc = WyckoffGlossaryService::new(session.clone());
 
     ready_auto_scrape::spawn_on_stockbit_ready(
         user_svc.readiness_poller(),
@@ -92,10 +95,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         emiten_list_svc.warm_prepared(),
         broker_svc.warm_prepared(),
         pending_order_svc.warm_prepared(),
+        wyckoff_glossary_svc.warm_prepared(),
     )
     .map_err(|e| format!("Gagal memanaskan statement database: {e}"))?;
     println!(
-        "OK: prepared statements siap (user, portofolio, portofolio_bandarmology, portofolio_equity, portofolio_history, emiten_trending, emiten_trending_count, bandarmology, emiten_list, broker, pending_order)"
+        "OK: prepared statements siap (user, portofolio, portofolio_bandarmology, portofolio_equity, portofolio_history, emiten_trending, emiten_trending_count, bandarmology, emiten_list, broker, pending_order, wyckoff_glossary)"
     );
 
     let user_svc = UserServer::new(user_svc);
@@ -119,6 +123,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pending_order_svc =
         PendingOrderServer::with_interceptor(pending_order_svc, AuthInterceptor);
     let gcs_svc = GcsServer::with_interceptor(gcs_svc, AuthInterceptor);
+    let wyckoff_glossary_svc =
+        WyckoffGlossaryServer::with_interceptor(wyckoff_glossary_svc, AuthInterceptor);
 
     let reflection_svc = ReflectionBuilder::configure()
         .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
@@ -133,6 +139,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .register_encoded_file_descriptor_set(broker::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(pending_order::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(gcs::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(wyckoff_glossary::FILE_DESCRIPTOR_SET)
         .build_v1()
         .map_err(|e| format!("reflection: {e}"))?;
 
@@ -162,6 +169,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(broker_svc)
         .add_service(pending_order_svc)
         .add_service(gcs_svc)
+        .add_service(wyckoff_glossary_svc)
         .add_service(reflection_svc)
         .serve_with_shutdown(addr, grpc_shutdown_signal())
         .await?;
