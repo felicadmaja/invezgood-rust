@@ -8,3 +8,6 @@ worker_scrapping/browser_data/
 logs/
 *.png
 *.log
+
+# Scylla local backups
+backups/
