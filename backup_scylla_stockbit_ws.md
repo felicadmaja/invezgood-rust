@@ -27,8 +27,8 @@ Output default:
 
 | Item | Lokasi |
 |------|--------|
-| Folder backup | `backups/scylla/stockbit_YYYYMMDD_HHMMSS/` |
-| Arsip | `backups/scylla/stockbit_YYYYMMDD_HHMMSS.tar.gz` |
+| Folder backup | `/home/baki1/stockbit_ws/backup_scylla_stockbit_ws/stockbit_YYYYMMDD_HHMMSS/` |
+| Arsip | `/home/baki1/stockbit_ws/backup_scylla_stockbit_ws/stockbit_YYYYMMDD_HHMMSS.tar.gz` |
 | Schema | `.../schema/stockbit_schema.cql` |
 | Snapshot files | `.../snapshots/<table-uuid>/` |
 | Meta | `.../backup_meta.txt` |
@@ -52,13 +52,13 @@ KEEP_SNAPSHOT=1 ./backup_scylla_stockbit_ws.sh
 
 ```bash
 # Cek arsip terbaru
-ls -lht backups/scylla/*.tar.gz | head
+ls -lht /home/baki1/stockbit_ws/backup_scylla_stockbit_ws/*.tar.gz | head
 
 # Isi arsip
-tar -tzf backups/scylla/stockbit_*.tar.gz | head
+tar -tzf /home/baki1/stockbit_ws/backup_scylla_stockbit_ws/stockbit_*.tar.gz | head
 
 # Schema
-less backups/scylla/stockbit_*/schema/stockbit_schema.cql
+less /home/baki1/stockbit_ws/backup_scylla_stockbit_ws/stockbit_*/schema/stockbit_schema.cql
 ```
 
 ## Catatan restore (ringkas)
@@ -71,15 +71,3 @@ Restore **bukan** sekadar extract tar ke sembarang folder. Alur tipikal:
 
 Untuk production, ikuti dokumentasi resmi Scylla: [Backup and restore](https://docs.scylladb.com/manual/stable/operating-scylla/procedures/backup-restore/).
 
-## Troubleshooting
-
-| Gejala | Penyebab umum | Perbaikan |
-|--------|----------------|-----------|
-| `file .env tidak ditemukan` | Belum ada `.env` di root repo | Salin/isi `.env` dengan `SCYLLA_*` |
-| `.env wajib punya SCYLLA_*` | Key hilang di `.env` | Lengkapi `SCYLLA_URI`, `SCYLLA_USER`, `SCYLLA_PASSWORD`, `SCYLLA_KEYSPACE` |
-| `nodetool snapshot gagal` | Scylla down / API tidak terjangkau | `nodetool status`; pastikan service Scylla aktif |
-| `gagal menyalin ... permission` | User tidak bisa baca data dir | Jalankan sebagai user yang punya akses, atau salin via root lalu `chown` |
-| `cqlsh DESC KEYSPACE gagal` | Nilai di `.env` salah | Cek `SCYLLA_*` di `.env` |
-| Arsip sangat besar | Banyak tabel/history | Simpan hanya `.tar.gz` di disk cadangan; hapus folder unpacked bila sudah diarsip |
-
-Folder `backups/` tidak di-commit ke git (sudah di `.gitignore`).

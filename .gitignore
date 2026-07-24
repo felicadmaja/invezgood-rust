@@ -11,3 +11,4 @@ logs/
 
 # Scylla local backups
 backups/
+backup_scylla_stockbit_ws/

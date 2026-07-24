@@ -14,7 +14,7 @@ cd "$SCRIPT_DIR"
 # --- Konfigurasi (bisa di-override via env) ---
 KEYSPACE="${SCYLLA_KEYSPACE:-stockbit}"
 SCYLLA_DATA_DIR="${SCYLLA_DATA_DIR:-/var/lib/scylla/data}"
-BACKUP_ROOT="${BACKUP_ROOT:-$SCRIPT_DIR/backups/scylla}"
+BACKUP_ROOT="${BACKUP_ROOT:-$SCRIPT_DIR/backup_scylla_stockbit_ws}"
 KEEP_SNAPSHOT="${KEEP_SNAPSHOT:-0}"
 DOTENV_FILE="${DOTENV_FILE:-$SCRIPT_DIR/.env}"
 
