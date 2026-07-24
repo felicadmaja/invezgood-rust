@@ -22,6 +22,7 @@
 //! | net_income             | map\<text, frozen\<map\<text, text\>\>\> | HashMap\<String, HashMap\<String, String\>\> |
 //! | takeprofit_wyckoff     | map\<text, text\> | HashMap\<String, String\> |
 //! | wyckoff_phase_element  | map\<text, frozen\<list\<text\>\>\> | HashMap\<String, Vec\<String\>\> |
+//! | wyckoff_trading_range  | list\<int\> | Vec\<i32\> |
 
 use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
@@ -194,9 +195,12 @@ pub struct EmitenList {
     /// Take-profit / Wyckoff: map key-value (nilai disimpan sebagai text).
     #[scylla(default_when_null)]
     pub takeprofit_wyckoff: HashMap<String, String>,
-    /// Fase/elemen Wyckoff: key teks → list int.
+    /// Fase/elemen Wyckoff: key teks → list teks.
     #[scylla(default_when_null)]
     pub wyckoff_phase_element: HashMap<String, Vec<String>>,
+    /// Rentang trading Wyckoff.
+    #[scylla(default_when_null)]
+    pub wyckoff_trading_range: Vec<i32>,
 }
 
 impl EmitenList {
@@ -231,6 +235,7 @@ impl EmitenList {
                 .into_iter()
                 .map(|(k, values)| (k, TextList { values }))
                 .collect(),
+            wyckoff_trading_range: self.wyckoff_trading_range,
         }
     }
 }

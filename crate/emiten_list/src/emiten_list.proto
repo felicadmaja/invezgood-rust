@@ -82,6 +82,14 @@ service EmitenList {
   // Baca kolom `wyckoff_phase_element` untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetWyckoffPhaseElement(GetWyckoffPhaseElementRequest) returns (GetWyckoffPhaseElementResponse);
+
+  // Baca kolom `wyckoff_trading_range` untuk satu emiten (PK emiten_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetWyckoffTradingRange(GetWyckoffTradingRangeRequest) returns (GetWyckoffTradingRangeResponse);
+
+  // Update kolom `wyckoff_trading_range` untuk satu emiten (PK emiten_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateWyckoffTradingRange(UpdateWyckoffTradingRangeRequest) returns (UpdateWyckoffTradingRangeResponse);
 }
 
 // Kode sektor emiten; disimpan di Scylla `emiten_list.sector` sebagai tinyint.
@@ -303,6 +311,28 @@ message GetWyckoffPhaseElementResponse {
   map<string, TextList> wyckoff_phase_element = 1;
 }
 
+message GetWyckoffTradingRangeRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  string emiten_name = 1;
+}
+
+message GetWyckoffTradingRangeResponse {
+  // Bentuk CQL list<int>; kosong bila belum di-set.
+  repeated int32 wyckoff_trading_range = 1;
+}
+
+message UpdateWyckoffTradingRangeRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  string emiten_name = 1;
+  // Bentuk CQL list<int>.
+  repeated int32 wyckoff_trading_range = 2;
+}
+
+message UpdateWyckoffTradingRangeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 message UpdateWyckoffPhaseElementRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
   string emiten_name = 1;
@@ -390,6 +420,8 @@ message EmitenListRow {
   map<string, string> takeprofit_wyckoff = 17;
   // Bentuk CQL map<text, frozen<list<text>>> — fase/elemen Wyckoff.
   map<string, TextList> wyckoff_phase_element = 18;
+  // Bentuk CQL list<int> — rentang trading Wyckoff.
+  repeated int32 wyckoff_trading_range = 19;
 }
 
 // Satu tahun net income: periode (Q1..Q4, Annualised, TTM ...) → nilai teks.

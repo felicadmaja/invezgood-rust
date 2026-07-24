@@ -26,7 +26,8 @@ Kolom dan tipe CQL, kata demi kata:
   "is_plan_to_trade" boolean
   "takeprofit_wyckoff" map<text, text>
   "wyckoff_phase_element" map<text, frozen<list<text>>>
-Sumber: DDL bin create_emiten_list + ALTER TABLE (...); wyckoff_phase_element awalnya map<text, frozen<list<int>>> lalu diubah ke list<text> (DROP table + restore snapshot + ADD, karena Scylla menolak reuse nama collection dengan tipe berbeda); diisi aplikasi pada INSERT/UPDATE.
+  "wyckoff_trading_range" list<int>
+Sumber: DDL bin create_emiten_list + ALTER TABLE (...); wyckoff_phase_element awalnya map<text, frozen<list<int>>> lalu diubah ke list<text> (DROP table + restore snapshot + ADD, karena Scylla menolak reuse nama collection dengan tipe berbeda); wyckoff_trading_range ditambah ALTER ADD list<int>; diisi aplikasi pada INSERT/UPDATE.
 Kolom "emiten_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
 Kolom "emiten_icon": text — path object GCS modul stoksaham (mis. stoksaham/icon/BBCA.png).
@@ -41,6 +42,7 @@ Kolom "is_blue_chip": boolean — true bila blue chip; default false.
 Kolom "is_plan_to_trade": boolean — true bila direncanakan untuk trade; default false.
 Kolom "takeprofit_wyckoff": map<text, text> — take-profit / Wyckoff; key: n_kolom, harga_xo_frequent, low, takeprofit_1, takeprofit_2 (value teks angka); kosong/null bila belum di-set.
 Kolom "wyckoff_phase_element": map<text, frozen<list<text>>> — fase/elemen Wyckoff: key teks → list teks; contoh {"accumulation": ["1", "2", "3"], "markup": ["10", "20"]}; kosong/null bila belum di-set.
+Kolom "wyckoff_trading_range": list<int> — rentang trading Wyckoff (daftar bilangan bulat); kosong/null bila belum di-set.
 Kolom "catatan": map<text, text> — catatan manual (pasangan key-value); kosong/{} bila belum di-set.
 Kolom "catatan_owner": text — pemilik/penulis catatan (kosong bila belum di-set).
 Kolom "foto_owner": list<text> — daftar path/URL foto pemilik catatan (kosong/[] bila belum di-set).

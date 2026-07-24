@@ -10,9 +10,11 @@ Tidak ada clustering key.
 Kolom dan tipe CQL, kata demi kata:
   "name" text — partition key
   "description" text
-Sumber: CREATE TABLE stockbit.wyckoff_glossary (name text PRIMARY KEY, description text); diisi aplikasi pada INSERT/UPDATE.
+  "urutan_tampil" int
+Sumber: CREATE TABLE stockbit.wyckoff_glossary (name text PRIMARY KEY, description text); ALTER TABLE ADD urutan_tampil int; diisi aplikasi pada INSERT/UPDATE.
 Kolom "name": text — istilah / nama entri glosarium Wyckoff (PK).
 Kolom "description": text — penjelasan istilah; kosong/null bila belum di-set.
+Kolom "urutan_tampil": int — urutan tampilan di UI; null bila belum di-set.
 
 --- Materialized view (MV) ---
 Tidak ada.

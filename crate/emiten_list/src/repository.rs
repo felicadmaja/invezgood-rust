@@ -26,6 +26,7 @@ struct Prepared {
     update_foto_owner: PreparedStatement,
     update_takeprofit_wyckoff: PreparedStatement,
     update_wyckoff_phase_element: PreparedStatement,
+    update_wyckoff_trading_range: PreparedStatement,
     trending_aggs_by_emiten: PreparedStatement,
     update_trending_sector: PreparedStatement,
 }
@@ -56,7 +57,7 @@ impl EmitenListRepository {
                 const COLUMNS: &str = "emiten_name, long_name, emiten_icon, key_stats, corporate_action, \
                      company_profile, update_at, is_konglomerasi, sector, is_fundamental_solid, is_blue_chip, \
                      is_plan_to_trade, catatan, catatan_owner, foto_owner, net_income, takeprofit_wyckoff, \
-                     wyckoff_phase_element";
+                     wyckoff_phase_element, wyckoff_trading_range";
                 let q = format!(
                     "SELECT {COLUMNS} FROM {} \
                      WHERE token(emiten_name) >= ? AND token(emiten_name) <= ?",
@@ -129,6 +130,12 @@ impl EmitenListRepository {
                 let update_wyckoff_phase_element = self.session.prepare(q).await?;
 
                 let q = format!(
+                    "UPDATE {} SET wyckoff_trading_range = ? WHERE emiten_name = ?",
+                    self.table
+                );
+                let update_wyckoff_trading_range = self.session.prepare(q).await?;
+
+                let q = format!(
                     "SELECT agg_tahun_bulan_tanggal_emiten_name FROM {} WHERE emiten_name = ?",
                     self.trending_mv
                 );
@@ -153,6 +160,7 @@ impl EmitenListRepository {
                     update_foto_owner,
                     update_takeprofit_wyckoff,
                     update_wyckoff_phase_element,
+                    update_wyckoff_trading_range,
                     trending_aggs_by_emiten,
                     update_trending_sector,
                 })
@@ -434,6 +442,26 @@ impl EmitenListRepository {
             .execute_unpaged(
                 &prepared.update_wyckoff_phase_element,
                 (wyckoff_phase_element, emiten_name),
+            )
+            .await?;
+        Ok(true)
+    }
+
+    /// Update `wyckoff_trading_range` (list). Mengembalikan `Ok(false)` bila `emiten_name` tidak ada.
+    pub async fn update_wyckoff_trading_range(
+        &self,
+        emiten_name: &str,
+        wyckoff_trading_range: &[i32],
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        if self.get_by_emiten_name(emiten_name).await?.is_none() {
+            return Ok(false);
+        }
+
+        let prepared = self.prepared().await?;
+        self.session
+            .execute_unpaged(
+                &prepared.update_wyckoff_trading_range,
+                (wyckoff_trading_range, emiten_name),
             )
             .await?;
         Ok(true)

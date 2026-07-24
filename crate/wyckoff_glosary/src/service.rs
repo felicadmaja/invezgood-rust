@@ -5,9 +5,14 @@ use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::require_auth;
 
+use crate::model::WyckoffGlossary;
 use crate::repository::WyckoffGlossaryRepository;
 use crate::wyckoff_glossary_server::WyckoffGlossary as WyckoffGlossaryRpc;
-use crate::{InsertWyckoffGlossaryRequest, InsertWyckoffGlossaryResponse};
+use crate::{
+    DeleteWyckoffGlossaryRequest, DeleteWyckoffGlossaryResponse, GetAllWyckoffGlossaryRequest,
+    GetAllWyckoffGlossaryResponse, InsertWyckoffGlossaryRequest, InsertWyckoffGlossaryResponse,
+    UpdateWyckoffGlossaryRequest, UpdateWyckoffGlossaryResponse, WyckoffGlossaryRow,
+};
 
 pub struct WyckoffGlossaryService {
     repo: WyckoffGlossaryRepository,
@@ -27,6 +32,35 @@ impl WyckoffGlossaryService {
 
 #[tonic::async_trait]
 impl WyckoffGlossaryRpc for WyckoffGlossaryService {
+    async fn get_all_wyckoff_glossary(
+        &self,
+        request: Request<GetAllWyckoffGlossaryRequest>,
+    ) -> Result<Response<GetAllWyckoffGlossaryResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+
+        let rows = self
+            .repo
+            .get_all()
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        let proto_rows: Vec<WyckoffGlossaryRow> =
+            rows.into_iter().map(WyckoffGlossary::into_proto).collect();
+
+        println!(
+            "GetAllWyckoffGlossary {} rows={} {}ms",
+            username,
+            proto_rows.len(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetAllWyckoffGlossaryResponse {
+            rows: proto_rows,
+        }))
+    }
+
     async fn insert_wyckoff_glossary(
         &self,
         request: Request<InsertWyckoffGlossaryRequest>,
@@ -65,6 +99,89 @@ impl WyckoffGlossaryRpc for WyckoffGlossaryService {
         );
 
         Ok(Response::new(InsertWyckoffGlossaryResponse {
+            success,
+            message,
+        }))
+    }
+
+    async fn update_wyckoff_glossary(
+        &self,
+        request: Request<UpdateWyckoffGlossaryRequest>,
+    ) -> Result<Response<UpdateWyckoffGlossaryResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let name = req.name.trim().to_string();
+        if name.is_empty() {
+            return Ok(Response::new(UpdateWyckoffGlossaryResponse {
+                success: false,
+                message: "name wajib diisi".to_string(),
+            }));
+        }
+
+        let description = req.description.trim().to_string();
+
+        let updated = self
+            .repo
+            .update(&name, &description)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
+
+        let (success, message) = if updated {
+            (true, format!("wyckoff_glossary name={name} berhasil diupdate"))
+        } else {
+            (false, format!("wyckoff_glossary name={name} tidak ditemukan"))
+        };
+
+        println!(
+            "UpdateWyckoffGlossary {} {name} success={success} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(UpdateWyckoffGlossaryResponse {
+            success,
+            message,
+        }))
+    }
+
+    async fn delete_wyckoff_glossary(
+        &self,
+        request: Request<DeleteWyckoffGlossaryRequest>,
+    ) -> Result<Response<DeleteWyckoffGlossaryResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+
+        let name = request.into_inner().name.trim().to_string();
+        if name.is_empty() {
+            return Ok(Response::new(DeleteWyckoffGlossaryResponse {
+                success: false,
+                message: "name wajib diisi".to_string(),
+            }));
+        }
+
+        let deleted = self
+            .repo
+            .delete(&name)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla delete failed: {e}")))?;
+
+        let (success, message) = if deleted {
+            (true, format!("wyckoff_glossary name={name} berhasil dihapus"))
+        } else {
+            (false, format!("wyckoff_glossary name={name} tidak ditemukan"))
+        };
+
+        println!(
+            "DeleteWyckoffGlossary {} {name} success={success} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(DeleteWyckoffGlossaryResponse {
             success,
             message,
         }))

@@ -25,7 +25,9 @@ use crate::{
     GetTakeProfitWyckoffRequest, GetTakeProfitWyckoffResponse,
     UpdateTakeProfitWyckoffRequest, UpdateTakeProfitWyckoffResponse,
     GetWyckoffPhaseElementRequest, GetWyckoffPhaseElementResponse,
+    GetWyckoffTradingRangeRequest, GetWyckoffTradingRangeResponse,
     UpdateWyckoffPhaseElementRequest, UpdateWyckoffPhaseElementResponse,
+    UpdateWyckoffTradingRangeRequest, UpdateWyckoffTradingRangeResponse,
 };
 
 const MAX_EMITEN_SECTOR: i32 = 46;
@@ -854,6 +856,40 @@ impl EmitenListRpc for EmitenListService {
         }))
     }
 
+    async fn get_wyckoff_trading_range(
+        &self,
+        request: Request<GetWyckoffTradingRangeRequest>,
+    ) -> Result<Response<GetWyckoffTradingRangeResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+
+        let emiten_name = parse_emiten_name(&request.into_inner().emiten_name)
+            .map_err(Status::invalid_argument)?;
+
+        let row = self
+            .repo
+            .get_by_emiten_name(&emiten_name)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+            .ok_or_else(|| {
+                Status::not_found(format!(
+                    "emiten_list emiten_name={emiten_name} tidak ditemukan"
+                ))
+            })?;
+
+        println!(
+            "GetWyckoffTradingRange {} {} {}ms",
+            username,
+            emiten_name,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetWyckoffTradingRangeResponse {
+            wyckoff_trading_range: row.wyckoff_trading_range,
+        }))
+    }
+
     async fn update_take_profit_wyckoff(
         &self,
         request: Request<UpdateTakeProfitWyckoffRequest>,
@@ -964,6 +1000,55 @@ impl EmitenListRpc for EmitenListService {
         );
 
         Ok(Response::new(UpdateWyckoffPhaseElementResponse {
+            success,
+            message,
+        }))
+    }
+
+    async fn update_wyckoff_trading_range(
+        &self,
+        request: Request<UpdateWyckoffTradingRangeRequest>,
+    ) -> Result<Response<UpdateWyckoffTradingRangeResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateWyckoffTradingRangeResponse {
+                    success: false,
+                    message,
+                }));
+            }
+        };
+
+        let updated = self
+            .repo
+            .update_wyckoff_trading_range(&emiten_name, &req.wyckoff_trading_range)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
+
+        let (success, message) = if updated {
+            (
+                true,
+                format!("wyckoff_trading_range untuk {emiten_name} berhasil diupdate"),
+            )
+        } else {
+            (
+                false,
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
+            )
+        };
+
+        println!(
+            "UpdateWyckoffTradingRange {} {emiten_name} success={success} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(UpdateWyckoffTradingRangeResponse {
             success,
             message,
         }))
