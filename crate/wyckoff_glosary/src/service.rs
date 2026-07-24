@@ -5,7 +5,7 @@ use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::require_auth;
 
-use crate::model::WyckoffGlossary;
+use crate::model::{phase_from_proto, WyckoffGlossary};
 use crate::repository::WyckoffGlossaryRepository;
 use crate::wyckoff_glossary_server::WyckoffGlossary as WyckoffGlossaryRpc;
 use crate::{
@@ -79,10 +79,16 @@ impl WyckoffGlossaryRpc for WyckoffGlossaryService {
         }
 
         let description = req.description.trim().to_string();
+        let phase = phase_from_proto(req.phase);
+        let urutan_tampil = if req.urutan_tampil == 0 {
+            None
+        } else {
+            Some(req.urutan_tampil)
+        };
 
         let inserted = self
             .repo
-            .insert(&name, &description)
+            .insert(&name, &description, urutan_tampil, &phase)
             .await
             .map_err(|e| Status::internal(format!("Scylla insert failed: {e}")))?;
 
@@ -122,10 +128,16 @@ impl WyckoffGlossaryRpc for WyckoffGlossaryService {
         }
 
         let description = req.description.trim().to_string();
+        let phase = phase_from_proto(req.phase);
+        let urutan_tampil = if req.urutan_tampil == 0 {
+            None
+        } else {
+            Some(req.urutan_tampil)
+        };
 
         let updated = self
             .repo
-            .update(&name, &description)
+            .update(&name, &description, urutan_tampil, &phase)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
