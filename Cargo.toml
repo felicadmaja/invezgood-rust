@@ -3,7 +3,6 @@ members = [
     "app",
     "crate/bandarmology",
     "crate/broker",
-    "crate/create_database",
     "crate/emiten_list",
     "crate/emiten_trending",
     "crate/emiten_trending_count",

@@ -829,7 +829,6 @@ impl EmitenListRpc for EmitenListService {
                 return Ok(Response::new(UpdateTakeProfitWyckoffResponse {
                     success: false,
                     message,
-                    row: None,
                 }));
             }
         };
@@ -851,23 +850,15 @@ impl EmitenListRpc for EmitenListService {
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 
-        let (success, message, row) = if updated {
-            let row = self
-                .repo
-                .get_by_emiten_name(&emiten_name)
-                .await
-                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
-                .map(EmitenList::into_proto);
+        let (success, message) = if updated {
             (
                 true,
                 format!("takeprofit_wyckoff untuk {emiten_name} berhasil diupdate"),
-                row,
             )
         } else {
             (
                 false,
                 format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
-                None,
             )
         };
 
@@ -880,7 +871,6 @@ impl EmitenListRpc for EmitenListService {
         Ok(Response::new(UpdateTakeProfitWyckoffResponse {
             success,
             message,
-            row,
         }))
     }
 }

@@ -425,18 +425,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "create_database"
-version = "0.1.0"
-dependencies = [
- "bcrypt",
- "dotenvy",
- "futures-util",
- "scylla",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "crossbeam-channel"
 version = "0.5.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"

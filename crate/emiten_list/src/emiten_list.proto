@@ -277,7 +277,6 @@ message UpdateTakeProfitWyckoffRequest {
 message UpdateTakeProfitWyckoffResponse {
   bool success = 1;
   string message = 2;
-  EmitenListRow row = 3;
 }
 
 // Satu pasangan atribut aksi korporasi, contoh {"Cum Date": "20 Apr 26"}.
