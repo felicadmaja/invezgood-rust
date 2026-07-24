@@ -20,6 +20,7 @@
 //! | catatan_owner          | text     | String |
 //! | foto_owner             | list\<text\> | Vec\<String\> |
 //! | net_income             | map\<text, frozen\<map\<text, text\>\>\> | HashMap\<String, HashMap\<String, String\>\> |
+//! | takeprofit_wyckoff     | map\<text, text\> | HashMap\<String, String\> |
 
 use chrono::{DateTime, Utc};
 use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
@@ -189,6 +190,9 @@ pub struct EmitenList {
     /// Tahun → { Q1/Q2/... → nilai teks }.
     #[scylla(default_when_null)]
     pub net_income: HashMap<String, HashMap<String, String>>,
+    /// Take-profit / Wyckoff: map key-value (nilai disimpan sebagai text).
+    #[scylla(default_when_null)]
+    pub takeprofit_wyckoff: HashMap<String, String>,
 }
 
 impl EmitenList {
@@ -217,6 +221,7 @@ impl EmitenList {
                 .into_iter()
                 .map(|(year, periods)| (year, NetIncomeYear { periods }))
                 .collect(),
+            takeprofit_wyckoff: self.takeprofit_wyckoff,
         }
     }
 }

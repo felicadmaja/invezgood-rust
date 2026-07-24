@@ -64,6 +64,15 @@ service EmitenList {
   // Update kolom `is_plan_to_trade` untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListPlanToTrade(UpdateEmitenListPlanToTradeRequest) returns (UpdateEmitenListPlanToTradeResponse);
+
+
+  // Baca kolom `takeprofit_wyckoff` untuk satu emiten (PK emiten_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetTakeProfitWyckoff(GetTakeProfitWyckoffRequest) returns (GetTakeProfitWyckoffResponse);
+
+  // Update kolom `takeprofit_wyckoff` (map<text,text>) untuk satu emiten (PK emiten_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateTakeProfitWyckoff(UpdateTakeProfitWyckoffRequest) returns (UpdateTakeProfitWyckoffResponse);
 }
 
 // Kode sektor emiten; disimpan di Scylla `emiten_list.sector` sebagai tinyint.
@@ -245,6 +254,32 @@ message UpdateEmitenListPhotoProfileOwnerResponse {
   EmitenListRow row = 3;
 }
 
+message GetTakeProfitWyckoffRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  string emiten_name = 1;
+}
+
+message GetTakeProfitWyckoffResponse {
+  // Bentuk CQL map<text, text>; kosong bila belum di-set.
+  map<string, string> takeprofit_wyckoff = 1;
+}
+
+message UpdateTakeProfitWyckoffRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  string emiten_name = 1;
+  int32 n_kolom = 2;
+  int32 harga_xo_frequent = 3;
+  int32 low = 4;
+  int32 takeprofit_1 = 5;
+  int32 takeprofit_2 = 6;
+}
+
+message UpdateTakeProfitWyckoffResponse {
+  bool success = 1;
+  string message = 2;
+  EmitenListRow row = 3;
+}
+
 // Satu pasangan atribut aksi korporasi, contoh {"Cum Date": "20 Apr 26"}.
 message CorporateActionKv {
   map<string, string> entries = 1;
@@ -315,6 +350,9 @@ message EmitenListRow {
   string catatan_owner = 15;
   // Path/URL foto pemilik catatan; bentuk CQL list<text>.
   repeated string foto_owner = 16;
+  // Bentuk CQL map<text, text> — take-profit / Wyckoff (key-value string).
+  // Diisi RPC UpdateTakeProfitWyckoff: n_kolom, harga_xo_frequent, low, takeprofit_1, takeprofit_2.
+  map<string, string> takeprofit_wyckoff = 17;
 }
 
 // Satu tahun net income: periode (Q1..Q4, Annualised, TTM ...) → nilai teks.

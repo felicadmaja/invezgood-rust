@@ -22,6 +22,8 @@ use crate::{
     UpdateEmitenListPhotoProfileOwnerRequest, UpdateEmitenListPhotoProfileOwnerResponse,
     UpdateEmitenListPlanToTradeRequest, UpdateEmitenListPlanToTradeResponse,
     UpdateEmitenListSectorRequest, UpdateEmitenListSectorResponse,
+    GetTakeProfitWyckoffRequest, GetTakeProfitWyckoffResponse,
+    UpdateTakeProfitWyckoffRequest, UpdateTakeProfitWyckoffResponse,
 };
 
 const MAX_EMITEN_SECTOR: i32 = 46;
@@ -772,6 +774,110 @@ impl EmitenListRpc for EmitenListService {
         );
 
         Ok(Response::new(UpdateEmitenListPhotoProfileOwnerResponse {
+            success,
+            message,
+            row,
+        }))
+    }
+
+    async fn get_take_profit_wyckoff(
+        &self,
+        request: Request<GetTakeProfitWyckoffRequest>,
+    ) -> Result<Response<GetTakeProfitWyckoffResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+
+        let emiten_name = parse_emiten_name(&request.into_inner().emiten_name)
+            .map_err(Status::invalid_argument)?;
+
+        let row = self
+            .repo
+            .get_by_emiten_name(&emiten_name)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+            .ok_or_else(|| {
+                Status::not_found(format!(
+                    "emiten_list emiten_name={emiten_name} tidak ditemukan"
+                ))
+            })?;
+
+        println!(
+            "GetTakeProfitWyckoff {} {} {}ms",
+            username,
+            emiten_name,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetTakeProfitWyckoffResponse {
+            takeprofit_wyckoff: row.takeprofit_wyckoff,
+        }))
+    }
+
+    async fn update_take_profit_wyckoff(
+        &self,
+        request: Request<UpdateTakeProfitWyckoffRequest>,
+    ) -> Result<Response<UpdateTakeProfitWyckoffResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateTakeProfitWyckoffResponse {
+                    success: false,
+                    message,
+                    row: None,
+                }));
+            }
+        };
+
+        let takeprofit_wyckoff = std::collections::HashMap::from([
+            ("n_kolom".to_string(), req.n_kolom.to_string()),
+            (
+                "harga_xo_frequent".to_string(),
+                req.harga_xo_frequent.to_string(),
+            ),
+            ("low".to_string(), req.low.to_string()),
+            ("takeprofit_1".to_string(), req.takeprofit_1.to_string()),
+            ("takeprofit_2".to_string(), req.takeprofit_2.to_string()),
+        ]);
+
+        let updated = self
+            .repo
+            .update_takeprofit_wyckoff(&emiten_name, &takeprofit_wyckoff)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
+
+        let (success, message, row) = if updated {
+            let row = self
+                .repo
+                .get_by_emiten_name(&emiten_name)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+                .map(EmitenList::into_proto);
+            (
+                true,
+                format!("takeprofit_wyckoff untuk {emiten_name} berhasil diupdate"),
+                row,
+            )
+        } else {
+            (
+                false,
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
+                None,
+            )
+        };
+
+        println!(
+            "UpdateTakeProfitWyckoff {} {emiten_name} success={success} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(UpdateTakeProfitWyckoffResponse {
             success,
             message,
             row,

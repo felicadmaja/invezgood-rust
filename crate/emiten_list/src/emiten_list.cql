@@ -24,7 +24,8 @@ Kolom dan tipe CQL, kata demi kata:
   "foto_owner" list<text>
   "net_income" map<text, frozen<map<text, text>>>
   "is_plan_to_trade" boolean
-Sumber: DDL bin create_emiten_list + ALTER TABLE (sector, is_fundamental_solid, is_blue_chip, catatan, catatan_owner, foto_owner, net_income, is_plan_to_trade); foto_owner diubah text → list<text> (DROP+ADD, MV by_is_blue_chip di-recreate); catatan diubah text → list → map<text, text> (recreate table + MV karena Scylla menolak reuse nama collection dengan tipe berbeda); diisi aplikasi pada INSERT/UPDATE.
+  "takeprofit_wyckoff" map<text, text>
+Sumber: DDL bin create_emiten_list + ALTER TABLE (sector, is_fundamental_solid, is_blue_chip, catatan, catatan_owner, foto_owner, net_income, is_plan_to_trade, takeprofit_wyckoff); foto_owner diubah text → list<text> (DROP+ADD, MV by_is_blue_chip di-recreate); catatan diubah text → list → map<text, text> (recreate table + MV karena Scylla menolak reuse nama collection dengan tipe berbeda); diisi aplikasi pada INSERT/UPDATE.
 Kolom "emiten_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
 Kolom "emiten_icon": text — path object GCS modul stoksaham (mis. stoksaham/icon/BBCA.png).
@@ -37,6 +38,7 @@ Kolom "is_konglomerasi": boolean — true bila emiten termasuk konglomerasi; def
 Kolom "is_fundamental_solid": boolean — true bila fundamental solid; default false.
 Kolom "is_blue_chip": boolean — true bila blue chip; default false.
 Kolom "is_plan_to_trade": boolean — true bila direncanakan untuk trade; default false.
+Kolom "takeprofit_wyckoff": map<text, text> — take-profit / Wyckoff; key: n_kolom, harga_xo_frequent, low, takeprofit_1, takeprofit_2 (value teks angka); kosong/null bila belum di-set.
 Kolom "catatan": map<text, text> — catatan manual (pasangan key-value); kosong/{} bila belum di-set.
 Kolom "catatan_owner": text — pemilik/penulis catatan (kosong bila belum di-set).
 Kolom "foto_owner": list<text> — daftar path/URL foto pemilik catatan (kosong/[] bila belum di-set).
