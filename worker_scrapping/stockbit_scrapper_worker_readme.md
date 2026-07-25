@@ -20,38 +20,6 @@ Dari root repo:
 cargo build --release -p worker_scrapping
 ```
 
-Binary:
-
-```text
-/home/baki1/stockbit_ws/target/release/worker_scrapping
-```
-
-## On-demand: scrape semua bandarmology (`scrap_bandarmology_all`)
-
-One-shot terpisah dari worker utama. Ambil semua `emiten_name` dari `emiten_list` (token-ring),
-`TRUNCATE` tabel `bandarmology`, lalu scrape API marketdetectors per emiten → upsert.
-
-```bash
-cargo run -p worker_scrapping --bin scrap_bandarmology_all
-# atau
-cargo build --release -p worker_scrapping --bin scrap_bandarmology_all
-./target/release/scrap_bandarmology_all
-```
-
-## On-demand: isi kolom minggu bandarmology saja (`bandarmology_fill_this_week`)
-
-One-shot: token-ring `emiten_list` → salin minggu berjalan ke `portofolio_bandarmology`
-→ API marketdetectors **slot minggu hari ini saja** (w1–w4)
-→ force upsert `bandarmology` (abaikan `updated_at`). Tidak scrape historis / tidak TRUNCATE.
-
-```bash
-cargo run -p worker_scrapping --bin bandarmology_fill_this_week
-# atau
-cargo build --release -p worker_scrapping --bin bandarmology_fill_this_week
-./target/release/bandarmology_fill_this_week
-```
-
-Log: `worker_scrapping/bandarmology_fill_this_week.log`
 
 ## Jalankan manual (uji)
 
@@ -65,15 +33,8 @@ Pastikan `.env` terisi (`STOCKBIT_EMAIL`, `STOCKBIT_PASSWORD`, `STOCKBUT_PIN`, S
 
 Zona waktu disarankan **Asia/Jakarta** (WIB). Cron memanggil binary langsung (tanpa wrapper script).
 
-### 1. Siapkan folder log
 
-```bash
-mkdir -p /home/baki1/stockbit_ws/logs
-```
-
-
-
-### 2. Crontab
+### 1. Crontab
 
 ```bash
 crontab -e
@@ -96,7 +57,7 @@ Jika `CRON_TZ` tidak didukung di sistem Anda, set timezone OS ke `Asia/Jakarta`,
 
 Catatan: `%` di crontab harus di-escape (`\%`) agar `date` dijalankan saat job, bukan saat parse crontab.
 
-### 3. Verifikasi cron
+### 2. Verifikasi cron
 
 ```bash
 crontab -l

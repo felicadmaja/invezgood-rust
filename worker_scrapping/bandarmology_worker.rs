@@ -6,7 +6,7 @@
 //!   **hanya bila `updated_at` kosong / bukan hari ini**; jika masih hari ini → skip fetch summary.
 //!   Minggu (`broker_summary_current_w1`…`w4`): per invoke, isi minggu aktif (slot tanggal)
 //!   **dan** backfill w1..wN bila kolom di Scylla masih kosong; w4 bulan berjalan: API 22–kemarin.
-//! - Bulan sebelumnya (max 12 / 1 tahun): skip **seluruh** backfill historis bila baris **bulan lalu**
+//! - Bulan sebelumnya (max 36 / 3 tahun): skip **seluruh** backfill historis bila baris **bulan lalu**
 //!   sudah ada di Scylla; bila tidak, skip per bulan bila sudah ada, henti bila
 //!   1 bulan sudah ada atau **1** bulan kosong/gagal dari API.
 //! - Skip state (`updated_at` hari ini / historis sudah ada / minggu lengkap) di-cache Redis
@@ -31,9 +31,9 @@ use crate::rate_limit_delay::{rate_limit_headers_log, RateLimitInfo};
 
 const API_BASE: &str = "https://exodus.stockbit.com/marketdetectors";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-/// Default historis: 12 bulan. Override via env `BANDARMOLOGY_MAX_HISTORICAL_MONTHS`
-/// (dipakai `scrap_bandarmology_all` = 180). Caller lain tanpa env tetap 12.
-const MAX_HISTORICAL_MONTHS_DEFAULT: u32 = 12;
+/// Default historis: 36 bulan. Override via env `BANDARMOLOGY_MAX_HISTORICAL_MONTHS`
+/// (dipakai `scrap_bandarmology_all` = 180). Caller lain tanpa env tetap 36.
+const MAX_HISTORICAL_MONTHS_DEFAULT: u32 = 36;
 const CONSECUTIVE_EMPTY_MONTHS_STOP: usize = 1;
 const CONSECUTIVE_SKIP_EXISTING_STOP: usize = 1;
 const MONTH_INTER_DELAY_MS: u64 = 50;

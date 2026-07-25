@@ -26,7 +26,7 @@ service Bandarmology {
       GetMultiMonthlySingleEmitenBandarmologyFromScyllaRequest)
       returns (GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse);
 
-  // Scrape bandarmology 1 tahun kebelakang (max 12 bulan) untuk satu emiten via API Stockbit.
+  // Scrape bandarmology 3 tahun kebelakang (max 36 bulan) untuk satu emiten via API Stockbit.
   // Aturan sama `bandarmology_worker`:
   // - bulan berjalan overwrite `broker_summary` (awal bulan → hari ini) hanya bila
   //   `updated_at` kosong / bukan hari ini; jika `updated_at` masih hari ini → skip fetch summary;
