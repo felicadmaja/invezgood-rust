@@ -23,50 +23,21 @@ chmod +x backup_scylla_stockbit_ws.sh
 ./backup_scylla_stockbit_ws.sh
 ```
 
-Output default:
+Output default (hanya arsip; folder sementara dihapus setelah `.tar.gz` dibuat):
 
 | Item | Lokasi |
 |------|--------|
-| Folder backup | `/home/baki1/stockbit_ws/backup_scylla_stockbit_ws/stockbit_YYYYMMDD_HHMMSS/` |
 | Arsip | `/home/baki1/stockbit_ws/backup_scylla_stockbit_ws/stockbit_YYYYMMDD_HHMMSS.tar.gz` |
-| Schema | `.../schema/stockbit_schema.cql` |
-| Snapshot files | `.../snapshots/<table-uuid>/` |
-| Meta | `.../backup_meta.txt` |
 
-## Opsi opsional (bukan kredensial)
+Isi di dalam `.tar.gz`: `backup_meta.txt`, `schema/stockbit_schema.cql`, `snapshots/<table-uuid>/`.
 
-Hanya untuk mengubah lokasi/perilaku backup; kredensial tetap dari `.env`.
-
-```bash
-# Folder tujuan arsip/folder backup
-BACKUP_ROOT=/mnt/disk2/scylla_backups ./backup_scylla_stockbit_ws.sh
-
-# Path data Scylla non-default
-SCYLLA_DATA_DIR=/var/lib/scylla/data ./backup_scylla_stockbit_ws.sh
-
-# Jangan hapus snapshot di dalam Scylla setelah copy (default: di-clear)
-KEEP_SNAPSHOT=1 ./backup_scylla_stockbit_ws.sh
-```
-
-## Verifikasi singkat
-
-```bash
-# Cek arsip terbaru
-ls -lht /home/baki1/stockbit_ws/backup_scylla_stockbit_ws/*.tar.gz | head
-
-# Isi arsip
-tar -tzf /home/baki1/stockbit_ws/backup_scylla_stockbit_ws/stockbit_*.tar.gz | head
-
-# Schema
-less /home/baki1/stockbit_ws/backup_scylla_stockbit_ws/stockbit_*/schema/stockbit_schema.cql
-```
 
 ## Catatan restore (ringkas)
 
 Restore **bukan** sekadar extract tar ke sembarang folder. Alur tipikal:
 
 1. Restore/create keyspace + schema dari `stockbit_schema.cql` (`cqlsh`).
-2. Letakkan SSTable hasil snapshot ke directory `upload/` tabel yang sesuai di data dir Scylla.
+2. Letakkan SSTable hasil snapshot ke directory `upload/` contoh `/var/lib/scylla/data/stockbit/<nama_tabel>-<uuid>/upload/` tabel yang sesuai di data dir Scylla.
 3. Jalankan `nodetool refresh -- stockbit <table>`.
 
 Untuk production, ikuti dokumentasi resmi Scylla: [Backup and restore](https://docs.scylladb.com/manual/stable/operating-scylla/procedures/backup-restore/).

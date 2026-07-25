@@ -135,6 +135,10 @@ log "Membuat arsip $ARCHIVE ..."
 tar -C "$BACKUP_ROOT" -czf "$ARCHIVE" "$(basename "$OUT_DIR")"
 log "Arsip siap: $ARCHIVE ($(du -h "$ARCHIVE" | awk '{print $1}'))"
 
+# Hapus folder unpacked — semua isi sudah di dalam .tar.gz
+rm -rf "$OUT_DIR"
+log "Folder sementara dihapus: $OUT_DIR"
+
 # 5) Bersihkan snapshot di node (hemat disk) kecuali KEEP_SNAPSHOT=1
 if [[ "$KEEP_SNAPSHOT" == "1" ]]; then
   log "KEEP_SNAPSHOT=1 — snapshot Scylla tag=$TAG dibiarkan."
@@ -145,5 +149,4 @@ else
 fi
 
 log "Selesai."
-log "Folder : $OUT_DIR"
 log "Arsip  : $ARCHIVE"
