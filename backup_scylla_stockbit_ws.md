@@ -82,7 +82,7 @@ Contoh: **setiap hari jam 04:15** (waktu lokal server), log ke file:
 `PATH` cron sering sempit; bila `nodetool`/`cqlsh` tidak ketemu, pakai bentuk ini:
 
 ```cron
-15 4 * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /home/baki1/stockbit_ws/backup_scylla_stockbit_ws.sh >> /home/baki1/stockbit_ws/backup_scylla_stockbit_ws/backup.log 2>&1
+15 4 * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /home/baki1/stockbit_ws/backup_scylla_stockbit_ws.sh >> /home/baki1/stockbit_ws/backup_scylla_stockbit_ws.log 2>&1
 ```
 
 
