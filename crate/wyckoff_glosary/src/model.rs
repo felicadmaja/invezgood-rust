@@ -7,11 +7,11 @@
 //! | long_name       | text     | String          |
 //! | description     | text     | String          |
 //! | urutan_tampil   | int      | Option\<i32\>   |
-//! | phase           | text     | String (nama enum PhaseWyckoff) |
+//! | phase           | text     | String (nama enum JenisWyckoff) |
 
 use scylla::DeserializeRow;
 
-use crate::{PhaseWyckoff, WyckoffGlossaryRow};
+use crate::{JenisWyckoff, WyckoffGlossaryRow};
 
 /// Baris tabel dasar `wyckoff_glossary`.
 /// PK: `(("name"))`.
@@ -34,17 +34,17 @@ pub struct WyckoffGlossary {
 
 pub fn phase_to_proto(phase: &str) -> i32 {
     match phase.trim().to_ascii_uppercase().as_str() {
-        "ACCUMULATION" => PhaseWyckoff::Accumulation as i32,
-        "DISTRIBUTION" => PhaseWyckoff::Distribution as i32,
-        _ => PhaseWyckoff::Unspecified as i32,
+        "ACCUMULATION" => JenisWyckoff::Accumulation as i32,
+        "DISTRIBUTION" => JenisWyckoff::Distribution as i32,
+        _ => JenisWyckoff::Unspecified as i32,
     }
 }
 
 pub fn phase_from_proto(phase: i32) -> String {
-    match PhaseWyckoff::try_from(phase).unwrap_or(PhaseWyckoff::Unspecified) {
-        PhaseWyckoff::Accumulation => "ACCUMULATION".to_string(),
-        PhaseWyckoff::Distribution => "DISTRIBUTION".to_string(),
-        PhaseWyckoff::Unspecified => String::new(),
+    match JenisWyckoff::try_from(phase).unwrap_or(JenisWyckoff::Unspecified) {
+        JenisWyckoff::Accumulation => "ACCUMULATION".to_string(),
+        JenisWyckoff::Distribution => "DISTRIBUTION".to_string(),
+        JenisWyckoff::Unspecified => String::new(),
     }
 }
 

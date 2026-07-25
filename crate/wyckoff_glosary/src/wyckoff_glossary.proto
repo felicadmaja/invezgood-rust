@@ -20,25 +20,36 @@ service WyckoffGlossary {
   rpc DeleteWyckoffGlossary(DeleteWyckoffGlossaryRequest) returns (DeleteWyckoffGlossaryResponse);
 }
 
-// Fase Wyckoff; disimpan di Scylla `wyckoff_glossary.phase` sebagai text (nama enum).
-enum PhaseWyckoff {
-  PHASE_WYCKOFF_UNSPECIFIED = 0;
+// Jenis Wyckoff; disimpan di Scylla `wyckoff_glossary.phase` sebagai text (nama enum)
+// — field proto tetap `phase` sampai dipetakan ke kolom `jenis`.
+enum JenisWyckoff {
+  JENIS_WYCKOFF_UNSPECIFIED = 0;
   ACCUMULATION = 1;
   DISTRIBUTION = 2;
+}
+
+// Fase Wyckoff (fase A–D); disimpan di Scylla sebagai text (nama enum) bila di-wire.
+enum PhaseWyckoff {
+  PHASE_WYCKOFF_UNSPECIFIED = 0;
+  A = 1;
+  B = 2;
+  C = 3;
+  D = 4;
 }
 
 message WyckoffGlossaryRow {
   string name = 1;
   string description = 2;
-  PhaseWyckoff phase = 3;
+  JenisWyckoff phase = 3;
   int32 urutan_tampil = 4;
   string long_name = 5;
+  // tambahkan kolom jenis text
 }
 
 message InsertWyckoffGlossaryRequest {
   string name = 1;
   string description = 2;
-  PhaseWyckoff phase = 3;
+  JenisWyckoff phase = 3;
   int32 urutan_tampil = 4;
   string long_name = 5;
 }
@@ -57,7 +68,7 @@ message GetAllWyckoffGlossaryResponse {
 message UpdateWyckoffGlossaryRequest {
   string name = 1;
   string description = 2;
-  PhaseWyckoff phase = 3;
+  JenisWyckoff phase = 3;
   int32 urutan_tampil = 4;
   string long_name = 5;
 }
