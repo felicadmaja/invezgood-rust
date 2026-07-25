@@ -2,10 +2,14 @@
 //! Bearer dari sesi browser setelah login.
 //!
 //! Per emiten:
-//! - Bulan berjalan: `from` = awal bulan, `to` = hari ini → upsert `broker_summary`
+//! - Bulan berjalan: `from` = awal bulan, `to` = kemarin (`today - 1`) → upsert `broker_summary`
 //!   **hanya bila `updated_at` kosong / bukan hari ini**; jika masih hari ini → skip fetch summary.
-//!   Minggu (`broker_summary_current_w1`…`w4`): per invoke, isi minggu aktif (slot tanggal)
-//!   **dan** backfill w1..wN bila kolom di Scylla masih kosong; w4 bulan berjalan: API 22–kemarin.
+//!   Minggu (`broker_summary_current_w1`…`w4`):
+//!   - **Worker** (`stockbit_scrapper_worker` / `force_overwrite_active_week`): minggu
+//!     aktif selalu ditimpa (tgl 2–8→w1, 9–15→w2, 16–22→w3, 23–akhir→w4, tgl 1→w4 bulan lalu);
+//!     minggu sebelumnya (w1..wN−1) tetap di-backfill hanya bila masih kosong.
+//!   - **RPC / on-demand**: isi minggu aktif + backfill w1..wN hanya bila kolom masih kosong.
+//!   w4 bulan berjalan: API 22–kemarin.
 //! - Bulan sebelumnya (max 36 / 3 tahun): skip **seluruh** backfill historis bila baris **bulan lalu**
 //!   sudah ada di Scylla; bila tidak, skip per bulan bila sudah ada, henti bila
 //!   1 bulan sudah ada atau **1** bulan kosong/gagal dari API.
@@ -195,10 +199,13 @@ fn last_day_of_month(year: i32, month: u32) -> NaiveDate {
         .unwrap_or_else(|| first_day_of_month(year, month))
 }
 
+/// Rentang API `broker_summary` bulan berjalan: awal bulan → kemarin (`today - 1`).
+/// Pada tanggal 1, `from > to` (belum ada hari selesai di bulan ini) — pemanggil wajib skip fetch.
 fn current_month_range(today: NaiveDate) -> (NaiveDate, NaiveDate, String) {
     let from = first_day_of_month(today.year(), today.month());
+    let to = today - Duration::days(1);
     let tb = tahun_bulan_str(today.year(), today.month());
-    (from, today, tb)
+    (from, to, tb)
 }
 
 /// Slot scrape minggu tunggal menurut tanggal invoke (zona lokal `today`).
@@ -1119,8 +1126,12 @@ fn is_background_timeout_err(err: &str) -> bool {
     err.contains("retry di background worker")
 }
 
-/// Scrape kolom minggu `w1`–`w4` untuk slot invoke: isi minggu aktif + backfill minggu
-/// sebelumnya (w1..wN) bila masih kosong di Scylla.
+/// Scrape kolom minggu `w1`–`w4` untuk slot invoke.
+///
+/// - `force_overwrite_active_week = false` (RPC): isi minggu aktif + backfill w1..wN
+///   hanya bila kolom di Scylla masih kosong.
+/// - `force_overwrite_active_week = true` (worker): minggu aktif **selalu** ditimpa;
+///   minggu sebelumnya tetap di-backfill hanya bila kosong.
 async fn scrape_invoke_week_column(
     client: &reqwest::Client,
     bearer: &str,
@@ -1130,6 +1141,7 @@ async fn scrape_invoke_week_column(
     code: &str,
     cur_tb: &str,
     month_day: Option<&BandarmologyDay>,
+    force_overwrite_active_week: bool,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     let Some((active_week, _, _, week_tb)) = invoke_week_scrape_slot(today) else {
         return Ok(false);
@@ -1139,9 +1151,10 @@ async fn scrape_invoke_week_column(
         return Ok(false);
     };
 
-    if crate::redis_bandarmology_skip::get_skip_weeks(&week_agg)
-        .await
-        .unwrap_or(false)
+    if !force_overwrite_active_week
+        && crate::redis_bandarmology_skip::get_skip_weeks(&week_agg)
+            .await
+            .unwrap_or(false)
     {
         println!(
             "  [{code}] skip kolom minggu {week_tb} w1–w{active_week}: Redis cache s/d 23:59 (agg={week_agg})"
@@ -1165,9 +1178,11 @@ async fn scrape_invoke_week_column(
 
     let weeks_to_fetch: Vec<u8> = (1..=active_week)
         .filter(|w| {
-            week_column_missing(week_column_ref(
-                *w, &w1, &w2, &w3, &w4,
-            ))
+            if force_overwrite_active_week && *w == active_week {
+                true
+            } else {
+                week_column_missing(week_column_ref(*w, &w1, &w2, &w3, &w4))
+            }
         })
         .collect();
 
@@ -1187,8 +1202,13 @@ async fn scrape_invoke_week_column(
             continue;
         };
         sleep(StdDuration::from_millis(MONTH_INTER_DELAY_MS)).await;
+        let mode = if force_overwrite_active_week && week == active_week {
+            "force overwrite minggu aktif"
+        } else {
+            "backfill/kosong"
+        };
         println!(
-            "  [{code}] kolom minggu {week_tb} w{week}: API {from}..{to} → broker_summary_current_w{week} (backfill/kosong)"
+            "  [{code}] kolom minggu {week_tb} w{week}: API {from}..{to} → broker_summary_current_w{week} ({mode})"
         );
         match fetch_marketdetector_day(client, bearer, code, from, to, None).await {
             Ok((day, rate)) => {
@@ -1397,6 +1417,7 @@ async fn scrape_emiten_bandarmology(
     keyspace: &str,
     today: NaiveDate,
     emiten: &str,
+    force_overwrite_active_week: bool,
 ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
     let code = emiten.trim().to_ascii_uppercase();
     let mut inserted = 0usize;
@@ -1414,11 +1435,16 @@ async fn scrape_emiten_bandarmology(
     let redis_current = crate::redis_bandarmology_skip::get_skip_current(&cur_agg)
         .await
         .unwrap_or(false);
-    let redis_weeks = match week_agg_opt.as_deref() {
-        Some(agg) => crate::redis_bandarmology_skip::get_skip_weeks(agg)
-            .await
-            .unwrap_or(false),
-        None => true,
+    let redis_weeks = if force_overwrite_active_week {
+        // Worker: minggu aktif selalu di-fetch ulang — Redis skip weeks tidak memblokir.
+        false
+    } else {
+        match week_agg_opt.as_deref() {
+            Some(agg) => crate::redis_bandarmology_skip::get_skip_weeks(agg)
+                .await
+                .unwrap_or(false),
+            None => true,
+        }
     };
     let redis_hist = match prev_opt.as_ref() {
         Some((_, agg)) => crate::redis_bandarmology_skip::get_skip_exists(agg)
@@ -1445,6 +1471,10 @@ async fn scrape_emiten_bandarmology(
     if skip_current {
         println!(
             "  [{code}] skip broker_summary bulan berjalan {cur_tb}: updated_at masih hari ini (agg={cur_agg})"
+        );
+    } else if cur_from > cur_to {
+        println!(
+            "  [{code}] skip broker_summary bulan berjalan {cur_tb}: rentang belum valid ({cur_from}..{cur_to}; biasanya tgl 1)"
         );
     } else {
         println!(
@@ -1496,6 +1526,7 @@ async fn scrape_emiten_bandarmology(
         &code,
         &cur_tb,
         month_day.as_ref(),
+        force_overwrite_active_week,
     )
     .await?
     {
@@ -1660,6 +1691,7 @@ pub async fn scrape_bandarmology_for_code_if_missing(
         keyspace,
         today,
         &code,
+        false, // RPC: jangan force-timpa minggu aktif
     )
     .await
     .map_err(|e| e.to_string())?;
@@ -1669,12 +1701,17 @@ pub async fn scrape_bandarmology_for_code_if_missing(
 
 /// Marketdetectors API per emiten → upsert Scylla per bulan (`broker_summary`).
 /// Satu emiten per satu (sequential); timeout API di-retry di background task.
+///
+/// `force_overwrite_active_week`:
+/// - `true` — worker (`stockbit_scrapper_worker`): minggu aktif selalu ditimpa
+/// - `false` — RPC / fill-if-missing: minggu hanya diisi bila kolom masih kosong
 pub async fn scrape_and_insert_bandarmology(
     page: &Page,
     session: &Arc<Session>,
     keyspace: &str,
     today: NaiveDate,
     emitens: &[String],
+    force_overwrite_active_week: bool,
 ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
     if emitens.is_empty() {
         println!("Tidak ada emiten untuk bandarmology.");
@@ -1685,7 +1722,7 @@ pub async fn scrape_and_insert_bandarmology(
         .await
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
     println!(
-        "Bandarmology API: Bearer OK (len={}), today={today}, emiten={} (sequential)",
+        "Bandarmology API: Bearer OK (len={}), today={today}, emiten={} (sequential, force_active_week={force_overwrite_active_week})",
         bearer.len(),
         emitens.len(),
     );
@@ -1715,6 +1752,7 @@ pub async fn scrape_and_insert_bandarmology(
             &keyspace,
             today,
             emiten,
+            force_overwrite_active_week,
         )
         .await
         {
@@ -1743,15 +1781,25 @@ mod tests {
 
     #[test]
     fn current_month_range_example() {
-        let today = NaiveDate::from_ymd_opt(2026, 7, 19).unwrap();
+        let today = NaiveDate::from_ymd_opt(2026, 7, 25).unwrap();
         let (from, to, tb) = current_month_range(today);
         assert_eq!(from, NaiveDate::from_ymd_opt(2026, 7, 1).unwrap());
-        assert_eq!(to, today);
+        assert_eq!(to, NaiveDate::from_ymd_opt(2026, 7, 24).unwrap());
         assert_eq!(tb, "2026-07");
         assert_eq!(
             agg_tahun_bulan_emiten_name(&tb, "BBCA"),
             "2026-07_BBCA"
         );
+    }
+
+    #[test]
+    fn current_month_range_day_1_invalid_until_yesterday() {
+        let today = NaiveDate::from_ymd_opt(2026, 8, 1).unwrap();
+        let (from, to, tb) = current_month_range(today);
+        assert_eq!(from, NaiveDate::from_ymd_opt(2026, 8, 1).unwrap());
+        assert_eq!(to, NaiveDate::from_ymd_opt(2026, 7, 31).unwrap());
+        assert!(from > to);
+        assert_eq!(tb, "2026-08");
     }
 
     #[test]

@@ -828,7 +828,12 @@ pub async fn scrape_and_insert_portofolio(
             codes.len()
         );
         let bandar_ok = bandarmology_worker::scrape_and_insert_bandarmology(
-            page, session, keyspace, today, &codes,
+            page,
+            session,
+            keyspace,
+            today,
+            &codes,
+            false, // pastikan data ada; jangan force-timpa minggu aktif
         )
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;

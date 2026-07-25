@@ -283,7 +283,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "(log detail per emiten / bulan / rate-limit dari bandarmology_worker — tampil di layar + {LOG_FILE})"
     );
     let ok =
-        bandarmology_worker::scrape_and_insert_bandarmology(&page, &session, &ks, today, &emitens)
+        bandarmology_worker::scrape_and_insert_bandarmology(
+            &page,
+            &session,
+            &ks,
+            today,
+            &emitens,
+            true, // worker full-refill: selalu timpa minggu aktif
+        )
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 

@@ -28,7 +28,7 @@ service Bandarmology {
 
   // Scrape bandarmology 3 tahun kebelakang (max 36 bulan) untuk satu emiten via API Stockbit.
   // Aturan sama `bandarmology_worker`:
-  // - bulan berjalan overwrite `broker_summary` (awal bulan → hari ini) hanya bila
+  // - bulan berjalan overwrite `broker_summary` (awal bulan → kemarin / today-1) hanya bila
   //   `updated_at` kosong / bukan hari ini; jika `updated_at` masih hari ini → skip fetch summary;
   // - kolom minggu: scrape minggu aktif (slot tanggal) + backfill w1..wN bila kolom masih kosong;
   //   tgl 2–8 → w1; tgl 9–15 → w2; tgl 16–22 → w3; tgl 23–akhir & tgl 1 → w4;

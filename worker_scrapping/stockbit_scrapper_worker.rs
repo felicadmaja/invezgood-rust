@@ -48,6 +48,8 @@
 //! Terakhir: Bandar Detector via API `exodus.stockbit.com/marketdetectors/{CODE}`
 //! (Bearer dari sesi login; `broker_summary` + minggu w1–w4) → upsert `bandarmology`
 //! untuk semua emiten dari `emiten_list` (movers dulu, lalu scan).
+//! Minggu aktif selalu ditimpa (tgl 2–8→w1 … 23–akhir→w4; tgl 1→w4 bulan lalu);
+//! minggu sebelumnya hanya di-backfill bila masih kosong.
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 //! Setiap run: clear lalu tulis ulang log ke `worker_scrapping/stockbit_scrapper_worker.log`
@@ -385,7 +387,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Terakhir: Bandarmology via marketdetectors API (Bearer dari sesi browser)...");
     let bandar_ok =
-        bandarmology_worker::scrape_and_insert_bandarmology(&page, &session, &ks, today, &emitens)
+        bandarmology_worker::scrape_and_insert_bandarmology(
+            &page,
+            &session,
+            &ks,
+            today,
+            &emitens,
+            true, // worker: selalu timpa minggu aktif
+        )
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");

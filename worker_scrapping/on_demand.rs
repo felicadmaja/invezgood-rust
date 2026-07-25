@@ -385,6 +385,7 @@ pub async fn scrape_emiten_trending_movers(
             &ks,
             today,
             &mover_codes,
+            false, // on-demand RPC: jangan force-timpa minggu aktif
         )
         .await
         .map_err(|e| e.to_string())?;
