@@ -86,9 +86,10 @@ SHELL=/bin/bash
 PATH=/home/baki1/.cargo/bin:/usr/local/bin:/usr/bin:/bin
 CRON_TZ=Asia/Jakarta
 
-# Stockbit scrapper — jam 04:00 dan 21:00
+# Stockbit scrapper — jam 04:00, 13:00, 18:00
 0 4 * * * cd /home/baki1/stockbit_ws && ./target/release/worker_scrapping >> /home/baki1/stockbit_ws/logs/scrapper_$(date +\%Y\%m\%d_\%H\%M\%S).log 2>&1
-0 21 * * * cd /home/baki1/stockbit_ws && ./target/release/worker_scrapping >> /home/baki1/stockbit_ws/logs/scrapper_$(date +\%Y\%m\%d_\%H\%M\%S).log 2>&1
+0 13 * * * cd /home/baki1/stockbit_ws && ./target/release/worker_scrapping >> /home/baki1/stockbit_ws/logs/scrapper_$(date +\%Y\%m\%d_\%H\%M\%S).log 2>&1
+0 18 * * * cd /home/baki1/stockbit_ws && ./target/release/worker_scrapping >> /home/baki1/stockbit_ws/logs/scrapper_$(date +\%Y\%m\%d_\%H\%M\%S).log 2>&1
 ```
 
 Jika `CRON_TZ` tidak didukung di sistem Anda, set timezone OS ke `Asia/Jakarta`, atau hitung offset manual.
