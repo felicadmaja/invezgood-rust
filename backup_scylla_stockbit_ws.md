@@ -29,6 +29,8 @@ Output default (hanya arsip; folder sementara dihapus setelah `.tar.gz` dibuat):
 |------|--------|
 | Arsip | `/home/baki1/stockbit_ws/backup_scylla_stockbit_ws/stockbit_YYYYMMDD_HHMMSS.tar.gz` |
 
+Permission: folder backup `700` (hanya owner), file `.tar.gz` `600`. Script menerapkan ini otomatis tiap run.
+
 Isi di dalam `.tar.gz`: `backup_meta.txt`, `schema/stockbit_schema.cql`, `snapshots/<table-uuid>/`.
 
 
@@ -42,3 +44,46 @@ Restore **bukan** sekadar extract tar ke sembarang folder. Alur tipikal:
 
 Untuk production, ikuti dokumentasi resmi Scylla: [Backup and restore](https://docs.scylladb.com/manual/stable/operating-scylla/procedures/backup-restore/).
 
+
+
+## Jadwal otomatis (crontab)
+
+Jalankan sebagai user **`baki1`** (bukan root), agar arsip tetap milik Anda dan folder backup tetap `700`.
+
+### 1. Pastikan script executable
+
+```bash
+chmod +x /home/baki1/stockbit_ws/backup_scylla_stockbit_ws.sh
+```
+
+### 2. Uji sekali secara manual
+
+```bash
+/home/baki1/stockbit_ws/backup_scylla_stockbit_ws.sh
+```
+
+Pastikan muncul arsip baru di `backup_scylla_stockbit_ws/` dan exit code `0`.
+
+### 3. Buka crontab user
+
+```bash
+crontab -e
+```
+
+### 4. Tambahkan baris jadwal
+
+Contoh: **setiap hari jam 04:15** (waktu lokal server), log ke file:
+
+```cron
+15 4 * * * /home/baki1/stockbit_ws/backup_scylla_stockbit_ws.sh >> /home/baki1/stockbit_ws/backup_scylla_stockbit_ws.log 2>&1
+```
+
+
+`PATH` cron sering sempit; bila `nodetool`/`cqlsh` tidak ketemu, pakai bentuk ini:
+
+```cron
+15 4 * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /home/baki1/stockbit_ws/backup_scylla_stockbit_ws.sh >> /home/baki1/stockbit_ws/backup_scylla_stockbit_ws/backup.log 2>&1
+```
+
+
+**Catatan:** pastikan user cron bisa membaca `/var/lib/scylla/data/stockbit` (sama seperti saat menjalankan manual). Script membaca `.env` dari root repo — jangan pindahkan `.env` tanpa update `DOTENV_FILE`.

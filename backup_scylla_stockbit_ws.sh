@@ -22,6 +22,10 @@ TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 TAG="stockbit_ws_${TIMESTAMP}"
 OUT_DIR="${BACKUP_ROOT}/${KEYSPACE}_${TIMESTAMP}"
 ARCHIVE="${BACKUP_ROOT}/${KEYSPACE}_${TIMESTAMP}.tar.gz"
+TIME_LOG="${TIME_LOG:-$SCRIPT_DIR/backup_scylla_stockbit_ws_time.log}"
+
+# Catat timing setiap kali script dijalankan (hanya tanggal jam:menit:detik).
+date '+%Y-%m-%d %H:%M:%S' >>"$TIME_LOG"
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 die() { log "ERROR: $*"; exit 1; }
@@ -76,7 +80,12 @@ parse_cqlsh_host_port
 
 [[ -d "$SCYLLA_DATA_DIR/$KEYSPACE" ]] || die "data keyspace tidak ada: $SCYLLA_DATA_DIR/$KEYSPACE"
 
+# Folder backup: hanya owner (mode 700); arsip .tar.gz mode 600.
+mkdir -p "$BACKUP_ROOT"
+chmod 700 "$BACKUP_ROOT" || die "gagal chmod 700 $BACKUP_ROOT"
+
 mkdir -p "$OUT_DIR"/{snapshots,schema}
+chmod -R u=rwX,go= "$OUT_DIR" || true
 log "Keyspace : $KEYSPACE"
 log "Tag      : $TAG"
 log "Output   : $OUT_DIR"
@@ -134,9 +143,9 @@ tables_snapshotted=$COPIED
 EOF
 
 # 4) Arsip tar.gz
-mkdir -p "$BACKUP_ROOT"
 log "Membuat arsip $ARCHIVE ..."
 tar -C "$BACKUP_ROOT" -czf "$ARCHIVE" "$(basename "$OUT_DIR")"
+chmod 600 "$ARCHIVE" || die "gagal chmod 600 $ARCHIVE"
 log "Arsip siap: $ARCHIVE ($(du -h "$ARCHIVE" | awk '{print $1}'))"
 
 # Hapus folder unpacked — semua isi sudah di dalam .tar.gz
