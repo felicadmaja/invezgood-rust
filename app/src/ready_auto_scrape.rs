@@ -14,7 +14,8 @@
 //! 4. GetAllPendingOrderFromStockbit
 //! 5. GetLatestEmitenTrendingFromStockbit
 //!
-//! Jam 09:00–12:00 dan 13:30–16:00. Tiap alur memakai **rate limit RPC yang sama** (`acquire_*`):
+//! Jam operasional Senin–Jumat, 09:00–12:00 dan 13:30–16:00 (Sabtu/Minggu tidak scrape).
+//! Tiap alur memakai **rate limit RPC yang sama** (`acquire_*`):
 //! - auto pakai jatah → user RPC bisa kena limit
 //! - user RPC pakai jatah → auto skip alur itu (lanjut ke berikutnya)
 

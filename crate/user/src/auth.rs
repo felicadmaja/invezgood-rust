@@ -1,6 +1,6 @@
 //! Helpers JWT untuk crate lain (portofolio, dll).
 
-use chrono::{Local, Timelike};
+use chrono::{Datelike, Local, Timelike, Weekday};
 use tonic::{Request, Status};
 
 use crate::jwt::{decode_token, Claims};
@@ -70,13 +70,23 @@ pub fn require_auth<T>(request: &Request<T>) -> Result<Claims, Status> {
     decode_token(token).map_err(|e| Status::unauthenticated(format!("JWT tidak valid: {e}")))
 }
 
-/// Batasi RPC scrape Stockbit on-demand ke jam server lokal:
-/// **09:00–12:00** dan **13:30–16:00** (inklusif awal, eksklusif akhir tiap jendela).
-/// Di luar itu → `FAILED_PRECONDITION`.
+/// Batasi RPC scrape Stockbit on-demand ke **hari operasional Senin–Jumat**
+/// dan jam server lokal **09:00–12:00** serta **13:30–16:00**
+/// (inklusif awal, eksklusif akhir tiap jendela).
+/// Sabtu/Minggu atau di luar jam → `FAILED_PRECONDITION`.
 /// Tidak dipakai oleh bin `worker_scrapping` (cron/manual).
 /// Dipakai juga auto-scrape dari `IsStockbitReady`.
 pub fn require_stockbit_scrape_hours() -> Result<(), Status> {
     let now = Local::now();
+    match now.weekday() {
+        Weekday::Sat | Weekday::Sun => {
+            return Err(Status::failed_precondition(
+                "Diluar hari operasional Senin-Jumat (Sabtu/Minggu tidak scrape)",
+            ));
+        }
+        Weekday::Mon | Weekday::Tue | Weekday::Wed | Weekday::Thu | Weekday::Fri => {}
+    }
+
     let mins = now.hour() * 60 + now.minute();
     const MORNING_START: u32 = 9 * 60; // 09:00
     const MORNING_END: u32 = 12 * 60; // 12:00

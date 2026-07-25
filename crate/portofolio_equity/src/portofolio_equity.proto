@@ -14,8 +14,9 @@ service PortofolioEquity {
   // (login → START TRADING/PIN bila perlu → buka portfolio → tunggu header → insert).
   // Rate limit: maksimal 1× per 5 menit untuk semua user
   // (failed precondition jika terlalu cepat). Juga terpakai oleh auto IsStockbitReady.
-  // Hanya jam server 09:00–12:00 dan 13:30–16:00
-  // (failed precondition: "Diluar jam 09:00-12:00 dan 13:30-16:00").
+  // Hanya hari operasional Senin–Jumat dan jam server 09:00–12:00 serta 13:30–16:00
+  // (failed precondition: "Diluar hari operasional Senin-Jumat..." atau
+  // "Diluar jam 09:00-12:00 dan 13:30-16:00").
   // Request kosong. Response: repeated PortofolioEquityRow (isi setelah scrape).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPortofolioEquityFromStockbit(GetAllPortofolioEquityFromStockbitRequest)
