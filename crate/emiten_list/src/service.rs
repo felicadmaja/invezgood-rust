@@ -30,7 +30,7 @@ use crate::{
     UpdateWyckoffTradingRangeRequest, UpdateWyckoffTradingRangeResponse,
 };
 
-const MAX_EMITEN_SECTOR: i32 = 46;
+const MAX_EMITEN_SECTOR: i32 = 47;
 
 /// Trim + UPPERCASE; wajib tepat 4 huruf ASCII alphabet (A–Z).
 fn parse_emiten_name(raw: &str) -> Result<String, String> {

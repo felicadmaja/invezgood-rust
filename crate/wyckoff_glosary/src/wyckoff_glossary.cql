@@ -9,11 +9,13 @@ Primary key: (("name")) — "name" text.
 Tidak ada clustering key.
 Kolom dan tipe CQL, kata demi kata:
   "name" text — partition key
+  "long_name" text
   "description" text
   "urutan_tampil" int
   "phase" text
-Sumber: CREATE TABLE stockbit.wyckoff_glossary (name text PRIMARY KEY, description text); ALTER TABLE ADD urutan_tampil int, phase text; diisi aplikasi pada INSERT/UPDATE.
+Sumber: CREATE TABLE stockbit.wyckoff_glossary (name text PRIMARY KEY, description text); ALTER TABLE ADD urutan_tampil int, phase text, long_name text; diisi aplikasi pada INSERT/UPDATE.
 Kolom "name": text — istilah / nama entri glosarium Wyckoff (PK).
+Kolom "long_name": text — nama panjang / label tampilan; kosong/null bila belum di-set.
 Kolom "description": text — penjelasan istilah; kosong/null bila belum di-set.
 Kolom "urutan_tampil": int — urutan tampilan di UI; null bila belum di-set.
 Kolom "phase": text — fase Wyckoff terkait entri; kosong/null bila belum di-set.

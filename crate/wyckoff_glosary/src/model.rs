@@ -4,6 +4,7 @@
 //! | Kolom CQL       | Tipe CQL | Rust            |
 //! |-----------------|----------|-----------------|
 //! | name (PK)       | text     | String          |
+//! | long_name       | text     | String          |
 //! | description     | text     | String          |
 //! | urutan_tampil   | int      | Option\<i32\>   |
 //! | phase           | text     | String (nama enum PhaseWyckoff) |
@@ -19,6 +20,9 @@ pub struct WyckoffGlossary {
     /// Partition key — istilah / nama entri glosarium.
     #[scylla(default_when_null)]
     pub name: String,
+    /// Nama panjang / label tampilan; kosong bila belum di-set.
+    #[scylla(default_when_null)]
+    pub long_name: String,
     /// Penjelasan istilah; kosong bila belum di-set.
     #[scylla(default_when_null)]
     pub description: String,
@@ -51,6 +55,7 @@ impl WyckoffGlossary {
             description: self.description,
             phase: phase_to_proto(&self.phase),
             urutan_tampil: self.urutan_tampil.unwrap_or(0),
+            long_name: self.long_name,
         }
     }
 }

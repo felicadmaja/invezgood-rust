@@ -141,6 +141,7 @@ enum EmitenSector {
   LOGISTIK_PENGANTARAN = 44;
   HOLDING_COMPANY = 45;
   JASA_PERINDUSTRIAN = 46;
+  ENTERTAINMENT = 47;
 }
 
 message GetAllEmitenListFromScyllaRequest {}

@@ -78,6 +78,7 @@ impl WyckoffGlossaryRpc for WyckoffGlossaryService {
             }));
         }
 
+        let long_name = req.long_name.trim().to_string();
         let description = req.description.trim().to_string();
         let phase = phase_from_proto(req.phase);
         let urutan_tampil = if req.urutan_tampil == 0 {
@@ -88,7 +89,7 @@ impl WyckoffGlossaryRpc for WyckoffGlossaryService {
 
         let inserted = self
             .repo
-            .insert(&name, &description, urutan_tampil, &phase)
+            .insert(&name, &long_name, &description, urutan_tampil, &phase)
             .await
             .map_err(|e| Status::internal(format!("Scylla insert failed: {e}")))?;
 
@@ -127,6 +128,7 @@ impl WyckoffGlossaryRpc for WyckoffGlossaryService {
             }));
         }
 
+        let long_name = req.long_name.trim().to_string();
         let description = req.description.trim().to_string();
         let phase = phase_from_proto(req.phase);
         let urutan_tampil = if req.urutan_tampil == 0 {
@@ -137,7 +139,7 @@ impl WyckoffGlossaryRpc for WyckoffGlossaryService {
 
         let updated = self
             .repo
-            .update(&name, &description, urutan_tampil, &phase)
+            .update(&name, &long_name, &description, urutan_tampil, &phase)
             .await
             .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
 

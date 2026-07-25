@@ -11,7 +11,7 @@ service WyckoffGlossary {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllWyckoffGlossary(GetAllWyckoffGlossaryRequest) returns (GetAllWyckoffGlossaryResponse);
 
-  // Update satu entri `wyckoff_glossary` (PK name); description, phase, urutan_tampil.
+  // Update satu entri `wyckoff_glossary` (PK name); long_name, description, phase, urutan_tampil.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateWyckoffGlossary(UpdateWyckoffGlossaryRequest) returns (UpdateWyckoffGlossaryResponse);
 
@@ -32,6 +32,7 @@ message WyckoffGlossaryRow {
   string description = 2;
   PhaseWyckoff phase = 3;
   int32 urutan_tampil = 4;
+  string long_name = 5;
 }
 
 message InsertWyckoffGlossaryRequest {
@@ -39,6 +40,7 @@ message InsertWyckoffGlossaryRequest {
   string description = 2;
   PhaseWyckoff phase = 3;
   int32 urutan_tampil = 4;
+  string long_name = 5;
 }
 
 message InsertWyckoffGlossaryResponse {
@@ -57,6 +59,7 @@ message UpdateWyckoffGlossaryRequest {
   string description = 2;
   PhaseWyckoff phase = 3;
   int32 urutan_tampil = 4;
+  string long_name = 5;
 }
 
 message UpdateWyckoffGlossaryResponse {

@@ -39,7 +39,7 @@ impl WyckoffGlossaryRepository {
     async fn prepared(&self) -> Result<&Prepared, Box<dyn std::error::Error + Send + Sync>> {
         self.prepared
             .get_or_try_init(|| async {
-                const COLUMNS: &str = "name, description, urutan_tampil, phase";
+                const COLUMNS: &str = "name, long_name, description, urutan_tampil, phase";
                 let q = format!(
                     "SELECT {COLUMNS} FROM {} \
                      WHERE token(name) >= ? AND token(name) <= ?",
@@ -52,13 +52,13 @@ impl WyckoffGlossaryRepository {
                 let by_name = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "INSERT INTO {} (name, description, urutan_tampil, phase) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO {} (name, long_name, description, urutan_tampil, phase) VALUES (?, ?, ?, ?, ?)",
                     self.table
                 );
                 let insert = self.session.prepare(q).await?;
 
                 let q = format!(
-                    "UPDATE {} SET description = ?, urutan_tampil = ?, phase = ? WHERE name = ?",
+                    "UPDATE {} SET long_name = ?, description = ?, urutan_tampil = ?, phase = ? WHERE name = ?",
                     self.table
                 );
                 let update = self.session.prepare(q).await?;
@@ -129,6 +129,7 @@ impl WyckoffGlossaryRepository {
     pub async fn insert(
         &self,
         name: &str,
+        long_name: &str,
         description: &str,
         urutan_tampil: Option<i32>,
         phase: &str,
@@ -141,16 +142,17 @@ impl WyckoffGlossaryRepository {
         self.session
             .execute_unpaged(
                 &prepared.insert,
-                (name, description, urutan_tampil, phase),
+                (name, long_name, description, urutan_tampil, phase),
             )
             .await?;
         Ok(true)
     }
 
-    /// Update description/phase/urutan_tampil. Mengembalikan `Ok(false)` bila `name` tidak ada.
+    /// Update long_name/description/phase/urutan_tampil. Mengembalikan `Ok(false)` bila `name` tidak ada.
     pub async fn update(
         &self,
         name: &str,
+        long_name: &str,
         description: &str,
         urutan_tampil: Option<i32>,
         phase: &str,
@@ -163,7 +165,7 @@ impl WyckoffGlossaryRepository {
         self.session
             .execute_unpaged(
                 &prepared.update,
-                (description, urutan_tampil, phase, name),
+                (long_name, description, urutan_tampil, phase, name),
             )
             .await?;
         Ok(true)
