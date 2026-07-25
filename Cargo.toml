@@ -10,6 +10,7 @@ members = [
     "crate/pending_order",
     "crate/portofolio",
     "crate/portofolio_bandarmology",
+    "crate/portofolio_catatan",
     "crate/portofolio_equity",
     "crate/portofolio_history",
     "crate/stockbit_browser",

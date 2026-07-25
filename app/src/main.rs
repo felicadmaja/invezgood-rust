@@ -30,6 +30,8 @@ use portofolio::portofolio_server::PortofolioServer;
 use portofolio::PortofolioService;
 use portofolio_bandarmology::portofolio_bandarmology_server::PortofolioBandarmologyServer;
 use portofolio_bandarmology::PortofolioBandarmologyService;
+use portofolio_catatan::portofolio_catatan_server::PortofolioCatatanServer;
+use portofolio_catatan::PortofolioCatatanService;
 use portofolio_equity::portofolio_equity_server::PortofolioEquityServer;
 use portofolio_equity::PortofolioEquityService;
 use portofolio_history::portofolio_history_server::PortofolioHistoryServer;
@@ -60,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let user_svc = UserService::new(session.clone());
     let portofolio_svc = PortofolioService::new(session.clone());
     let portofolio_bandarmology_svc = PortofolioBandarmologyService::new(session.clone());
+    let portofolio_catatan_svc = PortofolioCatatanService::new(session.clone());
     let portofolio_equity_svc = PortofolioEquityService::new(session.clone());
     let portofolio_history_svc = PortofolioHistoryService::new(session.clone());
     let emiten_trending_svc = EmitenTrendingService::new(session.clone());
@@ -87,6 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         user_svc.warm_prepared(),
         portofolio_svc.warm_prepared(),
         portofolio_bandarmology_svc.warm_prepared(),
+        portofolio_catatan_svc.warm_prepared(),
         portofolio_equity_svc.warm_prepared(),
         portofolio_history_svc.warm_prepared(),
         emiten_trending_svc.warm_prepared(),
@@ -99,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     )
     .map_err(|e| format!("Gagal memanaskan statement database: {e}"))?;
     println!(
-        "OK: prepared statements siap (user, portofolio, portofolio_bandarmology, portofolio_equity, portofolio_history, emiten_trending, emiten_trending_count, bandarmology, emiten_list, broker, pending_order, wyckoff_glossary)"
+        "OK: prepared statements siap (user, portofolio, portofolio_bandarmology, portofolio_catatan, portofolio_equity, portofolio_history, emiten_trending, emiten_trending_count, bandarmology, emiten_list, broker, pending_order, wyckoff_glossary)"
     );
 
     let user_svc = UserServer::new(user_svc);
@@ -107,6 +111,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         PortofolioServer::with_interceptor(portofolio_svc, AuthInterceptor);
     let portofolio_bandarmology_svc =
         PortofolioBandarmologyServer::with_interceptor(portofolio_bandarmology_svc, AuthInterceptor);
+    let portofolio_catatan_svc =
+        PortofolioCatatanServer::with_interceptor(portofolio_catatan_svc, AuthInterceptor);
     let portofolio_equity_svc =
         PortofolioEquityServer::with_interceptor(portofolio_equity_svc, AuthInterceptor);
     let portofolio_history_svc =
@@ -130,6 +136,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(portofolio::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(portofolio_bandarmology::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(portofolio_catatan::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(portofolio_equity::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(portofolio_history::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(emiten_trending::FILE_DESCRIPTOR_SET)
@@ -160,6 +167,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(user_svc)
         .add_service(portofolio_svc)
         .add_service(portofolio_bandarmology_svc)
+        .add_service(portofolio_catatan_svc)
         .add_service(portofolio_equity_svc)
         .add_service(portofolio_history_svc)
         .add_service(emiten_trending_svc)

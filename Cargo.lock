@@ -1597,6 +1597,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "portofolio_catatan"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "scylla",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
+]
+
+[[package]]
 name = "portofolio_equity"
 version = "0.1.0"
 dependencies = [
@@ -2481,6 +2496,7 @@ dependencies = [
  "pending_order",
  "portofolio",
  "portofolio_bandarmology",
+ "portofolio_catatan",
  "portofolio_equity",
  "portofolio_history",
  "stockbit_browser",

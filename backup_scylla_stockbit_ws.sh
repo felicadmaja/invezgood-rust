@@ -59,7 +59,11 @@ parse_cqlsh_host_port() {
   local uri="${SCYLLA_URI:-127.0.0.1:9042}"
   CQLSH_HOST="${uri%%:*}"
   CQLSH_PORT="${uri##*:}"
-  [[ "$CQLSH_HOST" == "$uri" ]] && CQLSH_PORT="9042"
+  # Jangan pakai `[[ ... ]] &&` di bawah `set -e`: bila URI sudah
+  # punya port, perbandingan false dan bash langsung exit tanpa pesan.
+  if [[ "$CQLSH_HOST" == "$uri" ]]; then
+    CQLSH_PORT="9042"
+  fi
 }
 
 need_cmd nodetool

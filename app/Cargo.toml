@@ -18,6 +18,7 @@ gcs = { path = "../crate/gcs" }
 pending_order = { path = "../crate/pending_order" }
 portofolio = { path = "../crate/portofolio" }
 portofolio_bandarmology = { path = "../crate/portofolio_bandarmology" }
+portofolio_catatan = { path = "../crate/portofolio_catatan" }
 portofolio_equity = { path = "../crate/portofolio_equity" }
 portofolio_history = { path = "../crate/portofolio_history" }
 tls = { path = "../crate/tls" }

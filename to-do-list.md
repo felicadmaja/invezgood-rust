@@ -1,7 +1,6 @@
 scrap data running trade
 
-ganti icon aplikasi , ganti nama aplikasi
+halaman portofolio bandarmology history: - tampilkan chart per tanggal
 
 
-
-Data yahoo finance dimasukkan ke scylladb hanya download data terbaru harian
+tambahkan portofolio_catatan
