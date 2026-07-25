@@ -19,8 +19,8 @@ Kolom "name": text — istilah / nama entri glosarium Wyckoff (PK).
 Kolom "long_name": text — nama panjang / label tampilan; kosong/null bila belum di-set.
 Kolom "description": text — penjelasan istilah; kosong/null bila belum di-set.
 Kolom "urutan_tampil": int — urutan tampilan di UI; null bila belum di-set.
-Kolom "jenis": text — jenis / kategori entri glosarium; kosong/null bila belum di-set.
-Kolom "phase": text — fase Wyckoff terkait entri; kosong/null bila belum di-set.
+Kolom "jenis": text — jenis Wyckoff (`JenisWyckoff`: ACCUMULATION / DISTRIBUTION); kosong/null bila belum di-set.
+Kolom "phase": text — fase Wyckoff (`PhaseWyckoff`: A / B / C / D / E); kosong/null bila belum di-set.
 
 --- Materialized view (MV) ---
 Tidak ada.

@@ -11,7 +11,7 @@ service WyckoffGlossary {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllWyckoffGlossary(GetAllWyckoffGlossaryRequest) returns (GetAllWyckoffGlossaryResponse);
 
-  // Update satu entri `wyckoff_glossary` (PK name); long_name, description, phase, urutan_tampil.
+  // Update satu entri `wyckoff_glossary` (PK name); long_name, description, jenis, phase, urutan_tampil.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateWyckoffGlossary(UpdateWyckoffGlossaryRequest) returns (UpdateWyckoffGlossaryResponse);
 
@@ -20,38 +20,39 @@ service WyckoffGlossary {
   rpc DeleteWyckoffGlossary(DeleteWyckoffGlossaryRequest) returns (DeleteWyckoffGlossaryResponse);
 }
 
-// Jenis Wyckoff; disimpan di Scylla `wyckoff_glossary.phase` sebagai text (nama enum)
-// — field proto tetap `phase` sampai dipetakan ke kolom `jenis`.
+// Jenis Wyckoff; disimpan di Scylla `wyckoff_glossary.jenis` sebagai text (nama enum).
 enum JenisWyckoff {
   JENIS_WYCKOFF_UNSPECIFIED = 0;
   ACCUMULATION = 1;
   DISTRIBUTION = 2;
 }
 
-// Fase Wyckoff (fase A–D); disimpan di Scylla sebagai text (nama enum) bila di-wire.
+// Fase Wyckoff (fase A–E); disimpan di Scylla `wyckoff_glossary.phase` sebagai text (nama enum).
 enum PhaseWyckoff {
   PHASE_WYCKOFF_UNSPECIFIED = 0;
   A = 1;
   B = 2;
   C = 3;
   D = 4;
+  E = 5;
 }
 
 message WyckoffGlossaryRow {
   string name = 1;
   string description = 2;
-  JenisWyckoff phase = 3;
+  PhaseWyckoff phase = 3;
   int32 urutan_tampil = 4;
   string long_name = 5;
-  // tambahkan kolom jenis text
+  JenisWyckoff jenis = 6;
 }
 
 message InsertWyckoffGlossaryRequest {
   string name = 1;
   string description = 2;
-  JenisWyckoff phase = 3;
+  PhaseWyckoff phase = 3;
   int32 urutan_tampil = 4;
   string long_name = 5;
+  JenisWyckoff jenis = 6;
 }
 
 message InsertWyckoffGlossaryResponse {
@@ -68,9 +69,10 @@ message GetAllWyckoffGlossaryResponse {
 message UpdateWyckoffGlossaryRequest {
   string name = 1;
   string description = 2;
-  JenisWyckoff phase = 3;
+  PhaseWyckoff phase = 3;
   int32 urutan_tampil = 4;
   string long_name = 5;
+  JenisWyckoff jenis = 6;
 }
 
 message UpdateWyckoffGlossaryResponse {
