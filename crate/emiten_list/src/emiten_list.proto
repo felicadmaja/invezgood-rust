@@ -90,6 +90,15 @@ service EmitenList {
   // Update kolom `wyckoff_trading_range` untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateWyckoffTradingRange(UpdateWyckoffTradingRangeRequest) returns (UpdateWyckoffTradingRangeResponse);
+
+  // buatkan rpc UpdateEmitenListCatatan untuk satu emiten (PK emiten_name).
+  // requst:
+  // - emiten_name: string
+  // - catatan: string
+  // response:
+  // - success: bool
+  // - message: string
+  
 }
 
 // Kode sektor emiten; disimpan di Scylla `emiten_list.sector` sebagai tinyint.

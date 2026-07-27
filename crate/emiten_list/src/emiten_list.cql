@@ -28,6 +28,7 @@ Kolom dan tipe CQL, kata demi kata:
   "stoploss_wyckoff" map<text, text>
   "wyckoff_phase_element" map<text, frozen<list<text>>>
   "wyckoff_trading_range" list<int>
+  // tambahkan kolom catatan text, gunakan alter table mcp jangan hapus data yang sudah ada
 Sumber: DDL bin create_emiten_list + ALTER TABLE (...); wyckoff_phase_element awalnya map<text, frozen<list<int>>> lalu diubah ke list<text> (DROP table + restore snapshot + ADD, karena Scylla menolak reuse nama collection dengan tipe berbeda); wyckoff_trading_range ditambah ALTER ADD list<int>; stoploss_wyckoff ditambah ALTER ADD map<text, text>; diisi aplikasi pada INSERT/UPDATE.
 Kolom "emiten_name": text — kode/nama emiten (contoh BBCA, BBRI).
 Kolom "long_name": text — nama lengkap emiten (contoh Bank Central Asia Tbk).
