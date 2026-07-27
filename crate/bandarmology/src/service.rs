@@ -1,18 +1,19 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use chrono::Local;
+use chrono::{Local, NaiveDate};
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::require_auth;
 use worker_scrapping::on_demand;
 
 use crate::bandarmology_server::Bandarmology as BandarmologyRpc;
-use crate::model::{tahun_bulan_from_date, Bandarmology};
+use crate::model::{tahun_bulan_from_date, Bandarmology, BandarmologyHarian};
 use crate::repository::BandarmologyRepository;
 use crate::{
     GetBandarmologyFromScyllaRequest, GetBandarmologyFromScyllaResponse,
     GetBandarmologyFromStockbitRequest, GetBandarmologyFromStockbitResponse,
+    GetBandarmologyHarianFromStockbitRequest, GetBandarmologyHarianFromStockbitResponse,
     GetMultiBandarmologyFromScyllaRequest, GetMultiBandarmologyFromScyllaResponse,
     GetMultiMonthlySingleEmitenBandarmologyFromScyllaRequest,
     GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse,
@@ -33,6 +34,20 @@ fn parse_kode_emiten(raw: &str) -> Result<String, String> {
         return Err("kode_emiten harus tepat 4 huruf alfabet (contoh: BBCA)".into());
     }
     Ok(kode)
+}
+
+/// Parse daftar `YYYY-MM-DD`; duplikat di-skip; format invalid diabaikan (urut naik).
+fn parse_tahun_bulan_tanggal_list(raw: &[String]) -> Vec<NaiveDate> {
+    let mut out = Vec::with_capacity(raw.len());
+    for s in raw {
+        let t = s.trim();
+        if let Ok(d) = NaiveDate::parse_from_str(t, "%Y-%m-%d") {
+            out.push(d);
+        }
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
 }
 
 fn parse_tahun_bulan(raw: &str) -> Result<String, Status> {
@@ -297,6 +312,134 @@ impl BandarmologyRpc for BandarmologyService {
                     success: false,
                     message: format!("scrape bandarmology gagal: {e}"),
                     row: None,
+                }))
+            }
+        }
+    }
+
+    async fn get_bandarmology_harian_from_stockbit(
+        &self,
+        request: Request<GetBandarmologyHarianFromStockbitRequest>,
+    ) -> Result<Response<GetBandarmologyHarianFromStockbitResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let kode = match parse_kode_emiten(&req.emiten_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(GetBandarmologyHarianFromStockbitResponse {
+                    rows: vec![],
+                    success: false,
+                    message,
+                }));
+            }
+        };
+
+        let dates = parse_tahun_bulan_tanggal_list(&req.tahun_bulan_tanggal);
+        if dates.is_empty() {
+            return Ok(Response::new(GetBandarmologyHarianFromStockbitResponse {
+                rows: vec![],
+                success: false,
+                message: "tahun_bulan_tanggal kosong / tidak ada tanggal valid YYYY-MM-DD".into(),
+            }));
+        }
+
+        let mut missing = Vec::new();
+        let mut existing_rows = Vec::new();
+        for day in &dates {
+            match self.repo.find_harian_by_emiten_and_date(&kode, *day).await {
+                Ok(Some(row)) => existing_rows.push(row),
+                Ok(None) => missing.push(*day),
+                Err(e) => {
+                    return Ok(Response::new(GetBandarmologyHarianFromStockbitResponse {
+                        rows: existing_rows
+                            .into_iter()
+                            .map(BandarmologyHarian::into_proto)
+                            .collect(),
+                        success: false,
+                        message: format!("baca Scylla bandarmology_harian gagal: {e}"),
+                    }));
+                }
+            }
+        }
+
+        if missing.is_empty() {
+            println!(
+                "GetBandarmologyHarianFromStockbit {} {kode}: semua {} tanggal sudah ada — skip scrape {}ms",
+                username,
+                dates.len(),
+                started.elapsed().as_millis()
+            );
+            return Ok(Response::new(GetBandarmologyHarianFromStockbitResponse {
+                rows: existing_rows
+                    .into_iter()
+                    .map(BandarmologyHarian::into_proto)
+                    .collect(),
+                success: true,
+                message: format!(
+                    "bandarmology_harian {kode}: {} tanggal sudah ada di Scylla, scrape dibatalkan",
+                    dates.len()
+                ),
+            }));
+        }
+
+        println!(
+            "GetBandarmologyHarianFromStockbit {username}: {kode} — scrape {} tanggal missing (dari {})...",
+            missing.len(),
+            dates.len()
+        );
+
+        match on_demand::scrape_bandarmology_harian_days_from_stockbit(
+            Arc::clone(&self.session),
+            &kode,
+            &missing,
+        )
+        .await
+        {
+            Ok(n) => {
+                let mut rows = Vec::with_capacity(dates.len());
+                for day in &dates {
+                    if let Ok(Some(row)) =
+                        self.repo.find_harian_by_emiten_and_date(&kode, *day).await
+                    {
+                        rows.push(row.into_proto());
+                    }
+                }
+                let message = format!(
+                    "bandarmology_harian {kode}: scrape {n} hari baru; total {}/{} baris di response",
+                    rows.len(),
+                    dates.len()
+                );
+                println!(
+                    "GetBandarmologyHarianFromStockbit {} {kode} success=true {}ms ({message})",
+                    username,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(GetBandarmologyHarianFromStockbitResponse {
+                    rows,
+                    success: true,
+                    message,
+                }))
+            }
+            Err(e) => {
+                let rows: Vec<_> = existing_rows
+                    .into_iter()
+                    .map(BandarmologyHarian::into_proto)
+                    .collect();
+                eprintln!(
+                    "GetBandarmologyHarianFromStockbit {username}: gagal {kode}: {e}"
+                );
+                println!(
+                    "GetBandarmologyHarianFromStockbit {} {kode} success=false {}ms",
+                    username,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(GetBandarmologyHarianFromStockbitResponse {
+                    rows,
+                    success: false,
+                    message: format!("scrape bandarmology_harian gagal: {e}"),
                 }))
             }
         }

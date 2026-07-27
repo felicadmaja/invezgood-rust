@@ -1667,6 +1667,125 @@ async fn scrape_emiten_bandarmology(
     Ok(inserted)
 }
 
+/// Scrape satu hari marketdetectors (`from`=`to`=`day`) → upsert `bandarmology_harian`.
+pub async fn scrape_and_upsert_bandarmology_harian_day(
+    page: &Page,
+    session: &Session,
+    keyspace: &str,
+    emiten: &str,
+    day: NaiveDate,
+) -> Result<(), String> {
+    let code = emiten.trim().to_ascii_uppercase();
+    if code.is_empty() {
+        return Err("emiten_name kosong".into());
+    }
+
+    let bearer = extract_stockbit_bearer(page)
+        .await
+        .map_err(|e| e.to_string())?;
+    let client = reqwest::Client::new();
+
+    println!("\n=== Bandarmology harian API emiten={code} day={day} ===");
+    let (summary, rate) =
+        fetch_marketdetector_day(&client, &bearer, &code, day, day, None)
+            .await
+            .map_err(|e| e.to_string())?;
+    throttle_if_needed(&rate).await;
+
+    let updated_at = Utc::now();
+    let insert = session
+        .prepare(format!(
+            "INSERT INTO {keyspace}.bandarmology_harian (\
+                emiten_name, \
+                tahun_bulan_tanggal, \
+                broker_summary_harian, \
+                updated_at\
+            ) VALUES (?, ?, ?, ?)"
+        ))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    session
+        .execute_unpaged(
+            &insert,
+            (code.as_str(), day, &summary, updated_at),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+    println!(
+        "OK: bandarmology_harian {code} {day} (empty={})",
+        is_broker_summary_empty(&summary)
+    );
+    Ok(())
+}
+
+/// Scrape banyak hari untuk satu emiten (satu bearer/session). Returns jumlah hari di-upsert.
+pub async fn scrape_and_upsert_bandarmology_harian_days(
+    page: &Page,
+    session: &Session,
+    keyspace: &str,
+    emiten: &str,
+    days: &[NaiveDate],
+) -> Result<usize, String> {
+    let code = emiten.trim().to_ascii_uppercase();
+    if code.is_empty() {
+        return Err("emiten_name kosong".into());
+    }
+    if days.is_empty() {
+        return Ok(0);
+    }
+
+    let bearer = extract_stockbit_bearer(page)
+        .await
+        .map_err(|e| e.to_string())?;
+    let client = reqwest::Client::new();
+
+    let insert = session
+        .prepare(format!(
+            "INSERT INTO {keyspace}.bandarmology_harian (\
+                emiten_name, \
+                tahun_bulan_tanggal, \
+                broker_summary_harian, \
+                updated_at\
+            ) VALUES (?, ?, ?, ?)"
+        ))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut upserted = 0usize;
+    for (idx, &day) in days.iter().enumerate() {
+        if idx > 0 {
+            throttle_if_needed(&last_bandar_rate_snapshot()).await;
+        }
+        println!(
+            "\n=== Bandarmology harian API [{}/{}] emiten={code} day={day} ===",
+            idx + 1,
+            days.len()
+        );
+        let (summary, rate) =
+            fetch_marketdetector_day(&client, &bearer, &code, day, day, None)
+                .await
+                .map_err(|e| e.to_string())?;
+        throttle_if_needed(&rate).await;
+
+        let updated_at = Utc::now();
+        session
+            .execute_unpaged(
+                &insert,
+                (code.as_str(), day, &summary, updated_at),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        upserted += 1;
+        println!(
+            "OK: bandarmology_harian {code} {day} (empty={})",
+            is_broker_summary_empty(&summary)
+        );
+    }
+    Ok(upserted)
+}
+
 /// Scrape bandarmology untuk satu emiten: bulan berjalan (overwrite bila `updated_at` bukan hari ini)
 /// + backfill historis.
 /// Returns jumlah baris bulan yang di-upsert.

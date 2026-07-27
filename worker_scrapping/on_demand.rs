@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use chrono::Local;
+use chrono::{Local, NaiveDate};
 use scylla::client::session::Session;
 use stockbit_browser::{
     browser_session_lock, launch_page, open_stream_or_login,
@@ -24,6 +24,10 @@ static INFLIGHT_EMITEN_STOCKBIT: OnceLock<
 > = OnceLock::new();
 
 static INFLIGHT_BANDAR_ALL_TIME: OnceLock<
+    Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>>,
+> = OnceLock::new();
+
+static INFLIGHT_BANDAR_HARIAN: OnceLock<
     Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>>,
 > = OnceLock::new();
 
@@ -59,6 +63,11 @@ fn inflight_stockbit_map(
 fn inflight_bandar_all_time_map(
 ) -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>> {
     INFLIGHT_BANDAR_ALL_TIME.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn inflight_bandar_harian_map(
+) -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>> {
+    INFLIGHT_BANDAR_HARIAN.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn inflight_porto_equity(
@@ -517,6 +526,131 @@ async fn run_bandarmology_all_the_time(
         .await?;
 
         Ok::<usize, String>(inserted)
+    }
+    .await;
+
+    if let Err(e) = browser.close().await {
+        eprintln!("Peringatan: gagal menutup browser: {e}");
+    }
+
+    result
+}
+
+/// Scrape bandarmology harian untuk daftar tanggal yang belum ada di Scylla.
+/// Single-flight per `(emiten + sorted days)`; survive cancel RPC.
+/// Returns jumlah hari yang di-upsert.
+pub async fn scrape_bandarmology_harian_days_from_stockbit(
+    session: Arc<Session>,
+    emiten_name: &str,
+    days: &[NaiveDate],
+) -> Result<usize, String> {
+    let code = emiten_name.trim().to_ascii_uppercase();
+    if code.is_empty() {
+        return Err("emiten_name kosong".into());
+    }
+    if days.is_empty() {
+        return Ok(0);
+    }
+
+    let mut sorted = days.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup();
+    let flight_key = format!(
+        "{code}:{}",
+        sorted
+            .iter()
+            .map(|d| d.format("%Y-%m-%d").to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+
+    let mut rx = {
+        let mut map = inflight_bandar_harian_map().lock().await;
+        if let Some(existing) = map.get(&flight_key) {
+            println!(
+                "On-demand bandarmology_harian: {flight_key} sudah berjalan — menunggu hasil..."
+            );
+            existing.clone()
+        } else {
+            let (tx, rx) = watch::channel::<Option<Result<usize, String>>>(None);
+            map.insert(flight_key.clone(), rx.clone());
+            let session = Arc::clone(&session);
+            let code_spawn = code.clone();
+            let key_spawn = flight_key.clone();
+            let days_spawn = sorted.clone();
+            tokio::spawn(async move {
+                let result =
+                    run_bandarmology_harian_days(session, &code_spawn, &days_spawn).await;
+                match &result {
+                    Ok(n) => println!(
+                        "On-demand bandarmology_harian selesai {key_spawn}: {n} hari di-upsert."
+                    ),
+                    Err(e) => eprintln!(
+                        "On-demand bandarmology_harian GAGAL {key_spawn}: {e}"
+                    ),
+                }
+                let _ = tx.send(Some(result));
+                inflight_bandar_harian_map().lock().await.remove(&key_spawn);
+            });
+            rx
+        }
+    };
+
+    loop {
+        {
+            let guard = rx.borrow();
+            if let Some(result) = guard.as_ref() {
+                return result.clone();
+            }
+        }
+        if rx.changed().await.is_err() {
+            return Err(format!(
+                "on-demand bandarmology_harian {flight_key}: channel ditutup sebelum ada hasil"
+            ));
+        }
+    }
+}
+
+async fn run_bandarmology_harian_days(
+    session: Arc<Session>,
+    code: &str,
+    days: &[NaiveDate],
+) -> Result<usize, String> {
+    let email = std::env::var("STOCKBIT_EMAIL")
+        .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk scrape bandarmology_harian".to_string())?;
+    let password = std::env::var("STOCKBIT_PASSWORD")
+        .map_err(|_| "STOCKBIT_PASSWORD wajib diisi untuk scrape bandarmology_harian".to_string())?;
+    if email.trim().is_empty() || password.trim().is_empty() {
+        return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
+    }
+
+    let _browser_guard = browser_session_lock().lock().await;
+    let ks = keyspace();
+
+    println!(
+        "On-demand bandarmology_harian: mulai untuk {code} ({} hari)...",
+        days.len()
+    );
+
+    let (mut browser, page) = launch_page()
+        .await
+        .map_err(|e| format!("launch Chrome: {e}"))?;
+
+    let result = async {
+        open_stream_or_login(&page, email.trim(), password.trim())
+            .await
+            .map_err(|e| format!("login Stockbit: {e}"))?;
+
+        let n = bandarmology_worker::scrape_and_upsert_bandarmology_harian_days(
+            &page,
+            session.as_ref(),
+            &ks,
+            code,
+            days,
+        )
+        .await?;
+
+        Ok::<usize, String>(n)
     }
     .await;
 

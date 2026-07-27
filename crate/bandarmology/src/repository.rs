@@ -1,19 +1,22 @@
 use std::sync::Arc;
 
+use chrono::NaiveDate;
 use scylla::client::session::Session;
 use scylla::statement::prepared::PreparedStatement;
 use tokio::sync::OnceCell;
 
 use crate::database::keyspace;
-use crate::model::{agg_tahun_bulan_emiten_name, Bandarmology};
+use crate::model::{agg_tahun_bulan_emiten_name, Bandarmology, BandarmologyHarian};
 
 struct Prepared {
     by_agg: PreparedStatement,
+    harian_by_pk: PreparedStatement,
 }
 
 pub struct BandarmologyRepository {
     session: Arc<Session>,
     table: String,
+    table_harian: String,
     prepared: OnceCell<Prepared>,
 }
 
@@ -23,6 +26,7 @@ impl BandarmologyRepository {
         Self {
             session,
             table: format!("{ks}.bandarmology"),
+            table_harian: format!("{ks}.bandarmology_harian"),
             prepared: OnceCell::new(),
         }
     }
@@ -38,8 +42,14 @@ impl BandarmologyRepository {
                      FROM {} WHERE agg_tahun_bulan_emiten_name = ? LIMIT 1",
                     self.table
                 );
+                let harian_q = format!(
+                    "SELECT emiten_name, tahun_bulan_tanggal, broker_summary_harian, updated_at \
+                     FROM {} WHERE emiten_name = ? AND tahun_bulan_tanggal = ? LIMIT 1",
+                    self.table_harian
+                );
                 Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared {
                     by_agg: self.session.prepare(q).await?,
+                    harian_by_pk: self.session.prepare(harian_q).await?,
                 })
             })
             .await
@@ -97,5 +107,23 @@ impl BandarmologyRepository {
             }
         }
         Ok(out)
+    }
+
+    /// Lookup `bandarmology_harian` by PK `(emiten_name, tahun_bulan_tanggal)`.
+    pub async fn find_harian_by_emiten_and_date(
+        &self,
+        emiten_name: &str,
+        tahun_bulan_tanggal: NaiveDate,
+    ) -> Result<Option<BandarmologyHarian>, Box<dyn std::error::Error + Send + Sync>> {
+        let prepared = self.prepared().await?;
+        let result = self
+            .session
+            .execute_unpaged(
+                &prepared.harian_by_pk,
+                (emiten_name, tahun_bulan_tanggal),
+            )
+            .await?
+            .into_rows_result()?;
+        Ok(result.maybe_first_row::<BandarmologyHarian>()?)
     }
 }

@@ -38,6 +38,14 @@ service Bandarmology {
   // kode_emiten: tepat 4 huruf; dinormalisasi ke UPPERCASE.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyFromStockbit(GetBandarmologyFromStockbitRequest) returns (GetBandarmologyFromStockbitResponse);
+
+  // Scrape bandarmology harian via API Stockbit → upsert `bandarmology_harian`.
+  // Per tanggal di `tahun_bulan_tanggal` (YYYY-MM-DD): API from=to=tanggal itu, symbol=emiten_name.
+  // Sebelum scrape: cek Scylla PK (emiten_name, tahun_bulan_tanggal); bila sudah ada → skip tanggal itu.
+  // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE. Tanggal duplikat di-skip; format invalid diabaikan.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetBandarmologyHarianFromStockbit(GetBandarmologyHarianFromStockbitRequest)
+      returns (GetBandarmologyHarianFromStockbitResponse);
 }
 
 message GetBandarmologyFromScyllaRequest {
@@ -85,6 +93,28 @@ message GetBandarmologyFromStockbitResponse {
   // Baris bulan berjalan setelah scrape (broker_summary + w1–w4); kosong jika gagal / belum ada.
   BandarmologyRow row = 3;
 }
+
+message GetBandarmologyHarianFromStockbitRequest {
+  // Kode emiten / ticker: tepat 4 huruf; dinormalisasi UPPERCASE (bbca → BBCA).
+  string emiten_name = 1;
+  // Daftar tanggal YYYY-MM-DD; duplikat di-skip; format invalid diabaikan.
+  repeated string tahun_bulan_tanggal = 2;
+}
+
+message GetBandarmologyHarianFromStockbitResponse {
+  repeated BandarmologyHarianRow rows = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message BandarmologyHarianRow {
+  string emiten_name = 1;
+  // YYYY-MM-DD
+  string tahun_bulan_tanggal = 2;
+  BandarmologyDay broker_summary_harian = 3;
+  string updated_at = 4;
+}
+
 message BandarmologyRow {
   string agg_tahun_bulan_emiten_name = 1;
   string emiten_name = 2;

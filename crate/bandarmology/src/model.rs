@@ -3,7 +3,8 @@ use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
 
 use crate::{
     BandarmologyBrokerBuy as ProtoBrokerBuy, BandarmologyBrokerSell as ProtoBrokerSell,
-    BandarmologyDay as ProtoDay, BandarmologyRow, BandarmologyTopStats as ProtoTopStats,
+    BandarmologyDay as ProtoDay, BandarmologyHarianRow, BandarmologyRow,
+    BandarmologyTopStats as ProtoTopStats,
 };
 
 /// UDT `bandarmology_top_stats`: volume, percent, rp_b, acc_dist.
@@ -142,6 +143,20 @@ pub struct BandarmologyHarian {
     /// Ringkasan Bandar Detector untuk hari itu (UDT `bandarmology_day`).
     pub broker_summary_harian: Option<BandarmologyDay>,
     pub updated_at: Option<DateTime<Utc>>,
+}
+
+impl BandarmologyHarian {
+    pub fn into_proto(self) -> BandarmologyHarianRow {
+        BandarmologyHarianRow {
+            emiten_name: self.emiten_name,
+            tahun_bulan_tanggal: self.tahun_bulan_tanggal.format("%Y-%m-%d").to_string(),
+            broker_summary_harian: self.broker_summary_harian.map(BandarmologyDay::into_proto),
+            updated_at: self
+                .updated_at
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_default(),
+        }
+    }
 }
 
 impl Bandarmology {
