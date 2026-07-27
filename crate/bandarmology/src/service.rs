@@ -8,15 +8,12 @@ use user::require_auth;
 use worker_scrapping::on_demand;
 
 use crate::bandarmology_server::Bandarmology as BandarmologyRpc;
-use crate::model::{tahun_bulan_from_date, Bandarmology, BandarmologyHarian};
+use crate::model::{Bandarmology, BandarmologyHarian};
 use crate::repository::BandarmologyRepository;
 use crate::{
     GetBandarmologyFromScyllaRequest, GetBandarmologyFromScyllaResponse,
-    GetBandarmologyFromStockbitRequest, GetBandarmologyFromStockbitResponse,
     GetBandarmologyHarianFromStockbitRequest, GetBandarmologyHarianFromStockbitResponse,
     GetMultiBandarmologyFromScyllaRequest, GetMultiBandarmologyFromScyllaResponse,
-    GetMultiMonthlySingleEmitenBandarmologyFromScyllaRequest,
-    GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse,
 };
 
 /// True bila string tepat pola `YYYY-MM` (4 digit-tahun, 2 digit-bulan).
@@ -78,21 +75,6 @@ fn normalize_kode_emitens(raw: &[String]) -> Vec<String> {
         };
         if seen.insert(kode.clone()) {
             out.push(kode);
-        }
-    }
-    out
-}
-
-/// Normalisasi daftar bulan YYYY-MM unik (urutan tetap); format invalid diabaikan.
-fn normalize_tahun_bulans(raw: &[String]) -> Vec<String> {
-    let mut out = Vec::with_capacity(raw.len());
-    let mut seen = std::collections::HashSet::new();
-    for item in raw {
-        let Ok(tb) = parse_tahun_bulan(item) else {
-            continue;
-        };
-        if seen.insert(tb.clone()) {
-            out.push(tb);
         }
     }
     out
@@ -190,131 +172,6 @@ impl BandarmologyRpc for BandarmologyService {
         Ok(Response::new(GetMultiBandarmologyFromScyllaResponse {
             rows: proto_rows,
         }))
-    }
-
-    async fn get_multi_monthly_single_emiten_bandarmology_from_scylla(
-        &self,
-        request: Request<GetMultiMonthlySingleEmitenBandarmologyFromScyllaRequest>,
-    ) -> Result<Response<GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse>, Status> {
-        let started = Instant::now();
-        let claims = require_auth(&request)?;
-        let username = claims.name.clone();
-        let req = request.into_inner();
-
-        let emiten = parse_kode_emiten(&req.emiten_name).map_err(|e| {
-            Status::invalid_argument(e.replace("kode_emiten", "emiten_name"))
-        })?;
-        let months = normalize_tahun_bulans(&req.tahun_bulan);
-        if months.is_empty() {
-            return Err(Status::invalid_argument(
-                "tahun_bulan wajib diisi minimal 1 bulan valid (YYYY-MM)",
-            ));
-        }
-
-        let found = self
-            .repo
-            .find_many_by_emiten_and_tahun_bulans(&emiten, &months)
-            .await
-            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
-
-        let mut tahun_bulan_to_row = std::collections::HashMap::with_capacity(found.len());
-        for (tb, row) in found {
-            tahun_bulan_to_row.insert(tb, Bandarmology::into_proto(row));
-        }
-
-        println!(
-            "GetMultiMonthlySingleEmitenBandarmologyFromScylla {} {} req={} found={} {}ms",
-            username,
-            emiten,
-            months.len(),
-            tahun_bulan_to_row.len(),
-            started.elapsed().as_millis()
-        );
-
-        Ok(Response::new(
-            GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse { tahun_bulan_to_row },
-        ))
-    }
-
-    async fn get_bandarmology_from_stockbit(
-        &self,
-        request: Request<GetBandarmologyFromStockbitRequest>,
-    ) -> Result<Response<GetBandarmologyFromStockbitResponse>, Status> {
-        let started = Instant::now();
-        let claims = require_auth(&request)?;
-        let username = claims.name.clone();
-        let req = request.into_inner();
-
-        let kode = match parse_kode_emiten(&req.kode_emiten) {
-            Ok(c) => c,
-            Err(message) => {
-                return Ok(Response::new(GetBandarmologyFromStockbitResponse {
-                    success: false,
-                    message,
-                    row: None,
-                }));
-            }
-        };
-
-        println!(
-            "GetBandarmologyFromStockbit {username}: {kode} — scrape max 36 bulan + slot minggu w1–w4..."
-        );
-
-        match on_demand::scrape_bandarmology_all_the_time_for_code(
-            Arc::clone(&self.session),
-            &kode,
-        )
-        .await
-        {
-            Ok(n) => {
-                let cur_tb = tahun_bulan_from_date(Local::now().date_naive());
-                let row = self
-                    .repo
-                    .find_by_tahun_bulan_and_emiten(&cur_tb, &kode)
-                    .await
-                    .ok()
-                    .flatten()
-                    .map(Bandarmology::into_proto);
-                let weeks = match &row {
-                    Some(r) => format!(
-                        "w1={} w2={} w3={} w4={}",
-                        r.broker_summary_current_w1.is_some(),
-                        r.broker_summary_current_w2.is_some(),
-                        r.broker_summary_current_w3.is_some(),
-                        r.broker_summary_current_w4.is_some(),
-                    ),
-                    None => "row bulan berjalan belum ada".into(),
-                };
-                let message = format!(
-                    "bandarmology {kode}: scrape selesai, {n} baris bulan di-upsert ({cur_tb}; {weeks})"
-                );
-                println!(
-                    "GetBandarmologyFromStockbit {} {kode} success=true {}ms ({weeks})",
-                    username,
-                    started.elapsed().as_millis()
-                );
-                Ok(Response::new(GetBandarmologyFromStockbitResponse {
-                    success: true,
-                    message,
-                    row,
-                }))
-            }
-            Err(e) => {
-                eprintln!(
-                    "GetBandarmologyFromStockbit {username}: gagal {kode}: {e}"
-                );
-                println!(
-                    "GetBandarmologyFromStockbit {} {kode} success=false {}ms",
-                    username,
-                    started.elapsed().as_millis()
-                );
-                Ok(Response::new(GetBandarmologyFromStockbitResponse {
-                    success: false,
-                    message: format!("scrape bandarmology gagal: {e}"),
-                    row: None,
-                }))
-            }
-        }
     }
 
     async fn get_bandarmology_harian_from_stockbit(

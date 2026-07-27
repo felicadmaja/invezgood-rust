@@ -16,29 +16,6 @@ service Bandarmology {
   rpc GetMultiBandarmologyFromScylla(GetMultiBandarmologyFromScyllaRequest)
       returns (GetMultiBandarmologyFromScyllaResponse);
 
-  // Lookup banyak bulan untuk satu emiten (hanya baca Scylla, tidak scrape).
-  // Per bulan: PK `tahun_bulan + '_' + emiten_name` (sama GetBandarmologyFromScylla).
-  // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE.
-  // tahun_bulan: YYYY-MM; duplikat di-skip; format invalid diabaikan.
-  // Response: map tahun_bulan → BandarmologyRow (hanya bulan yang ketemu di Scylla).
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetMultiMonthlySingleEmitenBandarmologyFromScylla(
-      GetMultiMonthlySingleEmitenBandarmologyFromScyllaRequest)
-      returns (GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse);
-
-  // Scrape bandarmology 3 tahun kebelakang (max 36 bulan) untuk satu emiten via API Stockbit.
-  // Aturan sama `bandarmology_worker`:
-  // - bulan berjalan overwrite `broker_summary` (awal bulan → kemarin / today-1) hanya bila
-  //   `updated_at` kosong / bukan hari ini; jika `updated_at` masih hari ini → skip fetch summary;
-  // - kolom minggu: scrape minggu aktif (slot tanggal) + backfill w1..wN bila kolom masih kosong;
-  //   tgl 2–8 → w1; tgl 9–15 → w2; tgl 16–22 → w3; tgl 23–akhir & tgl 1 → w4;
-  // - historis di-skip seluruhnya bila baris **bulan lalu** sudah ada di Scylla; bila tidak,
-  //   skip per bulan bila sudah ada; henti bila 1 bulan sudah ada atau 1 bulan kosong dari API;
-  // Response.row = baris bulan berjalan setelah scrape (termasuk w1–w4 bila ada).
-  // kode_emiten: tepat 4 huruf; dinormalisasi ke UPPERCASE.
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetBandarmologyFromStockbit(GetBandarmologyFromStockbitRequest) returns (GetBandarmologyFromStockbitResponse);
-
   // Scrape bandarmology harian via API Stockbit → upsert `bandarmology_harian`.
   // Per tanggal di `tahun_bulan_tanggal` (YYYY-MM-DD): API from=to=tanggal itu, symbol=emiten_name.
   // Sebelum scrape: cek Scylla PK (emiten_name, tahun_bulan_tanggal); bila sudah ada → skip tanggal itu.
@@ -69,30 +46,6 @@ message GetMultiBandarmologyFromScyllaRequest {
 
 message GetMultiBandarmologyFromScyllaResponse {
   repeated BandarmologyRow rows = 1;
-}
-
-message GetMultiMonthlySingleEmitenBandarmologyFromScyllaRequest {
-  // Kode emiten / ticker: tepat 4 huruf; dinormalisasi UPPERCASE (bbca → BBCA).
-  string emiten_name = 1;
-  // Daftar bulan YYYY-MM; duplikat di-skip; format invalid diabaikan.
-  repeated string tahun_bulan = 2;
-}
-
-message GetMultiMonthlySingleEmitenBandarmologyFromScyllaResponse {
-  // Key = tahun_bulan (YYYY-MM); value = baris bandarmology bila ada di Scylla.
-  map<string, BandarmologyRow> tahun_bulan_to_row = 1;
-}
-
-message GetBandarmologyFromStockbitRequest {
-  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
-  string kode_emiten = 1;
-}
-
-message GetBandarmologyFromStockbitResponse {
-  bool success = 1;
-  string message = 2;
-  // Baris bulan berjalan setelah scrape (broker_summary + w1–w4); kosong jika gagal / belum ada.
-  BandarmologyRow row = 3;
 }
 
 message GetBandarmologyHarianFromStockbitRequest {

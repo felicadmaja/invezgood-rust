@@ -93,22 +93,6 @@ impl BandarmologyRepository {
         Ok(out)
     }
 
-    /// Lookup banyak `tahun_bulan` untuk satu emiten. Yang tidak ada di-skip.
-    /// Returns pasangan `(tahun_bulan, row)`.
-    pub async fn find_many_by_emiten_and_tahun_bulans(
-        &self,
-        emiten_name: &str,
-        tahun_bulans: &[String],
-    ) -> Result<Vec<(String, Bandarmology)>, Box<dyn std::error::Error + Send + Sync>> {
-        let mut out = Vec::with_capacity(tahun_bulans.len());
-        for tb in tahun_bulans {
-            if let Some(row) = self.find_by_tahun_bulan_and_emiten(tb, emiten_name).await? {
-                out.push((tb.clone(), row));
-            }
-        }
-        Ok(out)
-    }
-
     /// Lookup `bandarmology_harian` by PK `(emiten_name, tahun_bulan_tanggal)`.
     pub async fn find_harian_by_emiten_and_date(
         &self,
