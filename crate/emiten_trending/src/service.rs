@@ -129,7 +129,7 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         require_stockbit_scrape_hours()?;
         acquire_movers_scrape_slot().await?;
 
-        println!("GetLatestEmitenTrendingFromStockbit {username}: on-demand scrape movers + key_stats + bandarmology...");
+        println!("GetLatestEmitenTrendingFromStockbit {username}: on-demand scrape movers + key_stats...");
         let started = Instant::now();
 
         on_demand::scrape_emiten_trending_movers(Arc::clone(&self.session))

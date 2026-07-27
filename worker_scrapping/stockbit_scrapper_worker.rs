@@ -12,8 +12,8 @@
 //! Env opsional: `CHROME_EXECUTABLE_PATH` (mis. `/usr/bin/chromium-browser`).
 //! Env opsional: `STOCKBIT_2FA_TIMEOUT_SECS` (default 300 = 5 menit).
 //! Env opsional: `STOCKBIT_SESSION_CHECK_SECS` (default 5) — tunggu popup sesi habis di `/stream`.
-//! Env Scylla (insert `emiten_trending`, `emiten_list`, `bandarmology`, `portofolio`,
-//! `portofolio_bandarmology`, `portofolio_history`, `portofolio_equity`, `pending_order`):
+//! Env Scylla (insert `emiten_trending`, `emiten_list`, `portofolio`,
+//! `portofolio_history`, `portofolio_equity`, `pending_order`):
 //! `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.
 //! Env Redis (cache `long_name`, TTL 1 tahun): `REDIS_URL`.
 //! Env Trading PIN: `STOCKBUT_PIN` (atau `STOCKBIT_PIN`).
@@ -32,10 +32,8 @@
 //! invoke via RPC `stockbit_ws` tidak menghentikan app.
 //! Lalu START TRADING (PIN bila perlu) → buka `/securities/portfolio` → DOM scrape
 //! header equity → upsert `portofolio_equity` → Bearer trading pasca-PIN →
-//! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list (+ bandarmology bila perlu)
+//! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list
 //! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name)
-//! → per emiten salin minggu berjalan ke `portofolio_bandarmology`
-//! → hapus orphan `portofolio_bandarmology` yang sudah tidak ada di `portofolio`
 //! → per emiten holdings: sama RPC `GetPortofolioHistoryByEmitenNameFromStockbit` —
 //!   `GET carina.stockbit.com/history?page=1&limit=200&period=all&stock={CODE}`
 //!   (paginate s/d `meta.max_page`) → group by item.`date` (`20 Jul 2026` → date)
@@ -45,11 +43,7 @@
 //!   (command, symbol, price, lot, amount, status).
 //! Lalu (PIN/trading session bila perlu) → `GET carina.stockbit.com/order/v2/list`
 //! → insert `pending_order`.
-//! Terakhir: Bandar Detector via API `exodus.stockbit.com/marketdetectors/{CODE}`
-//! (Bearer dari sesi login; `broker_summary` + minggu w1–w4) → upsert `bandarmology`
-//! untuk semua emiten dari `emiten_list` (movers dulu, lalu scan).
-//! Minggu aktif selalu ditimpa (tgl 2–8→w1 … 23–akhir→w4; tgl 1→w4 bulan lalu);
-//! minggu sebelumnya hanya di-backfill bila masih kosong.
+//! Tidak scrape/insert `bandarmology` dan tidak tulis `portofolio_bandarmology`.
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 //! Setiap run: clear lalu tulis ulang log ke `worker_scrapping/stockbit_scrapper_worker.log`
@@ -318,7 +312,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "OK: emiten_trending gainer={inserted_gainer}, loser={inserted_loser} (dengan long_name)."
     );
 
-    let today = Local::now().date_naive();
     println!("Token-ring scan emiten_list.emiten_name (setelah seed movers)...");
     let existing = bandarmology_worker::fetch_emiten_list_emiten_names(&session, &ks)
         .await
@@ -339,7 +332,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     println!(
-        "Ditemukan {} emiten untuk key_stats/profile/corp (+ bandarmology di akhir; movers dulu={}, scan={}).",
+        "Ditemukan {} emiten untuk key_stats/profile/corp (movers dulu={}, scan={}).",
         emitens.len(),
         movers_front,
         existing.len()
@@ -352,10 +345,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("OK: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");
 
     println!(
-        "Lanjut portofolio (PIN bila perlu → DOM portofolio_equity → API → emiten_list + bandarmology → upsert)..."
+        "Lanjut portofolio (PIN bila perlu → DOM portofolio_equity → API → emiten_list → upsert; tanpa bandarmology)..."
     );
     let (porto_ok, porto_codes) =
-        portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks).await?;
+        portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks, false).await?;
     println!("OK: {porto_ok} baris diinsert ke portofolio.");
 
     if !porto_codes.is_empty() {
@@ -384,20 +377,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pending_ok =
         pending_order_worker::scrape_and_insert_pending_order(&page, &session, &ks).await?;
     println!("OK: {pending_ok} baris diinsert ke pending_order.");
-
-    println!("Terakhir: Bandarmology via marketdetectors API (Bearer dari sesi browser)...");
-    let bandar_ok =
-        bandarmology_worker::scrape_and_insert_bandarmology(
-            &page,
-            &session,
-            &ks,
-            today,
-            &emitens,
-            true, // worker: selalu timpa minggu aktif
-        )
-            .await
-            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-    println!("OK: {bandar_ok} emiten diinsert ke bandarmology.");
 
     let final_url = page.url().await?.unwrap_or_default();
     let final_title = page.get_title().await?.unwrap_or_default();

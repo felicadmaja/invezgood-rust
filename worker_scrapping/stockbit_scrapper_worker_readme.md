@@ -72,7 +72,7 @@ ls -lt /home/baki1/stockbit_ws/logs/scrapper_*.log | head
 
 | Topik       | Keterangan                                                                                                          |
 | ----------- | ------------------------------------------------------------------------------------------------------------------- |
-| Durasi      | Bisa lama (banyak emiten + bandarmology + portfolio). Hindari overlap: jangan jalankan scrape manual saat jam cron. |
+| Durasi      | Bisa lama (banyak emiten + portfolio). Hindari overlap: jangan jalankan scrape manual saat jam cron. |
 | PM2         | Worker stop/start `stockbit_ws` sendiri.                                                                            |
 | HTTP 4xx    | Worker abort + `pm2 start stockbit_ws` agar tidak diblokir.                                                         |
 | Sesi Chrome | Profil di `worker_scrapping/browser_data/` — jangan hapus sembarangan.                                              |

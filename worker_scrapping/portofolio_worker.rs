@@ -7,12 +7,11 @@
 //! Setelah itu ambil **Bearer trading** (pasca-PIN / `securitiesAccessToken`),
 //! **bukan** Bearer login web Exodus, lalu GET portfolio API.
 //!
-//! Sebelum upsert `portofolio`: pastikan `emiten_list` + `bandarmology` terisi
-//! (scrape bila belum ada). Icon: reuse `emiten_list.emiten_icon` bila sudah ada;
-//! download GCS hanya bila belum ada.
-//! Setelah upsert `portofolio`: salin minggu berjalan bandarmology →
-//! `portofolio_bandarmology` (per `emiten_name`, via `portofolio_bandarmology_worker`),
-//! lalu hapus orphan yang tidak ada di `portofolio` (sama RPC `DeletePortofolioBandarmology`).
+//! Sebelum upsert `portofolio`: pastikan `emiten_list` terisi (scrape bila belum ada).
+//! Icon: reuse `emiten_list.emiten_icon` bila sudah ada; download GCS hanya bila belum ada.
+//! Opsional (`with_bandarmology=true`, dipakai RPC on-demand): pastikan `bandarmology`
+//! untuk kode holdings. Tidak menulis `portofolio_bandarmology`.
+//! Bin `stockbit_scrapper_worker` memakai `with_bandarmology=false`.
 
 use chrono::Local;
 use chromiumoxide::page::Page;
@@ -26,10 +25,7 @@ use std::time::{Duration, Instant};
 use stockbit_browser::goto_stockbit;
 use tokio::time::sleep;
 
-use crate::{
-    bandarmology_worker, emiten_list_worker, portofolio_bandarmology_worker,
-    portofolio_equity_worker,
-};
+use crate::{bandarmology_worker, emiten_list_worker, portofolio_equity_worker};
 
 const PORTFOLIO_API_URL: &str = "https://carina.stockbit.com/portfolio/v2/list";
 const STOCKBIT_PORTFOLIO_URL: &str = "https://stockbit.com/securities/portfolio";
@@ -760,13 +756,15 @@ async fn upsert_portofolio(
 }
 
 /// START TRADING (opsional) → PIN (opsional) → DOM `portofolio_equity` →
-/// Bearer trading → portfolio API → pastikan `emiten_list` + `bandarmology` →
-/// upsert `portofolio` → salin minggu berjalan ke `portofolio_bandarmology`.
+/// Bearer trading → portfolio API → pastikan `emiten_list` → upsert `portofolio`.
+/// Bila `with_bandarmology`: pastikan `bandarmology` untuk kode holdings.
+/// Tidak menulis `portofolio_bandarmology`.
 /// Returns `(jumlah baris portofolio, daftar emiten_name)`.
 pub async fn scrape_and_insert_portofolio(
     page: &Page,
     session: &Arc<Session>,
     keyspace: &str,
+    with_bandarmology: bool,
 ) -> Result<(usize, Vec<String>), Box<dyn std::error::Error>> {
     let pin_entered = ensure_trading_session(page).await?;
     if pin_entered {
@@ -822,50 +820,28 @@ pub async fn scrape_and_insert_portofolio(
                 .await?;
         println!("Portofolio: emiten_list upsert/scrape OK={list_ok}.");
 
-        let today = Local::now().date_naive();
-        println!(
-            "Portofolio: pastikan bandarmology untuk {} kode (skip bila agg hari ini ada)...",
-            codes.len()
-        );
-        let bandar_ok = bandarmology_worker::scrape_and_insert_bandarmology(
-            page,
-            session,
-            keyspace,
-            today,
-            &codes,
-            false, // pastikan data ada; jangan force-timpa minggu aktif
-        )
-        .await
-        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-        println!("Portofolio: bandarmology insert OK={bandar_ok}.");
+        if with_bandarmology {
+            let today = Local::now().date_naive();
+            println!(
+                "Portofolio: pastikan bandarmology untuk {} kode (skip bila agg hari ini ada)...",
+                codes.len()
+            );
+            let bandar_ok = bandarmology_worker::scrape_and_insert_bandarmology(
+                page,
+                session,
+                keyspace,
+                today,
+                &codes,
+                false, // pastikan data ada; jangan force-timpa minggu aktif
+            )
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+            println!("Portofolio: bandarmology insert OK={bandar_ok}.");
+        }
     }
 
     let n = upsert_portofolio(session.as_ref(), keyspace, &rows).await?;
     println!("OK: {n} baris diinsert ke portofolio.");
-
-    if !codes.is_empty() {
-        println!(
-            "Portofolio: salin bandarmology minggu berjalan → portofolio_bandarmology ({} kode)...",
-            codes.len()
-        );
-        let pb_ok = portofolio_bandarmology_worker::insert_portofolio_bandarmology_for_emitens(
-            session.as_ref(),
-            keyspace,
-            &codes,
-        )
-        .await
-        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-        println!("OK: {pb_ok}/{} baris diupsert ke portofolio_bandarmology.", codes.len());
-    }
-
-    println!("Portofolio: hapus orphan portofolio_bandarmology (tidak ada di portofolio)...");
-    let del_ok = portofolio_bandarmology_worker::delete_unused_portofolio_bandarmology(
-        session, keyspace,
-    )
-    .await
-    .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-    println!("OK: {del_ok} partition orphan dihapus dari portofolio_bandarmology.");
-
 
     Ok((n, codes))
 }

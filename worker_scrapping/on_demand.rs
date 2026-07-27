@@ -323,9 +323,8 @@ async fn run_emiten_list_stockbit_scrape(
 }
 
 /// On-demand scrape Top Gainer/Loser (movers) → upsert `emiten_trending` + seed `emiten_list`;
-/// lalu baca `emiten_name` dari `emiten_list` (setelah seed) → keystats/profile/corpaction;
-/// lalu bandarmology **hanya** untuk kode TOP_GAINER + TOP_LOSER dari invoke ini
-/// (aturan skip sama `bandarmology_worker`).
+/// lalu baca `emiten_name` dari `emiten_list` (setelah seed) → keystats/profile/corpaction.
+/// Tidak scrape / tulis `bandarmology`.
 pub async fn scrape_emiten_trending_movers(
     session: Arc<Session>,
 ) -> Result<(usize, usize), String> {
@@ -382,23 +381,6 @@ pub async fn scrape_emiten_trending_movers(
         .await
         .map_err(|e| e.to_string())?;
         println!("On-demand: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");
-
-        let today = Local::now().date_naive();
-        println!(
-            "On-demand: bandarmology via marketdetectors API (hanya {} movers TOP_GAINER/TOP_LOSER)...",
-            mover_codes.len()
-        );
-        let bandar_ok = bandarmology_worker::scrape_and_insert_bandarmology(
-            &page,
-            &session,
-            &ks,
-            today,
-            &mover_codes,
-            false, // on-demand RPC: jangan force-timpa minggu aktif
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-        println!("On-demand: {bandar_ok} emiten diinsert/di-skip ke bandarmology.");
 
         Ok::<(usize, usize), String>((inserted_gainer, inserted_loser))
     }
@@ -863,9 +845,7 @@ async fn run_portofolio_history_scrape(
 }
 
 /// On-demand scrape semua holdings portfolio → upsert `portofolio`
-/// lalu salin minggu berjalan → `portofolio_bandarmology`
-/// lalu hapus orphan yang tidak ada di `portofolio`
-/// (alur `portofolio_worker::scrape_and_insert_portofolio`).
+/// (alur `portofolio_worker::scrape_and_insert_portofolio`; tidak tulis `portofolio_bandarmology`).
 /// Single-flight global; survive cancel RPC.
 /// Returns `(baris_upsert, kode_holding)`.
 pub async fn scrape_portofolio_all(
@@ -938,7 +918,7 @@ async fn run_portofolio_all_scrape(
             .map_err(|e| format!("login Stockbit: {e}"))?;
 
         let (n, codes) =
-            crate::portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks)
+            crate::portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks, true)
                 .await
                 .map_err(|e| e.to_string())?;
 

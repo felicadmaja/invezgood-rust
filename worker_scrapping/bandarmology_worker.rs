@@ -394,20 +394,6 @@ pub fn bandarmology_agg_key(today: NaiveDate, emiten: &str) -> String {
     )
 }
 
-/// Kolom minggu (`w1`–`w4`) dan PK `bandarmology` untuk salin ke `portofolio_bandarmology`.
-/// Selaras [`invoke_week_scrape_slot`] (tgl 1 → w4 + agg bulan lalu; 2–8 → w1 bulan ini; …).
-pub fn portofolio_bandarmology_source(
-    today: NaiveDate,
-    emiten: &str,
-) -> Option<(u8, String)> {
-    let (week, _, _, week_tb) = invoke_week_scrape_slot(today)?;
-    let code = emiten.trim().to_ascii_uppercase();
-    if code.is_empty() {
-        return None;
-    }
-    Some((week, agg_tahun_bulan_emiten_name(&week_tb, &code)))
-}
-
 async fn bandarmology_exists_by_agg(
     session: &Session,
     keyspace: &str,
