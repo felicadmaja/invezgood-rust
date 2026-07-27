@@ -346,9 +346,19 @@ impl BandarmologyRpc for BandarmologyService {
             }));
         }
 
+        let today = Local::now().date_naive();
         let mut missing = Vec::new();
         let mut existing_rows = Vec::new();
+        let mut skipped_today = 0usize;
         for day in &dates {
+            if *day == today {
+                skipped_today += 1;
+                // Hari ini: jangan scrape; tetap kembalikan baris Scylla bila sudah ada.
+                if let Ok(Some(row)) = self.repo.find_harian_by_emiten_and_date(&kode, *day).await {
+                    existing_rows.push(row);
+                }
+                continue;
+            }
             match self.repo.find_harian_by_emiten_and_date(&kode, *day).await {
                 Ok(Some(row)) => existing_rows.push(row),
                 Ok(None) => missing.push(*day),
@@ -366,10 +376,15 @@ impl BandarmologyRpc for BandarmologyService {
         }
 
         if missing.is_empty() {
+            let today_note = if skipped_today > 0 {
+                format!("; {skipped_today} tanggal hari ini ({today}) di-skip scrape")
+            } else {
+                String::new()
+            };
             println!(
-                "GetBandarmologyHarianFromStockbit {} {kode}: semua {} tanggal sudah ada — skip scrape {}ms",
+                "GetBandarmologyHarianFromStockbit {} {kode}: tidak ada tanggal yang perlu scrape{} — {}ms",
                 username,
-                dates.len(),
+                today_note,
                 started.elapsed().as_millis()
             );
             return Ok(Response::new(GetBandarmologyHarianFromStockbitResponse {
@@ -379,8 +394,7 @@ impl BandarmologyRpc for BandarmologyService {
                     .collect(),
                 success: true,
                 message: format!(
-                    "bandarmology_harian {kode}: {} tanggal sudah ada di Scylla, scrape dibatalkan",
-                    dates.len()
+                    "bandarmology_harian {kode}: scrape tidak dijalankan (sudah ada di Scylla / hari ini){today_note}"
                 ),
             }));
         }

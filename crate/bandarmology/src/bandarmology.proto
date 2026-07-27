@@ -42,6 +42,7 @@ service Bandarmology {
   // Scrape bandarmology harian via API Stockbit → upsert `bandarmology_harian`.
   // Per tanggal di `tahun_bulan_tanggal` (YYYY-MM-DD): API from=to=tanggal itu, symbol=emiten_name.
   // Sebelum scrape: cek Scylla PK (emiten_name, tahun_bulan_tanggal); bila sudah ada → skip tanggal itu.
+  // Tanggal hari ini (server lokal) selalu di-skip scrape (belum final / kosong dari API).
   // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE. Tanggal duplikat di-skip; format invalid diabaikan.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyHarianFromStockbit(GetBandarmologyHarianFromStockbitRequest)
