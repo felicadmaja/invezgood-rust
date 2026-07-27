@@ -18,6 +18,7 @@
 //! | is_plan_to_trade       | boolean  | bool (default false) |
 //! | catatan                | map\<text, text\> | HashMap\<String, String\> |
 //! | catatan_owner          | text     | String |
+//! | catatan_pribadi        | text     | String |
 //! | foto_owner             | list\<text\> | Vec\<String\> |
 //! | net_income             | map\<text, frozen\<map\<text, text\>\>\> | HashMap\<String, HashMap\<String, String\>\> |
 //! | takeprofit_wyckoff     | map\<text, text\> | HashMap\<String, String\> |
@@ -201,6 +202,9 @@ pub struct EmitenList {
     /// Rentang trading Wyckoff.
     #[scylla(default_when_null)]
     pub wyckoff_trading_range: Vec<i32>,
+    /// Catatan pribadi (teks bebas).
+    #[scylla(default_when_null)]
+    pub catatan_pribadi: String,
 }
 
 impl EmitenList {
@@ -236,6 +240,7 @@ impl EmitenList {
                 .map(|(k, values)| (k, TextList { values }))
                 .collect(),
             wyckoff_trading_range: self.wyckoff_trading_range,
+            catatan_pribadi: self.catatan_pribadi,
         }
     }
 }

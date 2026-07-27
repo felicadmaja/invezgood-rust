@@ -16,6 +16,7 @@ use crate::{
     GetMultiEmitenListFromScyllaRequest, GetMultiEmitenListFromScyllaResponse,
     UpdateEmitenListBlueChipRequest, UpdateEmitenListBlueChipResponse,
     UpdateEmitenListCatatanOwnerRequest, UpdateEmitenListCatatanOwnerResponse,
+    UpdateEmitenListCatatanPribadiRequest, UpdateEmitenListCatatanPribadiResponse,
     UpdateEmitenListCatatanRequest, UpdateEmitenListCatatanResponse,
     UpdateEmitenListFundamentalRequest, UpdateEmitenListFundamentalResponse,
     UpdateEmitenListKonglomerasiRequest, UpdateEmitenListKonglomerasiResponse,
@@ -656,6 +657,56 @@ impl EmitenListRpc for EmitenListService {
             success,
             message,
             row,
+        }))
+    }
+
+    async fn update_emiten_list_catatan_pribadi(
+        &self,
+        request: Request<UpdateEmitenListCatatanPribadiRequest>,
+    ) -> Result<Response<UpdateEmitenListCatatanPribadiResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateEmitenListCatatanPribadiResponse {
+                    success: false,
+                    message,
+                }));
+            }
+        };
+
+        let catatan_pribadi = req.catatan.trim().to_string();
+        let updated = self
+            .repo
+            .update_catatan_pribadi(&emiten_name, &catatan_pribadi)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
+
+        let (success, message) = if updated {
+            (
+                true,
+                format!("catatan_pribadi untuk {emiten_name} berhasil diupdate"),
+            )
+        } else {
+            (
+                false,
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
+            )
+        };
+
+        println!(
+            "UpdateEmitenListCatatanPribadi {} {emiten_name} success={success} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(UpdateEmitenListCatatanPribadiResponse {
+            success,
+            message,
         }))
     }
 

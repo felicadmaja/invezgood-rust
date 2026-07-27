@@ -130,6 +130,20 @@ pub struct Bandarmology {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
+/// Baris tabel dasar `bandarmology_harian`.
+/// PK: `(("emiten_name"), tahun_bulan_tanggal DESC)`.
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct BandarmologyHarian {
+    /// Partition key — kode emiten / ticker.
+    #[scylla(default_when_null)]
+    pub emiten_name: String,
+    /// Clustering key DESC — tanggal snapshot harian.
+    pub tahun_bulan_tanggal: NaiveDate,
+    /// Ringkasan Bandar Detector untuk hari itu (UDT `bandarmology_day`).
+    pub broker_summary_harian: Option<BandarmologyDay>,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
 impl Bandarmology {
     pub fn into_proto(self) -> BandarmologyRow {
         BandarmologyRow {
