@@ -8,22 +8,12 @@ use user::require_auth;
 use worker_scrapping::on_demand;
 
 use crate::bandarmology_server::Bandarmology as BandarmologyRpc;
-use crate::model::{Bandarmology, BandarmologyHarian};
+use crate::model::BandarmologyHarian;
 use crate::repository::BandarmologyRepository;
 use crate::{
-    GetBandarmologyFromScyllaRequest, GetBandarmologyFromScyllaResponse,
     GetBandarmologyHarianFromStockbitRequest, GetBandarmologyHarianFromStockbitResponse,
-    GetMultiBandarmologyFromScyllaRequest, GetMultiBandarmologyFromScyllaResponse,
+    GetBrokerAccDistRequest, GetBrokerAccDistResponse,
 };
-
-/// True bila string tepat pola `YYYY-MM` (4 digit-tahun, 2 digit-bulan).
-fn is_yyyy_mm(s: &str) -> bool {
-    let b = s.as_bytes();
-    b.len() == 7
-        && b[4] == b'-'
-        && b[0..4].iter().all(u8::is_ascii_digit)
-        && b[5..7].iter().all(u8::is_ascii_digit)
-}
 
 fn parse_kode_emiten(raw: &str) -> Result<String, String> {
     let kode = raw.trim().to_ascii_uppercase();
@@ -44,39 +34,6 @@ fn parse_tahun_bulan_tanggal_list(raw: &[String]) -> Vec<NaiveDate> {
     }
     out.sort_unstable();
     out.dedup();
-    out
-}
-
-fn parse_tahun_bulan(raw: &str) -> Result<String, Status> {
-    let tahun_bulan = raw.trim();
-    if !is_yyyy_mm(tahun_bulan) {
-        return Err(Status::invalid_argument(
-            "tahun_bulan harus format YYYY-MM (contoh: 2026-07)",
-        ));
-    }
-    let month = tahun_bulan[5..7].parse::<u8>().map_err(|_| {
-        Status::invalid_argument("tahun_bulan harus format YYYY-MM (contoh: 2026-07)")
-    })?;
-    if !(1..=12).contains(&month) {
-        return Err(Status::invalid_argument(
-            "tahun_bulan harus bulan valid 01–12 (contoh: 2026-07)",
-        ));
-    }
-    Ok(tahun_bulan.to_string())
-}
-
-/// Normalisasi daftar kode: UPPERCASE, tepat 4 huruf, unik (urutan tetap).
-fn normalize_kode_emitens(raw: &[String]) -> Vec<String> {
-    let mut out = Vec::with_capacity(raw.len());
-    let mut seen = std::collections::HashSet::new();
-    for item in raw {
-        let Ok(kode) = parse_kode_emiten(item) else {
-            continue;
-        };
-        if seen.insert(kode.clone()) {
-            out.push(kode);
-        }
-    }
     out
 }
 
@@ -101,79 +58,6 @@ impl BandarmologyService {
 
 #[tonic::async_trait]
 impl BandarmologyRpc for BandarmologyService {
-    async fn get_bandarmology_from_scylla(
-        &self,
-        request: Request<GetBandarmologyFromScyllaRequest>,
-    ) -> Result<Response<GetBandarmologyFromScyllaResponse>, Status> {
-        let started = Instant::now();
-        let claims = require_auth(&request)?;
-        let username = claims.name.clone();
-        let req = request.into_inner();
-
-        let tahun_bulan = parse_tahun_bulan(&req.tahun_bulan)?;
-        let kode = parse_kode_emiten(&req.kode_emiten).map_err(Status::invalid_argument)?;
-
-        let row = self
-            .repo
-            .find_by_tahun_bulan_and_emiten(&tahun_bulan, &kode)
-            .await
-            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
-            .ok_or_else(|| {
-                Status::not_found(format!(
-                    "bandarmology tidak ditemukan untuk {tahun_bulan}_{kode}"
-                ))
-            })?;
-
-        println!(
-            "GetBandarmologyFromScylla {} {} {}ms",
-            username,
-            format!("{tahun_bulan}_{kode}"),
-            started.elapsed().as_millis()
-        );
-
-        Ok(Response::new(GetBandarmologyFromScyllaResponse {
-            row: Some(Bandarmology::into_proto(row)),
-        }))
-    }
-
-    async fn get_multi_bandarmology_from_scylla(
-        &self,
-        request: Request<GetMultiBandarmologyFromScyllaRequest>,
-    ) -> Result<Response<GetMultiBandarmologyFromScyllaResponse>, Status> {
-        let started = Instant::now();
-        let claims = require_auth(&request)?;
-        let username = claims.name.clone();
-        let req = request.into_inner();
-
-        let tahun_bulan = parse_tahun_bulan(&req.tahun_bulan)?;
-        let kodes = normalize_kode_emitens(&req.kode_emiten);
-        if kodes.is_empty() {
-            return Err(Status::invalid_argument(
-                "kode_emiten wajib diisi minimal 1 kode valid (4 huruf)",
-            ));
-        }
-
-        let rows = self
-            .repo
-            .find_many_by_tahun_bulan_and_emitens(&tahun_bulan, &kodes)
-            .await
-            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
-
-        let proto_rows: Vec<_> = rows.into_iter().map(Bandarmology::into_proto).collect();
-        println!(
-            "GetMultiBandarmologyFromScylla {} {} req={} found={} {}ms",
-            username,
-            tahun_bulan,
-            kodes.len(),
-            proto_rows.len(),
-            started.elapsed().as_millis()
-        );
-
-        Ok(Response::new(GetMultiBandarmologyFromScyllaResponse {
-            rows: proto_rows,
-        }))
-    }
-
     async fn get_bandarmology_harian_from_stockbit(
         &self,
         request: Request<GetBandarmologyHarianFromStockbitRequest>,
@@ -314,5 +198,46 @@ impl BandarmologyRpc for BandarmologyService {
                 }))
             }
         }
+    }
+
+    async fn get_broker_acc_dist(
+        &self,
+        request: Request<GetBrokerAccDistRequest>,
+    ) -> Result<Response<GetBrokerAccDistResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let kode = parse_kode_emiten(&req.emiten_name).map_err(|e| {
+            Status::invalid_argument(e.replace("kode_emiten", "emiten_name"))
+        })?;
+        let dates = parse_tahun_bulan_tanggal_list(&req.tahun_bulan_tanggal);
+        if dates.is_empty() {
+            return Err(Status::invalid_argument(
+                "tahun_bulan_tanggal wajib diisi minimal 1 tanggal valid YYYY-MM-DD",
+            ));
+        }
+
+        let rows = self
+            .repo
+            .find_many_harian_by_emiten_and_dates(&kode, &dates)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        let broker_acc_dist: Vec<_> = rows
+            .into_iter()
+            .map(BandarmologyHarian::into_proto)
+            .collect();
+        println!(
+            "GetBrokerAccDist {} {} req={} found={} {}ms",
+            username,
+            kode,
+            dates.len(),
+            broker_acc_dist.len(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetBrokerAccDistResponse { broker_acc_dist }))
     }
 }

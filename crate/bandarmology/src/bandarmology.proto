@@ -3,19 +3,6 @@ syntax = "proto3";
 package bandarmology;
 
 service Bandarmology {
-  // Lookup baris bandarmology via PK (hanya baca Scylla, tidak scrape):
-  // agg_tahun_bulan_emiten_name = tahun_bulan + '_' + kode_emiten
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetBandarmologyFromScylla(GetBandarmologyFromScyllaRequest) returns (GetBandarmologyFromScyllaResponse);
-
-  // Lookup banyak emiten untuk satu `tahun_bulan` (hanya baca Scylla, tidak scrape).
-  // Per kode: PK `tahun_bulan + '_' + kode_emiten` (sama GetBandarmologyFromScylla).
-  // kode_emiten dinormalisasi UPPERCASE; duplikat di-skip; kode invalid diabaikan.
-  // Response hanya baris yang ada di Scylla (yang tidak ketemu tidak ikut).
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetMultiBandarmologyFromScylla(GetMultiBandarmologyFromScyllaRequest)
-      returns (GetMultiBandarmologyFromScyllaResponse);
-
   // Scrape bandarmology harian via API Stockbit → upsert `bandarmology_harian`.
   // Per tanggal di `tahun_bulan_tanggal` (YYYY-MM-DD): API from=to=tanggal itu, symbol=emiten_name.
   // Sebelum scrape: cek Scylla PK (emiten_name, tahun_bulan_tanggal); bila sudah ada → skip tanggal itu.
@@ -24,28 +11,24 @@ service Bandarmology {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyHarianFromStockbit(GetBandarmologyHarianFromStockbitRequest)
       returns (GetBandarmologyHarianFromStockbitResponse);
+
+  // Baca `bandarmology_harian` dari Scylla (tidak scrape) untuk satu emiten + daftar tanggal.
+  // Per tanggal: PK `(emiten_name, tahun_bulan_tanggal)`; yang tidak ketemu di-skip.
+  // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE.
+  // tahun_bulan_tanggal: YYYY-MM-DD; duplikat di-skip; format invalid diabaikan.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetBrokerAccDist(GetBrokerAccDistRequest) returns (GetBrokerAccDistResponse);
 }
 
-message GetBandarmologyFromScyllaRequest {
-  // Wajib format YYYY-MM (contoh "2026-07"); selain itu invalid_argument.
-  string tahun_bulan = 1;
-  // Kode emiten / ticker (4 huruf); di server di-capitalize ke uppercase (bbca → BBCA).
-  string kode_emiten = 2;
+message GetBrokerAccDistRequest {
+  // Kode emiten / ticker: tepat 4 huruf; dinormalisasi UPPERCASE (bbca → BBCA).
+  string emiten_name = 1;
+  // Daftar tanggal YYYY-MM-DD; duplikat di-skip; format invalid diabaikan.
+  repeated string tahun_bulan_tanggal = 2;
 }
 
-message GetBandarmologyFromScyllaResponse {
-  BandarmologyRow row = 1;
-}
-
-message GetMultiBandarmologyFromScyllaRequest {
-  // Wajib format YYYY-MM (contoh "2026-07"); selain itu invalid_argument.
-  string tahun_bulan = 1;
-  // Daftar kode emiten (4 huruf); dinormalisasi UPPERCASE; duplikat di-skip.
-  repeated string kode_emiten = 2;
-}
-
-message GetMultiBandarmologyFromScyllaResponse {
-  repeated BandarmologyRow rows = 1;
+message GetBrokerAccDistResponse {
+  repeated BandarmologyHarianRow broker_acc_dist = 1;
 }
 
 message GetBandarmologyHarianFromStockbitRequest {
@@ -69,20 +52,6 @@ message BandarmologyHarianRow {
   string updated_at = 4;
 }
 
-message BandarmologyRow {
-  string agg_tahun_bulan_emiten_name = 1;
-  string emiten_name = 2;
-  string tahun_bulan = 3;
-  BandarmologyDay broker_summary = 4;
-  // Minggu berjalan (bulan saat ini / tgl 1 = w4 bulan lalu):
-  // w1=1–7, w2=8–14, w3=15–21, w4=22–kemarin (bulan berjalan) / 22–akhir (bulan sudah lewat)
-  BandarmologyDay broker_summary_current_w1 = 5;
-  BandarmologyDay broker_summary_current_w2 = 6;
-  BandarmologyDay broker_summary_current_w3 = 7;
-  BandarmologyDay broker_summary_current_w4 = 8;
-  string updated_at = 9;
-}
-
 message BandarmologyDay {
   BandarmologyTopStats top_1 = 1;
   BandarmologyTopStats top_3 = 2;
@@ -94,7 +63,6 @@ message BandarmologyDay {
   repeated BandarmologyBrokerBuy broker_buy = 8;
   repeated BandarmologyBrokerSell broker_sell = 9;
 }
-
 
 message BandarmologyTopStats {
   int64 volume = 1;
@@ -116,6 +84,3 @@ message BandarmologyBrokerSell {
   string sell_lot = 3;
   int64 sell_avg = 4;
 }
-
-
-

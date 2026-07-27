@@ -3,8 +3,7 @@ use scylla::{DeserializeRow, DeserializeValue, SerializeValue};
 
 use crate::{
     BandarmologyBrokerBuy as ProtoBrokerBuy, BandarmologyBrokerSell as ProtoBrokerSell,
-    BandarmologyDay as ProtoDay, BandarmologyHarianRow, BandarmologyRow,
-    BandarmologyTopStats as ProtoTopStats,
+    BandarmologyDay as ProtoDay, BandarmologyHarianRow, BandarmologyTopStats as ProtoTopStats,
 };
 
 /// UDT `bandarmology_top_stats`: volume, percent, rp_b, acc_dist.
@@ -151,33 +150,6 @@ impl BandarmologyHarian {
             emiten_name: self.emiten_name,
             tahun_bulan_tanggal: self.tahun_bulan_tanggal.format("%Y-%m-%d").to_string(),
             broker_summary_harian: self.broker_summary_harian.map(BandarmologyDay::into_proto),
-            updated_at: self
-                .updated_at
-                .map(|t| t.to_rfc3339())
-                .unwrap_or_default(),
-        }
-    }
-}
-
-impl Bandarmology {
-    pub fn into_proto(self) -> BandarmologyRow {
-        BandarmologyRow {
-            agg_tahun_bulan_emiten_name: self.agg_tahun_bulan_emiten_name,
-            emiten_name: self.emiten_name,
-            tahun_bulan: self.tahun_bulan,
-            broker_summary: self.broker_summary.map(BandarmologyDay::into_proto),
-            broker_summary_current_w1: self
-                .broker_summary_current_w1
-                .map(BandarmologyDay::into_proto),
-            broker_summary_current_w2: self
-                .broker_summary_current_w2
-                .map(BandarmologyDay::into_proto),
-            broker_summary_current_w3: self
-                .broker_summary_current_w3
-                .map(BandarmologyDay::into_proto),
-            broker_summary_current_w4: self
-                .broker_summary_current_w4
-                .map(BandarmologyDay::into_proto),
             updated_at: self
                 .updated_at
                 .map(|t| t.to_rfc3339())
