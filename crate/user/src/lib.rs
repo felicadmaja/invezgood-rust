@@ -1,4 +1,4 @@
-//! Crate `user` — gRPC Login + JWT untuk autentikasi antar-crate.
+//! Crate `user` — gRPC Login / UpdatePassword + JWT untuk autentikasi antar-crate.
 //!
 //! Crate lain: pakai [`AuthInterceptor`] / [`require_auth`] / [`take_claims`].
 

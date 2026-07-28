@@ -28,7 +28,10 @@ service User {
   // 5. GetLatestEmitenTrendingFromStockbit   (1×/5 menit)
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
-
+  // Ubah password user di Scylla `user` (hash bcrypt).
+  // Wajib JWT; `user_id` harus cocok dengan user di token (tidak boleh ubah milik orang lain).
+  // `user_id`: 16-byte UUID binary, atau UTF-8 string UUID (dari Login.user_id).
+  rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse);
 }
 
 message IsStockbitReadyRequest {}
@@ -49,4 +52,14 @@ message LoginResponse {
   string user_id = 3;
   string name = 4;
   string email = 5; // selalu lowercase
+}
+
+message UpdatePasswordRequest {
+  bytes user_id = 1;
+  string new_password = 2;
+}
+
+message UpdatePasswordResponse {
+  bool success = 1;
+  string message = 2;
 }

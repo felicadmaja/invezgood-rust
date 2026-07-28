@@ -2,7 +2,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use bcrypt::verify;
+use bcrypt::{hash, verify, DEFAULT_COST};
 use scylla::client::session::Session;
 use stockbit_browser::ReadinessPoller;
 use tokio::sync::mpsc;
@@ -10,17 +10,37 @@ use tokio::time::sleep;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
+use uuid::Uuid;
 
 use crate::auth::require_auth;
 use crate::jwt;
 use crate::repository::UserRepository;
 use crate::user_server::User as UserRpc;
-use crate::{IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest, LoginResponse};
+use crate::{
+    IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest, LoginResponse,
+    UpdatePasswordRequest, UpdatePasswordResponse,
+};
 
 /// Interval cek cache poller untuk stream subscriber (detik).
 const READY_STREAM_CHECK_SECS: u64 = 2;
 /// Kirim ulang status yang sama setiap N tick (~30s) agar koneksi tetap “hidup”.
 const READY_STREAM_HEARTBEAT_TICKS: u64 = 15;
+
+/// Parse `user_id` proto bytes: UUID 16-byte binary, atau UTF-8 string UUID.
+fn parse_user_id_bytes(raw: &[u8]) -> Result<Uuid, Status> {
+    if raw.is_empty() {
+        return Err(Status::invalid_argument("user_id wajib diisi"));
+    }
+    if raw.len() == 16 {
+        return Uuid::from_slice(raw)
+            .map_err(|e| Status::invalid_argument(format!("user_id UUID binary tidak valid: {e}")));
+    }
+    let s = std::str::from_utf8(raw)
+        .map_err(|_| Status::invalid_argument("user_id harus UUID 16-byte atau string UTF-8"))?
+        .trim();
+    Uuid::parse_str(s)
+        .map_err(|e| Status::invalid_argument(format!("user_id UUID string tidak valid: {e}")))
+}
 
 pub struct UserService {
     repo: UserRepository,
@@ -95,6 +115,66 @@ impl UserRpc for UserService {
             user_id: user.id.to_string(),
             name: user.name,
             email,
+        }))
+    }
+
+    async fn update_password(
+        &self,
+        request: Request<UpdatePasswordRequest>,
+    ) -> Result<Response<UpdatePasswordResponse>, Status> {
+        let claims = require_auth(&request)?;
+        let req = request.into_inner();
+        let user_id = parse_user_id_bytes(&req.user_id)?;
+        let new_password = req.new_password;
+
+        if new_password.trim().is_empty() {
+            return Ok(Response::new(UpdatePasswordResponse {
+                success: false,
+                message: "new_password wajib diisi".to_string(),
+            }));
+        }
+        if new_password.len() < 8 {
+            return Ok(Response::new(UpdatePasswordResponse {
+                success: false,
+                message: "new_password minimal 8 karakter".to_string(),
+            }));
+        }
+
+        if claims.user_id != user_id.to_string() {
+            return Ok(Response::new(UpdatePasswordResponse {
+                success: false,
+                message: "tidak boleh mengubah password user lain".to_string(),
+            }));
+        }
+
+        let exists = self
+            .repo
+            .find_by_id(user_id)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla error: {e}")))?
+            .is_some();
+        if !exists {
+            return Ok(Response::new(UpdatePasswordResponse {
+                success: false,
+                message: "user tidak ditemukan".to_string(),
+            }));
+        }
+
+        let password_hash = tokio::task::spawn_blocking(move || hash(new_password, DEFAULT_COST))
+            .await
+            .map_err(|e| Status::internal(format!("bcrypt join error: {e}")))?
+            .map_err(|e| Status::internal(format!("bcrypt hash error: {e}")))?;
+
+        self.repo
+            .update_password(user_id, &password_hash)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla update password gagal: {e}")))?;
+
+        println!("UpdatePassword {} ok", claims.name);
+
+        Ok(Response::new(UpdatePasswordResponse {
+            success: true,
+            message: "password berhasil diubah".to_string(),
         }))
     }
 

@@ -11,6 +11,7 @@ use crate::model::{UserIdByEmail, UserRow};
 struct Prepared {
     by_email_mv: PreparedStatement,
     by_id: PreparedStatement,
+    update_password: PreparedStatement,
 }
 
 pub struct UserRepository {
@@ -45,7 +46,18 @@ impl UserRepository {
                         self.keyspace
                     ))
                     .await?;
-                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared { by_email_mv, by_id })
+                let update_password = self
+                    .session
+                    .prepare(format!(
+                        "UPDATE {}.user SET password = ? WHERE id = ?",
+                        self.keyspace
+                    ))
+                    .await?;
+                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared {
+                    by_email_mv,
+                    by_id,
+                    update_password,
+                })
             })
             .await
     }
@@ -85,5 +97,18 @@ impl UserRepository {
             .await?
             .into_rows_result()?;
         Ok(result.maybe_first_row::<UserRow>()?)
+    }
+
+    /// Update kolom `password` (bcrypt hash) di tabel `user`.
+    pub async fn update_password(
+        &self,
+        id: Uuid,
+        password_hash: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let p = self.prepared().await?;
+        self.session
+            .execute_unpaged(&p.update_password, (password_hash, id))
+            .await?;
+        Ok(())
     }
 }
