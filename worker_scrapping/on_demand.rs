@@ -48,6 +48,14 @@ static INFLIGHT_PENDING_ORDER: OnceLock<
     Mutex<Option<watch::Receiver<Option<Result<usize, String>>>>>,
 > = OnceLock::new();
 
+static INFLIGHT_IDX30: OnceLock<
+    Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>>,
+> = OnceLock::new();
+
+static INFLIGHT_LQ45: OnceLock<
+    Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>>,
+> = OnceLock::new();
+
 fn inflight_map() -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<(), String>>>>> {
     INFLIGHT_EMITEN.get_or_init(|| Mutex::new(HashMap::new()))
 }
@@ -86,6 +94,16 @@ fn inflight_porto_history_batch(
 fn inflight_pending_order(
 ) -> &'static Mutex<Option<watch::Receiver<Option<Result<usize, String>>>>> {
     INFLIGHT_PENDING_ORDER.get_or_init(|| Mutex::new(None))
+}
+
+fn inflight_idx30(
+) -> &'static Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>> {
+    INFLIGHT_IDX30.get_or_init(|| Mutex::new(None))
+}
+
+fn inflight_lq45(
+) -> &'static Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>> {
+    INFLIGHT_LQ45.get_or_init(|| Mutex::new(None))
 }
 
 fn keyspace() -> String {
@@ -1004,6 +1022,99 @@ async fn run_pending_order_all_scrape(session: Arc<Session>) -> Result<usize, St
         .map_err(|e| e.to_string())?;
 
         Ok::<usize, String>(n)
+    }
+    .await;
+
+    if let Err(e) = browser.close().await {
+        eprintln!("Peringatan: gagal menutup browser: {e}");
+    }
+
+    result
+}
+
+/// GET IDX30 dari Stockbit → daftar symbol (UPPERCASE). Single-flight.
+pub async fn fetch_idx30_symbols_from_stockbit() -> Result<Vec<String>, String> {
+    fetch_index_symbols_from_stockbit(
+        "IDX30",
+        emiten_list_worker::IDX30_COMPANY_URL,
+        inflight_idx30,
+    )
+    .await
+}
+
+/// GET LQ45 dari Stockbit → daftar symbol (UPPERCASE). Single-flight.
+pub async fn fetch_lq45_symbols_from_stockbit() -> Result<Vec<String>, String> {
+    fetch_index_symbols_from_stockbit(
+        "LQ45",
+        emiten_list_worker::LQ45_COMPANY_URL,
+        inflight_lq45,
+    )
+    .await
+}
+
+async fn fetch_index_symbols_from_stockbit(
+    label: &'static str,
+    url: &'static str,
+    inflight: fn() -> &'static Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>>,
+) -> Result<Vec<String>, String> {
+    let mut rx = {
+        let mut slot = inflight().lock().await;
+        if let Some(existing) = slot.as_ref() {
+            println!("On-demand {label}: sudah berjalan — menunggu hasil (single-flight)...");
+            existing.clone()
+        } else {
+            let (tx, rx) = watch::channel::<Option<Result<Vec<String>, String>>>(None);
+            *slot = Some(rx.clone());
+            tokio::spawn(async move {
+                let result = run_fetch_index_symbols(label, url).await;
+                match &result {
+                    Ok(syms) => println!("On-demand {label} selesai: {} symbol.", syms.len()),
+                    Err(e) => eprintln!("On-demand {label} GAGAL: {e}"),
+                }
+                let _ = tx.send(Some(result));
+                *inflight().lock().await = None;
+            });
+            rx
+        }
+    };
+
+    loop {
+        {
+            let guard = rx.borrow();
+            if let Some(result) = guard.as_ref() {
+                return result.clone();
+            }
+        }
+        if rx.changed().await.is_err() {
+            return Err(format!("on-demand {label}: channel ditutup sebelum ada hasil"));
+        }
+    }
+}
+
+async fn run_fetch_index_symbols(label: &str, url: &str) -> Result<Vec<String>, String> {
+    let email = std::env::var("STOCKBIT_EMAIL")
+        .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk on-demand scrape".to_string())?;
+    let password = std::env::var("STOCKBIT_PASSWORD")
+        .map_err(|_| "STOCKBIT_PASSWORD wajib diisi untuk on-demand scrape".to_string())?;
+    if email.trim().is_empty() || password.trim().is_empty() {
+        return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
+    }
+
+    let _browser_guard = browser_session_lock().lock().await;
+    println!("On-demand {label}: login + GET company list...");
+
+    let (mut browser, page) = launch_page()
+        .await
+        .map_err(|e| format!("launch Chrome: {e}"))?;
+
+    let result = async {
+        open_stream_or_login(&page, email.trim(), password.trim())
+            .await
+            .map_err(|e| format!("login Stockbit: {e}"))?;
+
+        emiten_list_worker::fetch_index_symbols(&page, url, label)
+            .await
+            .map_err(|e| e.to_string())
     }
     .await;
 

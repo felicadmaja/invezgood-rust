@@ -20,6 +20,12 @@ const CORPACTION_URL: &str = "https://exodus.stockbit.com/corpaction";
 const CORPACTION_LIMIT: u32 = 30;
 const PROFILE_URL: &str = "https://exodus.stockbit.com/emitten";
 const SEARCH_URL: &str = "https://exodus.stockbit.com/search";
+/// IDX30 companies — sector 88 / subsector 1000003123.
+pub const IDX30_COMPANY_URL: &str =
+    "https://exodus.stockbit.com/emitten/v3/sector/88/subsector/1000003123/company";
+/// LQ45 companies — sector 88 / subsector 1000003847.
+pub const LQ45_COMPANY_URL: &str =
+    "https://exodus.stockbit.com/emitten/v3/sector/88/subsector/1000003847/company";
 const EMITEN_ICON_ASSETS_BASE: &str = "https://assets.stockbit.com/logos/companies";
 
 pub const UPDATE_AT_FRESH_DAYS: i64 = 30;
@@ -1000,6 +1006,79 @@ pub async fn scrape_emiten_list_for_code(
     Ok(())
 }
 
+/// GET index company list (IDX30 / LQ45 / …) → daftar `symbol` (UPPERCASE, unik, urutan API).
+pub async fn fetch_index_symbols(
+    page: &Page,
+    url: &str,
+    label: &str,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    println!("{label} API: ambil Bearer dari sesi browser...");
+    let bearer = extract_stockbit_bearer(page)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    println!("{label} Bearer OK (len={}).", bearer.len());
+
+    let http = reqwest::Client::builder()
+        .user_agent(
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        )
+        .timeout(Duration::from_secs(60))
+        .build()?;
+
+    let resp = http
+        .get(url)
+        .header("Authorization", format!("Bearer {bearer}"))
+        .header("Accept", "application/json")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .send()
+        .await?;
+
+    let status = resp.status();
+    crate::http_abort::abort_app_if_http_4xx(status, &format!("{label} company list"));
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        let preview: String = body.chars().take(280).collect();
+        return Err(format!("{label} HTTP {status}: {preview}").into());
+    }
+
+    let v: Value = serde_json::from_str(&body).map_err(|e| format!("{label} JSON: {e}"))?;
+    let symbols = parse_index_symbols(&v);
+    println!("{label} API: {} symbol.", symbols.len());
+    Ok(symbols)
+}
+
+/// GET IDX30 company list → daftar `symbol`.
+pub async fn fetch_idx30_symbols(page: &Page) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fetch_index_symbols(page, IDX30_COMPANY_URL, "IDX30").await
+}
+
+/// GET LQ45 company list → daftar `symbol`.
+pub async fn fetch_lq45_symbols(page: &Page) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fetch_index_symbols(page, LQ45_COMPANY_URL, "LQ45").await
+}
+
+fn parse_index_symbols(v: &Value) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let Some(arr) = v.get("data").and_then(|d| d.as_array()) else {
+        return out;
+    };
+    for item in arr {
+        let Some(raw) = item.get("symbol").and_then(|s| s.as_str()) else {
+            continue;
+        };
+        let sym = raw.trim().to_ascii_uppercase();
+        if sym.len() != 4 || !sym.chars().all(|c| c.is_ascii_alphabetic()) {
+            continue;
+        }
+        if seen.insert(sym.clone()) {
+            out.push(sym);
+        }
+    }
+    out
+}
+
 async fn scrape_one_emiten_inner(
     http: &reqwest::Client,
     bearer: &str,
@@ -1204,6 +1283,27 @@ pub async fn scrape_and_insert_key_stats(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_index_symbols_extracts_unique_uppercase() {
+        let v: Value = serde_json::from_str(
+            r#"{
+            "data": [
+                {"symbol": "bbca", "name": "Bank Central Asia Tbk."},
+                {"symbol": "BBRI", "name": "Bank Rakyat Indonesia"},
+                {"symbol": "bbca", "name": "dup"},
+                {"symbol": "X", "name": "invalid"},
+                {"symbol": "ASII", "name": "Astra"}
+            ],
+            "message": "Found"
+        }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            parse_index_symbols(&v),
+            vec!["BBCA".to_string(), "BBRI".to_string(), "ASII".to_string()]
+        );
+    }
 
     #[test]
     fn parse_keystats_ratio_maps_stats_and_net_income() {

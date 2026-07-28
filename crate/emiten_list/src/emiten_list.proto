@@ -94,6 +94,18 @@ service EmitenList {
   // Update kolom `catatan_pribadi` (text) untuk satu emiten (PK emiten_name).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListCatatanPribadi(UpdateEmitenListCatatanPribadiRequest) returns (UpdateEmitenListCatatanPribadiResponse);
+
+  // IDX30 dari Stockbit API (GET emitten/v3/sector/88/subsector/1000003123/company),
+  // ambil `symbol` dari tiap item `data`, lalu lookup baris di Scylla `emiten_list`.
+  // Request kosong. Response: repeated EmitenListRow (hanya yang ada di Scylla; urutan mengikuti API).
+  // Membuka sesi browser untuk Bearer Exodus. Tidak scrape/upsert emiten_list.
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetIdx30FromStockbit(GetIdx30FromStockbitRequest) returns (GetIdx30FromStockbitResponse);
+
+  // LQ45 dari Stockbit API (GET emitten/v3/sector/88/subsector/1000003847/company).
+  // Logic sama GetIdx30FromStockbit (symbol → lookup `emiten_list`).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetLq45FromStockbit(GetLq45FromStockbitRequest) returns (GetLq45FromStockbitResponse);
 }
 
 // Kode sektor emiten; disimpan di Scylla `emiten_list.sector` sebagai tinyint.
@@ -449,5 +461,17 @@ message NetIncomeYear {
 }
 
 message GetAllEmitenListFromScyllaResponse {
+  repeated EmitenListRow rows = 1;
+}
+
+message GetIdx30FromStockbitRequest {}
+
+message GetIdx30FromStockbitResponse {
+  repeated EmitenListRow rows = 1;
+}
+
+message GetLq45FromStockbitRequest {}
+
+message GetLq45FromStockbitResponse {
   repeated EmitenListRow rows = 1;
 }

@@ -11,18 +11,6 @@ service PortofolioBandarmology {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetPortofolioBandarmology(GetPortofolioBandarmologyRequest)
       returns (GetPortofolioBandarmologyResponse);
-
-  // Bersihkan `portofolio_bandarmology` yang sudah tidak terpakai (orphan).
-  // Alur:
-  // 1. Token-ring scan `portofolio_bandarmology` → kumpulkan distinct `emiten_name`.
-  // 2. Untuk tiap emiten_name, cek `portofolio` WHERE emiten_name = ?.
-  // 3. Bila baris `portofolio` TIDAK ADA → DELETE semua baris partition
-  //    `portofolio_bandarmology` untuk emiten itu
-  //    (`DELETE WHERE emiten_name = ?`).
-  // Request kosong. Response: success=true, message="success".
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc DeletePortofolioBandarmology(DeletePortofolioBandarmologyRequest)
-      returns (DeletePortofolioBandarmologyResponse);
 }
 
 message GetPortofolioBandarmologyRequest {
@@ -32,13 +20,6 @@ message GetPortofolioBandarmologyRequest {
 
 message GetPortofolioBandarmologyResponse {
   repeated PortofolioBandarmologyRow rows = 1;
-}
-
-message DeletePortofolioBandarmologyRequest {}
-
-message DeletePortofolioBandarmologyResponse {
-  bool success = 1;
-  string message = 2;
 }
 
 message PortofolioBandarmologyRow {
