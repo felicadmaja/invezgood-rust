@@ -32,6 +32,18 @@ service User {
   // Wajib JWT; `user_id` harus cocok dengan user di token (tidak boleh ubah milik orang lain).
   // `user_id`: 16-byte UUID binary, atau UTF-8 string UUID (dari Login.user_id).
   rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse);
+
+  // Tambah user baru ke Scylla `user` (password di-hash bcrypt; email dinormalisasi lowercase).
+  // Wajib JWT. Gagal bila email sudah terpakai.
+  rpc AddUser(AddUserRequest) returns (AddUserResponse);
+
+  // Hapus user dari Scylla `user` (MV `user_by_email` ikut ter-update).
+  // Wajib JWT. `id`: 16-byte UUID binary, atau UTF-8 string UUID.
+  // Tidak boleh menghapus akun sendiri (hindari lockout).
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+
+  // Semua user dari Scylla `user` (tanpa kolom password). Wajib JWT. Request kosong.
+  rpc GetAllUsers(GetAllUsersRequest) returns (GetAllUsersResponse);
 }
 
 message IsStockbitReadyRequest {}
@@ -62,4 +74,37 @@ message UpdatePasswordRequest {
 message UpdatePasswordResponse {
   bool success = 1;
   string message = 2;
+}
+
+message AddUserRequest {
+  string email = 1;
+  string password = 2;
+  string name = 3;
+}
+
+message AddUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteUserRequest {
+  bytes id = 1;
+}
+
+message DeleteUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetAllUsersRequest {}
+
+// Tanpa password (hash tidak dikirim ke client).
+message UserRow {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+}
+
+message GetAllUsersResponse {
+  repeated UserRow rows = 1;
 }

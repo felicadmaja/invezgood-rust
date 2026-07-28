@@ -11,6 +11,16 @@ pub struct UserRow {
     pub password: String,
 }
 
+/// Baris publik untuk list user (tanpa password).
+#[derive(Debug, Clone, scylla::DeserializeRow)]
+pub struct UserPublicRow {
+    pub id: Uuid,
+    #[scylla(default_when_null)]
+    pub name: String,
+    #[scylla(default_when_null)]
+    pub email: String,
+}
+
 #[derive(Debug, Clone, scylla::DeserializeRow)]
 pub struct UserIdByEmail {
     pub id: Uuid,

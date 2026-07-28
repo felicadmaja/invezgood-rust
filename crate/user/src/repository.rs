@@ -6,12 +6,15 @@ use tokio::sync::OnceCell;
 use uuid::Uuid;
 
 use crate::database::keyspace;
-use crate::model::{UserIdByEmail, UserRow};
+use crate::model::{UserIdByEmail, UserPublicRow, UserRow};
 
 struct Prepared {
     by_email_mv: PreparedStatement,
     by_id: PreparedStatement,
     update_password: PreparedStatement,
+    insert_user: PreparedStatement,
+    delete_user: PreparedStatement,
+    get_all: PreparedStatement,
 }
 
 pub struct UserRepository {
@@ -53,10 +56,34 @@ impl UserRepository {
                         self.keyspace
                     ))
                     .await?;
+                let insert_user = self
+                    .session
+                    .prepare(format!(
+                        "INSERT INTO {}.user (id, name, email, password) VALUES (?, ?, ?, ?)",
+                        self.keyspace
+                    ))
+                    .await?;
+                let delete_user = self
+                    .session
+                    .prepare(format!(
+                        "DELETE FROM {}.user WHERE id = ?",
+                        self.keyspace
+                    ))
+                    .await?;
+                let get_all = self
+                    .session
+                    .prepare(format!(
+                        "SELECT id, name, email FROM {}.user",
+                        self.keyspace
+                    ))
+                    .await?;
                 Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared {
                     by_email_mv,
                     by_id,
                     update_password,
+                    insert_user,
+                    delete_user,
+                    get_all,
                 })
             })
             .await
@@ -110,5 +137,49 @@ impl UserRepository {
             .execute_unpaged(&p.update_password, (password_hash, id))
             .await?;
         Ok(())
+    }
+
+    /// Insert user baru (MV `user_by_email` ikut terisi dari base table).
+    pub async fn insert_user(
+        &self,
+        id: Uuid,
+        name: &str,
+        email: &str,
+        password_hash: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let p = self.prepared().await?;
+        self.session
+            .execute_unpaged(&p.insert_user, (id, name, email, password_hash))
+            .await?;
+        Ok(())
+    }
+
+    /// Hapus user by id (MV `user_by_email` ikut ter-update).
+    pub async fn delete_user(
+        &self,
+        id: Uuid,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let p = self.prepared().await?;
+        self.session
+            .execute_unpaged(&p.delete_user, (id,))
+            .await?;
+        Ok(())
+    }
+
+    /// Semua user (id, name, email) — tanpa password.
+    pub async fn get_all(
+        &self,
+    ) -> Result<Vec<UserPublicRow>, Box<dyn std::error::Error + Send + Sync>> {
+        let p = self.prepared().await?;
+        let result = self
+            .session
+            .execute_unpaged(&p.get_all, &[])
+            .await?
+            .into_rows_result()?;
+        let mut rows = Vec::new();
+        for row in result.rows::<UserPublicRow>()? {
+            rows.push(row?);
+        }
+        Ok(rows)
     }
 }

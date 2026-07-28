@@ -17,8 +17,9 @@ use crate::jwt;
 use crate::repository::UserRepository;
 use crate::user_server::User as UserRpc;
 use crate::{
-    IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest, LoginResponse,
-    UpdatePasswordRequest, UpdatePasswordResponse,
+    AddUserRequest, AddUserResponse, DeleteUserRequest, DeleteUserResponse, GetAllUsersRequest,
+    GetAllUsersResponse, IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest,
+    LoginResponse, UpdatePasswordRequest, UpdatePasswordResponse, UserRow as UserProtoRow,
 };
 
 /// Interval cek cache poller untuk stream subscriber (detik).
@@ -26,20 +27,23 @@ const READY_STREAM_CHECK_SECS: u64 = 2;
 /// Kirim ulang status yang sama setiap N tick (~30s) agar koneksi tetap “hidup”.
 const READY_STREAM_HEARTBEAT_TICKS: u64 = 15;
 
-/// Parse `user_id` proto bytes: UUID 16-byte binary, atau UTF-8 string UUID.
-fn parse_user_id_bytes(raw: &[u8]) -> Result<Uuid, Status> {
+/// Parse UUID proto bytes: 16-byte binary, atau UTF-8 string UUID.
+fn parse_uuid_bytes(raw: &[u8], field: &str) -> Result<Uuid, Status> {
     if raw.is_empty() {
-        return Err(Status::invalid_argument("user_id wajib diisi"));
+        return Err(Status::invalid_argument(format!("{field} wajib diisi")));
     }
     if raw.len() == 16 {
-        return Uuid::from_slice(raw)
-            .map_err(|e| Status::invalid_argument(format!("user_id UUID binary tidak valid: {e}")));
+        return Uuid::from_slice(raw).map_err(|e| {
+            Status::invalid_argument(format!("{field} UUID binary tidak valid: {e}"))
+        });
     }
     let s = std::str::from_utf8(raw)
-        .map_err(|_| Status::invalid_argument("user_id harus UUID 16-byte atau string UTF-8"))?
+        .map_err(|_| {
+            Status::invalid_argument(format!("{field} harus UUID 16-byte atau string UTF-8"))
+        })?
         .trim();
     Uuid::parse_str(s)
-        .map_err(|e| Status::invalid_argument(format!("user_id UUID string tidak valid: {e}")))
+        .map_err(|e| Status::invalid_argument(format!("{field} UUID string tidak valid: {e}")))
 }
 
 pub struct UserService {
@@ -124,7 +128,7 @@ impl UserRpc for UserService {
     ) -> Result<Response<UpdatePasswordResponse>, Status> {
         let claims = require_auth(&request)?;
         let req = request.into_inner();
-        let user_id = parse_user_id_bytes(&req.user_id)?;
+        let user_id = parse_uuid_bytes(&req.user_id, "user_id")?;
         let new_password = req.new_password;
 
         if new_password.trim().is_empty() {
@@ -176,6 +180,133 @@ impl UserRpc for UserService {
             success: true,
             message: "password berhasil diubah".to_string(),
         }))
+    }
+
+    async fn add_user(
+        &self,
+        request: Request<AddUserRequest>,
+    ) -> Result<Response<AddUserResponse>, Status> {
+        let claims = require_auth(&request)?;
+        let req = request.into_inner();
+        let email = req.email.trim().to_lowercase();
+        let name = req.name.trim().to_string();
+        let password = req.password;
+
+        if email.is_empty() || name.is_empty() || password.trim().is_empty() {
+            return Ok(Response::new(AddUserResponse {
+                success: false,
+                message: "email, password, dan name wajib diisi".to_string(),
+            }));
+        }
+        if password.len() < 8 {
+            return Ok(Response::new(AddUserResponse {
+                success: false,
+                message: "password minimal 8 karakter".to_string(),
+            }));
+        }
+
+        let existing = self
+            .repo
+            .find_by_email(&email)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla error: {e}")))?;
+        if existing.is_some() {
+            return Ok(Response::new(AddUserResponse {
+                success: false,
+                message: format!("email sudah terpakai: {email}"),
+            }));
+        }
+
+        let password_hash = tokio::task::spawn_blocking(move || hash(password, DEFAULT_COST))
+            .await
+            .map_err(|e| Status::internal(format!("bcrypt join error: {e}")))?
+            .map_err(|e| Status::internal(format!("bcrypt hash error: {e}")))?;
+
+        let id = Uuid::new_v4();
+        self.repo
+            .insert_user(id, &name, &email, &password_hash)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla insert user gagal: {e}")))?;
+
+        println!("AddUser by {}: {email} id={id}", claims.name);
+
+        Ok(Response::new(AddUserResponse {
+            success: true,
+            message: format!("user ditambahkan: {email} (id={id})"),
+        }))
+    }
+
+    async fn delete_user(
+        &self,
+        request: Request<DeleteUserRequest>,
+    ) -> Result<Response<DeleteUserResponse>, Status> {
+        let claims = require_auth(&request)?;
+        let req = request.into_inner();
+        let id = parse_uuid_bytes(&req.id, "id")?;
+
+        if claims.user_id == id.to_string() {
+            return Ok(Response::new(DeleteUserResponse {
+                success: false,
+                message: "tidak boleh menghapus akun sendiri".to_string(),
+            }));
+        }
+
+        let exists = self
+            .repo
+            .find_by_id(id)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla error: {e}")))?
+            .is_some();
+        if !exists {
+            return Ok(Response::new(DeleteUserResponse {
+                success: false,
+                message: "user tidak ditemukan".to_string(),
+            }));
+        }
+
+        self.repo
+            .delete_user(id)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla delete user gagal: {e}")))?;
+
+        println!("DeleteUser by {}: id={id}", claims.name);
+
+        Ok(Response::new(DeleteUserResponse {
+            success: true,
+            message: format!("user dihapus: {id}"),
+        }))
+    }
+
+    async fn get_all_users(
+        &self,
+        request: Request<GetAllUsersRequest>,
+    ) -> Result<Response<GetAllUsersResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+
+        let rows = self
+            .repo
+            .get_all()
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        let proto_rows: Vec<UserProtoRow> = rows
+            .into_iter()
+            .map(|r| UserProtoRow {
+                id: r.id.to_string(),
+                name: r.name,
+                email: r.email.trim().to_lowercase(),
+            })
+            .collect();
+
+        println!(
+            "GetAllUsers {} rows={} {}ms",
+            claims.name,
+            proto_rows.len(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetAllUsersResponse { rows: proto_rows }))
     }
 
     type IsStockbitReadyStream =
