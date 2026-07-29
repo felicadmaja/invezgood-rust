@@ -261,7 +261,8 @@ pub fn invoke_week_scrape_slot(today: NaiveDate) -> Option<(u8, NaiveDate, Naive
     }
 }
 
-fn is_broker_summary_empty(day: &BandarmologyDay) -> bool {
+/// `true` bila snapshot Bandar Detector kosong (belum ada data).
+pub fn is_broker_summary_empty(day: &BandarmologyDay) -> bool {
     day.net_volume == 0
         && day.broker_buy.is_empty()
         && day.broker_sell.is_empty()
@@ -1654,6 +1655,8 @@ async fn scrape_emiten_bandarmology(
 }
 
 /// Scrape satu hari marketdetectors (`from`=`to`=`day`) → upsert `bandarmology_harian`.
+/// Bila baris PK sudah ada dan `broker_summary_harian` non-empty → skip.
+/// Bila PK ada tapi summary kosong → scrape ulang dan timpa.
 pub async fn scrape_and_upsert_bandarmology_harian_day(
     page: &Page,
     session: &Session,
@@ -1664,6 +1667,24 @@ pub async fn scrape_and_upsert_bandarmology_harian_day(
     let code = emiten.trim().to_ascii_uppercase();
     if code.is_empty() {
         return Err("emiten_name kosong".into());
+    }
+
+    match load_bandarmology_harian_summary(session, keyspace, &code, day).await {
+        Ok(Some(existing)) if !is_broker_summary_empty(&existing) => {
+            println!(
+                "Skip bandarmology_harian {code} {day}: sudah ada (broker_summary_harian non-empty)"
+            );
+            return Ok(());
+        }
+        Ok(Some(_)) => {
+            println!(
+                "Refresh bandarmology_harian {code} {day}: PK ada tapi broker_summary_harian kosong → timpa dari API"
+            );
+        }
+        Ok(None) => {}
+        Err(e) => eprintln!(
+            "Peringatan: gagal cek bandarmology_harian {code} {day} sebelum scrape: {e}"
+        ),
     }
 
     let bearer = extract_stockbit_bearer(page)
@@ -1706,7 +1727,34 @@ pub async fn scrape_and_upsert_bandarmology_harian_day(
     Ok(())
 }
 
+#[derive(Debug, DeserializeRow)]
+struct HarianSummaryRow {
+    broker_summary_harian: Option<BandarmologyDay>,
+}
+
+async fn load_bandarmology_harian_summary(
+    session: &Session,
+    keyspace: &str,
+    emiten: &str,
+    day: NaiveDate,
+) -> Result<Option<BandarmologyDay>, Box<dyn std::error::Error + Send + Sync>> {
+    let stmt = session
+        .prepare(format!(
+            "SELECT broker_summary_harian FROM {keyspace}.bandarmology_harian \
+             WHERE emiten_name = ? AND tahun_bulan_tanggal = ? LIMIT 1"
+        ))
+        .await?;
+    let result = session
+        .execute_unpaged(&stmt, (emiten, day))
+        .await?
+        .into_rows_result()?;
+    Ok(result
+        .maybe_first_row::<HarianSummaryRow>()?
+        .and_then(|r| r.broker_summary_harian))
+}
+
 /// Scrape banyak hari untuk satu emiten (satu bearer/session). Returns jumlah hari di-upsert.
+/// Skip tanggal yang sudah punya `broker_summary_harian` non-empty; timpa bila masih kosong.
 pub async fn scrape_and_upsert_bandarmology_harian_days(
     page: &Page,
     session: &Session,
@@ -1740,8 +1788,31 @@ pub async fn scrape_and_upsert_bandarmology_harian_days(
         .map_err(|e| e.to_string())?;
 
     let mut upserted = 0usize;
+    let mut api_calls = 0usize;
     for (idx, &day) in days.iter().enumerate() {
-        if idx > 0 {
+        match load_bandarmology_harian_summary(session, keyspace, &code, day).await {
+            Ok(Some(existing)) if !is_broker_summary_empty(&existing) => {
+                println!(
+                    "Skip bandarmology_harian [{}/{}] {code} {day}: sudah non-empty",
+                    idx + 1,
+                    days.len()
+                );
+                continue;
+            }
+            Ok(Some(_)) => {
+                println!(
+                    "Refresh bandarmology_harian [{}/{}] {code} {day}: summary kosong → timpa",
+                    idx + 1,
+                    days.len()
+                );
+            }
+            Ok(None) => {}
+            Err(e) => eprintln!(
+                "Peringatan: gagal cek bandarmology_harian {code} {day}: {e}"
+            ),
+        }
+
+        if api_calls > 0 {
             throttle_if_needed(&last_bandar_rate_snapshot()).await;
         }
         println!(
@@ -1754,6 +1825,7 @@ pub async fn scrape_and_upsert_bandarmology_harian_days(
                 .await
                 .map_err(|e| e.to_string())?;
         throttle_if_needed(&rate).await;
+        api_calls += 1;
 
         let updated_at = Utc::now();
         session

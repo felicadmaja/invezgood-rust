@@ -44,6 +44,9 @@
 //! Lalu (PIN/trading session bila perlu) → `GET carina.stockbit.com/order/v2/list`
 //! → insert `pending_order`.
 //! Tidak scrape/insert `bandarmology` dan tidak tulis `portofolio_bandarmology`.
+//! Catatan `bandarmology_harian` (RPC `GetBandarmologyHarianFromStockbit` /
+//! `bandarmology_worker`): PK `(emiten_name, tahun_bulan_tanggal)` yang sudah ada
+//! **tetap** di-scrape ulang bila `broker_summary_harian` masih kosong.
 //!
 //! Profil Chrome disimpan di `worker_scrapping/browser_data/` agar cookie/sesi login tetap ada antar run.
 //! Setiap run: clear lalu tulis ulang log ke `worker_scrapping/stockbit_scrapper_worker.log`

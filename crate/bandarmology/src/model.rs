@@ -89,6 +89,16 @@ pub struct BandarmologyDay {
 }
 
 impl BandarmologyDay {
+    /// `true` bila snapshot kosong (belum ada volume / broker buy-sell).
+    pub fn is_empty_summary(&self) -> bool {
+        self.net_volume == 0
+            && self.broker_buy.is_empty()
+            && self.broker_sell.is_empty()
+            && self.top_1.volume == 0
+            && self.top_3.volume == 0
+            && self.top_5.volume == 0
+    }
+
     pub fn into_proto(self) -> ProtoDay {
         ProtoDay {
             top_1: Some(self.top_1.into_proto()),
@@ -145,6 +155,14 @@ pub struct BandarmologyHarian {
 }
 
 impl BandarmologyHarian {
+    /// PK ada tapi `broker_summary_harian` null / kosong → perlu scrape ulang.
+    pub fn needs_scrape_refresh(&self) -> bool {
+        match &self.broker_summary_harian {
+            None => true,
+            Some(day) => day.is_empty_summary(),
+        }
+    }
+
     pub fn into_proto(self) -> BandarmologyHarianRow {
         BandarmologyHarianRow {
             emiten_name: self.emiten_name,
