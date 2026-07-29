@@ -854,6 +854,7 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
             println!(
                 "Modal 'Sesi Kamu Sudah Habis' terdeteksi — akan klik 'Kembali ke Halaman Utama' lalu login..."
             );
+            let _ = save_error_screenshot(&page, "session_expired_modal").await;
             break;
         }
         let u = page.url().await?.unwrap_or_default();
@@ -1186,6 +1187,7 @@ pub async fn open_stream_or_login(
             println!(
                 "Modal 'Sesi Kamu Sudah Habis' terdeteksi — akan klik 'Kembali ke Halaman Utama' lalu login..."
             );
+            let _ = save_error_screenshot(page, "session_expired_modal").await;
             break;
         }
         let u = page.url().await?.unwrap_or_default();

@@ -9,6 +9,8 @@ service Bandarmology {
   // Skip hanya bila baris sudah ada **dan** `broker_summary_harian` tidak kosong;
   // bila PK ada tapi summary kosong → scrape ulang dan timpa.
   // Tanggal hari ini (server lokal) selalu di-skip scrape (belum final / kosong dari API).
+  // Mutual exclusion: tidak boleh jalan bersamaan dengan GetBandarmologyMultiHarianFromStockbit
+  // (jika yang lain sedang jalan → success=false, coba lagi setelah selesai).
   // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE. Tanggal duplikat di-skip; format invalid diabaikan.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyHarianFromStockbit(GetBandarmologyHarianFromStockbitRequest)
@@ -19,6 +21,8 @@ service Bandarmology {
   // `emiten_names`: string daftar kode (pisah koma/spasi/titik-koma/baris), tiap kode tepat 4 huruf.
   // `tahun_bulan_tanggal`: YYYY-MM-DD; duplikat di-skip; format invalid diabaikan.
   // Tanggal hari ini di-skip scrape (tetap dikembalikan dari Scylla bila ada).
+  // Mutual exclusion: tidak boleh jalan bersamaan dengan GetBandarmologyHarianFromStockbit
+  // (jika yang lain sedang jalan → success=false, coba lagi setelah selesai).
   // Response: repeated BandarmologyHarianRow untuk semua pasangan emiten×tanggal yang ada.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyMultiHarianFromStockbit(GetBandarmologyMultiHarianFromStockbitRequest)

@@ -1,8 +1,9 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use chrono::{Local, NaiveDate};
 use scylla::client::session::Session;
+use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use user::require_auth;
 use worker_scrapping::on_demand;
@@ -15,6 +16,42 @@ use crate::{
     GetBandarmologyMultiHarianFromStockbitRequest, GetBandarmologyMultiHarianFromStockbitResponse,
     GetBrokerAccDistRequest, GetBrokerAccDistResponse,
 };
+
+/// Gate bersama: `GetBandarmologyHarianFromStockbit` ↔ `GetBandarmologyMultiHarianFromStockbit`
+/// tidak boleh jalan bersamaan. `Some(rpc_name)` = sedang dipegang.
+static HARIAN_RPC_GATE: OnceLock<Mutex<Option<&'static str>>> = OnceLock::new();
+
+fn harian_rpc_gate() -> &'static Mutex<Option<&'static str>> {
+    HARIAN_RPC_GATE.get_or_init(|| Mutex::new(None))
+}
+
+struct HarianRpcGuard {
+    rpc: &'static str,
+    guard: tokio::sync::MutexGuard<'static, Option<&'static str>>,
+}
+
+impl Drop for HarianRpcGuard {
+    fn drop(&mut self) {
+        *self.guard = None;
+        println!("Bandarmology harian RPC lock dilepas: {}", self.rpc);
+    }
+}
+
+/// Ambil exclusive lock untuk satu dari dua RPC harian. Gagal segera bila yang lain
+/// sedang jalan (tidak mengantri — caller invoke ulang setelah yang aktif selesai).
+fn try_acquire_harian_rpc(rpc: &'static str) -> Result<HarianRpcGuard, String> {
+    let mut guard = harian_rpc_gate().try_lock().map_err(|_| {
+        format!("RPC bandarmology harian lain sedang berjalan; tunggu selesai sebelum invoke {rpc}")
+    })?;
+    if let Some(holder) = *guard {
+        return Err(format!(
+            "{holder} sedang berjalan; tunggu selesai sebelum invoke {rpc}"
+        ));
+    }
+    *guard = Some(rpc);
+    println!("Bandarmology harian RPC lock diambil: {rpc}");
+    Ok(HarianRpcGuard { rpc, guard })
+}
 
 fn parse_kode_emiten(raw: &str) -> Result<String, String> {
     let kode = raw.trim().to_ascii_uppercase();
@@ -123,6 +160,20 @@ impl BandarmologyRpc for BandarmologyService {
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
+
+        let _rpc_lock = match try_acquire_harian_rpc("GetBandarmologyHarianFromStockbit") {
+            Ok(g) => g,
+            Err(message) => {
+                println!(
+                    "GetBandarmologyHarianFromStockbit {username}: ditolak (mutual exclusion) — {message}"
+                );
+                return Ok(Response::new(GetBandarmologyHarianFromStockbitResponse {
+                    rows: vec![],
+                    success: false,
+                    message,
+                }));
+            }
+        };
 
         let kode = match parse_kode_emiten(&req.emiten_name) {
             Ok(c) => c,
@@ -256,6 +307,22 @@ impl BandarmologyRpc for BandarmologyService {
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
+
+        let _rpc_lock = match try_acquire_harian_rpc("GetBandarmologyMultiHarianFromStockbit") {
+            Ok(g) => g,
+            Err(message) => {
+                println!(
+                    "GetBandarmologyMultiHarianFromStockbit {username}: ditolak (mutual exclusion) — {message}"
+                );
+                return Ok(Response::new(
+                    GetBandarmologyMultiHarianFromStockbitResponse {
+                        rows: vec![],
+                        success: false,
+                        message,
+                    },
+                ));
+            }
+        };
 
         let codes = parse_emiten_names_string(&req.emiten_names);
         if codes.is_empty() {
