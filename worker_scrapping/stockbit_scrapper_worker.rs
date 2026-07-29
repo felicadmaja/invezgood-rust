@@ -11,7 +11,7 @@
 //! Env wajib saat perlu login: `STOCKBIT_EMAIL`, `STOCKBIT_PASSWORD`.
 //! Env opsional: `CHROME_EXECUTABLE_PATH` (mis. `/usr/bin/chromium-browser`).
 //! Env opsional: `STOCKBIT_2FA_TIMEOUT_SECS` (default 300 = 5 menit).
-//! Env opsional: `STOCKBIT_SESSION_CHECK_SECS` (default 5) — tunggu popup sesi habis di `/stream`.
+//! Env opsional: `STOCKBIT_SESSION_CHECK_SECS` (default 2 worker/on-demand) — tunggu popup sesi habis di `/stream`.
 //! Env Scylla (insert `emiten_trending`, `emiten_list`, `portofolio`,
 //! `portofolio_history`, `portofolio_equity`, `pending_order`):
 //! `SCYLLA_URI`, `SCYLLA_KEYSPACE`, opsional `SCYLLA_USER` / `SCYLLA_PASSWORD`.

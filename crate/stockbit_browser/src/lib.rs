@@ -8,7 +8,9 @@
 //!
 //! Env: `STOCKBIT_EMAIL`, `STOCKBIT_PASSWORD`, opsional `CHROME_EXECUTABLE_PATH`,
 //! `STOCKBIT_2FA_TIMEOUT_SECS`, `STOCKBIT_SESSION_CHECK_SECS` (default random 60–300 untuk
-//! jendela cek di `/stream`; default 5 untuk worker), `STOCKBIT_BROWSER_DATA_DIR`,
+//! jendela cek readiness di `/stream`; default **2** untuk worker/on-demand),
+//! `STOCKBIT_BEARER_CACHE_SECS` (default 300 — cache JWT antar scrape),
+//! `STOCKBIT_BROWSER_DATA_DIR`,
 //! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 540–900 —
 //! interval background poller untuk `IsStockbitReady`), `REDIS_URL` (state readiness).
 //!
@@ -72,6 +74,35 @@ pub const STOCKBIT_STREAM_URL: &str = "https://stockbit.com/stream";
 pub const STOCKBIT_LOGIN_URL: &str = "https://stockbit.com/login";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const NAV_TIMEOUT_SECS: u64 = 10;
+/// Default tunggu popup sesi habis / redirect di worker & on-demand (`open_stream_or_login`).
+const WORKER_SESSION_CHECK_SECS: u64 = 2;
+/// TTL cache Bearer JWT setelah probe market-mover OK.
+const BEARER_CACHE_TTL_SECS_DEFAULT: u64 = 300;
+
+struct CachedBearer {
+    token: String,
+    cached_at: Instant,
+}
+
+static BEARER_CACHE: OnceLock<Mutex<Option<CachedBearer>>> = OnceLock::new();
+
+fn bearer_cache() -> &'static Mutex<Option<CachedBearer>> {
+    BEARER_CACHE.get_or_init(|| Mutex::new(None))
+}
+
+fn bearer_cache_ttl_secs() -> u64 {
+    std::env::var("STOCKBIT_BEARER_CACHE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(BEARER_CACHE_TTL_SECS_DEFAULT)
+}
+
+fn worker_session_check_secs() -> u64 {
+    std::env::var("STOCKBIT_SESSION_CHECK_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(WORKER_SESSION_CHECK_SECS)
+}
 
 pub type StockbitError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -874,6 +905,7 @@ async fn login_and_return_to_stream(
     email: &str,
     password: &str,
 ) -> Result<(), StockbitError> {
+    invalidate_bearer_cache().await;
     let session_expired = has_session_expired_modal(page).await;
 
     if session_expired {
@@ -1127,32 +1159,62 @@ async fn probe_bearer_ok(http: &reqwest::Client, token: &str) -> Result<u16, Str
     Ok(resp.status().as_u16())
 }
 
-/// Ambil Bearer JWT untuk API `exodus.stockbit.com`.
-///
-/// Warm-up halaman symbol agar SPA mengirim `Authorization` (network.capture),
-/// lalu probe kandidat via HTTP dari Rust (bukan `fetch` di page — CORS status=0).
-/// Abaikan securities* / EIPO / refresh.
-pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitError> {
-    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+async fn bearer_http_client() -> Result<reqwest::Client, StockbitError> {
+    reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| StockbitError::from(e.to_string()))
+}
 
-    // Reset capture sebelum navigasi supaya token baru dari SPA yang dipakai.
-    let _ = page
-        .evaluate(r#"(() => { window.__sbCapturedBearer = ''; return 0; })()"#)
-        .await;
-    goto_stockbit(page, "https://stockbit.com/symbol/BBCA/keystats").await?;
-    let _ = page.evaluate(ensure_auth_capture_js()).await?;
-    for _ in 0..25 {
-        sleep(Duration::from_millis(400)).await;
-        let n = page
-            .evaluate(r#"(() => (window.__sbCapturedBearer || '').length)()"#)
-            .await?
-            .into_value::<u64>()
-            .unwrap_or(0);
-        if n > 0 {
-            break;
+type BearerCandidate = (String, String, String);
+
+async fn pick_probe_valid_bearer(candidates: &[BearerCandidate]) -> Result<String, StockbitError> {
+    let mut ordered: Vec<BearerCandidate> = Vec::new();
+    for h in candidates {
+        let source = h.0.clone();
+        let token = h.1.clone();
+        let iss = h.2.clone();
+        if !token.starts_with("eyJ") {
+            continue;
+        }
+        if source == "network.capture" {
+            ordered.insert(0, (source, token, iss));
+            continue;
+        }
+        if source.to_lowercase().contains("eipo") {
+            continue;
+        }
+        if source.to_lowercase().contains("refresh") {
+            continue;
+        }
+        if source.to_lowercase().contains("securities") {
+            continue;
+        }
+        if iss.to_uppercase() == "STOCKBIT" || source.contains("cookie") {
+            ordered.push((source, token, iss));
         }
     }
 
+    let mut seen_tok = std::collections::HashSet::new();
+    ordered.retain(|(_, tok, _)| seen_tok.insert(tok.clone()));
+
+    let http = bearer_http_client().await?;
+    for (_source, token, _iss) in &ordered {
+        match probe_bearer_ok(&http, token).await {
+            Ok(status) if (200..300).contains(&status) => return Ok(token.clone()),
+            _ => {}
+        }
+    }
+
+    Err(
+        "Tidak ada Bearer yang lolos probe market-mover. \
+         Sesi web mungkin habis — login ulang di Chrome worker."
+            .into(),
+    )
+}
+
+async fn scan_bearer_candidates(page: &Page) -> Result<Vec<BearerCandidate>, StockbitError> {
     let mut cookie_blob = String::new();
     if let Ok(cookies) = page.get_cookies().await {
         for c in cookies {
@@ -1204,7 +1266,6 @@ pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitErro
                 addToken(cookieBlob || '', 'cdp.cookies');
                 try {{
                     if (window.__sbCapturedBearer) {{
-                        // Selalu push capture dulu (jangan ter-dedupe ke sumber lain).
                         hits.unshift({{
                             token: window.__sbCapturedBearer,
                             source: 'network.capture',
@@ -1230,7 +1291,6 @@ pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitErro
                     source: h.source,
                     iss: h.iss,
                     token_type: h.token_type,
-                    len: (h.token || '').length,
                 }})));
             }})({cookie_js})"#
         ))
@@ -1238,61 +1298,114 @@ pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitErro
         .into_value::<String>()
         .unwrap_or_else(|_| "[]".to_string());
 
-    let candidates: Vec<serde_json::Value> =
-        serde_json::from_str(&scanned).unwrap_or_default();
+    let raw: Vec<serde_json::Value> = serde_json::from_str(&scanned).unwrap_or_default();
+    Ok(raw
+        .iter()
+        .filter(|h| {
+            let token_type = h
+                .get("token_type")
+                .and_then(|x| x.as_str())
+                .unwrap_or("");
+            !token_type.to_uppercase().contains("EIPO")
+        })
+        .map(|h| {
+            (
+                h.get("source")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                h.get("token")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                h.get("iss")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+            )
+        })
+        .collect())
+}
 
-    let mut ordered: Vec<(String, String, String)> = Vec::new();
-    for h in &candidates {
-        let source = h.get("source").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let token = h.get("token").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let iss = h.get("iss").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let token_type = h.get("token_type").and_then(|x| x.as_str()).unwrap_or("");
-        if !token.starts_with("eyJ") {
-            continue;
+async fn store_bearer_cache(token: String) {
+    let mut cache = bearer_cache().lock().await;
+    *cache = Some(CachedBearer {
+        token,
+        cached_at: Instant::now(),
+    });
+}
+
+/// Hapus cache Bearer (mis. setelah login ulang / sesi habis).
+pub async fn invalidate_bearer_cache() {
+    let mut cache = bearer_cache().lock().await;
+    *cache = None;
+}
+
+async fn try_cached_bearer() -> Option<String> {
+    let token = {
+        let cache = bearer_cache().lock().await;
+        let entry = cache.as_ref()?;
+        if entry.cached_at.elapsed() >= Duration::from_secs(bearer_cache_ttl_secs()) {
+            return None;
         }
-        if source == "network.capture" {
-            ordered.insert(0, (source, token, iss));
-            continue;
+        entry.token.clone()
+    };
+    let http = bearer_http_client().await.ok()?;
+    match probe_bearer_ok(&http, &token).await {
+        Ok(status) if (200..300).contains(&status) => Some(token),
+        _ => {
+            invalidate_bearer_cache().await;
+            None
         }
-        if token_type.to_uppercase().contains("EIPO") || source.to_lowercase().contains("eipo") {
-            continue;
-        }
-        if source.to_lowercase().contains("refresh") {
-            continue;
-        }
-        if source.to_lowercase().contains("securities") {
-            continue;
-        }
-        // cookie / lainnya dengan iss STOCKBIT (atau iss kosong dari capture-like)
-        if iss.to_uppercase() == "STOCKBIT" || source.contains("cookie") {
-            ordered.push((source, token, iss));
+    }
+}
+
+/// Ambil Bearer JWT untuk API `exodus.stockbit.com`.
+///
+/// Urutan: cache (probe) → scan halaman saat ini → warm-up keystats + scan.
+/// Warm-up halaman symbol agar SPA mengirim `Authorization` (network.capture),
+/// lalu probe kandidat via HTTP dari Rust (bukan `fetch` di page — CORS status=0).
+/// Abaikan securities* / EIPO / refresh.
+pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitError> {
+    if let Some(token) = try_cached_bearer().await {
+        println!("Bearer cache hit (len={}).", token.len());
+        return Ok(token);
+    }
+
+    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+
+    println!("Bearer: scan halaman saat ini (tanpa navigasi keystats)...");
+    if let Ok(candidates) = scan_bearer_candidates(page).await {
+        if let Ok(token) = pick_probe_valid_bearer(&candidates).await {
+            println!("Bearer OK dari halaman saat ini (len={}).", token.len());
+            store_bearer_cache(token.clone()).await;
+            return Ok(token);
         }
     }
 
-    // Dedup by token, keep first (network.capture preferred).
-    let mut seen_tok = std::collections::HashSet::new();
-    ordered.retain(|(_, tok, _)| seen_tok.insert(tok.clone()));
-
-    let http = reqwest::Client::builder()
-        .user_agent(USER_AGENT)
-        .timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|e| StockbitError::from(e.to_string()))?;
-
-    for (_source, token, _iss) in &ordered {
-        match probe_bearer_ok(&http, token).await {
-            Ok(status) if (200..300).contains(&status) => {
-                return Ok(token.clone());
-            }
-            _ => {}
+    println!("Bearer: warm-up navigasi keystats...");
+    let _ = page
+        .evaluate(r#"(() => { window.__sbCapturedBearer = ''; return 0; })()"#)
+        .await;
+    goto_stockbit(page, "https://stockbit.com/symbol/BBCA/keystats").await?;
+    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+    for _ in 0..25 {
+        sleep(Duration::from_millis(400)).await;
+        let n = page
+            .evaluate(r#"(() => (window.__sbCapturedBearer || '').length)()"#)
+            .await?
+            .into_value::<u64>()
+            .unwrap_or(0);
+        if n > 0 {
+            break;
         }
     }
 
-    Err(
-        "Tidak ada Bearer yang lolos probe market-mover. \
-         Sesi web mungkin habis — login ulang di Chrome worker."
-            .into(),
-    )
+    let candidates = scan_bearer_candidates(page).await?;
+    let token = pick_probe_valid_bearer(&candidates).await?;
+    println!("Bearer OK dari keystats (len={}).", token.len());
+    store_bearer_cache(token.clone()).await;
+    Ok(token)
 }
 
 /// Alur awal worker: akses `/stream`, login hanya bila di-redirect ke `/login` / sesi habis.
@@ -1301,13 +1414,20 @@ pub async fn open_stream_or_login(
     email: &str,
     password: &str,
 ) -> Result<(), StockbitError> {
-    goto_stockbit(page, STOCKBIT_STREAM_URL).await?;
-    sleep(Duration::from_secs(1)).await;
+    if is_already_authenticated_on_stream(page).await {
+        println!("Chrome reuse: sudah di /stream — skip navigasi + sleep 1s");
+        if !has_profile_avatar_modal(page).await {
+            println!("Sesi aktif di /stream — skip login, lanjut scrape.");
+            return Ok(());
+        }
+        dismiss_profile_avatar_modal(page).await?;
+        println!("Sesi aktif di /stream — skip login, lanjut scrape.");
+        return Ok(());
+    }
 
-    let wait_secs: u64 = std::env::var("STOCKBIT_SESSION_CHECK_SECS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(5);
+    goto_stockbit(page, STOCKBIT_STREAM_URL).await?;
+
+    let wait_secs = worker_session_check_secs();
     let started = Instant::now();
 
     // Tunggu sebentar: redirect ke /login, modal sesi habis, atau konfirmasi sudah di /stream.
@@ -1319,6 +1439,7 @@ pub async fn open_stream_or_login(
         }
         if has_session_expired_modal(page).await {
             saw_session_expired = true;
+            invalidate_bearer_cache().await;
             println!(
                 "Modal 'Sesi Kamu Sudah Habis' terdeteksi — akan klik 'Kembali ke Halaman Utama' lalu login..."
             );
@@ -1345,11 +1466,11 @@ pub async fn open_stream_or_login(
         println!("Perlu login ulang (redirect /login atau sesi habis)...");
         login_and_return_to_stream(page, email, password).await?;
     } else if is_already_authenticated_on_stream(page).await {
-        println!("Sesi aktif di /stream — skip login, lanjut movers.");
+        println!("Sesi aktif di /stream — skip login, lanjut scrape.");
     } else {
         // Belum jelas: coba /stream lagi.
         goto_stockbit(page, STOCKBIT_STREAM_URL).await?;
-        sleep(Duration::from_secs(1)).await;
+        wait_for_authenticated_stream(page, Duration::from_secs(10)).await?;
         if needs_relogin(page).await {
             println!("Perlu login ulang setelah re-cek /stream...");
             login_and_return_to_stream(page, email, password).await?;
@@ -1360,7 +1481,7 @@ pub async fn open_stream_or_login(
             )
             .into());
         } else {
-            println!("Sesi aktif di /stream — skip login, lanjut movers.");
+            println!("Sesi aktif di /stream — skip login, lanjut scrape.");
         }
     }
 
