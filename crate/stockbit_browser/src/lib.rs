@@ -721,7 +721,7 @@ async fn perform_login(page: &Page, email: &str, password: &str) -> Result<(), S
 
     type_naturally(page, "#username", email, "email/username", (0, 0)).await?;
     sleep(Duration::from_millis(400)).await;
-    type_naturally(page, "#password", password, "password", (80, 220)).await?;
+    type_naturally(page, "#password", password, "password", (0, 0)).await?;
     sleep(Duration::from_millis(800)).await;
 
     if let Ok(btn) = page.find_element("#email-login-button").await {
@@ -820,6 +820,38 @@ async fn is_already_authenticated_on_stream(page: &Page) -> bool {
         && !has_session_expired_modal(page).await
 }
 
+async fn wait_for_authenticated_stream(page: &Page, timeout: Duration) -> Result<(), StockbitError> {
+    let started = Instant::now();
+    while started.elapsed() < timeout {
+        if is_already_authenticated_on_stream(page).await {
+            return Ok(());
+        }
+        sleep(Duration::from_millis(400)).await;
+    }
+    let url = page.url().await.ok().flatten().unwrap_or_default();
+    let title = page.get_title().await.ok().flatten().unwrap_or_default();
+    let shot = save_error_screenshot(page, "stream_not_authenticated").await;
+    let shot_info = shot
+        .as_ref()
+        .map(|p| format!(" | screenshot: {}", p.display()))
+        .unwrap_or_default();
+    Err(format!(
+        "Timeout menunggu /stream siap (url={url:?} title={title:?}){shot_info}"
+    )
+    .into())
+}
+
+/// Poll setelah akses `/login`: keluar cepat bila redirect ke `/stream` atau form login muncul.
+async fn wait_for_stream_redirect_or_login_form(page: &Page, timeout: Duration) {
+    let started = Instant::now();
+    while started.elapsed() < timeout {
+        if is_already_authenticated_on_stream(page).await || has_login_form(page).await {
+            return;
+        }
+        sleep(Duration::from_millis(400)).await;
+    }
+}
+
 /// Perlu login ulang hanya jika:
 /// - di-redirect ke `/login`, atau
 /// - modal "Sesi Kamu Sudah Habis", atau
@@ -856,7 +888,7 @@ async fn login_and_return_to_stream(
         println!("Form login muncul — isi email/password...");
         perform_login(page, email, password).await?;
         goto_stockbit_expect(page, STOCKBIT_STREAM_URL, Some("/stream")).await?;
-        sleep(Duration::from_secs(2)).await;
+        wait_for_authenticated_stream(page, Duration::from_secs(10)).await?;
         return Ok(());
     }
 
@@ -869,7 +901,7 @@ async fn login_and_return_to_stream(
     if !has_login_form(page).await {
         // Jangan expect `/login` ketat: bila cookie masih valid, Stockbit redirect ke /stream.
         goto_stockbit(page, STOCKBIT_LOGIN_URL).await?;
-        sleep(Duration::from_secs(2)).await;
+        wait_for_stream_redirect_or_login_form(page, Duration::from_secs(10)).await;
         if is_already_authenticated_on_stream(page).await {
             println!("Akses /login di-redirect ke /stream — sesi masih aktif, skip login.");
             return Ok(());
@@ -879,7 +911,7 @@ async fn login_and_return_to_stream(
     wait_for_login_form(page, Duration::from_secs(15)).await?;
     perform_login(page, email, password).await?;
     goto_stockbit_expect(page, STOCKBIT_STREAM_URL, Some("/stream")).await?;
-    sleep(Duration::from_secs(2)).await;
+    wait_for_authenticated_stream(page, Duration::from_secs(10)).await?;
     Ok(())
 }
 
