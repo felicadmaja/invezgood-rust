@@ -102,10 +102,21 @@ service EmitenList {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetIdx30FromStockbit(GetIdx30FromStockbitRequest) returns (GetIdx30FromStockbitResponse);
 
+
   // LQ45 dari Stockbit API (GET emitten/v3/sector/88/subsector/1000003847/company).
   // Logic sama GetIdx30FromStockbit (symbol → lookup `emiten_list`).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetLq45FromStockbit(GetLq45FromStockbitRequest) returns (GetLq45FromStockbitResponse);
+
+  // IDX80 dari Stockbit API (GET emitten/v3/sector/88/subsector/1000003288/company).
+  // Logic sama GetIdx30FromStockbit (symbol → lookup `emiten_list`).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetIdx80FromStockbit(GetIdx80FromStockbitRequest) returns (GetIdx80FromStockbitResponse);
+
+  // Kompas100 dari Stockbit API (GET emitten/v3/sector/88/subsector/555/company).
+  // Logic sama GetIdx30FromStockbit (symbol → lookup `emiten_list`).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetKompas100FromStockbit(GetKompas100FromStockbitRequest) returns (GetKompas100FromStockbitResponse);
 }
 
 // Kode sektor emiten; disimpan di Scylla `emiten_list.sector` sebagai tinyint.
@@ -473,5 +484,17 @@ message GetIdx30FromStockbitResponse {
 message GetLq45FromStockbitRequest {}
 
 message GetLq45FromStockbitResponse {
+  repeated EmitenListRow rows = 1;
+}
+
+message GetIdx80FromStockbitRequest {}
+
+message GetIdx80FromStockbitResponse {
+  repeated EmitenListRow rows = 1;
+}
+
+message GetKompas100FromStockbitRequest {}
+
+message GetKompas100FromStockbitResponse {
   repeated EmitenListRow rows = 1;
 }

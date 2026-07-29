@@ -26,6 +26,12 @@ pub const IDX30_COMPANY_URL: &str =
 /// LQ45 companies — sector 88 / subsector 1000003847.
 pub const LQ45_COMPANY_URL: &str =
     "https://exodus.stockbit.com/emitten/v3/sector/88/subsector/1000003847/company";
+/// IDX80 companies — sector 88 / subsector 1000003288.
+pub const IDX80_COMPANY_URL: &str =
+    "https://exodus.stockbit.com/emitten/v3/sector/88/subsector/1000003288/company";
+/// Kompas100 companies — sector 88 / subsector 555.
+pub const KOMPAS100_COMPANY_URL: &str =
+    "https://exodus.stockbit.com/emitten/v3/sector/88/subsector/555/company";
 const EMITEN_ICON_ASSETS_BASE: &str = "https://assets.stockbit.com/logos/companies";
 
 pub const UPDATE_AT_FRESH_DAYS: i64 = 30;
@@ -1056,6 +1062,18 @@ pub async fn fetch_idx30_symbols(page: &Page) -> Result<Vec<String>, Box<dyn std
 /// GET LQ45 company list → daftar `symbol`.
 pub async fn fetch_lq45_symbols(page: &Page) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     fetch_index_symbols(page, LQ45_COMPANY_URL, "LQ45").await
+}
+
+/// GET IDX80 company list → daftar `symbol`.
+pub async fn fetch_idx80_symbols(page: &Page) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fetch_index_symbols(page, IDX80_COMPANY_URL, "IDX80").await
+}
+
+/// GET Kompas100 company list → daftar `symbol`.
+pub async fn fetch_kompas100_symbols(
+    page: &Page,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fetch_index_symbols(page, KOMPAS100_COMPANY_URL, "Kompas100").await
 }
 
 fn parse_index_symbols(v: &Value) -> Vec<String> {

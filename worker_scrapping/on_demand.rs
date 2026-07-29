@@ -56,6 +56,14 @@ static INFLIGHT_LQ45: OnceLock<
     Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>>,
 > = OnceLock::new();
 
+static INFLIGHT_IDX80: OnceLock<
+    Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>>,
+> = OnceLock::new();
+
+static INFLIGHT_KOMPAS100: OnceLock<
+    Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>>,
+> = OnceLock::new();
+
 fn inflight_map() -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<(), String>>>>> {
     INFLIGHT_EMITEN.get_or_init(|| Mutex::new(HashMap::new()))
 }
@@ -104,6 +112,16 @@ fn inflight_idx30(
 fn inflight_lq45(
 ) -> &'static Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>> {
     INFLIGHT_LQ45.get_or_init(|| Mutex::new(None))
+}
+
+fn inflight_idx80(
+) -> &'static Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>> {
+    INFLIGHT_IDX80.get_or_init(|| Mutex::new(None))
+}
+
+fn inflight_kompas100(
+) -> &'static Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>> {
+    INFLIGHT_KOMPAS100.get_or_init(|| Mutex::new(None))
 }
 
 fn keyspace() -> String {
@@ -1048,6 +1066,26 @@ pub async fn fetch_lq45_symbols_from_stockbit() -> Result<Vec<String>, String> {
         "LQ45",
         emiten_list_worker::LQ45_COMPANY_URL,
         inflight_lq45,
+    )
+    .await
+}
+
+/// GET IDX80 dari Stockbit → daftar symbol (UPPERCASE). Single-flight.
+pub async fn fetch_idx80_symbols_from_stockbit() -> Result<Vec<String>, String> {
+    fetch_index_symbols_from_stockbit(
+        "IDX80",
+        emiten_list_worker::IDX80_COMPANY_URL,
+        inflight_idx80,
+    )
+    .await
+}
+
+/// GET Kompas100 dari Stockbit → daftar symbol (UPPERCASE). Single-flight.
+pub async fn fetch_kompas100_symbols_from_stockbit() -> Result<Vec<String>, String> {
+    fetch_index_symbols_from_stockbit(
+        "Kompas100",
+        emiten_list_worker::KOMPAS100_COMPANY_URL,
+        inflight_kompas100,
     )
     .await
 }

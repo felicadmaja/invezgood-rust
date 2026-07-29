@@ -14,6 +14,8 @@ use crate::{
     GetEmitenListByEmitenNameFromScyllaRequest, GetEmitenListByEmitenNameFromScyllaResponse,
     GetEmitenListByEmitenNameFromStockbitRequest, GetEmitenListByEmitenNameFromStockbitResponse,
     GetIdx30FromStockbitRequest, GetIdx30FromStockbitResponse,
+    GetIdx80FromStockbitRequest, GetIdx80FromStockbitResponse,
+    GetKompas100FromStockbitRequest, GetKompas100FromStockbitResponse,
     GetLq45FromStockbitRequest, GetLq45FromStockbitResponse,
     GetMultiEmitenListFromScyllaRequest, GetMultiEmitenListFromScyllaResponse,
     UpdateEmitenListBlueChipRequest, UpdateEmitenListBlueChipResponse,
@@ -1195,6 +1197,100 @@ impl EmitenListRpc for EmitenListService {
         );
 
         Ok(Response::new(GetLq45FromStockbitResponse {
+            rows: proto_rows,
+        }))
+    }
+
+    async fn get_idx80_from_stockbit(
+        &self,
+        request: Request<GetIdx80FromStockbitRequest>,
+    ) -> Result<Response<GetIdx80FromStockbitResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let _ = request.into_inner();
+
+        println!("GetIdx80FromStockbit {username}: fetch IDX80 symbols dari Stockbit...");
+
+        let symbols = on_demand::fetch_idx80_symbols_from_stockbit()
+            .await
+            .map_err(|e| Status::internal(format!("IDX80 Stockbit gagal: {e}")))?;
+
+        if symbols.is_empty() {
+            println!(
+                "GetIdx80FromStockbit {} symbols=0 rows=0 {}ms",
+                username,
+                started.elapsed().as_millis()
+            );
+            return Ok(Response::new(GetIdx80FromStockbitResponse { rows: vec![] }));
+        }
+
+        let rows = self
+            .repo
+            .get_many_by_emiten_names(&symbols)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        let proto_rows: Vec<EmitenListRow> =
+            rows.into_iter().map(EmitenList::into_proto).collect();
+
+        println!(
+            "GetIdx80FromStockbit {} symbols={} found={} {}ms",
+            username,
+            symbols.len(),
+            proto_rows.len(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetIdx80FromStockbitResponse {
+            rows: proto_rows,
+        }))
+    }
+
+    async fn get_kompas100_from_stockbit(
+        &self,
+        request: Request<GetKompas100FromStockbitRequest>,
+    ) -> Result<Response<GetKompas100FromStockbitResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let _ = request.into_inner();
+
+        println!("GetKompas100FromStockbit {username}: fetch Kompas100 symbols dari Stockbit...");
+
+        let symbols = on_demand::fetch_kompas100_symbols_from_stockbit()
+            .await
+            .map_err(|e| Status::internal(format!("Kompas100 Stockbit gagal: {e}")))?;
+
+        if symbols.is_empty() {
+            println!(
+                "GetKompas100FromStockbit {} symbols=0 rows=0 {}ms",
+                username,
+                started.elapsed().as_millis()
+            );
+            return Ok(Response::new(GetKompas100FromStockbitResponse {
+                rows: vec![],
+            }));
+        }
+
+        let rows = self
+            .repo
+            .get_many_by_emiten_names(&symbols)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        let proto_rows: Vec<EmitenListRow> =
+            rows.into_iter().map(EmitenList::into_proto).collect();
+
+        println!(
+            "GetKompas100FromStockbit {} symbols={} found={} {}ms",
+            username,
+            symbols.len(),
+            proto_rows.len(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetKompas100FromStockbitResponse {
             rows: proto_rows,
         }))
     }
