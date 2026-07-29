@@ -8,9 +8,9 @@ service Portofolio {
   rpc GetAllPortofolioFromScylla(GetAllPortofolioFromScyllaRequest)
       returns (GetAllPortofolioFromScyllaResponse);
 
-  // Scrape semua holdings dari Stockbit lalu upsert `portofolio`.
-  // Alur sama `portofolio_worker`: login → START TRADING/PIN bila perlu →
-  // DOM `portofolio_equity` → GET carina.stockbit.com/portfolio/v2/list →
+  // Scrape holdings + equity dari GET carina.stockbit.com/portfolio/v2/list
+  // lalu upsert `portofolio` (`data.results`) dan `portofolio_equity` (`data.summary`).
+  // Alur: login → START TRADING/PIN bila perlu → Bearer trading → GET API →
   // pastikan emiten_list + bandarmology → TRUNCATE+insert `portofolio`.
   // Tidak menulis `portofolio_bandarmology`.
   // Rate limit: maksimal 1× per 5 menit untuk semua user

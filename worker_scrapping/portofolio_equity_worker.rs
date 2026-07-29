@@ -1,142 +1,59 @@
-//! DOM scrape header equity di https://stockbit.com/securities/portfolio
-//! → upsert `portofolio_equity`.
+//! Parse header equity dari `GET carina.stockbit.com/portfolio/v2/list`
+//! (`data.summary`) → upsert `portofolio_equity`.
 //!
-//! Dipanggil setelah PIN/trading session siap, **sebelum** GET portfolio API
-//! dan order API. Mapping:
-//! - Trading Balance → `nama="Trading Balance"`
-//! - Invested → `nama="Invested"`
-//! - Open → `nama="Open"`
-//! - Net Profit / Loss (angka sebelum `%`, contoh `-475,053 (-0.4%)` → `-475053`)
-//!   → `nama="Net Profit Loss"`
-//! - Total Equity → `nama="Total Equity"`
+//! Mapping (nama baris → path JSON):
+//! - Trading Balance → `summary.trading.balance`
+//! - Invested → `summary.amount.invested`
+//! - Open → `summary.amount.allocated`
+//! - Net Profit Loss → `summary.profit_loss.net`
+//! - Total Equity → `summary.equity`
 
-use chromiumoxide::page::Page;
 use scylla::client::session::Session;
-use serde::Deserialize;
-use std::time::{Duration, Instant};
-use stockbit_browser::goto_stockbit;
-use tokio::time::sleep;
+use serde_json::Value;
 
-const STOCKBIT_PORTFOLIO_URL: &str = "https://stockbit.com/securities/portfolio";
-const HEADER_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
-const HEADER_POLL: Duration = Duration::from_millis(400);
-
-#[derive(Debug, Clone, Deserialize)]
-struct EquityDomRaw {
-    trading_balance: Option<String>,
-    invested: Option<String>,
-    open: Option<String>,
-    net_profit_loss: Option<String>,
-    total_equity: Option<String>,
-}
-
-/// Parse angka equity dari teks DOM: buang pemisah ribuan; untuk Net P/L
-/// ambil bagian sebelum `(` saja.
-///
-/// Contoh: `"24,122,660"` → `24122660.0`, `"-475,053 (-0.4%)"` → `-475053.0`.
-pub fn parse_equity_number(raw: &str) -> Result<f64, String> {
-    let main = raw.split('(').next().unwrap_or(raw).trim();
-    let cleaned: String = main
-        .chars()
-        .filter(|c| c.is_ascii_digit() || *c == '-' || *c == '.')
-        .collect();
-    if cleaned.is_empty() || cleaned == "-" || cleaned == "." {
-        return Err(format!("tidak bisa parse angka dari {raw:?}"));
+fn json_f64(v: &Value, path: &[&str]) -> Option<f64> {
+    let mut cur = v;
+    for p in path {
+        cur = cur.get(*p)?;
     }
-    cleaned
-        .parse::<f64>()
-        .map_err(|e| format!("parse angka dari {raw:?}: {e}"))
+    cur.as_f64()
+        .or_else(|| cur.as_i64().map(|n| n as f64))
+        .or_else(|| cur.as_u64().map(|n| n as f64))
 }
 
-fn scrape_header_js() -> &'static str {
-    r#"(() => {
-        const textOf = (sel) => {
-            const el = document.querySelector(sel);
-            if (!el) return null;
-            const p = el.querySelector('p');
-            if (!p) return null;
-            const t = (p.textContent || '').trim();
-            return t.length ? t : null;
-        };
-        return {
-            trading_balance: textOf('[data-cy="porto-header-trading-balance-container"]'),
-            invested: textOf('[data-cy="porto-header-invested-container"]'),
-            open: textOf('[data-cy="porto-header-open-container"]'),
-            net_profit_loss: textOf('[data-cy="porto-header-net-profit-loss-container"]'),
-            total_equity: textOf('[data-cy="porto-header-total-equity-container"]'),
-        };
-    })()"#
-}
+/// Ambil 5 baris equity dari body JSON `portfolio/v2/list`.
+pub fn equity_rows_from_portfolio_json(
+    v: &Value,
+) -> Result<Vec<(String, f64)>, Box<dyn std::error::Error>> {
+    let summary = v
+        .pointer("/data/summary")
+        .ok_or("portfolio/v2/list: data.summary tidak ada")?;
 
-fn header_ready_js() -> &'static str {
-    r#"(() => {
-        const sels = [
-            '[data-cy="porto-header-trading-balance-container"]',
-            '[data-cy="porto-header-invested-container"]',
-            '[data-cy="porto-header-open-container"]',
-            '[data-cy="porto-header-net-profit-loss-container"]',
-            '[data-cy="porto-header-total-equity-container"]',
-        ];
-        for (const sel of sels) {
-            const el = document.querySelector(sel);
-            if (!el) return false;
-            const p = el.querySelector('p');
-            if (!p || !(p.textContent || '').trim()) return false;
-        }
-        return true;
-    })()"#
-}
-
-async fn wait_porto_header(page: &Page, timeout: Duration) -> Result<(), Box<dyn std::error::Error>> {
-    let deadline = Instant::now() + timeout;
-    loop {
-        let ready = page
-            .evaluate(header_ready_js())
-            .await?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if ready {
-            println!("Portofolio equity: header trading balance / equity terlihat.");
-            return Ok(());
-        }
-        if Instant::now() >= deadline {
-            return Err(
-                "Timeout menunggu porto-header (Trading Balance / Invested / Open / Net P/L / Total Equity)"
-                    .into(),
-            );
-        }
-        sleep(HEADER_POLL).await;
-    }
-}
-
-async fn scrape_equity_dom(page: &Page) -> Result<EquityDomRaw, Box<dyn std::error::Error>> {
-    let v = page.evaluate(scrape_header_js()).await?.into_value::<serde_json::Value>()?;
-    let raw: EquityDomRaw = serde_json::from_value(v)
-        .map_err(|e| format!("parse hasil DOM porto-header: {e}"))?;
-    Ok(raw)
-}
-
-fn equity_rows_from_dom(raw: &EquityDomRaw) -> Result<Vec<(String, f64)>, Box<dyn std::error::Error>> {
-    let pairs = [
-        ("Trading Balance", raw.trading_balance.as_deref()),
-        ("Invested", raw.invested.as_deref()),
-        ("Open", raw.open.as_deref()),
-        ("Net Profit Loss", raw.net_profit_loss.as_deref()),
-        ("Total Equity", raw.total_equity.as_deref()),
+    let pairs: [(&str, Option<f64>); 5] = [
+        (
+            "Trading Balance",
+            json_f64(summary, &["trading", "balance"]),
+        ),
+        ("Invested", json_f64(summary, &["amount", "invested"])),
+        ("Open", json_f64(summary, &["amount", "allocated"])),
+        (
+            "Net Profit Loss",
+            json_f64(summary, &["profit_loss", "net"]),
+        ),
+        ("Total Equity", json_f64(summary, &["equity"])),
     ];
+
     let mut out = Vec::with_capacity(pairs.len());
     for (nama, maybe) in pairs {
-        let text = maybe
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .ok_or_else(|| format!("DOM porto-header kosong untuk {nama}"))?;
-        let value = parse_equity_number(text)?;
+        let value = maybe.ok_or_else(|| {
+            format!("portfolio/v2/list: summary field untuk `{nama}` tidak ada / bukan angka")
+        })?;
         out.push((nama.to_string(), value));
     }
     Ok(out)
 }
 
-async fn upsert_portofolio_equity(
+pub async fn upsert_portofolio_equity(
     session: &Session,
     keyspace: &str,
     rows: &[(String, f64)],
@@ -152,32 +69,29 @@ async fn upsert_portofolio_equity(
             .execute_unpaged(&insert, (nama.as_str(), *value))
             .await?;
         n += 1;
-        println!("INFO insert portofolio_equity [{n}/{}]: {nama} = {value}", rows.len());
+        println!(
+            "INFO insert portofolio_equity [{n}/{}]: {nama} = {value}",
+            rows.len()
+        );
     }
     Ok(n)
 }
 
-/// Buka halaman portfolio, tunggu header equity, DOM scrape → upsert `portofolio_equity`.
-/// Harus dipanggil setelah PIN / mode trading siap, sebelum portfolio/order API.
-pub async fn scrape_and_insert_portofolio_equity(
-    page: &Page,
+/// Upsert `portofolio_equity` dari satu body JSON `portfolio/v2/list`.
+pub async fn upsert_portofolio_equity_from_json(
     session: &Session,
     keyspace: &str,
+    v: &Value,
 ) -> Result<usize, Box<dyn std::error::Error>> {
-    println!("Portofolio equity: buka {STOCKBIT_PORTFOLIO_URL}...");
-    goto_stockbit(page, STOCKBIT_PORTFOLIO_URL)
-        .await
-        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-
-    wait_porto_header(page, HEADER_WAIT_TIMEOUT).await?;
-
-    let raw = scrape_equity_dom(page).await?;
+    let rows = equity_rows_from_portfolio_json(v)?;
     println!(
-        "Portofolio equity DOM: TB={:?} Inv={:?} Open={:?} NPL={:?} TE={:?}",
-        raw.trading_balance, raw.invested, raw.open, raw.net_profit_loss, raw.total_equity
+        "Portofolio equity API summary: {}",
+        rows
+            .iter()
+            .map(|(n, v)| format!("{n}={v}"))
+            .collect::<Vec<_>>()
+            .join(" | ")
     );
-
-    let rows = equity_rows_from_dom(&raw)?;
     let n = upsert_portofolio_equity(session, keyspace, &rows).await?;
     println!("OK: {n} baris diupsert ke portofolio_equity.");
     Ok(n)
@@ -185,23 +99,42 @@ pub async fn scrape_and_insert_portofolio_equity(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_equity_number;
+    use super::equity_rows_from_portfolio_json;
+    use serde_json::json;
 
     #[test]
-    fn parse_plain_with_commas() {
-        assert_eq!(parse_equity_number("24,122,660").unwrap(), 24_122_660.0);
-        assert_eq!(parse_equity_number("83,694,453").unwrap(), 83_694_453.0);
-    }
-
-    #[test]
-    fn parse_net_profit_loss_strips_percent() {
-        assert_eq!(
-            parse_equity_number("-475,053 (-0.4%)").unwrap(),
-            -475_053.0
-        );
-        assert_eq!(
-            parse_equity_number("1,234 (0.5%)").unwrap(),
-            1_234.0
-        );
+    fn parse_summary_maps_five_rows() {
+        let v = json!({
+            "data": {
+                "summary": {
+                    "trading": { "balance": 5343.28 },
+                    "amount": {
+                        "invested": 161387412.22,
+                        "allocated": 0.0,
+                        "credit_limit": 5343.28
+                    },
+                    "profit_loss": {
+                        "net": -6584012.22,
+                        "unrealised": -6584012.22,
+                        "realised": 0
+                    },
+                    "gain": -0.04079497,
+                    "equity": 154808743.28,
+                    "debt": { "ratio": 0, "total": 0 }
+                }
+            }
+        });
+        let rows = equity_rows_from_portfolio_json(&v).unwrap();
+        assert_eq!(rows.len(), 5);
+        assert_eq!(rows[0].0, "Trading Balance");
+        assert!((rows[0].1 - 5343.28).abs() < 1e-9);
+        assert_eq!(rows[1].0, "Invested");
+        assert!((rows[1].1 - 161387412.22).abs() < 1e-6);
+        assert_eq!(rows[2].0, "Open");
+        assert!((rows[2].1 - 0.0).abs() < 1e-9);
+        assert_eq!(rows[3].0, "Net Profit Loss");
+        assert!((rows[3].1 - (-6584012.22)).abs() < 1e-6);
+        assert_eq!(rows[4].0, "Total Equity");
+        assert!((rows[4].1 - 154808743.28).abs() < 1e-6);
     }
 }

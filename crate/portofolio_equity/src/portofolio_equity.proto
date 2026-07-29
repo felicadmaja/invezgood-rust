@@ -9,9 +9,10 @@ service PortofolioEquity {
   rpc GetAllPortofolioEquityFromScylla(GetAllPortofolioEquityFromScyllaRequest)
       returns (GetAllPortofolioEquityFromScyllaResponse);
 
-  // Scrape header equity dari https://stockbit.com/securities/portfolio (DOM)
-  // lalu upsert `portofolio_equity` — alur sama `portofolio_equity_worker`
-  // (login → START TRADING/PIN bila perlu → buka portfolio → tunggu header → insert).
+  // Scrape equity dari GET carina.stockbit.com/portfolio/v2/list (`data.summary`)
+  // lalu upsert `portofolio_equity` — alur sama `portofolio_worker::scrape_and_insert_portofolio_equity`
+  // (login → START TRADING/PIN bila perlu → Bearer trading → GET API → insert).
+  // Mapping: Trading Balance, Invested, Open (allocated), Net Profit Loss, Total Equity.
   // Rate limit: maksimal 1× per 5 menit untuk semua user
   // (failed precondition jika terlalu cepat). Juga terpakai oleh auto IsStockbitReady.
   // Hanya hari operasional Senin–Jumat dan jam server 09:00–12:00 serta 13:30–16:00

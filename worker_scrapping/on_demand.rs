@@ -568,9 +568,9 @@ async fn run_bandarmology_harian_days(
     result
 }
 
-/// On-demand scrape header equity portfolio (DOM) → upsert `portofolio_equity`.
-/// Alur sama `portofolio_equity_worker`: login → START TRADING/PIN bila perlu →
-/// buka `/securities/portfolio` → tunggu header → insert.
+/// On-demand scrape equity portfolio dari API `portfolio/v2/list` (`data.summary`)
+/// → upsert `portofolio_equity`.
+/// Alur: login → START TRADING/PIN bila perlu → Bearer trading → GET API → insert.
 /// Single-flight global; survive cancel RPC.
 /// Returns jumlah baris yang di-upsert.
 pub async fn scrape_portofolio_equity(session: Arc<Session>) -> Result<usize, String> {
@@ -627,7 +627,7 @@ async fn run_portofolio_equity_scrape(session: Arc<Session>) -> Result<usize, St
     let _browser_guard = browser_session_lock().lock().await;
     let ks = keyspace();
 
-    println!("On-demand portofolio_equity: login → PIN → DOM scrape header...");
+    println!("On-demand portofolio_equity: login → PIN → portfolio/v2/list summary...");
 
     let (mut browser, page) = launch_page()
         .await
@@ -638,16 +638,7 @@ async fn run_portofolio_equity_scrape(session: Arc<Session>) -> Result<usize, St
             .await
             .map_err(|e| format!("login Stockbit: {e}"))?;
 
-        let pin_entered = crate::portofolio_worker::ensure_trading_session(&page)
-            .await
-            .map_err(|e| format!("trading session / PIN: {e}"))?;
-
-        if pin_entered {
-            println!("On-demand portofolio_equity: jeda 1 detik setelah input PIN...");
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        }
-
-        let n = crate::portofolio_equity_worker::scrape_and_insert_portofolio_equity(
+        let n = crate::portofolio_worker::scrape_and_insert_portofolio_equity(
             &page,
             session.as_ref(),
             &ks,
@@ -831,7 +822,7 @@ async fn run_portofolio_all_scrape(
     let _browser_guard = browser_session_lock().lock().await;
     let ks = keyspace();
 
-    println!("On-demand portofolio: login → PIN → equity DOM → portfolio API...");
+    println!("On-demand portofolio: login → PIN → portfolio/v2/list (summary + results)...");
 
     let (mut browser, page) = launch_page()
         .await

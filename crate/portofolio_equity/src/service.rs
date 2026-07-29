@@ -116,7 +116,7 @@ impl PortofolioEquityRpc for PortofolioEquityService {
         acquire_equity_scrape_slot().await?;
 
         println!(
-            "GetAllPortofolioEquityFromStockbit {username}: scrape DOM header equity..."
+            "GetAllPortofolioEquityFromStockbit {username}: scrape portfolio/v2/list summary..."
         );
 
         match on_demand::scrape_portofolio_equity(Arc::clone(&self.session)).await {

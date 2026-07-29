@@ -30,10 +30,10 @@
 //! Jika API mengembalikan HTTP 4xx: worker dihentikan segera + `pm2 start stockbit_ws`
 //! (hindari diblokir server). Abort ini **hanya** di bin worker (`STOCKBIT_WORKER_ABORT_ON_HTTP_4XX`);
 //! invoke via RPC `stockbit_ws` tidak menghentikan app.
-//! Lalu START TRADING (PIN bila perlu) → buka `/securities/portfolio` → DOM scrape
-//! header equity → upsert `portofolio_equity` → Bearer trading pasca-PIN →
-//! `GET carina.stockbit.com/portfolio/v2/list` → pastikan emiten_list
-//! → insert `portofolio` (termasuk `long_name` dari Redis / emiten_list / company.name)
+//! Lalu START TRADING (PIN bila perlu) → Bearer trading pasca-PIN →
+//! `GET carina.stockbit.com/portfolio/v2/list` → upsert `portofolio_equity`
+//! dari `data.summary` + pastikan emiten_list → insert `portofolio` dari `data.results`
+//! (termasuk `long_name` dari Redis / emiten_list / company.name)
 //! → per emiten holdings: sama RPC `GetPortofolioHistoryByEmitenNameFromStockbit` —
 //!   `GET carina.stockbit.com/history?page=1&limit=200&period=all&stock={CODE}`
 //!   (paginate s/d `meta.max_page`) → group by item.`date` (`20 Jul 2026` → date)
@@ -345,7 +345,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("OK: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");
 
     println!(
-        "Lanjut portofolio (PIN bila perlu → DOM portofolio_equity → API → emiten_list → upsert; tanpa bandarmology)..."
+        "Lanjut portofolio (PIN bila perlu → portfolio/v2/list summary+results → upsert; tanpa bandarmology)..."
     );
     let (porto_ok, porto_codes) =
         portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks, false).await?;

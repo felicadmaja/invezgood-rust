@@ -133,7 +133,7 @@ impl PortofolioRpc for PortofolioService {
         acquire_portfolio_scrape_slot().await?;
 
         println!(
-            "GetAllPortofolioFromStockbit {username}: scrape portfolio API + upsert..."
+            "GetAllPortofolioFromStockbit {username}: scrape portfolio/v2/list + upsert..."
         );
 
         match on_demand::scrape_portofolio_all(Arc::clone(&self.session)).await {

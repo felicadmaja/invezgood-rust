@@ -1,10 +1,10 @@
-//! Portfolio via API `carina.stockbit.com/portfolio/v2/list` → upsert `portofolio`.
+//! Portfolio via API `carina.stockbit.com/portfolio/v2/list`:
+//! - `data.results` → upsert `portofolio`
+//! - `data.summary` → upsert `portofolio_equity` (satu GET untuk keduanya)
 //!
 //! Alur: bila tombol START TRADING masih ada → klik → input PIN (`STOCKBUT_PIN` /
 //! `STOCKBIT_PIN`) → Submit → tunggu modal hilang.
-//! Lalu DOM scrape header equity ([`portofolio_equity_worker`]) ke `portofolio_equity`
-//! **sebelum** GET portfolio API.
-//! Setelah itu ambil **Bearer trading** (pasca-PIN / `securitiesAccessToken`),
+//! Ambil **Bearer trading** (pasca-PIN / `securitiesAccessToken`),
 //! **bukan** Bearer login web Exodus, lalu GET portfolio API.
 //!
 //! Sebelum upsert `portofolio`: pastikan `emiten_list` terisi (scrape bila belum ada).
@@ -45,7 +45,7 @@ struct PortoRow {
     invested: f64,
     market_value: f64,
     potential_p_l: f64,
-    /// Persentase (gain API × 100), contoh `-1.9401`.
+    /// Persentase (gain API × 100), contoh gain `-0.019401` → `-1.9401`.
     percentage: f64,
 }
 
@@ -642,10 +642,10 @@ fn parse_portfolio_list_json(v: &Value) -> Vec<PortoRow> {
     rows
 }
 
-async fn fetch_portfolio_list(
+async fn fetch_portfolio_json(
     http: &reqwest::Client,
     bearer: &str,
-) -> Result<(Vec<PortoRow>, crate::rate_limit_delay::RateLimitInfo), Box<dyn std::error::Error>> {
+) -> Result<(Value, crate::rate_limit_delay::RateLimitInfo), Box<dyn std::error::Error>> {
     let resp = http
         .get(PORTFOLIO_API_URL)
         .header("Authorization", format!("Bearer {bearer}"))
@@ -670,11 +670,26 @@ async fn fetch_portfolio_list(
 
     let v: Value = serde_json::from_str(&body)
         .map_err(|e| format!("portfolio/v2/list JSON: {e}"))?;
+    Ok((v, rate_info))
+}
+
+async fn fetch_portfolio_list(
+    http: &reqwest::Client,
+    bearer: &str,
+) -> Result<
+    (
+        Value,
+        Vec<PortoRow>,
+        crate::rate_limit_delay::RateLimitInfo,
+    ),
+    Box<dyn std::error::Error>,
+> {
+    let (v, rate_info) = fetch_portfolio_json(http, bearer).await?;
     let rows = parse_portfolio_list_json(&v);
     if rows.is_empty() {
         return Err("portfolio/v2/list: data.results kosong".into());
     }
-    Ok((rows, rate_info))
+    Ok((v, rows, rate_info))
 }
 
 async fn upsert_portofolio(
@@ -755,8 +770,9 @@ async fn upsert_portofolio(
     Ok(n)
 }
 
-/// START TRADING (opsional) → PIN (opsional) → DOM `portofolio_equity` →
-/// Bearer trading → portfolio API → pastikan `emiten_list` → upsert `portofolio`.
+/// START TRADING (opsional) → PIN (opsional) → Bearer trading →
+/// GET `portfolio/v2/list` → upsert `portofolio_equity` dari `data.summary`
+/// **dan** upsert `portofolio` dari `data.results`.
 /// Bila `with_bandarmology`: pastikan `bandarmology` untuk kode holdings.
 /// Tidak menulis `portofolio_bandarmology`.
 /// Returns `(jumlah baris portofolio, daftar emiten_name)`.
@@ -772,23 +788,14 @@ pub async fn scrape_and_insert_portofolio(
         sleep(Duration::from_secs(1)).await;
     }
 
-    println!("Portofolio equity: DOM scrape header sebelum portfolio API...");
-    let equity_ok = portofolio_equity_worker::scrape_and_insert_portofolio_equity(
-        page,
-        session.as_ref(),
-        keyspace,
-    )
-    .await?;
-    println!("OK: {equity_ok} baris diupsert ke portofolio_equity (sebelum portfolio API).");
-
     let bearer = extract_trading_bearer_after_pin(page).await?;
     let http = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(60))
         .build()?;
 
-    println!("Portofolio API: GET {PORTFOLIO_API_URL}...");
-    let (rows, rate) = fetch_portfolio_list(&http, &bearer).await?;
+    println!("Portofolio API: GET {PORTFOLIO_API_URL} (summary + results)...");
+    let (json, rows, rate) = fetch_portfolio_list(&http, &bearer).await?;
     let delay_ms = rate.inter_emiten_delay_ms();
     if delay_ms > 0 {
         println!(
@@ -800,7 +807,17 @@ pub async fn scrape_and_insert_portofolio(
         );
         sleep(Duration::from_millis(delay_ms)).await;
     }
-    println!("Portofolio: {} baris dari API.", rows.len());
+
+    println!("Portofolio equity: upsert dari data.summary API...");
+    let equity_ok = portofolio_equity_worker::upsert_portofolio_equity_from_json(
+        session.as_ref(),
+        keyspace,
+        &json,
+    )
+    .await?;
+    println!("OK: {equity_ok} baris diupsert ke portofolio_equity.");
+
+    println!("Portofolio: {} baris dari data.results.", rows.len());
 
     let mut codes: Vec<String> = rows
         .iter()
@@ -844,6 +861,42 @@ pub async fn scrape_and_insert_portofolio(
     println!("OK: {n} baris diinsert ke portofolio.");
 
     Ok((n, codes))
+}
+
+/// START TRADING (opsional) → PIN (opsional) → Bearer trading →
+/// GET `portfolio/v2/list` → upsert hanya `portofolio_equity` dari `data.summary`.
+pub async fn scrape_and_insert_portofolio_equity(
+    page: &Page,
+    session: &Session,
+    keyspace: &str,
+) -> Result<usize, Box<dyn std::error::Error>> {
+    let pin_entered = ensure_trading_session(page).await?;
+    if pin_entered {
+        println!("Jeda 1 detik setelah input PIN...");
+        sleep(Duration::from_secs(1)).await;
+    }
+
+    let bearer = extract_trading_bearer_after_pin(page).await?;
+    let http = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(60))
+        .build()?;
+
+    println!("Portofolio equity API: GET {PORTFOLIO_API_URL} (data.summary)...");
+    let (json, rate) = fetch_portfolio_json(&http, &bearer).await?;
+    let delay_ms = rate.inter_emiten_delay_ms();
+    if delay_ms > 0 {
+        println!(
+            "  jeda adaptif {delay_ms}ms (portfolio/v2/list equity; remaining={}; {})",
+            rate.remaining
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "-".into()),
+            rate.log_line()
+        );
+        sleep(Duration::from_millis(delay_ms)).await;
+    }
+
+    portofolio_equity_worker::upsert_portofolio_equity_from_json(session, keyspace, &json).await
 }
 
 #[cfg(test)]
