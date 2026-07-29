@@ -294,7 +294,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
     let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
 
-    let (mut browser, page) = launch_page().await.map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    let (browser, page) = launch_page().await.map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
     // Awal: langsung /stream. Jika Stockbit redirect ke /login → isi username/password natural.
     open_stream_or_login(&page, &email, &password)
@@ -385,7 +385,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let final_title = page.get_title().await?.unwrap_or_default();
     println!("Siap — title: {final_title:?} | url: {final_url}");
 
-    browser.close().await?;
+    browser.close().await;
+    let _ = stockbit_browser::shutdown_shared_browser().await;
 
     println!("Selesai.");
     pm2_guard.start_once();

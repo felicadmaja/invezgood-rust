@@ -2,10 +2,14 @@
 //!
 //! Dipakai oleh `user` (RPC `IsStockbitReady`) dan `worker_scrapping`.
 //!
+//! Chrome **di-reuse** antar RPC on-demand / readiness (satu proses `stockbit_ws`):
+//! `launch_page()` tidak menutup browser; `BrowserSession::close` no-op agar cookie/JWT
+//! tetap hidup. Relaunch + soft-kill hanya bila sesi Chrome mati.
+//!
 //! Env: `STOCKBIT_EMAIL`, `STOCKBIT_PASSWORD`, opsional `CHROME_EXECUTABLE_PATH`,
 //! `STOCKBIT_2FA_TIMEOUT_SECS`, `STOCKBIT_SESSION_CHECK_SECS` (default random 60–300 untuk
 //! jendela cek di `/stream`; default 5 untuk worker), `STOCKBIT_BROWSER_DATA_DIR`,
-//! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 3000–3600 —
+//! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 540–900 —
 //! interval background poller untuk `IsStockbitReady`), `REDIS_URL` (state readiness).
 //!
 //! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
@@ -26,16 +30,39 @@ use tokio::sync::{mpsc, watch, Mutex};
 use tokio::time::sleep;
 
 /// Mutex global: satu Chrome profil — readiness poller dan on-demand scrape
-/// tidak boleh `launch_page` bersamaan (`kill_stale` akan bunuh yang lain).
+/// tidak boleh memakai browser bersamaan.
 static BROWSER_SESSION_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub fn browser_session_lock() -> &'static Mutex<()> {
     BROWSER_SESSION_LOCK.get_or_init(|| Mutex::new(()))
 }
 
+/// Chrome + page yang di-reuse antar scrape (hidup selama proses `stockbit_ws`).
+struct PersistentChrome {
+    browser: Browser,
+    page: Page,
+}
+
+static PERSISTENT_CHROME: OnceLock<Mutex<Option<PersistentChrome>>> = OnceLock::new();
+
+fn persistent_chrome() -> &'static Mutex<Option<PersistentChrome>> {
+    PERSISTENT_CHROME.get_or_init(|| Mutex::new(None))
+}
+
+/// Handle yang dikembalikan `launch_page` — `close()` **tidak** mematikan Chrome
+/// (sengaja, agar sesi Stockbit tetap hidup antar RPC).
+pub struct BrowserSession;
+
+impl BrowserSession {
+    /// No-op: Chrome tetap jalan di pool persistent.
+    pub async fn close(self) {
+        // sengaja tidak menutup Chrome
+    }
+}
+
 /// Interval default antar pengecekan web Stockbit (detik).
-pub const READY_POLL_MIN_SECS: u64 = 50 * 60;
-pub const READY_POLL_MAX_SECS: u64 = 60 * 60;
+pub const READY_POLL_MIN_SECS: u64 = 9 * 60;
+pub const READY_POLL_MAX_SECS: u64 = 15 * 60;
 
 /// Jeda acak antar retry login bila sesi habis / login gagal (detik).
 pub const LOGIN_RETRY_MIN_SECS: u64 = 10;
@@ -82,7 +109,7 @@ fn next_poll_secs() -> u64 {
     rand::thread_rng().gen_range(min..=max)
 }
 
-/// Background poller: cek stockbit.com setiap 3000–3600 detik (50–60 menit).
+/// Background poller: cek stockbit.com setiap 540–900 detik (9–15 menit).
 /// Status terakhir disimpan di Redis (`stockbit:readiness`); RPC hanya baca Redis.
 /// [`Self::subscribe`] = notifikasi in-process tiap publish (auto-scrape portofolio).
 #[derive(Clone)]
@@ -92,7 +119,7 @@ pub struct ReadinessPoller {
 
 impl ReadinessPoller {
     /// Mulai loop polling di background.
-    /// Hydrate dari Redis dulu; cek pertama segera; berikutnya setiap 3000–3600 detik.
+    /// Hydrate dari Redis dulu; cek pertama segera; berikutnya setiap 540–900 detik.
     pub fn start() -> Arc<Self> {
         let (notify, _) = watch::channel(None);
         let poller = Arc::new(Self { notify });
@@ -192,10 +219,17 @@ pub fn browser_data_dir() -> PathBuf {
 }
 
 pub fn browser_config() -> Result<BrowserConfig, StockbitError> {
+    browser_config_inner(true)
+}
+
+fn browser_config_inner(kill_stale: bool) -> Result<BrowserConfig, StockbitError> {
     let data_dir = browser_data_dir();
     std::fs::create_dir_all(&data_dir)?;
-    kill_stale_chrome_processes(&data_dir);
-    clear_stale_chrome_locks(&data_dir);
+    if kill_stale {
+        // Soft-kill dulu (SIGTERM), baru SIGKILL bila masih hidup — agar cookie sempat flush.
+        terminate_stale_chrome_processes(&data_dir);
+        clear_stale_chrome_locks(&data_dir);
+    }
 
     let viewport = Viewport {
         width: 1366,
@@ -232,11 +266,10 @@ pub fn browser_config() -> Result<BrowserConfig, StockbitError> {
     Ok(builder.build()?)
 }
 
-/// Bunuh proses Chrome sisa run sebelumnya yang masih memegang profil `data_dir`,
-/// agar tidak muncul error "Failed to create SingletonLock: File exists (17)".
-fn kill_stale_chrome_processes(data_dir: &Path) {
-    // 1) PID dari symlink SingletonLock (target biasanya "hostname-<pid>").
+/// Soft-kill proses Chrome yang memegang profil, lalu hard-kill bila perlu.
+fn terminate_stale_chrome_processes(data_dir: &Path) {
     let lock = data_dir.join("SingletonLock");
+    let mut pids = Vec::new();
     if let Ok(target) = std::fs::read_link(&lock) {
         if let Some(pid) = target
             .to_string_lossy()
@@ -244,13 +277,28 @@ fn kill_stale_chrome_processes(data_dir: &Path) {
             .next()
             .and_then(|s| s.trim().parse::<i32>().ok())
         {
-            kill_pid(pid);
+            if pid > 1 {
+                pids.push(pid);
+            }
         }
     }
 
-    // 2) Fallback: pkill chrome yang memakai profil ini.
-    // Pola tanpa awalan "--" agar tidak dianggap opsi pkill; "--" mengakhiri flags.
-    // stdout/stderr di-null supaya usage/help tidak muncul di terminal.
+    for &pid in &pids {
+        signal_pid(pid, false);
+    }
+    if let Some(dir) = data_dir.to_str() {
+        let pattern = format!("user-data-dir={dir}");
+        let _ = std::process::Command::new("pkill")
+            .args(["-TERM", "-f", "--", &pattern])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    std::thread::sleep(Duration::from_millis(800));
+
+    for &pid in &pids {
+        signal_pid(pid, true);
+    }
     if let Some(dir) = data_dir.to_str() {
         let pattern = format!("user-data-dir={dir}");
         let _ = std::process::Command::new("pkill")
@@ -259,17 +307,16 @@ fn kill_stale_chrome_processes(data_dir: &Path) {
             .stderr(std::process::Stdio::null())
             .status();
     }
-
-    // Beri waktu OS melepas file lock sebelum relaunch.
     std::thread::sleep(Duration::from_millis(300));
 }
 
-fn kill_pid(pid: i32) {
+fn signal_pid(pid: i32, force: bool) {
     if pid <= 1 {
         return;
     }
+    let sig = if force { "-9" } else { "-TERM" };
     let _ = std::process::Command::new("kill")
-        .args(["-9", &pid.to_string()])
+        .args([sig, &pid.to_string()])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status();
@@ -278,15 +325,21 @@ fn kill_pid(pid: i32) {
 fn clear_stale_chrome_locks(data_dir: &Path) {
     for name in ["SingletonLock", "SingletonSocket", "SingletonCookie"] {
         let p = data_dir.join(name);
-        // symlink_metadata agar symlink yatim (broken) tetap terhapus.
         if p.exists() || std::fs::symlink_metadata(&p).is_ok() {
             let _ = std::fs::remove_file(&p);
         }
     }
 }
 
-pub async fn launch_page() -> Result<(Browser, Page), StockbitError> {
-    let config = browser_config()?;
+async fn page_is_alive(page: &Page) -> bool {
+    match tokio::time::timeout(Duration::from_secs(5), page.evaluate("1+1")).await {
+        Ok(Ok(eval)) => eval.into_value::<i64>().ok() == Some(2),
+        _ => false,
+    }
+}
+
+async fn launch_fresh_browser() -> Result<(Browser, Page), StockbitError> {
+    let config = browser_config_inner(true)?;
     let (browser, mut handler) = Browser::launch(config).await?;
     tokio::task::spawn(async move { while handler.next().await.is_some() {} });
 
@@ -345,6 +398,48 @@ pub async fn launch_page() -> Result<(Browser, Page), StockbitError> {
     .await?;
 
     Ok((browser, page))
+}
+
+/// Ambil page Chrome bersama. Reuse bila masih hidup; relaunch hanya bila mati.
+/// Caller sebaiknya memegang [`browser_session_lock`].
+/// `BrowserSession::close` **tidak** mematikan Chrome (pool persistent).
+pub async fn launch_page() -> Result<(BrowserSession, Page), StockbitError> {
+    let mut slot = persistent_chrome().lock().await;
+
+    if let Some(existing) = slot.as_ref() {
+        if page_is_alive(&existing.page).await {
+            println!("Chrome session: reuse (sesi tetap hidup, tanpa kill/relaunch)");
+            return Ok((BrowserSession, existing.page.clone()));
+        }
+        println!("Chrome session: page tidak responsif — graceful relaunch...");
+        if let Some(mut old) = slot.take() {
+            let _ = old.browser.close().await;
+        }
+        sleep(Duration::from_millis(500)).await;
+    } else {
+        println!("Chrome session: belum ada — launch baru...");
+    }
+
+    let (browser, page) = launch_fresh_browser().await?;
+    println!("Chrome session: ready (persistent pool)");
+    *slot = Some(PersistentChrome {
+        browser,
+        page: page.clone(),
+    });
+    Ok((BrowserSession, page))
+}
+
+/// Paksa tutup Chrome persistent (opsional; shutdown bersih / one-shot worker).
+pub async fn shutdown_shared_browser() -> Result<(), StockbitError> {
+    let mut slot = persistent_chrome().lock().await;
+    if let Some(mut old) = slot.take() {
+        println!("Chrome session: shutdown_shared_browser — menutup Chrome...");
+        let _ = old.browser.close().await;
+        sleep(Duration::from_millis(500)).await;
+        terminate_stale_chrome_processes(&browser_data_dir());
+        clear_stale_chrome_locks(&browser_data_dir());
+    }
+    Ok(())
 }
 
 pub async fn goto_stockbit(page: &Page, url: &str) -> Result<(), StockbitError> {
@@ -508,6 +603,7 @@ async fn type_naturally(
     selector: &str,
     value: &str,
     label: &str,
+    per_char_delay_ms: (u64, u64),
 ) -> Result<(), StockbitError> {
     let element = page
         .find_element(selector)
@@ -533,8 +629,15 @@ async fn type_naturally(
     let _ = page.evaluate(clear_js.as_str()).await;
 
     for karakter in value.chars() {
-        let delay_acak = rand::thread_rng().gen_range(80..220);
-        sleep(Duration::from_millis(delay_acak)).await;
+        let (lo, hi) = per_char_delay_ms;
+        if hi > 0 {
+            let delay = if lo >= hi {
+                lo
+            } else {
+                rand::thread_rng().gen_range(lo..=hi)
+            };
+            sleep(Duration::from_millis(delay)).await;
+        }
         element.type_str(&karakter.to_string()).await?;
     }
     Ok(())
@@ -616,9 +719,9 @@ async fn perform_login(page: &Page, email: &str, password: &str) -> Result<(), S
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD wajib diisi di .env".into());
     }
 
-    type_naturally(page, "#username", email, "email/username").await?;
+    type_naturally(page, "#username", email, "email/username", (0, 0)).await?;
     sleep(Duration::from_millis(400)).await;
-    type_naturally(page, "#password", password, "password").await?;
+    type_naturally(page, "#password", password, "password", (80, 220)).await?;
     sleep(Duration::from_millis(800)).await;
 
     if let Ok(btn) = page.find_element("#email-login-button").await {
@@ -828,7 +931,7 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
     let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
     let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
 
-    let (mut browser, page) = launch_page().await?;
+    let (browser, page) = launch_page().await?;
 
     goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
     sleep(Duration::from_secs(1)).await;
@@ -924,7 +1027,7 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
     }
 
     send_update(&tx, true, "Stockbit ready").await;
-    browser.close().await?;
+    browser.close().await;
     Ok(())
 }
 

@@ -240,7 +240,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
@@ -261,7 +261,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Ditemukan {} emiten_name dari emiten_list.", emitens.len());
     if emitens.is_empty() {
         eprintln!("Tidak ada emiten — selesai.");
-        browser.close().await?;
+        browser.close().await;
         pm2_guard.start_once();
         return Ok(());
     }
@@ -299,7 +299,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         emitens.len()
     );
 
-    browser.close().await?;
+    browser.close().await;
+    let _ = stockbit_browser::shutdown_shared_browser().await;
     pm2_guard.start_once();
     Ok(())
 }

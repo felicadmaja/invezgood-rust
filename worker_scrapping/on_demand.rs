@@ -199,7 +199,7 @@ async fn run_ensure_emiten_scrape(
 
     println!("On-demand scrape: mulai untuk {code} (emiten_list + bandarmology)...");
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -228,9 +228,7 @@ async fn run_ensure_emiten_scrape(
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
@@ -315,7 +313,7 @@ async fn run_emiten_list_stockbit_scrape(
     };
     println!("On-demand Stockbit scrape: mulai untuk {code} ({scope})...");
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -344,9 +342,7 @@ async fn run_emiten_list_stockbit_scrape(
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
@@ -370,7 +366,7 @@ pub async fn scrape_emiten_trending_movers(
 
     println!("On-demand: emiten_trending via market-mover API (Top Gainer/Loser)...");
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -415,9 +411,7 @@ pub async fn scrape_emiten_trending_movers(
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
@@ -540,7 +534,7 @@ async fn run_bandarmology_harian_days(
         days.len()
     );
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -562,9 +556,7 @@ async fn run_bandarmology_harian_days(
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
@@ -678,7 +670,7 @@ async fn run_bandarmology_harian_multi(
         total_days
     );
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -710,9 +702,7 @@ async fn run_bandarmology_harian_multi(
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
@@ -778,7 +768,7 @@ async fn run_portofolio_equity_scrape(session: Arc<Session>) -> Result<usize, St
 
     println!("On-demand portofolio_equity: login → PIN → portfolio/v2/list summary...");
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -799,9 +789,7 @@ async fn run_portofolio_equity_scrape(session: Arc<Session>) -> Result<usize, St
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
@@ -879,7 +867,7 @@ async fn run_portofolio_history_scrape(
 
     println!("On-demand portofolio history: login → PIN → /history {code}...");
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -902,9 +890,7 @@ async fn run_portofolio_history_scrape(
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
@@ -973,7 +959,7 @@ async fn run_portofolio_all_scrape(
 
     println!("On-demand portofolio: login → PIN → portfolio/v2/list (summary + results)...");
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -991,9 +977,7 @@ async fn run_portofolio_all_scrape(
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
@@ -1080,7 +1064,7 @@ async fn run_portofolio_history_batch_scrape(
         codes.len()
     );
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -1099,9 +1083,7 @@ async fn run_portofolio_history_batch_scrape(
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
@@ -1164,7 +1146,7 @@ async fn run_pending_order_all_scrape(session: Arc<Session>) -> Result<usize, St
 
     println!("On-demand pending_order: login → PIN → order/v2/list...");
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -1183,9 +1165,7 @@ async fn run_pending_order_all_scrape(session: Arc<Session>) -> Result<usize, St
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
@@ -1281,7 +1261,7 @@ async fn run_fetch_index_symbols(label: &str, url: &str) -> Result<Vec<String>, 
     let _browser_guard = browser_session_lock().lock().await;
     println!("On-demand {label}: login + GET company list...");
 
-    let (mut browser, page) = launch_page()
+    let (browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
@@ -1296,9 +1276,7 @@ async fn run_fetch_index_symbols(label: &str, url: &str) -> Result<Vec<String>, 
     }
     .await;
 
-    if let Err(e) = browser.close().await {
-        eprintln!("Peringatan: gagal menutup browser: {e}");
-    }
+    browser.close().await;
 
     result
 }
