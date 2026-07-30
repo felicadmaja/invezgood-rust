@@ -557,7 +557,7 @@ fn error_screenshot_dir() -> PathBuf {
 }
 
 /// Simpan screenshot debug saat error; path dicetak ke stderr.
-async fn save_error_screenshot(page: &Page, label: &str) -> Option<PathBuf> {
+pub async fn save_error_screenshot(page: &Page, label: &str) -> Option<PathBuf> {
     let dir = error_screenshot_dir();
     if let Err(e) = tokio::fs::create_dir_all(&dir).await {
         eprintln!("Peringatan: gagal buat folder screenshot error: {e}");

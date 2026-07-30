@@ -1,9 +1,14 @@
+
+
+
 perbaikan pada emiten list:
 jika ada portofolio tampilkan portofolio price dan invested
 jika ada buylimit tampilkan buylimit
 
-
-perbaikan halaman portofolio
-- tombol accumulation dan distribution dihilangkan
+Di candlestick chart ditampilkan harga PO
 
 
+tombol history bandarmology dihilangkan
+
+
+search enter di emiten trending dan portofolio

@@ -30,6 +30,20 @@ service PendingOrder {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPendingOrderFromStockbit(GetAllPendingOrderFromStockbitRequest)
       returns (GetAllPendingOrderFromStockbitResponse);
+
+  // Buat order limit buy via DOM scrape Stockbit (mode trading + PIN bila perlu).
+  // Validasi: emiten_name 4 huruf; price/lot integer > 0; expiry harus GFD atau GTC.
+  // Rate limit: maksimal 1× per 60 detik untuk semua user
+  // (failed precondition jika terlalu cepat).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc CreateBuyLimitOrder(CreateBuyLimitOrderRequest)
+      returns (CreateBuyLimitOrderResponse);
+}
+
+enum ExpiryPendingOrder {
+  EXPIRY_PENDING_ORDER_UNSPECIFIED = 0;
+  EXPIRY_PENDING_ORDER_GFD = 1;
+  EXPIRY_PENDING_ORDER_GTC = 2;
 }
 
 message GetAllPendingOrderFromScyllaRequest {}
@@ -41,6 +55,20 @@ message GetPendingOrderFromScyllaByEmitenNameRequest {
 
 message GetPendingOrderFromScyllaByEmitenNameResponse {
   repeated PendingOrderRow rows = 1;
+}
+
+message CreateBuyLimitOrderRequest {
+  // Kode emiten: tepat 4 huruf alphabet; dinormalisasi UPPERCASE di server.
+  string emiten_name = 1;
+  int32 price = 2;
+  int32 lot = 3;
+  // Wajib GFD (1) atau GTC (2).
+  ExpiryPendingOrder expiry = 4;
+}
+
+message CreateBuyLimitOrderResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 message PendingOrderRow {

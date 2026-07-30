@@ -12,6 +12,7 @@ struct Prepared {
     by_email_mv: PreparedStatement,
     by_id: PreparedStatement,
     update_password: PreparedStatement,
+    update_role: PreparedStatement,
     insert_user: PreparedStatement,
     delete_user: PreparedStatement,
     get_all: PreparedStatement,
@@ -45,7 +46,7 @@ impl UserRepository {
                 let by_id = self
                     .session
                     .prepare(format!(
-                        "SELECT id, name, email, password FROM {}.user WHERE id = ? LIMIT 1",
+                        "SELECT id, name, email, password, role FROM {}.user WHERE id = ? LIMIT 1",
                         self.keyspace
                     ))
                     .await?;
@@ -56,10 +57,17 @@ impl UserRepository {
                         self.keyspace
                     ))
                     .await?;
+                let update_role = self
+                    .session
+                    .prepare(format!(
+                        "UPDATE {}.user SET role = ? WHERE id = ?",
+                        self.keyspace
+                    ))
+                    .await?;
                 let insert_user = self
                     .session
                     .prepare(format!(
-                        "INSERT INTO {}.user (id, name, email, password) VALUES (?, ?, ?, ?)",
+                        "INSERT INTO {}.user (id, name, email, password, role) VALUES (?, ?, ?, ?, ?)",
                         self.keyspace
                     ))
                     .await?;
@@ -73,7 +81,7 @@ impl UserRepository {
                 let get_all = self
                     .session
                     .prepare(format!(
-                        "SELECT id, name, email FROM {}.user",
+                        "SELECT id, name, email, role FROM {}.user",
                         self.keyspace
                     ))
                     .await?;
@@ -81,6 +89,7 @@ impl UserRepository {
                     by_email_mv,
                     by_id,
                     update_password,
+                    update_role,
                     insert_user,
                     delete_user,
                     get_all,
@@ -139,6 +148,19 @@ impl UserRepository {
         Ok(())
     }
 
+    /// Update kolom `role` di tabel `user`.
+    pub async fn update_role(
+        &self,
+        id: Uuid,
+        role: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let p = self.prepared().await?;
+        self.session
+            .execute_unpaged(&p.update_role, (role, id))
+            .await?;
+        Ok(())
+    }
+
     /// Insert user baru (MV `user_by_email` ikut terisi dari base table).
     pub async fn insert_user(
         &self,
@@ -146,10 +168,11 @@ impl UserRepository {
         name: &str,
         email: &str,
         password_hash: &str,
+        role: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let p = self.prepared().await?;
         self.session
-            .execute_unpaged(&p.insert_user, (id, name, email, password_hash))
+            .execute_unpaged(&p.insert_user, (id, name, email, password_hash, role))
             .await?;
         Ok(())
     }
@@ -166,7 +189,7 @@ impl UserRepository {
         Ok(())
     }
 
-    /// Semua user (id, name, email) — tanpa password.
+    /// Semua user (id, name, email, role) — tanpa password.
     pub async fn get_all(
         &self,
     ) -> Result<Vec<UserPublicRow>, Box<dyn std::error::Error + Send + Sync>> {

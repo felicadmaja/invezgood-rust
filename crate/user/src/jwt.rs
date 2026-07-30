@@ -7,6 +7,8 @@ pub struct Claims {
     pub user_id: String,
     pub email: String,
     pub name: String,
+    #[serde(default)]
+    pub role: String,
     pub exp: i64,
     pub iat: i64,
     pub jti: String,
@@ -29,6 +31,7 @@ pub fn encode_token(
     user_id: &Uuid,
     email: &str,
     name: &str,
+    role: &str,
 ) -> Result<(String, i64), Box<dyn std::error::Error + Send + Sync>> {
     use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 
@@ -39,6 +42,7 @@ pub fn encode_token(
         user_id: user_id.to_string(),
         email: email.to_string(),
         name: name.to_string(),
+        role: role.to_string(),
         iat: now,
         exp: now + expires_in,
         jti: Uuid::new_v4().to_string(),

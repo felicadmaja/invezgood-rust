@@ -44,6 +44,18 @@ service User {
 
   // Semua user dari Scylla `user` (tanpa kolom password). Wajib JWT. Request kosong.
   rpc GetAllUsers(GetAllUsersRequest) returns (GetAllUsersResponse);
+
+  // Ubah `role` user di Scylla `user`.
+  // Wajib JWT. `user_id`: 16-byte UUID binary, atau UTF-8 string UUID.
+  // `role` wajib ADMIN atau VIEWER (UNSPECIFIED ditolak).
+  rpc UpdateRoleUser(UpdateRoleUserRequest) returns (UpdateRoleUserResponse);
+}
+
+// Role akun di Scylla `user.role` (disimpan text lowercase: "admin" / "viewer").
+enum RoleUser {
+  ROLE_USER_UNSPECIFIED = 0;
+  ROLE_USER_ADMIN = 1;
+  ROLE_USER_VIEWER = 2;
 }
 
 message IsStockbitReadyRequest {}
@@ -64,6 +76,7 @@ message LoginResponse {
   string user_id = 3;
   string name = 4;
   string email = 5; // selalu lowercase
+  RoleUser role = 6;
 }
 
 message UpdatePasswordRequest {
@@ -80,6 +93,8 @@ message AddUserRequest {
   string email = 1;
   string password = 2;
   string name = 3;
+  // UNSPECIFIED → default VIEWER.
+  RoleUser role = 4;
 }
 
 message AddUserResponse {
@@ -96,6 +111,17 @@ message DeleteUserResponse {
   string message = 2;
 }
 
+message UpdateRoleUserRequest {
+  bytes user_id = 1;
+  // Wajib ADMIN (1) atau VIEWER (2).
+  RoleUser role = 2;
+}
+
+message UpdateRoleUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 message GetAllUsersRequest {}
 
 // Tanpa password (hash tidak dikirim ke client).
@@ -103,6 +129,7 @@ message UserRow {
   string id = 1;
   string name = 2;
   string email = 3;
+  RoleUser role = 4;
 }
 
 message GetAllUsersResponse {

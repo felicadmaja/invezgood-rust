@@ -9,6 +9,8 @@ pub struct UserRow {
     pub email: String,
     #[scylla(default_when_null)]
     pub password: String,
+    #[scylla(default_when_null)]
+    pub role: String,
 }
 
 /// Baris publik untuk list user (tanpa password).
@@ -19,6 +21,8 @@ pub struct UserPublicRow {
     pub name: String,
     #[scylla(default_when_null)]
     pub email: String,
+    #[scylla(default_when_null)]
+    pub role: String,
 }
 
 #[derive(Debug, Clone, scylla::DeserializeRow)]

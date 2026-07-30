@@ -12,6 +12,7 @@ use crate::model::PendingOrder;
 use crate::pending_order_server::PendingOrder as PendingOrderRpc;
 use crate::repository::PendingOrderRepository;
 use crate::{
+    CreateBuyLimitOrderRequest, CreateBuyLimitOrderResponse, ExpiryPendingOrder,
     GetAllPendingOrderFromScyllaRequest, GetAllPendingOrderFromScyllaResponse,
     GetAllPendingOrderFromStockbitRequest, GetAllPendingOrderFromStockbitResponse,
     GetPendingOrderFromScyllaByEmitenNameRequest, GetPendingOrderFromScyllaByEmitenNameResponse,
@@ -31,10 +32,18 @@ fn normalize_emiten_name(raw: &str) -> Result<String, String> {
 /// Cooldown global antar invoke `GetAllPendingOrderFromStockbit` (semua user).
 const PENDING_ORDER_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
+/// Cooldown global antar invoke `CreateBuyLimitOrder` (semua user).
+const BUY_LIMIT_COOLDOWN: Duration = Duration::from_secs(60);
+
 static LAST_PENDING_ORDER_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+static LAST_BUY_LIMIT: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
 fn pending_order_scrape_gate() -> &'static Mutex<Option<Instant>> {
     LAST_PENDING_ORDER_SCRAPE.get_or_init(|| Mutex::new(None))
+}
+
+fn buy_limit_gate() -> &'static Mutex<Option<Instant>> {
+    LAST_BUY_LIMIT.get_or_init(|| Mutex::new(None))
 }
 
 /// Izinkan scrape pending order; tolak jika < 5 menit sejak invoke terakhir (global).
@@ -51,6 +60,32 @@ async fn acquire_pending_order_scrape_slot() -> Result<(), Status> {
     }
     *last = Some(Instant::now());
     Ok(())
+}
+
+/// Izinkan CreateBuyLimitOrder; tolak jika < 60 detik sejak invoke terakhir (global).
+async fn acquire_buy_limit_slot() -> Result<(), Status> {
+    let mut last = buy_limit_gate().lock().await;
+    if let Some(at) = *last {
+        let elapsed = at.elapsed();
+        if elapsed < BUY_LIMIT_COOLDOWN {
+            let remaining_secs = (BUY_LIMIT_COOLDOWN - elapsed).as_secs().max(1);
+            return Err(Status::failed_precondition(format!(
+                "Rate limit: maksimal 1× / 60 detik untuk semua user. Tunggu {remaining_secs} detik lagi"
+            )));
+        }
+    }
+    *last = Some(Instant::now());
+    Ok(())
+}
+
+fn expiry_dom_value(expiry: ExpiryPendingOrder) -> Result<&'static str, Status> {
+    match expiry {
+        ExpiryPendingOrder::Gfd => Ok("0"),
+        ExpiryPendingOrder::Gtc => Ok("1"),
+        ExpiryPendingOrder::Unspecified => Err(Status::invalid_argument(
+            "ExpiryPendingOrder harus GFD atau GTC",
+        )),
+    }
 }
 
 pub struct PendingOrderService {
@@ -196,6 +231,69 @@ impl PendingOrderRpc for PendingOrderService {
                     success: false,
                     message: format!("scrape pending_order gagal: {e}"),
                     rows: vec![],
+                }))
+            }
+        }
+    }
+
+    async fn create_buy_limit_order(
+        &self,
+        request: Request<CreateBuyLimitOrderRequest>,
+    ) -> Result<Response<CreateBuyLimitOrderResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let emiten_name =
+            normalize_emiten_name(&req.emiten_name).map_err(Status::invalid_argument)?;
+        if req.price <= 0 {
+            return Err(Status::invalid_argument(
+                "price harus integer positif (> 0)",
+            ));
+        }
+        if req.lot <= 0 {
+            return Err(Status::invalid_argument("lot harus integer positif (> 0)"));
+        }
+        let expiry = ExpiryPendingOrder::try_from(req.expiry).unwrap_or(ExpiryPendingOrder::Unspecified);
+        let expiry_dom = expiry_dom_value(expiry)?;
+
+        acquire_buy_limit_slot().await?;
+
+        println!(
+            "CreateBuyLimitOrder {username}: {emiten_name} price={} lot={} expiry={:?}...",
+            req.price, req.lot, expiry
+        );
+
+        match on_demand::create_buy_limit_order(
+            emiten_name.clone(),
+            req.price,
+            req.lot,
+            expiry_dom.to_string(),
+        )
+        .await
+        {
+            Ok(()) => {
+                println!(
+                    "CreateBuyLimitOrder {} {emiten_name} success=true {}ms",
+                    username,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(CreateBuyLimitOrderResponse {
+                    success: true,
+                    message: "Order limit buy berhasil dibuat".to_string(),
+                }))
+            }
+            Err(e) => {
+                eprintln!("CreateBuyLimitOrder {username} {emiten_name}: gagal: {e}");
+                println!(
+                    "CreateBuyLimitOrder {} {emiten_name} success=false {}ms",
+                    username,
+                    started.elapsed().as_millis()
+                );
+                Ok(Response::new(CreateBuyLimitOrderResponse {
+                    success: false,
+                    message: "Order limit buy gagal dibuat".to_string(),
                 }))
             }
         }

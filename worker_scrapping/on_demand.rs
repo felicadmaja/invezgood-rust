@@ -48,6 +48,10 @@ static INFLIGHT_PENDING_ORDER: OnceLock<
     Mutex<Option<watch::Receiver<Option<Result<usize, String>>>>>,
 > = OnceLock::new();
 
+static INFLIGHT_BUY_LIMIT: OnceLock<
+    Mutex<Option<watch::Receiver<Option<Result<(), String>>>>>,
+> = OnceLock::new();
+
 static INFLIGHT_IDX30: OnceLock<
     Mutex<Option<watch::Receiver<Option<Result<Vec<String>, String>>>>>,
 > = OnceLock::new();
@@ -102,6 +106,10 @@ fn inflight_porto_history_batch(
 fn inflight_pending_order(
 ) -> &'static Mutex<Option<watch::Receiver<Option<Result<usize, String>>>>> {
     INFLIGHT_PENDING_ORDER.get_or_init(|| Mutex::new(None))
+}
+
+fn inflight_buy_limit() -> &'static Mutex<Option<watch::Receiver<Option<Result<(), String>>>>> {
+    INFLIGHT_BUY_LIMIT.get_or_init(|| Mutex::new(None))
 }
 
 fn inflight_idx30(
@@ -1127,6 +1135,97 @@ async fn run_fetch_index_symbols(label: &str, url: &str) -> Result<Vec<String>, 
         emiten_list_worker::fetch_index_symbols(&page, url, label)
             .await
             .map_err(|e| e.to_string())
+    }
+    .await;
+
+    browser.close().await;
+
+    result
+}
+
+/// Buat order limit buy via DOM (mode trading + form). Single-flight.
+/// `expiry_dom_value`: GFD=`"0"`, GTC=`"1"`.
+pub async fn create_buy_limit_order(
+    emiten_name: String,
+    price: i32,
+    lot: i32,
+    expiry_dom_value: String,
+) -> Result<(), String> {
+    let mut rx = {
+        let mut slot = inflight_buy_limit().lock().await;
+        if let Some(existing) = slot.as_ref() {
+            println!("On-demand buy_limit: sudah berjalan — menunggu hasil (single-flight)...");
+            existing.clone()
+        } else {
+            let (tx, rx) = watch::channel::<Option<Result<(), String>>>(None);
+            *slot = Some(rx.clone());
+            tokio::spawn(async move {
+                let result =
+                    run_create_buy_limit_order(emiten_name, price, lot, expiry_dom_value).await;
+                match &result {
+                    Ok(()) => println!("On-demand buy_limit selesai: sukses."),
+                    Err(e) => eprintln!("On-demand buy_limit GAGAL: {e}"),
+                }
+                let _ = tx.send(Some(result));
+                *inflight_buy_limit().lock().await = None;
+            });
+            rx
+        }
+    };
+
+    loop {
+        {
+            let guard = rx.borrow();
+            if let Some(result) = guard.as_ref() {
+                return result.clone();
+            }
+        }
+        if rx.changed().await.is_err() {
+            return Err("on-demand buy_limit: channel ditutup sebelum ada hasil".into());
+        }
+    }
+}
+
+async fn run_create_buy_limit_order(
+    emiten_name: String,
+    price: i32,
+    lot: i32,
+    expiry_dom_value: String,
+) -> Result<(), String> {
+    let email = std::env::var("STOCKBIT_EMAIL")
+        .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk CreateBuyLimitOrder".to_string())?;
+    let password = std::env::var("STOCKBIT_PASSWORD")
+        .map_err(|_| "STOCKBIT_PASSWORD wajib diisi untuk CreateBuyLimitOrder".to_string())?;
+    if email.trim().is_empty() || password.trim().is_empty() {
+        return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
+    }
+
+    let _browser_guard = browser_session_lock().lock().await;
+
+    println!(
+        "On-demand buy_limit: login → trading → form buy ({emiten_name} {price}x{lot})..."
+    );
+
+    let (browser, page) = launch_page()
+        .await
+        .map_err(|e| format!("launch Chrome: {e}"))?;
+
+    let result = async {
+        open_stream_or_login(&page, email.trim(), password.trim())
+            .await
+            .map_err(|e| format!("login Stockbit: {e}"))?;
+
+        crate::buy_limit_order_worker::create_buy_limit_order(
+            &page,
+            &emiten_name,
+            price,
+            lot,
+            &expiry_dom_value,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+        Ok::<(), String>(())
     }
     .await;
 

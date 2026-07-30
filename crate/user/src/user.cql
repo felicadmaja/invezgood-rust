@@ -10,6 +10,7 @@ Kolom dan tipe CQL:
   "name" text
   "email" text
   "password" text — bcrypt hash (bukan plaintext)
+  "role" text — "admin" | "viewer" (ALTER TABLE stockbit.user ADD role text;)
 
 --- Materialized view (MV) ---
 (1) "stockbit"."user_by_email"
@@ -18,6 +19,6 @@ PRIMARY KEY: partition "email" (text); clustering "id" (uuid).
 Gunakan: lookup user per email (WHERE email = ?); data lengkap lewat tabel dasar WHERE id = ?.
 
 --- Seed data ---
-1 baris awal: name="Felik", email="felic.admaja@gmail.com"; password di-hash bcrypt saat INSERT.
+1 baris awal: name="Felik", email="felic.admaja@gmail.com"; password di-hash bcrypt saat INSERT; role="admin".
 
 === Akhir ringkasan struktur ===

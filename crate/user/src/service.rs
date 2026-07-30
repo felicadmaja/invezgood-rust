@@ -19,7 +19,8 @@ use crate::user_server::User as UserRpc;
 use crate::{
     AddUserRequest, AddUserResponse, DeleteUserRequest, DeleteUserResponse, GetAllUsersRequest,
     GetAllUsersResponse, IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest,
-    LoginResponse, UpdatePasswordRequest, UpdatePasswordResponse, UserRow as UserProtoRow,
+    LoginResponse, RoleUser, UpdatePasswordRequest, UpdatePasswordResponse, UpdateRoleUserRequest,
+    UpdateRoleUserResponse, UserRow as UserProtoRow,
 };
 
 /// Interval cek cache poller untuk stream subscriber (detik).
@@ -44,6 +45,43 @@ fn parse_uuid_bytes(raw: &[u8], field: &str) -> Result<Uuid, Status> {
         .trim();
     Uuid::parse_str(s)
         .map_err(|e| Status::invalid_argument(format!("{field} UUID string tidak valid: {e}")))
+}
+
+/// Scylla `user.role` text → enum. Kosong / unknown → VIEWER.
+fn role_from_storage(raw: &str) -> RoleUser {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "admin" => RoleUser::Admin,
+        "viewer" | "user" | "" => RoleUser::Viewer,
+        _ => RoleUser::Viewer,
+    }
+}
+
+/// Enum → text untuk Scylla + JWT claim.
+fn role_to_storage(role: RoleUser) -> &'static str {
+    match role {
+        RoleUser::Admin => "admin",
+        RoleUser::Viewer | RoleUser::Unspecified => "viewer",
+    }
+}
+
+/// Request AddUser: UNSPECIFIED → VIEWER.
+fn role_from_request(raw: i32) -> Result<RoleUser, Status> {
+    match RoleUser::try_from(raw).unwrap_or(RoleUser::Unspecified) {
+        RoleUser::Unspecified => Ok(RoleUser::Viewer),
+        RoleUser::Admin => Ok(RoleUser::Admin),
+        RoleUser::Viewer => Ok(RoleUser::Viewer),
+    }
+}
+
+/// Request UpdateRoleUser: wajib ADMIN atau VIEWER.
+fn role_from_update_request(raw: i32) -> Result<RoleUser, Status> {
+    match RoleUser::try_from(raw).unwrap_or(RoleUser::Unspecified) {
+        RoleUser::Admin => Ok(RoleUser::Admin),
+        RoleUser::Viewer => Ok(RoleUser::Viewer),
+        RoleUser::Unspecified => Err(Status::invalid_argument(
+            "role wajib RoleUser ADMIN atau VIEWER",
+        )),
+    }
 }
 
 pub struct UserService {
@@ -104,8 +142,11 @@ impl UserRpc for UserService {
         }
 
         let email = user.email.trim().to_lowercase();
-        let (access_token, expires_in) = jwt::encode_token(&user.id, &email, &user.name)
-            .map_err(|e| Status::internal(format!("JWT encode gagal: {e}")))?;
+        let role = role_from_storage(&user.role);
+        let role_storage = role_to_storage(role);
+        let (access_token, expires_in) =
+            jwt::encode_token(&user.id, &email, &user.name, role_storage)
+                .map_err(|e| Status::internal(format!("JWT encode gagal: {e}")))?;
 
         println!(
             "Login {} {}ms",
@@ -119,6 +160,7 @@ impl UserRpc for UserService {
             user_id: user.id.to_string(),
             name: user.name,
             email,
+            role: role.into(),
         }))
     }
 
@@ -191,6 +233,8 @@ impl UserRpc for UserService {
         let email = req.email.trim().to_lowercase();
         let name = req.name.trim().to_string();
         let password = req.password;
+        let role = role_from_request(req.role)?;
+        let role_storage = role_to_storage(role);
 
         if email.is_empty() || name.is_empty() || password.trim().is_empty() {
             return Ok(Response::new(AddUserResponse {
@@ -224,15 +268,18 @@ impl UserRpc for UserService {
 
         let id = Uuid::new_v4();
         self.repo
-            .insert_user(id, &name, &email, &password_hash)
+            .insert_user(id, &name, &email, &password_hash, role_storage)
             .await
             .map_err(|e| Status::internal(format!("Scylla insert user gagal: {e}")))?;
 
-        println!("AddUser by {}: {email} id={id}", claims.name);
+        println!(
+            "AddUser by {}: {email} id={id} role={role_storage}",
+            claims.name
+        );
 
         Ok(Response::new(AddUserResponse {
             success: true,
-            message: format!("user ditambahkan: {email} (id={id})"),
+            message: format!("user ditambahkan: {email} (id={id}, role={role_storage})"),
         }))
     }
 
@@ -277,6 +324,50 @@ impl UserRpc for UserService {
         }))
     }
 
+    async fn update_role_user(
+        &self,
+        request: Request<UpdateRoleUserRequest>,
+    ) -> Result<Response<UpdateRoleUserResponse>, Status> {
+        let claims = require_auth(&request)?;
+        let req = request.into_inner();
+        let user_id = parse_uuid_bytes(&req.user_id, "user_id")?;
+        let role = role_from_update_request(req.role)?;
+        let role_storage = role_to_storage(role);
+
+        let exists = self
+            .repo
+            .find_by_id(user_id)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla error: {e}")))?
+            .is_some();
+        if !exists {
+            return Ok(Response::new(UpdateRoleUserResponse {
+                success: false,
+                message: "Role user gagal diubah".to_string(),
+            }));
+        }
+
+        match self.repo.update_role(user_id, role_storage).await {
+            Ok(()) => {
+                println!(
+                    "UpdateRoleUser by {}: id={user_id} role={role_storage}",
+                    claims.name
+                );
+                Ok(Response::new(UpdateRoleUserResponse {
+                    success: true,
+                    message: "Role user berhasil diubah".to_string(),
+                }))
+            }
+            Err(e) => {
+                eprintln!("UpdateRoleUser {user_id}: gagal: {e}");
+                Ok(Response::new(UpdateRoleUserResponse {
+                    success: false,
+                    message: "Role user gagal diubah".to_string(),
+                }))
+            }
+        }
+    }
+
     async fn get_all_users(
         &self,
         request: Request<GetAllUsersRequest>,
@@ -296,6 +387,7 @@ impl UserRpc for UserService {
                 id: r.id.to_string(),
                 name: r.name,
                 email: r.email.trim().to_lowercase(),
+                role: role_from_storage(&r.role).into(),
             })
             .collect();
 
