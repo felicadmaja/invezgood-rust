@@ -12,7 +12,7 @@ use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
-use crate::auth::require_auth;
+use crate::auth::{require_admin, require_auth};
 use crate::jwt;
 use crate::repository::UserRepository;
 use crate::user_server::User as UserRpc;
@@ -228,7 +228,7 @@ impl UserRpc for UserService {
         &self,
         request: Request<AddUserRequest>,
     ) -> Result<Response<AddUserResponse>, Status> {
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let req = request.into_inner();
         let email = req.email.trim().to_lowercase();
         let name = req.name.trim().to_string();
@@ -287,7 +287,7 @@ impl UserRpc for UserService {
         &self,
         request: Request<DeleteUserRequest>,
     ) -> Result<Response<DeleteUserResponse>, Status> {
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let req = request.into_inner();
         let id = parse_uuid_bytes(&req.id, "id")?;
 
@@ -328,7 +328,7 @@ impl UserRpc for UserService {
         &self,
         request: Request<UpdateRoleUserRequest>,
     ) -> Result<Response<UpdateRoleUserResponse>, Status> {
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let req = request.into_inner();
         let user_id = parse_uuid_bytes(&req.user_id, "user_id")?;
         let role = role_from_update_request(req.role)?;

@@ -70,6 +70,16 @@ pub fn require_auth<T>(request: &Request<T>) -> Result<Claims, Status> {
     decode_token(token).map_err(|e| Status::unauthenticated(format!("JWT tidak valid: {e}")))
 }
 
+/// Wajib JWT + role `admin` (case-insensitive). Selain itu → `PERMISSION_DENIED` "Harus admin !".
+pub fn require_admin<T>(request: &Request<T>) -> Result<Claims, Status> {
+    let claims = require_auth(request)?;
+    if claims.role.trim().eq_ignore_ascii_case("admin") {
+        Ok(claims)
+    } else {
+        Err(Status::permission_denied("Harus admin !"))
+    }
+}
+
 /// Batasi RPC scrape Stockbit on-demand ke **hari operasional Senin–Jumat**
 /// dan jam server lokal **09:00–12:00** serta **13:30–16:00**
 /// (inklusif awal, eksklusif akhir tiap jendela).

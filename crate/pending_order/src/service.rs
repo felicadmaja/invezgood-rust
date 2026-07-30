@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
-use user::{require_auth, require_stockbit_scrape_hours};
+use user::{require_admin, require_auth, require_stockbit_scrape_hours};
 use worker_scrapping::on_demand;
 
 use crate::model::PendingOrder;
@@ -241,7 +241,7 @@ impl PendingOrderRpc for PendingOrderService {
         request: Request<CreateBuyLimitOrderRequest>,
     ) -> Result<Response<CreateBuyLimitOrderResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -302,9 +302,14 @@ impl PendingOrderRpc for PendingOrderService {
                     username,
                     started.elapsed().as_millis()
                 );
+                let message = if e.starts_with("Balance kurang") {
+                    e
+                } else {
+                    "Order limit buy gagal dibuat".to_string()
+                };
                 Ok(Response::new(CreateBuyLimitOrderResponse {
                     success: false,
-                    message: "Order limit buy gagal dibuat".to_string(),
+                    message,
                 }))
             }
         }

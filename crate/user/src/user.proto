@@ -34,11 +34,13 @@ service User {
   rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse);
 
   // Tambah user baru ke Scylla `user` (password di-hash bcrypt; email dinormalisasi lowercase).
-  // Wajib JWT. Gagal bila email sudah terpakai.
+  // Wajib JWT role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
+  // Gagal bila email sudah terpakai.
   rpc AddUser(AddUserRequest) returns (AddUserResponse);
 
   // Hapus user dari Scylla `user` (MV `user_by_email` ikut ter-update).
-  // Wajib JWT. `id`: 16-byte UUID binary, atau UTF-8 string UUID.
+  // Wajib JWT role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
+  // `id`: 16-byte UUID binary, atau UTF-8 string UUID.
   // Tidak boleh menghapus akun sendiri (hindari lockout).
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
 
@@ -46,7 +48,8 @@ service User {
   rpc GetAllUsers(GetAllUsersRequest) returns (GetAllUsersResponse);
 
   // Ubah `role` user di Scylla `user`.
-  // Wajib JWT. `user_id`: 16-byte UUID binary, atau UTF-8 string UUID.
+  // Wajib JWT role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
+  // `user_id`: 16-byte UUID binary, atau UTF-8 string UUID.
   // `role` wajib ADMIN atau VIEWER (UNSPECIFIED ditolak).
   rpc UpdateRoleUser(UpdateRoleUserRequest) returns (UpdateRoleUserResponse);
 }

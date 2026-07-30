@@ -32,7 +32,11 @@ service PendingOrder {
       returns (GetAllPendingOrderFromStockbitResponse);
 
   // Buat order limit buy via DOM scrape Stockbit (mode trading + PIN bila perlu).
-  // Validasi: emiten_name 4 huruf; price/lot integer > 0; expiry harus GFD atau GTC.
+  // Hanya role ADMIN yang boleh invoke; selain itu PERMISSION_DENIED "Harus admin !".
+  // Validasi: emiten_name 4 huruf; buylimit_price < current_price; lot > 0; expiry GFD/GTC.
+  // Saat form buy muncul: baca balance dari [data-cy=user-balance]; jika
+  // (buylimit_price*lot*100)*1.3 > balance → success=false
+  // message "Balance kurang Rp. {balance - kebutuhan}".
   // Rate limit: maksimal 1× per 60 detik untuk semua user
   // (failed precondition jika terlalu cepat).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.

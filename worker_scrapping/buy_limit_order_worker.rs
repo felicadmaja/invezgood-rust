@@ -1,5 +1,6 @@
 //! Buat order limit buy via DOM scrape Stockbit (mode trading + form buy).
 
+use std::fmt;
 use std::time::{Duration, Instant};
 
 use chromiumoxide::page::Page;
@@ -11,6 +12,33 @@ use crate::portofolio_worker::ensure_trading_session;
 const STOCKBIT_ORDER_URL: &str = "https://stockbit.com/securities/order";
 const STEP_TIMEOUT: Duration = Duration::from_secs(45);
 
+/// Error CreateBuyLimitOrder (DOM).
+#[derive(Debug)]
+pub enum BuyLimitError {
+    /// Balance tersedia < kebutuhan: pesan memakai `balance - required`.
+    InsufficientBalance { balance: i64, required: i64 },
+    Failed(String),
+}
+
+impl fmt::Display for BuyLimitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InsufficientBalance { balance, required } => {
+                write!(f, "Balance kurang Rp. {}", balance - required)
+            }
+            Self::Failed(msg) => write!(f, "{msg}"),
+        }
+    }
+}
+
+impl std::error::Error for BuyLimitError {}
+
+/// Kebutuhan: `(buylimit_price * lot * 100) + (buylimit_price * lot * 100) * 0.3`
+pub fn required_buy_balance(buylimit_price: i32, lot: i32) -> i64 {
+    let notional = i64::from(buylimit_price) * i64::from(lot) * 100;
+    notional + (notional * 3) / 10
+}
+
 /// `expiry_dom_value`: GFD → `"0"`, GTC → `"1"`.
 pub async fn create_buy_limit_order(
     page: &Page,
@@ -18,12 +46,15 @@ pub async fn create_buy_limit_order(
     price: i32,
     lot: i32,
     expiry_dom_value: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let result = create_buy_limit_order_inner(page, emiten_name, price, lot, expiry_dom_value).await;
-    if result.is_err() {
-        let _ = save_error_screenshot(page, "buylimit_failed").await;
+) -> Result<(), BuyLimitError> {
+    match create_buy_limit_order_inner(page, emiten_name, price, lot, expiry_dom_value).await {
+        Ok(()) => Ok(()),
+        Err(e @ BuyLimitError::InsufficientBalance { .. }) => Err(e),
+        Err(e) => {
+            let _ = save_error_screenshot(page, "buylimit_failed").await;
+            Err(e)
+        }
     }
-    result
 }
 
 async fn create_buy_limit_order_inner(
@@ -32,17 +63,17 @@ async fn create_buy_limit_order_inner(
     price: i32,
     lot: i32,
     expiry_dom_value: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), BuyLimitError> {
     println!(
         "BuyLimit: ensure trading session → order form ({emiten_name} price={price} lot={lot} expiry={expiry_dom_value})..."
     );
     ensure_trading_session(page)
         .await
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
+        .map_err(|e| BuyLimitError::Failed(e.to_string()))?;
 
     goto_stockbit(page, STOCKBIT_ORDER_URL)
         .await
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
+        .map_err(|e| BuyLimitError::Failed(e.to_string()))?;
     sleep(Duration::from_millis(800)).await;
 
     wait_for_selector(page, "#rc_select_0", STEP_TIMEOUT).await?;
@@ -54,6 +85,14 @@ async fn create_buy_limit_order_inner(
     println!("BuyLimit: company-buy-button diklik.");
 
     wait_for_selector(page, r#"[data-cy="input-buy-price"]"#, STEP_TIMEOUT).await?;
+
+    let balance = read_user_balance(page).await?;
+    let required = required_buy_balance(price, lot);
+    println!("BuyLimit: balance={balance} required={required} (price*lot*100*1.3)");
+    if required > balance {
+        return Err(BuyLimitError::InsufficientBalance { balance, required });
+    }
+
     fill_and_enter(page, r#"[data-cy="input-buy-price"]"#, &price.to_string()).await?;
     println!("BuyLimit: price={price} diisi + Enter.");
 
@@ -78,11 +117,41 @@ async fn create_buy_limit_order_inner(
     Ok(())
 }
 
+/// Baca `<p data-cy="user-balance">` → integer (contoh "Rp 38,204" → 38204).
+async fn read_user_balance(page: &Page) -> Result<i64, BuyLimitError> {
+    wait_for_selector(page, r#"[data-cy="user-balance"]"#, STEP_TIMEOUT).await?;
+    let raw = page
+        .evaluate(
+            r#"(() => {
+                const el = document.querySelector('[data-cy="user-balance"]');
+                if (!el) return '';
+                return (el.innerText || el.textContent || '').trim();
+            })()"#,
+        )
+        .await
+        .map_err(|e| BuyLimitError::Failed(e.to_string()))?
+        .into_value::<String>()
+        .unwrap_or_default();
+    parse_balance_rupiah(&raw).ok_or_else(|| {
+        BuyLimitError::Failed(format!(
+            "Gagal parse balance dari [data-cy=user-balance]: {raw:?}"
+        ))
+    })
+}
+
+fn parse_balance_rupiah(raw: &str) -> Option<i64> {
+    let digits: String = raw.chars().filter(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    digits.parse().ok()
+}
+
 async fn wait_for_selector(
     page: &Page,
     selector: &str,
     timeout: Duration,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), BuyLimitError> {
     let started = Instant::now();
     let sel_js = serde_json::to_string(selector).unwrap_or_else(|_| "\"\"".into());
     loop {
@@ -96,24 +165,23 @@ async fn wait_for_selector(
                     return true;
                 }})()"#
             ))
-            .await?
+            .await
+            .map_err(|e| BuyLimitError::Failed(e.to_string()))?
             .into_value::<bool>()
             .unwrap_or(false);
         if found {
             return Ok(());
         }
         if started.elapsed() >= timeout {
-            return Err(format!("Timeout menunggu elemen {selector}").into());
+            return Err(BuyLimitError::Failed(format!(
+                "Timeout menunggu elemen {selector}"
+            )));
         }
         sleep(Duration::from_millis(300)).await;
     }
 }
 
-async fn fill_input(
-    page: &Page,
-    selector: &str,
-    value: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn fill_input(page: &Page, selector: &str, value: &str) -> Result<(), BuyLimitError> {
     let sel_js = serde_json::to_string(selector).unwrap_or_else(|_| "\"\"".into());
     let val_js = serde_json::to_string(value).unwrap_or_else(|_| "\"\"".into());
     let ok = page
@@ -136,19 +204,17 @@ async fn fill_input(
                 return true;
             }})()"#
         ))
-        .await?
+        .await
+        .map_err(|e| BuyLimitError::Failed(e.to_string()))?
         .into_value::<bool>()
         .unwrap_or(false);
     if !ok {
-        return Err(format!("Gagal mengisi {selector}").into());
+        return Err(BuyLimitError::Failed(format!("Gagal mengisi {selector}")));
     }
     Ok(())
 }
 
-async fn press_enter(
-    page: &Page,
-    selector: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn press_enter(page: &Page, selector: &str) -> Result<(), BuyLimitError> {
     let sel_js = serde_json::to_string(selector).unwrap_or_else(|_| "\"\"".into());
     let ok = page
         .evaluate(format!(
@@ -164,20 +230,19 @@ async fn press_enter(
                 return true;
             }})()"#
         ))
-        .await?
+        .await
+        .map_err(|e| BuyLimitError::Failed(e.to_string()))?
         .into_value::<bool>()
         .unwrap_or(false);
     if !ok {
-        return Err(format!("Gagal tekan Enter pada {selector}").into());
+        return Err(BuyLimitError::Failed(format!(
+            "Gagal tekan Enter pada {selector}"
+        )));
     }
     Ok(())
 }
 
-async fn fill_and_enter(
-    page: &Page,
-    selector: &str,
-    value: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn fill_and_enter(page: &Page, selector: &str, value: &str) -> Result<(), BuyLimitError> {
     fill_input(page, selector, value).await?;
     sleep(Duration::from_millis(200)).await;
     press_enter(page, selector).await?;
@@ -185,10 +250,7 @@ async fn fill_and_enter(
     Ok(())
 }
 
-async fn click_selector(
-    page: &Page,
-    selector: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn click_selector(page: &Page, selector: &str) -> Result<(), BuyLimitError> {
     let sel_js = serde_json::to_string(selector).unwrap_or_else(|_| "\"\"".into());
     let ok = page
         .evaluate(format!(
@@ -199,20 +261,18 @@ async fn click_selector(
                 return true;
             }})()"#
         ))
-        .await?
+        .await
+        .map_err(|e| BuyLimitError::Failed(e.to_string()))?
         .into_value::<bool>()
         .unwrap_or(false);
     if !ok {
-        return Err(format!("Gagal klik {selector}").into());
+        return Err(BuyLimitError::Failed(format!("Gagal klik {selector}")));
     }
     sleep(Duration::from_millis(300)).await;
     Ok(())
 }
 
-async fn set_expiry_select(
-    page: &Page,
-    value: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn set_expiry_select(page: &Page, value: &str) -> Result<(), BuyLimitError> {
     let val_js = serde_json::to_string(value).unwrap_or_else(|_| "\"\"".into());
     let ok = page
         .evaluate(format!(
@@ -225,11 +285,14 @@ async fn set_expiry_select(
                 return el.value === {val_js};
             }})()"#
         ))
-        .await?
+        .await
+        .map_err(|e| BuyLimitError::Failed(e.to_string()))?
         .into_value::<bool>()
         .unwrap_or(false);
     if !ok {
-        return Err("Gagal set select[name=expiry]".into());
+        return Err(BuyLimitError::Failed(
+            "Gagal set select[name=expiry]".into(),
+        ));
     }
     Ok(())
 }
@@ -238,7 +301,7 @@ async fn wait_for_paragraph_text(
     page: &Page,
     text: &str,
     timeout: Duration,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), BuyLimitError> {
     let started = Instant::now();
     let text_js = serde_json::to_string(text).unwrap_or_else(|_| "\"\"".into());
     loop {
@@ -249,23 +312,23 @@ async fn wait_for_paragraph_text(
                     return nodes.some((p) => (p.innerText || p.textContent || '').trim() === {text_js});
                 }})()"#
             ))
-            .await?
+            .await
+            .map_err(|e| BuyLimitError::Failed(e.to_string()))?
             .into_value::<bool>()
             .unwrap_or(false);
         if found {
             return Ok(());
         }
         if started.elapsed() >= timeout {
-            return Err(format!("Timeout menunggu <p>{text}</p>").into());
+            return Err(BuyLimitError::Failed(format!(
+                "Timeout menunggu <p>{text}</p>"
+            )));
         }
         sleep(Duration::from_millis(300)).await;
     }
 }
 
-async fn click_outer_button_of_paragraph(
-    page: &Page,
-    text: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn click_outer_button_of_paragraph(page: &Page, text: &str) -> Result<(), BuyLimitError> {
     let text_js = serde_json::to_string(text).unwrap_or_else(|_| "\"\"".into());
     let ok = page
         .evaluate(format!(
@@ -279,12 +342,32 @@ async fn click_outer_button_of_paragraph(
                 return true;
             }})()"#
         ))
-        .await?
+        .await
+        .map_err(|e| BuyLimitError::Failed(e.to_string()))?
         .into_value::<bool>()
         .unwrap_or(false);
     if !ok {
-        return Err(format!("Tombol outer <p>{text}</p> tidak ditemukan").into());
+        return Err(BuyLimitError::Failed(format!(
+            "Tombol outer <p>{text}</p> tidak ditemukan"
+        )));
     }
     sleep(Duration::from_millis(400)).await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_balance_strips_rp_and_commas() {
+        assert_eq!(parse_balance_rupiah("Rp 38,204"), Some(38_204));
+        assert_eq!(parse_balance_rupiah("Rp\n38,204"), Some(38_204));
+    }
+
+    #[test]
+    fn required_includes_30_percent() {
+        // 100 * 1 * 100 = 10000; + 30% = 13000
+        assert_eq!(required_buy_balance(100, 1), 13_000);
+    }
 }
