@@ -1,6 +1,9 @@
-scrap data running trade
+perbaikan pada emiten list:
+jika ada portofolio tampilkan portofolio price dan invested
+jika ada buylimit tampilkan buylimit
 
-halaman portofolio bandarmology history: - tampilkan chart per tanggal
+
+perbaikan halaman portofolio
+- tombol accumulation dan distribution dihilangkan
 
 
-tambahkan portofolio_catatan

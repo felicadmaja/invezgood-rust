@@ -9,6 +9,7 @@
 //! Env: `JWT_SECRET`, `SCYLLA_*`, opsional `HOST` / `GRPC_PORT` (default `0.0.0.0:50054`).
 //! TLS (opsional): `USE_TLS=true`, `TLS_CERT_DIR` (default folder certificate mrgs),
 //! `TLS_CERT_FILE`, `TLS_KEY_FILE`.
+//! Response/request gRPC gzip: aktif default (client perlu `grpc-accept-encoding: gzip`).
 
 mod ready_auto_scrape;
 
@@ -41,6 +42,23 @@ use user::user_server::UserServer;
 use user::{AuthInterceptor, UserService};
 use wyckoff_glossary::wyckoff_glossary_server::WyckoffGlossaryServer;
 use wyckoff_glossary::WyckoffGlossaryService;
+use tonic::codec::CompressionEncoding;
+use tonic::codegen::InterceptedService;
+
+/// Aktifkan gzip request/response pada server tonic generated.
+macro_rules! gzip_svc {
+    ($svc:expr) => {{
+        $svc.accept_compressed(CompressionEncoding::Gzip)
+            .send_compressed(CompressionEncoding::Gzip)
+    }};
+}
+
+/// Server + gzip, lalu AuthInterceptor (gzip harus sebelum interceptor).
+macro_rules! auth_gzip_svc {
+    ($server:ident, $svc:expr) => {{
+        InterceptedService::new(gzip_svc!($server::new($svc)), AuthInterceptor)
+    }};
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -106,31 +124,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "OK: prepared statements siap (user, portofolio, portofolio_bandarmology, portofolio_catatan, portofolio_equity, portofolio_history, emiten_trending, emiten_trending_count, bandarmology, emiten_list, broker, pending_order, wyckoff_glossary)"
     );
 
-    let user_svc = UserServer::new(user_svc);
-    let portofolio_svc =
-        PortofolioServer::with_interceptor(portofolio_svc, AuthInterceptor);
+    let user_svc = gzip_svc!(UserServer::new(user_svc));
+    let portofolio_svc = auth_gzip_svc!(PortofolioServer, portofolio_svc);
     let portofolio_bandarmology_svc =
-        PortofolioBandarmologyServer::with_interceptor(portofolio_bandarmology_svc, AuthInterceptor);
-    let portofolio_catatan_svc =
-        PortofolioCatatanServer::with_interceptor(portofolio_catatan_svc, AuthInterceptor);
-    let portofolio_equity_svc =
-        PortofolioEquityServer::with_interceptor(portofolio_equity_svc, AuthInterceptor);
-    let portofolio_history_svc =
-        PortofolioHistoryServer::with_interceptor(portofolio_history_svc, AuthInterceptor);
-    let emiten_trending_svc =
-        EmitenTrendingServer::with_interceptor(emiten_trending_svc, AuthInterceptor);
+        auth_gzip_svc!(PortofolioBandarmologyServer, portofolio_bandarmology_svc);
+    let portofolio_catatan_svc = auth_gzip_svc!(PortofolioCatatanServer, portofolio_catatan_svc);
+    let portofolio_equity_svc = auth_gzip_svc!(PortofolioEquityServer, portofolio_equity_svc);
+    let portofolio_history_svc = auth_gzip_svc!(PortofolioHistoryServer, portofolio_history_svc);
+    let emiten_trending_svc = auth_gzip_svc!(EmitenTrendingServer, emiten_trending_svc);
     let emiten_trending_count_svc =
-        EmitenTrendingCountServer::with_interceptor(emiten_trending_count_svc, AuthInterceptor);
-    let bandarmology_svc =
-        BandarmologyServer::with_interceptor(bandarmology_svc, AuthInterceptor);
-    let emiten_list_svc =
-        EmitenListServer::with_interceptor(emiten_list_svc, AuthInterceptor);
-    let broker_svc = BrokerServer::with_interceptor(broker_svc, AuthInterceptor);
-    let pending_order_svc =
-        PendingOrderServer::with_interceptor(pending_order_svc, AuthInterceptor);
-    let gcs_svc = GcsServer::with_interceptor(gcs_svc, AuthInterceptor);
-    let wyckoff_glossary_svc =
-        WyckoffGlossaryServer::with_interceptor(wyckoff_glossary_svc, AuthInterceptor);
+        auth_gzip_svc!(EmitenTrendingCountServer, emiten_trending_count_svc);
+    let bandarmology_svc = auth_gzip_svc!(BandarmologyServer, bandarmology_svc);
+    let emiten_list_svc = auth_gzip_svc!(EmitenListServer, emiten_list_svc);
+    let broker_svc = auth_gzip_svc!(BrokerServer, broker_svc);
+    let pending_order_svc = auth_gzip_svc!(PendingOrderServer, pending_order_svc);
+    let gcs_svc = auth_gzip_svc!(GcsServer, gcs_svc);
+    let wyckoff_glossary_svc = auth_gzip_svc!(WyckoffGlossaryServer, wyckoff_glossary_svc);
 
     let reflection_svc = ReflectionBuilder::configure()
         .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
@@ -149,6 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .register_encoded_file_descriptor_set(wyckoff_glossary::FILE_DESCRIPTOR_SET)
         .build_v1()
         .map_err(|e| format!("reflection: {e}"))?;
+    let reflection_svc = gzip_svc!(reflection_svc);
 
     let mut builder = tonic::transport::Server::builder()
         .http2_keepalive_interval(Some(std::time::Duration::from_secs(30)))
@@ -162,7 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         println!("TLS disabled (USE_TLS=false): plaintext gRPC");
     }
 
-    println!("stockbit_ws gRPC listening on {addr} (reflection enabled)");
+    println!("stockbit_ws gRPC listening on {addr} (reflection enabled, gzip default)");
     builder
         .add_service(user_svc)
         .add_service(portofolio_svc)

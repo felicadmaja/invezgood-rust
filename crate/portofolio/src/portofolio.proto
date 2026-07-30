@@ -8,6 +8,13 @@ service Portofolio {
   rpc GetAllPortofolioFromScylla(GetAllPortofolioFromScyllaRequest)
       returns (GetAllPortofolioFromScyllaResponse);
 
+  // Baca satu baris `portofolio` via PK `emiten_name`.
+  // Request: emiten_name (4 huruf, dinormalisasi uppercase).
+  // Response: PortofolioRow (kosong/`row` unset bila tidak ada).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetPortofolioFromScyllaByEmitenName(GetPortofolioFromScyllaByEmitenNameRequest)
+      returns (GetPortofolioFromScyllaByEmitenNameResponse);
+
   // Scrape holdings + equity dari GET carina.stockbit.com/portfolio/v2/list
   // lalu upsert `portofolio` (`data.results`) dan `portofolio_equity` (`data.summary`).
   // Alur: login → START TRADING/PIN bila perlu → Bearer trading → GET API →
@@ -31,6 +38,13 @@ message GetAllPortofolioFromScyllaRequest {}
 
 message GetAllPortofolioFromStockbitRequest {}
 
+message GetPortofolioFromScyllaByEmitenNameRequest {
+  string emiten_name = 1;
+}
+
+message GetPortofolioFromScyllaByEmitenNameResponse {
+  PortofolioRow row = 1;
+}
 message PortofolioRow {
   string emiten_name = 1;
   string emiten_icon = 2;

@@ -14,6 +14,7 @@ const PAGE_SIZE: i32 = 100;
 
 struct Prepared {
     scan: PreparedStatement,
+    by_emiten_name: PreparedStatement,
 }
 
 pub struct PortofolioRepository {
@@ -43,7 +44,19 @@ impl PortofolioRepository {
                 );
                 let mut scan = self.session.prepare(scan_q).await?;
                 scan.set_page_size(PAGE_SIZE);
-                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared { scan })
+
+                let by_q = format!(
+                    "SELECT emiten_name, long_name, emiten_icon, balance_lot, available_lot, \
+                     average_price, current_price, invested, market_value, potential_p_l, percentage \
+                     FROM {} WHERE emiten_name = ?",
+                    self.table
+                );
+                let by_emiten_name = self.session.prepare(by_q).await?;
+
+                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared {
+                    scan,
+                    by_emiten_name,
+                })
             })
             .await
     }
@@ -79,6 +92,20 @@ impl PortofolioRepository {
             .await?;
 
         Ok(segment_rows.into_iter().flatten().collect())
+    }
+
+    /// Satu baris via PK `emiten_name`.
+    pub async fn get_by_emiten_name(
+        &self,
+        emiten_name: &str,
+    ) -> Result<Option<Portofolio>, Box<dyn std::error::Error + Send + Sync>> {
+        let prepared = self.prepared().await?;
+        let result = self
+            .session
+            .execute_unpaged(&prepared.by_emiten_name, (emiten_name,))
+            .await?
+            .into_rows_result()?;
+        Ok(result.maybe_first_row::<Portofolio>()?)
     }
 }
 

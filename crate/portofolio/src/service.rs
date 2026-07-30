@@ -13,8 +13,20 @@ use crate::portofolio_server::Portofolio as PortofolioRpc;
 use crate::repository::PortofolioRepository;
 use crate::{
     GetAllPortofolioFromScyllaRequest, GetAllPortofolioFromScyllaResponse,
-    GetAllPortofolioFromStockbitRequest, GetAllPortofolioFromStockbitResponse, PortofolioRow,
+    GetAllPortofolioFromStockbitRequest, GetAllPortofolioFromStockbitResponse,
+    GetPortofolioFromScyllaByEmitenNameRequest, GetPortofolioFromScyllaByEmitenNameResponse,
+    PortofolioRow,
 };
+
+fn normalize_emiten_name(raw: &str) -> Result<String, String> {
+    let name = raw.trim().to_ascii_uppercase();
+    if name.len() != 4 || !name.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Err(format!(
+            "emiten_name tidak valid ({raw}); wajib tepat 4 huruf alphabet"
+        ));
+    }
+    Ok(name)
+}
 
 /// Cooldown global antar invoke `GetAllPortofolioFromStockbit` (semua user).
 const PORTFOLIO_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
@@ -117,6 +129,36 @@ impl PortofolioRpc for PortofolioService {
 
         Ok(Response::new(GetAllPortofolioFromScyllaResponse {
             rows: proto_rows,
+        }))
+    }
+
+    async fn get_portofolio_from_scylla_by_emiten_name(
+        &self,
+        request: Request<GetPortofolioFromScyllaByEmitenNameRequest>,
+    ) -> Result<Response<GetPortofolioFromScyllaByEmitenNameResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let emiten_name =
+            normalize_emiten_name(&req.emiten_name).map_err(Status::invalid_argument)?;
+
+        let row = self
+            .repo
+            .get_by_emiten_name(&emiten_name)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        println!(
+            "GetPortofolioFromScyllaByEmitenName {} {emiten_name} found={} {}ms",
+            username,
+            row.is_some(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetPortofolioFromScyllaByEmitenNameResponse {
+            row: row.map(Portofolio::into_proto),
         }))
     }
 

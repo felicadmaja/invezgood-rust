@@ -9,24 +9,12 @@ service Bandarmology {
   // Skip hanya bila baris sudah ada **dan** `broker_summary_harian` tidak kosong;
   // bila PK ada tapi summary kosong → scrape ulang dan timpa.
   // Tanggal hari ini (server lokal) selalu di-skip scrape (belum final / kosong dari API).
-  // Mutual exclusion: tidak boleh jalan bersamaan dengan GetBandarmologyMultiHarianFromStockbit
-  // (jika yang lain sedang jalan → success=false, coba lagi setelah selesai).
+  // Mutual exclusion: tidak boleh ada dua invoke RPC ini bersamaan
+  // (jika sedang jalan → success=false, coba lagi setelah selesai).
   // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE. Tanggal duplikat di-skip; format invalid diabaikan.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyHarianFromStockbit(GetBandarmologyHarianFromStockbitRequest)
       returns (GetBandarmologyHarianFromStockbitResponse);
-
-  // Multi-emiten: utamakan Scylla `bandarmology_harian`; scrape Stockbit hanya bila PK
-  // belum ada **atau** `broker_summary_harian` kosong (lalu timpa).
-  // `emiten_names`: string daftar kode (pisah koma/spasi/titik-koma/baris), tiap kode tepat 4 huruf.
-  // `tahun_bulan_tanggal`: YYYY-MM-DD; duplikat di-skip; format invalid diabaikan.
-  // Tanggal hari ini di-skip scrape (tetap dikembalikan dari Scylla bila ada).
-  // Mutual exclusion: tidak boleh jalan bersamaan dengan GetBandarmologyHarianFromStockbit
-  // (jika yang lain sedang jalan → success=false, coba lagi setelah selesai).
-  // Response: repeated BandarmologyHarianRow untuk semua pasangan emiten×tanggal yang ada.
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetBandarmologyMultiHarianFromStockbit(GetBandarmologyMultiHarianFromStockbitRequest)
-      returns (GetBandarmologyMultiHarianFromStockbitResponse);
 
   // Baca `bandarmology_harian` dari Scylla (tidak scrape) untuk satu emiten + daftar tanggal.
   // Per tanggal: PK `(emiten_name, tahun_bulan_tanggal)`; yang tidak ketemu di-skip.
@@ -55,20 +43,6 @@ message GetBandarmologyHarianFromStockbitRequest {
 }
 
 message GetBandarmologyHarianFromStockbitResponse {
-  repeated BandarmologyHarianRow rows = 1;
-  bool success = 2;
-  string message = 3;
-}
-
-message GetBandarmologyMultiHarianFromStockbitRequest {
-  // Daftar kode emiten dalam satu string, dipisah koma/spasi/titik-koma/baris
-  // (contoh: "BBCA,BMRI CUAN"). Tiap kode tepat 4 huruf; dinormalisasi UPPERCASE; duplikat di-skip.
-  string emiten_names = 1;
-  // Daftar tanggal YYYY-MM-DD; duplikat di-skip; format invalid diabaikan.
-  repeated string tahun_bulan_tanggal = 2;
-}
-
-message GetBandarmologyMultiHarianFromStockbitResponse {
   repeated BandarmologyHarianRow rows = 1;
   bool success = 2;
   string message = 3;

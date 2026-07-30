@@ -13,8 +13,20 @@ use crate::pending_order_server::PendingOrder as PendingOrderRpc;
 use crate::repository::PendingOrderRepository;
 use crate::{
     GetAllPendingOrderFromScyllaRequest, GetAllPendingOrderFromScyllaResponse,
-    GetAllPendingOrderFromStockbitRequest, GetAllPendingOrderFromStockbitResponse, PendingOrderRow,
+    GetAllPendingOrderFromStockbitRequest, GetAllPendingOrderFromStockbitResponse,
+    GetPendingOrderFromScyllaByEmitenNameRequest, GetPendingOrderFromScyllaByEmitenNameResponse,
+    PendingOrderRow,
 };
+
+fn normalize_emiten_name(raw: &str) -> Result<String, String> {
+    let name = raw.trim().to_ascii_uppercase();
+    if name.len() != 4 || !name.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Err(format!(
+            "emiten_name tidak valid ({raw}); wajib tepat 4 huruf alphabet"
+        ));
+    }
+    Ok(name)
+}
 
 /// Cooldown global antar invoke `GetAllPendingOrderFromStockbit` (semua user).
 const PENDING_ORDER_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
@@ -98,6 +110,37 @@ impl PendingOrderRpc for PendingOrderService {
         );
 
         Ok(Response::new(GetAllPendingOrderFromScyllaResponse {
+            rows: proto_rows,
+        }))
+    }
+
+    async fn get_pending_order_from_scylla_by_emiten_name(
+        &self,
+        request: Request<GetPendingOrderFromScyllaByEmitenNameRequest>,
+    ) -> Result<Response<GetPendingOrderFromScyllaByEmitenNameResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let emiten_name =
+            normalize_emiten_name(&req.emiten_name).map_err(Status::invalid_argument)?;
+
+        let rows = self
+            .repo
+            .get_by_emiten_name(&emiten_name)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+        let proto_rows = rows_to_proto(rows);
+        println!(
+            "GetPendingOrderFromScyllaByEmitenName {} {emiten_name} rows={} {}ms",
+            username,
+            proto_rows.len(),
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetPendingOrderFromScyllaByEmitenNameResponse {
             rows: proto_rows,
         }))
     }

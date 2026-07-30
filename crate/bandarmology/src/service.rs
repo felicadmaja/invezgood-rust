@@ -13,12 +13,11 @@ use crate::model::BandarmologyHarian;
 use crate::repository::BandarmologyRepository;
 use crate::{
     GetBandarmologyHarianFromStockbitRequest, GetBandarmologyHarianFromStockbitResponse,
-    GetBandarmologyMultiHarianFromStockbitRequest, GetBandarmologyMultiHarianFromStockbitResponse,
     GetBrokerAccDistRequest, GetBrokerAccDistResponse,
 };
 
-/// Gate bersama: `GetBandarmologyHarianFromStockbit` ↔ `GetBandarmologyMultiHarianFromStockbit`
-/// tidak boleh jalan bersamaan. `Some(rpc_name)` = sedang dipegang.
+/// Gate: `GetBandarmologyHarianFromStockbit` tidak boleh jalan bersamaan (dua invoke paralel).
+/// `Some(rpc_name)` = sedang dipegang.
 static HARIAN_RPC_GATE: OnceLock<Mutex<Option<&'static str>>> = OnceLock::new();
 
 fn harian_rpc_gate() -> &'static Mutex<Option<&'static str>> {
@@ -37,7 +36,7 @@ impl Drop for HarianRpcGuard {
     }
 }
 
-/// Ambil exclusive lock untuk satu dari dua RPC harian. Gagal segera bila yang lain
+/// Ambil exclusive lock untuk RPC harian. Gagal segera bila yang lain
 /// sedang jalan (tidak mengantri — caller invoke ulang setelah yang aktif selesai).
 fn try_acquire_harian_rpc(rpc: &'static str) -> Result<HarianRpcGuard, String> {
     let mut guard = harian_rpc_gate().try_lock().map_err(|_| {
@@ -59,23 +58,6 @@ fn parse_kode_emiten(raw: &str) -> Result<String, String> {
         return Err("kode_emiten harus tepat 4 huruf alfabet (contoh: BBCA)".into());
     }
     Ok(kode)
-}
-
-/// Parse `emiten_names` string (pisah koma/spasi/titik-koma/baris/pipe); unik, urutan tetap.
-fn parse_emiten_names_string(raw: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    for part in raw.split(|c: char| {
-        c == ',' || c == ';' || c == '|' || c == '\n' || c == '\r' || c.is_whitespace()
-    }) {
-        let Ok(code) = parse_kode_emiten(part) else {
-            continue;
-        };
-        if seen.insert(code.clone()) {
-            out.push(code);
-        }
-    }
-    out
 }
 
 /// Parse daftar `YYYY-MM-DD`; duplikat di-skip; format invalid diabaikan (urut naik).
@@ -297,193 +279,6 @@ impl BandarmologyRpc for BandarmologyService {
                 }))
             }
         }
-    }
-
-    async fn get_bandarmology_multi_harian_from_stockbit(
-        &self,
-        request: Request<GetBandarmologyMultiHarianFromStockbitRequest>,
-    ) -> Result<Response<GetBandarmologyMultiHarianFromStockbitResponse>, Status> {
-        let started = Instant::now();
-        let claims = require_auth(&request)?;
-        let username = claims.name.clone();
-        let req = request.into_inner();
-
-        let _rpc_lock = match try_acquire_harian_rpc("GetBandarmologyMultiHarianFromStockbit") {
-            Ok(g) => g,
-            Err(message) => {
-                println!(
-                    "GetBandarmologyMultiHarianFromStockbit {username}: ditolak (mutual exclusion) — {message}"
-                );
-                return Ok(Response::new(
-                    GetBandarmologyMultiHarianFromStockbitResponse {
-                        rows: vec![],
-                        success: false,
-                        message,
-                    },
-                ));
-            }
-        };
-
-        let codes = parse_emiten_names_string(&req.emiten_names);
-        if codes.is_empty() {
-            return Ok(Response::new(
-                GetBandarmologyMultiHarianFromStockbitResponse {
-                    rows: vec![],
-                    success: false,
-                    message: "emiten_names kosong / tidak ada kode valid (4 huruf)".into(),
-                },
-            ));
-        }
-
-        let dates = parse_tahun_bulan_tanggal_list(&req.tahun_bulan_tanggal);
-        if dates.is_empty() {
-            return Ok(Response::new(
-                GetBandarmologyMultiHarianFromStockbitResponse {
-                    rows: vec![],
-                    success: false,
-                    message: "tahun_bulan_tanggal kosong / tidak ada tanggal valid YYYY-MM-DD"
-                        .into(),
-                },
-            ));
-        }
-
-        let today = Local::now().date_naive();
-        let mut scrape_jobs: Vec<(String, Vec<NaiveDate>)> = Vec::new();
-        let mut skipped_today_total = 0usize;
-
-        for kode in &codes {
-            let (missing, _existing, skipped_today) = match self
-                .collect_harian_scrape_plan(
-                    kode,
-                    &dates,
-                    today,
-                    &username,
-                    "GetBandarmologyMultiHarianFromStockbit",
-                )
-                .await
-            {
-                Ok(v) => v,
-                Err(message) => {
-                    return Ok(Response::new(
-                        GetBandarmologyMultiHarianFromStockbitResponse {
-                            rows: vec![],
-                            success: false,
-                            message,
-                        },
-                    ));
-                }
-            };
-            skipped_today_total += skipped_today;
-            if !missing.is_empty() {
-                scrape_jobs.push((kode.clone(), missing));
-            }
-        }
-
-        if !scrape_jobs.is_empty() {
-            let job_days: usize = scrape_jobs.iter().map(|(_, d)| d.len()).sum();
-            println!(
-                "GetBandarmologyMultiHarianFromStockbit {username}: scrape {} emiten / {job_days} pasangan \
-                 (dari {} emiten × {} tanggal)...",
-                scrape_jobs.len(),
-                codes.len(),
-                dates.len()
-            );
-
-            match on_demand::scrape_bandarmology_harian_multi_from_stockbit(
-                Arc::clone(&self.session),
-                &scrape_jobs,
-            )
-            .await
-            {
-                Ok(n) => {
-                    println!(
-                        "GetBandarmologyMultiHarianFromStockbit {username}: scrape upsert={n}"
-                    );
-                }
-                Err(e) => {
-                    eprintln!(
-                        "GetBandarmologyMultiHarianFromStockbit {username}: scrape gagal: {e}"
-                    );
-                    // Tetap baca Scylla untuk pasangan yang sudah ada.
-                    let mut rows = Vec::new();
-                    for kode in &codes {
-                        for day in &dates {
-                            if let Ok(Some(row)) =
-                                self.repo.find_harian_by_emiten_and_date(kode, *day).await
-                            {
-                                rows.push(row.into_proto());
-                            }
-                        }
-                    }
-                    println!(
-                        "GetBandarmologyMultiHarianFromStockbit {} success=false rows={} {}ms",
-                        username,
-                        rows.len(),
-                        started.elapsed().as_millis()
-                    );
-                    return Ok(Response::new(
-                        GetBandarmologyMultiHarianFromStockbitResponse {
-                            rows,
-                            success: false,
-                            message: format!("scrape bandarmology_harian multi gagal: {e}"),
-                        },
-                    ));
-                }
-            }
-        } else {
-            let today_note = if skipped_today_total > 0 {
-                format!("; skip scrape hari ini ({today})")
-            } else {
-                String::new()
-            };
-            println!(
-                "GetBandarmologyMultiHarianFromStockbit {} : semua dari Scylla (non-empty){} — {}ms",
-                username,
-                today_note,
-                started.elapsed().as_millis()
-            );
-        }
-
-        let mut rows = Vec::with_capacity(codes.len() * dates.len());
-        for kode in &codes {
-            for day in &dates {
-                if let Ok(Some(row)) = self.repo.find_harian_by_emiten_and_date(kode, *day).await {
-                    rows.push(row.into_proto());
-                }
-            }
-        }
-
-        let message = if scrape_jobs.is_empty() {
-            format!(
-                "bandarmology_harian multi: {} emiten × {} tanggal — semua dari Scylla; {} baris",
-                codes.len(),
-                dates.len(),
-                rows.len()
-            )
-        } else {
-            format!(
-                "bandarmology_harian multi: {} emiten × {} tanggal — scrape {} emiten; {} baris di response",
-                codes.len(),
-                dates.len(),
-                scrape_jobs.len(),
-                rows.len()
-            )
-        };
-
-        println!(
-            "GetBandarmologyMultiHarianFromStockbit {} success=true rows={} {}ms ({message})",
-            username,
-            rows.len(),
-            started.elapsed().as_millis()
-        );
-
-        Ok(Response::new(
-            GetBandarmologyMultiHarianFromStockbitResponse {
-                rows,
-                success: true,
-                message,
-            },
-        ))
     }
 
     async fn get_broker_acc_dist(

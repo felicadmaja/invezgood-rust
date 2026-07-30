@@ -18,11 +18,13 @@ const COLUMNS: &str = "order_id, emiten_name, status, message, side, time_open, 
 
 struct Prepared {
     scan: PreparedStatement,
+    by_emiten_name: PreparedStatement,
 }
 
 pub struct PendingOrderRepository {
     session: Arc<Session>,
     table: String,
+    by_emiten_mv: String,
     prepared: OnceCell<Prepared>,
 }
 
@@ -32,6 +34,7 @@ impl PendingOrderRepository {
         Self {
             session,
             table: format!("{ks}.pending_order"),
+            by_emiten_mv: format!("{ks}.pending_order_by_emiten_name"),
             prepared: OnceCell::new(),
         }
     }
@@ -46,7 +49,18 @@ impl PendingOrderRepository {
                 );
                 let mut scan = self.session.prepare(q).await?;
                 scan.set_page_size(PAGE_SIZE);
-                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared { scan })
+
+                let q = format!(
+                    "SELECT {COLUMNS} FROM {} WHERE emiten_name = ?",
+                    self.by_emiten_mv
+                );
+                let mut by_emiten_name = self.session.prepare(q).await?;
+                by_emiten_name.set_page_size(PAGE_SIZE);
+
+                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(Prepared {
+                    scan,
+                    by_emiten_name,
+                })
             })
             .await
     }
@@ -84,6 +98,24 @@ impl PendingOrderRepository {
             .await?;
 
         Ok(segment_rows.into_iter().flatten().collect())
+    }
+
+    /// Semua baris untuk satu `emiten_name` via MV `pending_order_by_emiten_name`.
+    pub async fn get_by_emiten_name(
+        &self,
+        emiten_name: &str,
+    ) -> Result<Vec<PendingOrder>, Box<dyn std::error::Error + Send + Sync>> {
+        let prepared = self.prepared().await?;
+        let pager = self
+            .session
+            .execute_iter(prepared.by_emiten_name.clone(), (emiten_name,))
+            .await?;
+        let mut stream = pager.rows_stream::<PendingOrder>()?;
+        let mut out = Vec::new();
+        while let Some(row) = stream.next().await {
+            out.push(row?);
+        }
+        Ok(out)
     }
 }
 

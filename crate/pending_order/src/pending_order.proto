@@ -10,6 +10,13 @@ service PendingOrder {
   rpc GetAllPendingOrderFromScylla(GetAllPendingOrderFromScyllaRequest)
       returns (GetAllPendingOrderFromScyllaResponse);
 
+  // Baca baris `pending_order` untuk satu emiten via MV `pending_order_by_emiten_name`.
+  // Request: emiten_name (4 huruf, dinormalisasi uppercase).
+  // Response: repeated PendingOrderRow (kosong bila tidak ada).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetPendingOrderFromScyllaByEmitenName(GetPendingOrderFromScyllaByEmitenNameRequest)
+      returns (GetPendingOrderFromScyllaByEmitenNameResponse);
+
   // Scrape semua order dari Stockbit lalu upsert `pending_order`.
   // Alur sama `pending_order_worker`: login → START TRADING/PIN bila perlu →
   // GET carina.stockbit.com/order/v2/list → TRUNCATE+insert `pending_order`.
@@ -27,6 +34,14 @@ service PendingOrder {
 
 message GetAllPendingOrderFromScyllaRequest {}
 message GetAllPendingOrderFromStockbitRequest {}
+
+message GetPendingOrderFromScyllaByEmitenNameRequest {
+  string emiten_name = 1;
+}
+
+message GetPendingOrderFromScyllaByEmitenNameResponse {
+  repeated PendingOrderRow rows = 1;
+}
 
 message PendingOrderRow {
   string order_id = 1;
