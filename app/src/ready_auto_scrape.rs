@@ -1,11 +1,11 @@
 //! Auto-scrape saat poller `IsStockbitReady` = ready.
 //!
-//! Dipicu **setiap siklus poller** (interval acak 9–15 menit) bila `ready=true`
+//! Dipicu **setiap siklus poller** (interval acak 4–5 menit) bila `ready=true`
 //! dan `poll_seq > 0` (hasil cek web nyata — bukan hydrate Redis).
 //!
 //! Env `NEW_BUILD_LANGSUNG_SCRAPE` / `NEW_BUILD_LANNGSUNG_SCRAPE` (default `true`):
 //! bila `false`, siklus ready **pertama** setelah restart di-skip (cek web tetap jalan);
-//! scrape menunggu interval poller berikutnya (9–15 menit).
+//! scrape menunggu interval poller berikutnya (4–5 menit).
 //!
 //! Urutan:
 //! 1. GetAllPortofolioFromStockbit
@@ -14,7 +14,7 @@
 //! 4. GetAllPendingOrderFromStockbit
 //! 5. GetLatestEmitenTrendingFromStockbit
 //!
-//! Jam operasional Senin–Jumat, 09:00–12:00 dan 13:30–16:00 (Sabtu/Minggu tidak scrape).
+//! Jam operasional Senin–Jumat, 08:45–12:15 dan 13:25–16:15 (Sabtu/Minggu tidak scrape).
 //! Tiap alur memakai **rate limit RPC yang sama** (`acquire_*`):
 //! - auto pakai jatah → user RPC bisa kena limit
 //! - user RPC pakai jatah → auto skip alur itu (lanjut ke berikutnya)

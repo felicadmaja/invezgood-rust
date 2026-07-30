@@ -33,7 +33,7 @@ fn normalize_emiten_name(raw: &str) -> Result<String, String> {
 const PENDING_ORDER_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
 /// Cooldown global antar invoke `CreateBuyLimitOrder` (semua user).
-const BUY_LIMIT_COOLDOWN: Duration = Duration::from_secs(60);
+const BUY_LIMIT_COOLDOWN: Duration = Duration::from_secs(30);
 
 static LAST_PENDING_ORDER_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 static LAST_BUY_LIMIT: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
@@ -62,7 +62,7 @@ async fn acquire_pending_order_scrape_slot() -> Result<(), Status> {
     Ok(())
 }
 
-/// Izinkan CreateBuyLimitOrder; tolak jika < 60 detik sejak invoke terakhir (global).
+/// Izinkan CreateBuyLimitOrder; tolak jika < 30 detik sejak invoke terakhir (global).
 async fn acquire_buy_limit_slot() -> Result<(), Status> {
     let mut last = buy_limit_gate().lock().await;
     if let Some(at) = *last {
@@ -70,7 +70,7 @@ async fn acquire_buy_limit_slot() -> Result<(), Status> {
         if elapsed < BUY_LIMIT_COOLDOWN {
             let remaining_secs = (BUY_LIMIT_COOLDOWN - elapsed).as_secs().max(1);
             return Err(Status::failed_precondition(format!(
-                "Rate limit: maksimal 1× / 60 detik untuk semua user. Tunggu {remaining_secs} detik lagi"
+                "Rate limit: maksimal 1× / 30 detik untuk semua user. Tunggu {remaining_secs} detik lagi"
             )));
         }
     }

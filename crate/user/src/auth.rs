@@ -81,8 +81,8 @@ pub fn require_admin<T>(request: &Request<T>) -> Result<Claims, Status> {
 }
 
 /// Batasi RPC scrape Stockbit on-demand ke **hari operasional Senin–Jumat**
-/// dan jam server lokal **09:00–12:00** serta **13:30–16:00**
-/// (inklusif awal, eksklusif akhir tiap jendela).
+/// dan jam server lokal **08:45–12:15** serta **13:25–16:15**
+/// (inklusif awal, eksklusif akhir tiap jendela — 12:15 dan 16:15 masih dalam jendela).
 /// Sabtu/Minggu atau di luar jam → `FAILED_PRECONDITION`.
 /// Tidak dipakai oleh bin `worker_scrapping` (cron/manual).
 /// Dipakai juga auto-scrape dari `IsStockbitReady`.
@@ -98,15 +98,15 @@ pub fn require_stockbit_scrape_hours() -> Result<(), Status> {
     }
 
     let mins = now.hour() * 60 + now.minute();
-    const MORNING_START: u32 = 9 * 60; // 09:00
-    const MORNING_END: u32 = 12 * 60; // 12:00
-    const AFTERNOON_START: u32 = 13 * 60 + 30; // 13:30
-    const AFTERNOON_END: u32 = 16 * 60; // 16:00
+    const MORNING_START: u32 = 8 * 60 + 45; // 08:45
+    const MORNING_END: u32 = 12 * 60 + 16; // setelah 12:15
+    const AFTERNOON_START: u32 = 13 * 60 + 25; // 13:25
+    const AFTERNOON_END: u32 = 16 * 60 + 16; // setelah 16:15
     let in_morning = mins >= MORNING_START && mins < MORNING_END;
     let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
     if !in_morning && !in_afternoon {
         return Err(Status::failed_precondition(
-            "Diluar jam 09:00-12:00 dan 13:30-16:00",
+            "Diluar jam 08:45-12:15 dan 13:25-16:15",
         ));
     }
     Ok(())

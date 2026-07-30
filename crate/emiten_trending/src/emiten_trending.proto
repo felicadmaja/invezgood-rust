@@ -9,8 +9,8 @@ service EmitenTrending {
 
   // On-demand scrape Stockbit lalu stream snapshot `emiten_trending` hari ini.
   // Hanya jalan saat RPC dipanggil. Hanya hari operasional Senin–Jumat dan jam server
-  // 09:00–12:00 serta 13:30–16:00 (failed precondition: "Diluar hari operasional Senin-Jumat..."
-  // atau "Diluar jam 09:00-12:00 dan 13:30-16:00"). Tidak berlaku untuk bin worker.
+  // 08:45–12:15 serta 13:25–16:15 (failed precondition: "Diluar hari operasional Senin-Jumat..."
+  // atau "Diluar jam 08:45-12:15 dan 13:25-16:15"). Tidak berlaku untuk bin worker.
   // Rate limit: maksimal 1× per 5 menit untuk semua user
   // (failed precondition jika terlalu cepat).
   //

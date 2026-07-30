@@ -22,9 +22,9 @@ service PendingOrder {
   // GET carina.stockbit.com/order/v2/list → TRUNCATE+insert `pending_order`.
   // Rate limit: maksimal 1× per 5 menit untuk semua user
   // (failed precondition jika terlalu cepat).
-  // Hanya hari operasional Senin–Jumat dan jam server 09:00–12:00 serta 13:30–16:00
+  // Hanya hari operasional Senin–Jumat dan jam server 08:45–12:15 serta 13:25–16:15
   // (failed precondition: "Diluar hari operasional Senin-Jumat..." atau
-  // "Diluar jam 09:00-12:00 dan 13:30-16:00").
+  // "Diluar jam 08:45-12:15 dan 13:25-16:15").
   // Tidak berlaku untuk bin worker_scrapping.
   // Request kosong. Response: repeated PendingOrderRow setelah scrape.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
@@ -37,7 +37,7 @@ service PendingOrder {
   // Saat form buy muncul: baca balance dari [data-cy=user-balance]; jika
   // (buylimit_price*lot*100)*1.3 > balance → success=false
   // message "Balance kurang Rp. {balance - kebutuhan}".
-  // Rate limit: maksimal 1× per 60 detik untuk semua user
+  // Rate limit: maksimal 1× per 30 detik untuk semua user
   // (failed precondition jika terlalu cepat).
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc CreateBuyLimitOrder(CreateBuyLimitOrderRequest)
