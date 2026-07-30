@@ -247,10 +247,21 @@ impl PendingOrderRpc for PendingOrderService {
 
         let emiten_name =
             normalize_emiten_name(&req.emiten_name).map_err(Status::invalid_argument)?;
-        if req.price <= 0 {
+        if req.current_price <= 0 {
             return Err(Status::invalid_argument(
-                "price harus integer positif (> 0)",
+                "current_price harus integer positif (> 0)",
             ));
+        }
+        if req.buylimit_price <= 0 {
+            return Err(Status::invalid_argument(
+                "buylimit_price harus integer positif (> 0)",
+            ));
+        }
+        if req.buylimit_price >= req.current_price {
+            return Err(Status::invalid_argument(format!(
+                "buylimit_price ({}) harus lebih kecil dari current_price ({})",
+                req.buylimit_price, req.current_price
+            )));
         }
         if req.lot <= 0 {
             return Err(Status::invalid_argument("lot harus integer positif (> 0)"));
@@ -261,13 +272,13 @@ impl PendingOrderRpc for PendingOrderService {
         acquire_buy_limit_slot().await?;
 
         println!(
-            "CreateBuyLimitOrder {username}: {emiten_name} price={} lot={} expiry={:?}...",
-            req.price, req.lot, expiry
+            "CreateBuyLimitOrder {username}: {emiten_name} buylimit={} current={} lot={} expiry={:?}...",
+            req.buylimit_price, req.current_price, req.lot, expiry
         );
 
         match on_demand::create_buy_limit_order(
             emiten_name.clone(),
-            req.price,
+            req.buylimit_price,
             req.lot,
             expiry_dom.to_string(),
         )
