@@ -374,26 +374,46 @@ impl UserRpc for UserService {
     ) -> Result<Response<GetAllUsersResponse>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
+        let is_admin = claims.role.trim().eq_ignore_ascii_case("admin");
 
-        let rows = self
-            .repo
-            .get_all()
-            .await
-            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
-
-        let proto_rows: Vec<UserProtoRow> = rows
-            .into_iter()
-            .map(|r| UserProtoRow {
-                id: r.id.to_string(),
-                name: r.name,
-                email: r.email.trim().to_lowercase(),
-                role: role_from_storage(&r.role).into(),
-            })
-            .collect();
+        let proto_rows: Vec<UserProtoRow> = if is_admin {
+            let rows = self
+                .repo
+                .get_all()
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+            rows.into_iter()
+                .map(|r| UserProtoRow {
+                    id: r.id.to_string(),
+                    name: r.name,
+                    email: r.email.trim().to_lowercase(),
+                    role: role_from_storage(&r.role).into(),
+                })
+                .collect()
+        } else {
+            let user_id = Uuid::parse_str(claims.user_id.trim()).map_err(|e| {
+                Status::unauthenticated(format!("JWT user_id tidak valid: {e}"))
+            })?;
+            match self
+                .repo
+                .find_by_id(user_id)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+            {
+                Some(r) => vec![UserProtoRow {
+                    id: r.id.to_string(),
+                    name: r.name,
+                    email: r.email.trim().to_lowercase(),
+                    role: role_from_storage(&r.role).into(),
+                }],
+                None => vec![],
+            }
+        };
 
         println!(
-            "GetAllUsers {} rows={} {}ms",
+            "GetAllUsers {} admin={} rows={} {}ms",
             claims.name,
+            is_admin,
             proto_rows.len(),
             started.elapsed().as_millis()
         );

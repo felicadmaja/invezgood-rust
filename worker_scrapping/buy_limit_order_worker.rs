@@ -83,8 +83,12 @@ async fn create_buy_limit_order_inner(
     wait_for_selector(page, r#"[data-cy="company-buy-button"]"#, STEP_TIMEOUT).await?;
     click_selector(page, r#"[data-cy="company-buy-button"]"#).await?;
     println!("BuyLimit: company-buy-button diklik.");
+    if dismiss_day_trade_modal(page).await? {
+        println!("BuyLimit: popup Day Trade ditutup setelah Buy panel (Nanti Aja).");
+    }
 
     wait_for_selector(page, r#"[data-cy="input-buy-price"]"#, STEP_TIMEOUT).await?;
+    let _ = dismiss_day_trade_modal(page).await?;
 
     let balance = read_user_balance(page).await?;
     let required = required_buy_balance(price, lot);
@@ -93,28 +97,105 @@ async fn create_buy_limit_order_inner(
         return Err(BuyLimitError::InsufficientBalance { balance, required });
     }
 
-    fill_and_enter(page, r#"[data-cy="input-buy-price"]"#, &price.to_string()).await?;
-    println!("BuyLimit: price={price} diisi + Enter.");
+    fill_react_input(page, r#"[data-cy="input-buy-price"]"#, &price.to_string()).await?;
+    println!("BuyLimit: price={price} diisi.");
+    // Jangan Enter di price — bisa reset form / isi harga market.
 
     wait_for_selector(page, r#"[data-cy="input-lot"]"#, STEP_TIMEOUT).await?;
-    fill_input(page, r#"[data-cy="input-lot"]"#, &lot.to_string()).await?;
+    fill_react_input(page, r#"[data-cy="input-lot"]"#, &lot.to_string()).await?;
     println!("BuyLimit: lot={lot} diisi.");
+
+    // Pastikan React state terisi sebelum Buy.
+    ensure_input_value(page, r#"[data-cy="input-buy-price"]"#, &price.to_string()).await?;
+    ensure_input_value(page, r#"[data-cy="input-lot"]"#, &lot.to_string()).await?;
 
     set_expiry_select(page, expiry_dom_value).await?;
     println!("BuyLimit: expiry select value={expiry_dom_value}.");
 
-    wait_for_selector(page, r#"button[data-cy="button-buy"][type="submit"]"#, STEP_TIMEOUT)
-        .await?;
+    wait_for_buy_button_enabled(page, STEP_TIMEOUT).await?;
     click_selector(page, r#"button[data-cy="button-buy"][type="submit"]"#).await?;
     println!("BuyLimit: button-buy diklik.");
 
-    wait_for_paragraph_text(page, "Confirm", STEP_TIMEOUT).await?;
+    // Popup promo Day Trade kadang muncul setelah Buy — klik "Nanti Aja".
+    if dismiss_day_trade_modal(page).await? {
+        println!("BuyLimit: popup Day Trade ditutup (Nanti Aja).");
+    }
+
+    wait_for_paragraph_text_dismissing_day_trade(page, "Confirm", STEP_TIMEOUT).await?;
     click_outer_button_of_paragraph(page, "Confirm").await?;
     println!("BuyLimit: Confirm diklik.");
 
-    wait_for_paragraph_text(page, "Done", STEP_TIMEOUT).await?;
+    if dismiss_day_trade_modal(page).await? {
+        println!("BuyLimit: popup Day Trade ditutup setelah Confirm (Nanti Aja).");
+    }
+
+    wait_for_paragraph_text_dismissing_day_trade(page, "Done", STEP_TIMEOUT).await?;
     println!("BuyLimit: Done muncul — order berhasil.");
     Ok(())
+}
+
+/// Jika modal "Day Trade" muncul, klik tombol "Nanti Aja". Returns `true` bila diklik.
+async fn dismiss_day_trade_modal(page: &Page) -> Result<bool, BuyLimitError> {
+    let clicked = page
+        .evaluate(
+            r#"(() => {
+                const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+                const hasDayTradeTitle = Array.from(
+                    document.querySelectorAll('h1, h2, h3, h4, p, div, span')
+                ).some((el) => norm(el.innerText || el.textContent) === 'Day Trade');
+                if (!hasDayTradeTitle) return false;
+
+                const buttons = Array.from(document.querySelectorAll('button'));
+                const nanti = buttons.find((b) => {
+                    const t = norm(b.innerText || b.textContent);
+                    return t === 'Nanti Aja' || t.toLowerCase() === 'nanti aja';
+                });
+                if (!nanti) return false;
+                nanti.click();
+                return true;
+            })()"#,
+        )
+        .await
+        .map_err(|e| BuyLimitError::Failed(e.to_string()))?
+        .into_value::<bool>()
+        .unwrap_or(false);
+    if clicked {
+        sleep(Duration::from_millis(500)).await;
+    }
+    Ok(clicked)
+}
+
+/// Tunggu `<p>{text}</p>`; sambil menunggu, dismiss popup Day Trade bila muncul.
+async fn wait_for_paragraph_text_dismissing_day_trade(
+    page: &Page,
+    text: &str,
+    timeout: Duration,
+) -> Result<(), BuyLimitError> {
+    let started = Instant::now();
+    let text_js = serde_json::to_string(text).unwrap_or_else(|_| "\"\"".into());
+    loop {
+        let _ = dismiss_day_trade_modal(page).await?;
+        let found = page
+            .evaluate(format!(
+                r#"(() => {{
+                    const nodes = Array.from(document.querySelectorAll('p'));
+                    return nodes.some((p) => (p.innerText || p.textContent || '').trim() === {text_js});
+                }})()"#
+            ))
+            .await
+            .map_err(|e| BuyLimitError::Failed(e.to_string()))?
+            .into_value::<bool>()
+            .unwrap_or(false);
+        if found {
+            return Ok(());
+        }
+        if started.elapsed() >= timeout {
+            return Err(BuyLimitError::Failed(format!(
+                "Timeout menunggu <p>{text}</p>"
+            )));
+        }
+        sleep(Duration::from_millis(300)).await;
+    }
 }
 
 /// Baca `<p data-cy="user-balance">` → integer (contoh "Rp 38,204" → 38204).
@@ -182,36 +263,133 @@ async fn wait_for_selector(
 }
 
 async fn fill_input(page: &Page, selector: &str, value: &str) -> Result<(), BuyLimitError> {
+    fill_react_input(page, selector, value).await
+}
+
+/// Isi input React-controlled: clear + ketik per karakter via CDP `type_str`.
+async fn fill_react_input(page: &Page, selector: &str, value: &str) -> Result<(), BuyLimitError> {
+    let element = page
+        .find_element(selector)
+        .await
+        .map_err(|_| BuyLimitError::Failed(format!("Elemen {selector} tidak ditemukan")))?;
+
+    element.click().await.map_err(|e| BuyLimitError::Failed(e.to_string()))?;
+    sleep(Duration::from_millis(200)).await;
+
+    // Select-all + Delete agar React state ikut kosong.
     let sel_js = serde_json::to_string(selector).unwrap_or_else(|_| "\"\"".into());
-    let val_js = serde_json::to_string(value).unwrap_or_else(|_| "\"\"".into());
-    let ok = page
+    let _ = page
         .evaluate(format!(
             r#"(() => {{
                 const el = document.querySelector({sel_js});
                 if (!el) return false;
                 el.focus();
                 if (typeof el.select === 'function') el.select();
-                const proto = Object.getOwnPropertyDescriptor(
-                    window.HTMLInputElement.prototype, 'value'
-                );
-                if (proto && proto.set) proto.set.call(el, '');
-                else el.value = '';
-                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                if (proto && proto.set) proto.set.call(el, {val_js});
-                else el.value = {val_js};
+                return true;
+            }})()"#
+        ))
+        .await;
+    // Backspace/Delete berulang + type ulang lebih andal untuk controlled input.
+    for _ in 0..24 {
+        let _ = element.press_key("Backspace").await;
+    }
+    sleep(Duration::from_millis(100)).await;
+
+    for ch in value.chars() {
+        element
+            .type_str(&ch.to_string())
+            .await
+            .map_err(|e| BuyLimitError::Failed(e.to_string()))?;
+        sleep(Duration::from_millis(40)).await;
+    }
+
+    // Trigger blur/change supaya form validasi aktif.
+    let _ = page
+        .evaluate(format!(
+            r#"(() => {{
+                const el = document.querySelector({sel_js});
+                if (!el) return false;
                 el.dispatchEvent(new Event('input', {{ bubbles: true }}));
                 el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                el.blur();
                 return true;
+            }})()"#
+        ))
+        .await;
+    sleep(Duration::from_millis(200)).await;
+    Ok(())
+}
+
+async fn read_input_value(page: &Page, selector: &str) -> Result<String, BuyLimitError> {
+    let sel_js = serde_json::to_string(selector).unwrap_or_else(|_| "\"\"".into());
+    let val = page
+        .evaluate(format!(
+            r#"(() => {{
+                const el = document.querySelector({sel_js});
+                if (!el) return '';
+                return String(el.value || '').replace(/[^\d]/g, '');
             }})()"#
         ))
         .await
         .map_err(|e| BuyLimitError::Failed(e.to_string()))?
-        .into_value::<bool>()
-        .unwrap_or(false);
-    if !ok {
-        return Err(BuyLimitError::Failed(format!("Gagal mengisi {selector}")));
+        .into_value::<String>()
+        .unwrap_or_default();
+    Ok(val)
+}
+
+async fn ensure_input_value(
+    page: &Page,
+    selector: &str,
+    expected: &str,
+) -> Result<(), BuyLimitError> {
+    let expected_digits: String = expected.chars().filter(|c| c.is_ascii_digit()).collect();
+    for attempt in 1..=5 {
+        let actual = read_input_value(page, selector).await?;
+        if actual == expected_digits {
+            return Ok(());
+        }
+        println!(
+            "BuyLimit: {selector} expected={expected_digits} actual={actual} — retry isi ({attempt}/5)"
+        );
+        fill_react_input(page, selector, &expected_digits).await?;
+        sleep(Duration::from_millis(250)).await;
     }
-    Ok(())
+    let actual = read_input_value(page, selector).await?;
+    Err(BuyLimitError::Failed(format!(
+        "Gagal set {selector}: expected={expected_digits} actual={actual}"
+    )))
+}
+
+async fn wait_for_buy_button_enabled(page: &Page, timeout: Duration) -> Result<(), BuyLimitError> {
+    let started = Instant::now();
+    loop {
+        let ok = page
+            .evaluate(
+                r#"(() => {
+                    const btn = document.querySelector('button[data-cy="button-buy"][type="submit"]');
+                    if (!btn) return false;
+                    if (btn.disabled) return false;
+                    if (btn.getAttribute('aria-disabled') === 'true') return false;
+                    const lot = document.querySelector('[data-cy="input-lot"]');
+                    const lotVal = String(lot && lot.value || '').replace(/[^\d]/g, '');
+                    if (!lotVal || lotVal === '0') return false;
+                    return true;
+                })()"#,
+            )
+            .await
+            .map_err(|e| BuyLimitError::Failed(e.to_string()))?
+            .into_value::<bool>()
+            .unwrap_or(false);
+        if ok {
+            return Ok(());
+        }
+        if started.elapsed() >= timeout {
+            return Err(BuyLimitError::Failed(
+                "Timeout: tombol Buy belum enabled (lot kosong / form belum valid)".into(),
+            ));
+        }
+        sleep(Duration::from_millis(300)).await;
+    }
 }
 
 async fn press_enter(page: &Page, selector: &str) -> Result<(), BuyLimitError> {
@@ -295,37 +473,6 @@ async fn set_expiry_select(page: &Page, value: &str) -> Result<(), BuyLimitError
         ));
     }
     Ok(())
-}
-
-async fn wait_for_paragraph_text(
-    page: &Page,
-    text: &str,
-    timeout: Duration,
-) -> Result<(), BuyLimitError> {
-    let started = Instant::now();
-    let text_js = serde_json::to_string(text).unwrap_or_else(|_| "\"\"".into());
-    loop {
-        let found = page
-            .evaluate(format!(
-                r#"(() => {{
-                    const nodes = Array.from(document.querySelectorAll('p'));
-                    return nodes.some((p) => (p.innerText || p.textContent || '').trim() === {text_js});
-                }})()"#
-            ))
-            .await
-            .map_err(|e| BuyLimitError::Failed(e.to_string()))?
-            .into_value::<bool>()
-            .unwrap_or(false);
-        if found {
-            return Ok(());
-        }
-        if started.elapsed() >= timeout {
-            return Err(BuyLimitError::Failed(format!(
-                "Timeout menunggu <p>{text}</p>"
-            )));
-        }
-        sleep(Duration::from_millis(300)).await;
-    }
 }
 
 async fn click_outer_button_of_paragraph(page: &Page, text: &str) -> Result<(), BuyLimitError> {

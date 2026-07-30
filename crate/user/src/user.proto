@@ -44,7 +44,8 @@ service User {
   // Tidak boleh menghapus akun sendiri (hindari lockout).
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
 
-  // Semua user dari Scylla `user` (tanpa kolom password). Wajib JWT. Request kosong.
+  // List user dari Scylla `user` (tanpa kolom password). Wajib JWT. Request kosong.
+  // ADMIN → semua user; selain ADMIN → hanya diri sendiri (dari JWT user_id).
   rpc GetAllUsers(GetAllUsersRequest) returns (GetAllUsersResponse);
 
   // Ubah `role` user di Scylla `user`.
