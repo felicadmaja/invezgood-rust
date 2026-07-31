@@ -1,11 +1,11 @@
 //! Auto-scrape saat poller `IsStockbitReady` = ready.
 //!
-//! Dipicu **setiap siklus poller** (interval acak 4–5 menit) bila `ready=true`
+//! Dipicu **setiap siklus poller** (interval acak 9–10 menit) bila `ready=true`
 //! dan `poll_seq > 0` (hasil cek web nyata — bukan hydrate Redis).
 //!
 //! Env `NEW_BUILD_LANGSUNG_SCRAPE` / `NEW_BUILD_LANNGSUNG_SCRAPE` (default `true`):
 //! bila `false`, siklus ready **pertama** setelah restart di-skip (cek web tetap jalan);
-//! scrape menunggu interval poller berikutnya (4–5 menit).
+//! scrape menunggu interval poller berikutnya (9–10 menit).
 //!
 //! Urutan:
 //! 1. GetAllPortofolioFromStockbit

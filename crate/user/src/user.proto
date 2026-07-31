@@ -8,13 +8,16 @@ service User {
   // (header: Authorization: Bearer <token>).
   rpc Login(LoginRequest) returns (LoginResponse);
 
-  // Status kesiapan sesi Stockbit dari background poller (cek web acak tiap 4–5 menit; setting di .env).
+  // Status kesiapan sesi Stockbit dari **satu background poller global** per proses `stockbit_ws`
+  // (cek web acak tiap 9–10 menit; setting di .env).
+  // Banyak client subscribe `IsStockbitReady` **tidak** menambah frekuensi cek — tetap satu poller,
+  // interval 9–10 menit, tidak peduli jumlah subscriber.
   // State terakhir di Redis key `stockbit:readiness` (bukan memory proses).
   // Client cukup subscribe 1x — stream tetap terbuka; server push saat status berubah
-  // (dan heartbeat berkala). RPC tidak hit stockbit.com langsung.
+  // (dan heartbeat berkala). Stream hanya baca Redis; **tidak** hit stockbit.com langsung.
   // Jika poller mendeteksi sesi habis: login ulang otomatis; bila gagal, retry
   // dengan jeda acak 10–30 detik sampai berhasil.
-  // Bila status ready: tiap siklus poller (acak 4–5 menit) server auto-invoke berurutan
+  // Bila status ready: tiap siklus poller (acak 9–10 menit) server auto-invoke berurutan
   // (hari operasional Senin–Jumat; jam 08:45–12:15 dan 13:25–16:15; Sabtu/Minggu tidak scrape;
   // tidak lewat gRPC client). Auto & user RPC memakai **jatah rate limit yang sama** (gate `acquire_*` per alur):
   // - auto sudah jalan → user invoke RPC #1–#5 bisa kena failed_precondition

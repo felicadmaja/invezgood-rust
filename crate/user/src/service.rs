@@ -93,8 +93,8 @@ impl UserService {
     pub fn new(session: Arc<Session>) -> Self {
         Self {
             repo: UserRepository::new(session),
-            // Background poller: cek stockbit.com acak setiap 4–5 menit.
-            // RPC stream hanya membaca Redis (`stockbit:readiness`) — tidak hit web langsung.
+            // Satu poller global (UserService::new); RPC stream hanya baca Redis — tidak hit web.
+            // Banyak subscriber tidak menambah frekuensi cek (tetap acak 9–10 menit).
             readiness: ReadinessPoller::start(),
         }
     }
@@ -447,7 +447,7 @@ impl UserRpc for UserService {
                 let update = readiness.latest().await.unwrap_or_else(|| {
                     stockbit_browser::ReadinessUpdate {
                         ready: false,
-                        message: "Menunggu pengecekan berkala ke stockbit.com (interval 4–5 menit)"
+                        message: "Menunggu pengecekan berkala ke stockbit.com (interval 9–10 menit)"
                             .to_string(),
                         poll_seq: 0,
                     }
