@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
-use user::{require_admin, require_auth, require_stockbit_scrape_hours};
+use user::{require_admin, require_stockbit_scrape_hours};
 use worker_scrapping::on_demand;
 
 use crate::model::PendingOrder;
@@ -127,7 +127,7 @@ impl PendingOrderRpc for PendingOrderService {
         request: Request<GetAllPendingOrderFromScyllaRequest>,
     ) -> Result<Response<GetAllPendingOrderFromScyllaResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
 
         let rows = self
@@ -154,7 +154,7 @@ impl PendingOrderRpc for PendingOrderService {
         request: Request<GetPendingOrderFromScyllaByEmitenNameRequest>,
     ) -> Result<Response<GetPendingOrderFromScyllaByEmitenNameResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -185,7 +185,7 @@ impl PendingOrderRpc for PendingOrderService {
         request: Request<GetAllPendingOrderFromStockbitRequest>,
     ) -> Result<Response<GetAllPendingOrderFromStockbitResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let _ = request.into_inner();
 

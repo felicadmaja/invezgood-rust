@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
-use user::{require_auth, require_stockbit_scrape_hours};
+use user::{require_admin, require_stockbit_scrape_hours};
 use worker_scrapping::on_demand;
 
 use crate::model::Portofolio;
@@ -109,7 +109,7 @@ impl PortofolioRpc for PortofolioService {
         request: Request<GetAllPortofolioFromScyllaRequest>,
     ) -> Result<Response<GetAllPortofolioFromScyllaResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
 
         let rows = self
@@ -137,7 +137,7 @@ impl PortofolioRpc for PortofolioService {
         request: Request<GetPortofolioFromScyllaByEmitenNameRequest>,
     ) -> Result<Response<GetPortofolioFromScyllaByEmitenNameResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -167,7 +167,7 @@ impl PortofolioRpc for PortofolioService {
         request: Request<GetAllPortofolioFromStockbitRequest>,
     ) -> Result<Response<GetAllPortofolioFromStockbitResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let _ = request.into_inner();
 

@@ -6,6 +6,7 @@ service PendingOrder {
   // Baca semua baris dari tabel Scylla `pending_order` via token-ring scan
   // (semua status: OPEN / MATCH / REJECTED / dll.).
   // Request kosong. Response: repeated PendingOrderRow.
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPendingOrderFromScylla(GetAllPendingOrderFromScyllaRequest)
       returns (GetAllPendingOrderFromScyllaResponse);
@@ -13,6 +14,7 @@ service PendingOrder {
   // Baca baris `pending_order` untuk satu emiten via MV `pending_order_by_emiten_name`.
   // Request: emiten_name (4 huruf, dinormalisasi uppercase).
   // Response: repeated PendingOrderRow (kosong bila tidak ada).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetPendingOrderFromScyllaByEmitenName(GetPendingOrderFromScyllaByEmitenNameRequest)
       returns (GetPendingOrderFromScyllaByEmitenNameResponse);
@@ -27,6 +29,7 @@ service PendingOrder {
   // "Diluar jam 08:45-12:15 dan 13:25-16:15").
   // Tidak berlaku untuk bin worker_scrapping.
   // Request kosong. Response: repeated PendingOrderRow setelah scrape.
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPendingOrderFromStockbit(GetAllPendingOrderFromStockbitRequest)
       returns (GetAllPendingOrderFromStockbitResponse);

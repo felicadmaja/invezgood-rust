@@ -4,6 +4,7 @@ package portofolio;
 
 service Portofolio {
   // Tanpa parameter request; mengembalikan semua baris dari tabel Scylla `portofolio`.
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPortofolioFromScylla(GetAllPortofolioFromScyllaRequest)
       returns (GetAllPortofolioFromScyllaResponse);
@@ -11,6 +12,7 @@ service Portofolio {
   // Baca satu baris `portofolio` via PK `emiten_name`.
   // Request: emiten_name (4 huruf, dinormalisasi uppercase).
   // Response: PortofolioRow (kosong/`row` unset bila tidak ada).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetPortofolioFromScyllaByEmitenName(GetPortofolioFromScyllaByEmitenNameRequest)
       returns (GetPortofolioFromScyllaByEmitenNameResponse);
@@ -29,6 +31,7 @@ service Portofolio {
   // Juga dijalankan otomatis saat poller IsStockbitReady = ready (hari + jam + rate limit sama),
   // bersama history holdings, pending_order, dan emiten_trending.
   // Request kosong. Response: repeated PortofolioRow setelah scrape.
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPortofolioFromStockbit(GetAllPortofolioFromStockbitRequest)
       returns (GetAllPortofolioFromStockbitResponse);
