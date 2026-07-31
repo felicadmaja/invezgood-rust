@@ -9,7 +9,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
-use user::{require_auth, require_stockbit_scrape_hours};
+use user::{require_admin, require_auth, require_stockbit_scrape_hours};
 use worker_scrapping::on_demand;
 
 use crate::emiten_trending_server::EmitenTrending as EmitenTrendingRpc;
@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// Cooldown global antar invoke `GetLatestEmitenTrendingFromStockbit` (semua user).
-const MOVERS_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
+const MOVERS_SCRAPE_COOLDOWN: Duration = Duration::from_secs(3 * 60);
 
 static LAST_MOVERS_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
@@ -37,7 +37,7 @@ async fn acquire_movers_scrape_slot() -> Result<(), Status> {
         if elapsed < MOVERS_SCRAPE_COOLDOWN {
             let remaining_secs = (MOVERS_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
             return Err(Status::failed_precondition(format!(
-                "Rate limit: maksimal 1× / 5 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
+                "Rate limit: maksimal 1× / 3 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
             )));
         }
     }
@@ -62,7 +62,7 @@ impl EmitenTrendingService {
         self.repo.warm_prepared().await
     }
 
-    /// Rate limit 1×/5 menit + scrape movers (sama RPC). Jam 07–17 dicek pemanggil.
+    /// Rate limit 1×/3 menit + scrape movers (sama RPC). Jam 07–17 dicek pemanggil.
     /// Dipakai juga auto `IsStockbitReady` — jatah rate limit terpakai bersama user RPC.
     pub async fn scrape_from_stockbit_if_allowed(&self) -> Result<(), Status> {
         acquire_movers_scrape_slot().await?;
@@ -122,7 +122,7 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         &self,
         request: Request<GetLatestEmitenTrendingFromStockbitRequest>,
     ) -> Result<Response<Self::GetLatestEmitenTrendingFromStockbitStream>, Status> {
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let _ = request.into_inner();
 

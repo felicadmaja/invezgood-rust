@@ -13,7 +13,7 @@ service PortofolioEquity {
   // lalu upsert `portofolio_equity` — alur sama `portofolio_worker::scrape_and_insert_portofolio_equity`
   // (login → START TRADING/PIN bila perlu → Bearer trading → GET API → insert).
   // Mapping: Trading Balance, Invested, Open (allocated), Net Profit Loss, Total Equity.
-  // Rate limit: maksimal 1× per 5 menit untuk semua user
+  // Rate limit: maksimal 1× per 3 menit untuk semua user
   // (failed precondition jika terlalu cepat). Juga terpakai oleh auto IsStockbitReady.
   // Hanya hari operasional Senin–Jumat dan jam server 08:45–12:15 serta 13:25–16:15
   // (failed precondition: "Diluar hari operasional Senin-Jumat..." atau

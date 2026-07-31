@@ -11,7 +11,7 @@ service EmitenTrending {
   // Hanya jalan saat RPC dipanggil. Hanya hari operasional Senin–Jumat dan jam server
   // 08:45–12:15 serta 13:25–16:15 (failed precondition: "Diluar hari operasional Senin-Jumat..."
   // atau "Diluar jam 08:45-12:15 dan 13:25-16:15"). Tidak berlaku untuk bin worker.
-  // Rate limit: maksimal 1× per 5 menit untuk semua user
+  // Rate limit: maksimal 1× per 3 menit untuk semua user
   // (failed precondition jika terlalu cepat).
   //
   // Urutan tulis ke Scylla (satu sesi browser/login, berurutan):
@@ -34,7 +34,9 @@ service EmitenTrending {
   //     Tidak scrape / tulis `bandarmology`.
   //
   // Setelah scrape selesai, RPC membaca ulang `emiten_trending` hari ini dan stream hasilnya.
-  // Request kosong. Wajib Authorization: Bearer <JWT valid>.
+  // Request kosong.
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
+  // Wajib Authorization: Bearer <JWT valid>.
   rpc GetLatestEmitenTrendingFromStockbit(GetLatestEmitenTrendingFromStockbitRequest)
       returns (stream GetAllEmitenTrendingResponse);
 }

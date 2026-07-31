@@ -12,6 +12,7 @@ service Bandarmology {
   // Mutual exclusion: tidak boleh ada dua invoke RPC ini bersamaan
   // (jika sedang jalan → success=false, coba lagi setelah selesai).
   // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE. Tanggal duplikat di-skip; format invalid diabaikan.
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetBandarmologyHarianFromStockbit(GetBandarmologyHarianFromStockbitRequest)
       returns (GetBandarmologyHarianFromStockbitResponse);

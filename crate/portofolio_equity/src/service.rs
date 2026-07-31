@@ -18,7 +18,7 @@ use crate::{
 };
 
 /// Cooldown global antar invoke `GetAllPortofolioEquityFromStockbit` (semua user).
-const EQUITY_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
+const EQUITY_SCRAPE_COOLDOWN: Duration = Duration::from_secs(3 * 60);
 
 static LAST_EQUITY_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
@@ -33,7 +33,7 @@ async fn acquire_equity_scrape_slot() -> Result<(), Status> {
         if elapsed < EQUITY_SCRAPE_COOLDOWN {
             let remaining_secs = (EQUITY_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
             return Err(Status::failed_precondition(format!(
-                "Rate limit: maksimal 1× / 5 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
+                "Rate limit: maksimal 1× / 3 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
             )));
         }
     }
@@ -59,7 +59,7 @@ impl PortofolioEquityService {
         self.repo.warm_prepared().await
     }
 
-    /// Rate limit 1×/5 menit + scrape (sama RPC). Jam 07–17 dicek pemanggil.
+    /// Rate limit 1×/3 menit + scrape (sama RPC). Jam 07–17 dicek pemanggil.
     /// Dipakai juga auto `IsStockbitReady` — jatah rate limit terpakai bersama user RPC.
     pub async fn scrape_from_stockbit_if_allowed(&self) -> Result<usize, Status> {
         acquire_equity_scrape_slot().await?;

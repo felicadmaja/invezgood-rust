@@ -29,39 +29,48 @@ service EmitenList {
   // emiten_name: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
   // Bila API Stockbit HTTP 400 / emiten tidak di BEI: response `row` kosong (tanpa error gRPC).
   // HTTP 4xx dari RPC **tidak** menghentikan app (hanya bin worker yang abort).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetEmitenListByEmitenNameFromStockbit(GetEmitenListByEmitenNameFromStockbitRequest) returns (GetEmitenListByEmitenNameFromStockbitResponse);
 
   // Update kolom `is_fundamental_solid` untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListFundamental(UpdateEmitenListFundamentalRequest) returns (UpdateEmitenListFundamentalResponse);
 
   // Update `emiten_list.sector` (tinyint) dan sync nilai yang sama ke semua baris
   // `emiten_trending.sector` (tinyint) untuk `emiten_name` yang sama (via MV by_emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListSector(UpdateEmitenListSectorRequest) returns (UpdateEmitenListSectorResponse);
 
   // Update kolom `is_konglomerasi` untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListKonglomerasi(UpdateEmitenListKonglomerasiRequest) returns (UpdateEmitenListKonglomerasiResponse);
 
   // Update kolom `is_blue_chip` untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListBlueChip(UpdateEmitenListBlueChipRequest) returns (UpdateEmitenListBlueChipResponse);
 
   // Update kolom `catatan` untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListCatatan(UpdateEmitenListCatatanRequest) returns (UpdateEmitenListCatatanResponse);
 
   // Update kolom `catatan_owner` untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListCatatanOwner(UpdateEmitenListCatatanOwnerRequest) returns (UpdateEmitenListCatatanOwnerResponse);
 
   // Update kolom `foto_owner` (list<path GCS>) untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListPhotoProfileOwner(UpdateEmitenListPhotoProfileOwnerRequest) returns (UpdateEmitenListPhotoProfileOwnerResponse);
 
   // Update kolom `is_plan_to_trade` untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListPlanToTrade(UpdateEmitenListPlanToTradeRequest) returns (UpdateEmitenListPlanToTradeResponse);
 
@@ -71,11 +80,13 @@ service EmitenList {
   rpc GetTakeProfitWyckoff(GetTakeProfitWyckoffRequest) returns (GetTakeProfitWyckoffResponse);
 
   // Update kolom `takeprofit_wyckoff` (map<text,text>) untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateTakeProfitWyckoff(UpdateTakeProfitWyckoffRequest) returns (UpdateTakeProfitWyckoffResponse);
 
 
   // Update kolom `wyckoff_phase_element` untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateWyckoffPhaseElement(UpdateWyckoffPhaseElementRequest) returns (UpdateWyckoffPhaseElementResponse);
 
@@ -88,10 +99,12 @@ service EmitenList {
   rpc GetWyckoffTradingRange(GetWyckoffTradingRangeRequest) returns (GetWyckoffTradingRangeResponse);
 
   // Update kolom `wyckoff_trading_range` untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateWyckoffTradingRange(UpdateWyckoffTradingRangeRequest) returns (UpdateWyckoffTradingRangeResponse);
 
   // Update kolom `catatan_pribadi` (text) untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateEmitenListCatatanPribadi(UpdateEmitenListCatatanPribadiRequest) returns (UpdateEmitenListCatatanPribadiResponse);
 

@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
-use user::require_auth;
+use user::{require_admin, require_auth};
 use worker_scrapping::on_demand;
 
 use crate::emiten_list_server::EmitenList as EmitenListRpc;
@@ -187,7 +187,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<GetEmitenListByEmitenNameFromStockbitRequest>,
     ) -> Result<Response<GetEmitenListByEmitenNameFromStockbitResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
 
         let emiten_name = parse_emiten_name(&request.into_inner().emiten_name)
@@ -286,7 +286,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateEmitenListFundamentalRequest>,
     ) -> Result<Response<UpdateEmitenListFundamentalResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -348,7 +348,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateEmitenListSectorRequest>,
     ) -> Result<Response<UpdateEmitenListSectorResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -423,7 +423,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateEmitenListKonglomerasiRequest>,
     ) -> Result<Response<UpdateEmitenListKonglomerasiResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -485,7 +485,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateEmitenListBlueChipRequest>,
     ) -> Result<Response<UpdateEmitenListBlueChipResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -547,7 +547,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateEmitenListPlanToTradeRequest>,
     ) -> Result<Response<UpdateEmitenListPlanToTradeResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -609,7 +609,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateEmitenListCatatanRequest>,
     ) -> Result<Response<UpdateEmitenListCatatanResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -669,7 +669,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateEmitenListCatatanPribadiRequest>,
     ) -> Result<Response<UpdateEmitenListCatatanPribadiResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -719,7 +719,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateEmitenListCatatanOwnerRequest>,
     ) -> Result<Response<UpdateEmitenListCatatanOwnerResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -779,7 +779,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateEmitenListPhotoProfileOwnerRequest>,
     ) -> Result<Response<UpdateEmitenListPhotoProfileOwnerResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -950,7 +950,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateTakeProfitWyckoffRequest>,
     ) -> Result<Response<UpdateTakeProfitWyckoffResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -1010,7 +1010,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateWyckoffPhaseElementRequest>,
     ) -> Result<Response<UpdateWyckoffPhaseElementResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 
@@ -1065,7 +1065,7 @@ impl EmitenListRpc for EmitenListService {
         request: Request<UpdateWyckoffTradingRangeRequest>,
     ) -> Result<Response<UpdateWyckoffTradingRangeResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 

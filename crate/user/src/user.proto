@@ -21,11 +21,11 @@ service User {
   // - user sudah invoke RPC #1–#5 → auto skip alur itu (lanjut yang lain)
   // Env NEW_BUILD_LANGSUNG_SCRAPE=false: setelah restart, skip auto-scrape siklus ready pertama
   // (cek web tetap); scrape menunggu interval poller berikutnya.
-  // 1. GetAllPortofolioFromStockbit          (1×/5 menit)
-  // 2. GetAllPortofolioEquityFromStockbit    (1×/5 menit)
+  // 1. GetAllPortofolioFromStockbit          (1×/3 menit)
+  // 2. GetAllPortofolioEquityFromStockbit    (1×/3 menit)
   // 3. GetPortofolioHistoryByEmitenNameFromStockbit (batch holdings; 1×/1 detik)
-  // 4. GetAllPendingOrderFromStockbit        (1×/5 menit)
-  // 5. GetLatestEmitenTrendingFromStockbit   (1×/5 menit)
+  // 4. GetAllPendingOrderFromStockbit        (1×/3 menit)
+  // 5. GetLatestEmitenTrendingFromStockbit   (1×/3 menit)
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
   // Ubah password user di Scylla `user` (hash bcrypt).

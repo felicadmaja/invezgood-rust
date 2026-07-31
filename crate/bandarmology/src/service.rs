@@ -5,7 +5,7 @@ use chrono::{Local, NaiveDate};
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
-use user::require_auth;
+use user::{require_admin, require_auth};
 use worker_scrapping::on_demand;
 
 use crate::bandarmology_server::Bandarmology as BandarmologyRpc;
@@ -139,7 +139,7 @@ impl BandarmologyRpc for BandarmologyService {
         request: Request<GetBandarmologyHarianFromStockbitRequest>,
     ) -> Result<Response<GetBandarmologyHarianFromStockbitResponse>, Status> {
         let started = Instant::now();
-        let claims = require_auth(&request)?;
+        let claims = require_admin(&request)?;
         let username = claims.name.clone();
         let req = request.into_inner();
 

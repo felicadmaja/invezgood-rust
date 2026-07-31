@@ -22,7 +22,7 @@ service PendingOrder {
   // Scrape semua order dari Stockbit lalu upsert `pending_order`.
   // Alur sama `pending_order_worker`: login → START TRADING/PIN bila perlu →
   // GET carina.stockbit.com/order/v2/list → TRUNCATE+insert `pending_order`.
-  // Rate limit: maksimal 1× per 5 menit untuk semua user
+  // Rate limit: maksimal 1× per 3 menit untuk semua user
   // (failed precondition jika terlalu cepat).
   // Hanya hari operasional Senin–Jumat dan jam server 08:45–12:15 serta 13:25–16:15
   // (failed precondition: "Diluar hari operasional Senin-Jumat..." atau
