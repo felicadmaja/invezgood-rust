@@ -1,33 +1,38 @@
 ---
-description: Auto git add, commit, push setiap 3 prompt agent selesai
+description: Setiap 3 prompt selesai — git add ., commit, push (hook stop)
 alwaysApply: true
 ---
 
 # Auto Git Setiap 3 Prompt
 
-Git otomatis dijalankan oleh hook `stop` → `.cursor/hooks/auto-git-every-3-prompts.sh`.
+Setiap **3 kali** agent selesai menangani prompt user: `git add .` → **commit** → **push**.
 
-Agent **tidak perlu** menjalankan `git add` / `commit` / `push` manual kecuali hook gagal atau dinonaktifkan di Cursor Settings → Hooks.
+Dijalankan otomatis oleh hook **`stop`** → `.cursor/hooks/auto-git-every-3-prompts.sh` (konfig: `.cursor/hooks.json`).
+
+Agent **tidak perlu** menjalankan git manual kecuali hook gagal atau Hooks dinonaktifkan di **Cursor Settings → Hooks**.
 
 ## Counter
 
 - State: `.cursor/auto-git-counter` (integer, mulai 0).
-- Setiap agent selesai menangani prompt user: counter +1.
-- Saat counter mencapai 3: reset ke 0, lalu git workflow.
-- Debug log: `.cursor/auto-git.log` (gitignore `*.log`).
-- Pastikan **Cursor Settings → Hooks** enabled; tanpa itu script tidak pernah dipanggil.
+- Setiap agent selesai (event `stop`): counter +1.
+- Saat counter = **3**: reset ke 0, lalu workflow git.
+- Debug: `.cursor/auto-git.log` (gitignore `*.log`).
 
-## Git workflow (hanya saat counter = 3)
+## Git workflow (counter = 3, hanya bila ada perubahan)
 
-1. Cek perubahan (`git status` / diff).
-2. Jika tidak ada perubahan: skip commit & push.
+1. Cek `git status` / diff.
+2. Jika working tree bersih: skip commit & push.
 3. `git add .`
-4. Commit — pesan 1–2 kalimat, fokus "why", ikuti gaya commit repo.
-5. `git push` (upstream branch saat ini).
+4. `git commit` — pesan 1–2 kalimat (auto: `chore: auto-commit after 3 prompts (...)`).
+5. `git push` (branch upstream saat ini).
 
 ## Safety
 
-- Jangan commit `.env`, credentials, atau file rahasia.
+- Jangan commit `.env`, credentials, atau file rahasia (script unstage `.env` bila ter-add).
 - Jangan force push ke `main` / `master`.
-- Jangan `git commit --amend` kecuali user rule commit mengizinkan.
-- Counter tetap naik meski respons hanya Q&A; commit hanya bila ada perubahan di working tree.
+- Counter tetap naik meski respons Q&A saja; commit hanya bila ada perubahan.
+
+## Setup (clone baru)
+
+1. Pastikan **Cursor Settings → Hooks** enabled.
+2. File rule + hook sudah di repo: `.cursor/rules/auto-git-every-3-prompts.mdc`, `.cursor/hooks.json`, `.cursor/hooks/auto-git-every-3-prompts.sh`.
