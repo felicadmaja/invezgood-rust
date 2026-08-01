@@ -1,14 +1,5 @@
 /target/
 .cursor/auto-git-counter
 .env
-screenshots/
-worker_scrapping/screenshots/
-browser_data/
-worker_scrapping/browser_data/
 logs/
-*.png
 *.log
-
-# Scylla local backups
-backups/
-backup_scylla_stockbit_ws/

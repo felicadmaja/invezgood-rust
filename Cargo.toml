@@ -1,23 +1,16 @@
-[workspace]
-members = [
-    "app",
-    "crate/bandarmology",
-    "crate/broker",
-    "crate/emiten_list",
-    "crate/emiten_trending",
-    "crate/emiten_trending_count",
-    "crate/gcs",
-    "crate/pending_order",
-    "crate/portofolio",
-    "crate/portofolio_bandarmology",
-    "crate/portofolio_catatan",
-    "crate/portofolio_equity",
-    "crate/portofolio_history",
-    "crate/realtime_price",
-    "crate/stockbit_browser",
-    "crate/tls",
-    "crate/user",
-    "crate/wyckoff_glosary",
-    "worker_scrapping",
-]
-resolver = "2"
+[package]
+name = "invezgood"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "invezgood"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tonic = "0.12"
+prost = "0.13"
+
+[build-dependencies]
+tonic-build = "0.12"

@@ -1,5 +1,5 @@
 /**
- * PM2 ecosystem config untuk invezgood (stockbit_ws binary)
+ * PM2 ecosystem config untuk invezgood
  *
  * Penggunaan:
  *   pm2 start ecosystem.config.js
@@ -16,7 +16,7 @@ module.exports = {
     apps: [
         {
             name: 'invezgood',
-            script: './target/release/stockbit_ws',
+            script: './target/release/invezgood',
             cwd: '/home/baki1/invezgood_rust',
             interpreter: 'none',
             instances: 1,
@@ -28,8 +28,8 @@ module.exports = {
             },
             // Semua stdout/stderr app → satu file di root workspace.
             // build.sh mengosongkan file ini setiap deploy ulang.
-            out_file: './stockbit_ws.log',
-            error_file: './stockbit_ws.log',
+            out_file: './invezgood.log',
+            error_file: './invezgood.log',
             merge_logs: true,
             time: true,
         },

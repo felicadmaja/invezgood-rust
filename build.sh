@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Konfigurasi - GANTI SESUAI NAMA PROYEKMU
-NAMA_APP="stockbit_ws"
+NAMA_APP="invezgood"
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOG_FILE="$ROOT_DIR/stockbit_ws.log"
+LOG_FILE="$ROOT_DIR/invezgood.log"
 
 echo "🚀 Memulai proses deployment..."
 
@@ -29,7 +29,7 @@ if [ $? -eq 0 ]; then
 else
     echo "❌ Build gagal — bersihkan artifact kosong lalu coba sekali lagi..."
     find target/release/deps target/debug/deps -name '*.rlib' -size 0 -delete 2>/dev/null || true
-    cargo clean -p worker_scrapping 2>/dev/null || true
+    cargo clean
     cargo build --release
     if [ $? -ne 0 ]; then
         echo "❌ Build gagal! Membatalkan deploy."
@@ -40,7 +40,7 @@ fi
 
 mkdir -p logs
 
-# Kosongkan log app sebelum restart (semua output PM2 → stockbit_ws.log).
+# Kosongkan log app sebelum restart (semua output PM2 → invezgood.log).
 : > "$LOG_FILE"
 echo "🧹 Log dikosongkan: $LOG_FILE"
 
@@ -57,6 +57,6 @@ echo "📊 Status PM2 saat ini:"
 pm2 status "$NAMA_APP"
 
 echo "✨ Selesai! Aplikasi kamu sudah versi terbaru."
-echo "📄 Log app: $LOG_FILE  (tail -f stockbit_ws.log)"
+echo "📄 Log app: $LOG_FILE  (tail -f invezgood.log)"
 
 pm2 logs "$NAMA_APP"
