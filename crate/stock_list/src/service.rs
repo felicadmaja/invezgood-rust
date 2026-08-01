@@ -3,10 +3,11 @@ use std::sync::Arc;
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 
+use crate::model::StockListRow as DbStockListRow;
 use crate::pb::stock_list_server::StockList;
 use crate::pb::{
-    GetStockListFromInvezgoRequest, GetStockListFromInvezgoResponse, ListRequest, ListResponse,
-    StockItem,
+    GetStockListFromInvezgoRequest, GetStockListFromInvezgoResponse, GetStockListFromScyllaRequest,
+    GetStockListFromScyllaResponse, StockListRow,
 };
 
 pub struct StockListService {
@@ -18,8 +19,8 @@ impl StockListService {
         Self { session }
     }
 
-    fn row_to_item(row: crate::StockListRow) -> StockItem {
-        StockItem {
+    fn db_row_to_proto(row: DbStockListRow) -> StockListRow {
+        StockListRow {
             code: row.code,
             name: row.name.unwrap_or_default(),
             sector: row.sector.unwrap_or_default(),
@@ -30,21 +31,6 @@ impl StockListService {
 
 #[tonic::async_trait]
 impl StockList for StockListService {
-    async fn list(
-        &self,
-        request: Request<ListRequest>,
-    ) -> Result<Response<ListResponse>, Status> {
-        let limit = request.into_inner().limit.clamp(1, 1000) as i32;
-
-        let rows = crate::repository::list(self.session.as_ref(), limit)
-            .await
-            .map_err(|e| Status::internal(e))?;
-
-        let items = rows.into_iter().map(Self::row_to_item).collect();
-
-        Ok(Response::new(ListResponse { items }))
-    }
-
     async fn get_stock_list_from_invezgo(
         &self,
         _request: Request<GetStockListFromInvezgoRequest>,
@@ -59,5 +45,18 @@ impl StockList for StockListService {
                 message,
             })),
         }
+    }
+
+    async fn get_stock_list_from_scylla(
+        &self,
+        _request: Request<GetStockListFromScyllaRequest>,
+    ) -> Result<Response<GetStockListFromScyllaResponse>, Status> {
+        let rows = crate::repository::token_ring_scan(self.session.as_ref())
+            .await
+            .map_err(Status::internal)?;
+
+        let items = rows.into_iter().map(Self::db_row_to_proto).collect();
+
+        Ok(Response::new(GetStockListFromScyllaResponse { items }))
     }
 }

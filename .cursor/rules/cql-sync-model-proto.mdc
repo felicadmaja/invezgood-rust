@@ -30,8 +30,8 @@ Setiap **file `.cql` baru** atau **modifikasi `.cql`** (CREATE/ALTER TABLE, kolo
 
 Tabel `invezgood.stock_list`: `code`, `name`, `sector`, `logo`
 
-- `model.rs` → `StockListRow { code, name, sector, logo }`
-- `stock_list.proto` → `StockItem` / response `ListResponse.items` harus punya field yang sama (`code` bukan alias lama seperti `symbol` kecuali sengaja deprecated)
+- `model.rs` → `StockListRow { code, name, sector, logo }` (baris Scylla)
+- `*.proto` → message request/response RPC yang expose data ke client
 
 ## Jangan anggap selesai bila
 

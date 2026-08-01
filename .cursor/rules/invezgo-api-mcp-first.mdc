@@ -1,0 +1,34 @@
+---
+description: Cek MCP Invezgo sebelum menulis atau mengeksekusi API Invezgo
+alwaysApply: true
+---
+
+# Invezgo API — cek MCP dulu
+
+Project ini memakai **Invezgo API** (`https://api.invezgo.com`) untuk data saham Indonesia. **MCP `invezgo`** sudah aktif di Cursor (`.cursor/mcp-invezgo.sh`).
+
+## Wajib sebelum write / execute API
+
+Sebelum **menulis kode** yang memanggil Invezgo (Rust `reqwest`, curl, worker, gRPC sync, dll.) atau **menjalankan request** ke API:
+
+1. **Inspeksi MCP `invezgo`** — `GetMcpTools` / panggil tool MCP yang relevan untuk endpoint, parameter, dan bentuk response.
+2. **Validasi** path, method, query/body, dan field response **sesuai dokumentasi MCP** — jangan menebak dari memory atau contoh lama.
+3. **Baru implementasi** — tulis/update kode (`invezgo.rs`, service, worker) atau jalankan HTTP test.
+
+## Saat implementasi kode
+
+- Auth: `Authorization: Bearer $INVEZGO_BEARER_TOKEN` (dari `.env`; jangan hardcode token).
+- Base URL: `https://api.invezgo.com` kecuali MCP menyatakan lain.
+- Selaraskan struct deserialize / proto / model dengan field response aktual dari MCP.
+- Crate contoh: `crate/stock_list/src/invezgo.rs` (`GET /analysis/list/stock`).
+
+## Saat mengeksekusi / debug
+
+- Prefer verifikasi lewat **tool MCP Invezgo** sebelum `curl`/script manual.
+- Jika MCP tidak tersedia (disconnected): beritahu user, jangan lanjut asumsi endpoint; arahkan reload MCP atau cek `.cursor/mcp-invezgo.sh`.
+
+## Jangan anggap selesai bila
+
+- API Invezgo ditulis/dijalankan tanpa konsultasi MCP terlebih dahulu
+- Response struct / proto tidak match hasil MCP
+- Token atau URL API disalin ke repo (commit)

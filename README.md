@@ -51,7 +51,9 @@ Token: `INVEZGO_BEARER_TOKEN` di `.env`. Restart Cursor setelah edit.
 # health ping
 grpcurl -plaintext -d '{"message":"hello"}' localhost:50054 invezgood.Invezgood/Ping
 
-# stock list
-grpcurl -plaintext -d '{"limit":5}' localhost:50054 stock_list.StockList/List
+# sync dari Invezgo → Scylla
 grpcurl -plaintext -d '{}' localhost:50054 stock_list.StockList/GetStockListFromInvezgo
+
+# baca semua baris dari Scylla (token ring scan)
+grpcurl -plaintext -d '{}' localhost:50054 stock_list.StockList/GetStockListFromScylla
 ```
