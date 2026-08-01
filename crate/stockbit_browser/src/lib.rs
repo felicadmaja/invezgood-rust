@@ -1543,6 +1543,32 @@ async fn try_cached_bearer() -> Option<String> {
     }
 }
 
+/// Bearer untuk HTTP API tanpa caller menyediakan `Page`.
+/// Cache hit → tanpa Chrome. Miss → lock interactive + login bila perlu + extract.
+pub async fn ensure_stockbit_bearer() -> Result<String, StockbitError> {
+    if let Some(token) = try_cached_bearer().await {
+        println!("Bearer cache hit via ensure_stockbit_bearer (len={}).", token.len());
+        return Ok(token);
+    }
+
+    let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
+    let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
+    if email.trim().is_empty() || password.is_empty() {
+        return Err(
+            "STOCKBIT_EMAIL / STOCKBIT_PASSWORD wajib untuk ambil Bearer Stockbit".into(),
+        );
+    }
+
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive)
+        .await
+        .map_err(|e| -> StockbitError { e.into() })?;
+    let (browser, page) = launch_page().await?;
+    open_stream_or_login(&page, email.trim(), password.trim()).await?;
+    let token = extract_stockbit_bearer(&page).await?;
+    browser.close().await;
+    Ok(token)
+}
+
 /// Ambil Bearer JWT untuk API `exodus.stockbit.com`.
 ///
 /// Urutan: cache (probe) → scan halaman saat ini → warm-up keystats + scan.

@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package realtime_price;
+
+service RealtimePrice {
+  // Stream harga dari GET `https://exodus.stockbit.com/emitten/{emiten_name}/info`.
+  // Poll API maksimal 1× per menit **per emiten_name**, dan **hanya** saat ada client
+  // yang masih subscribe stream ini. Tanpa subscriber → tidak hit Stockbit API.
+  // Beberapa client dengan emiten_name sama berbagi satu poller (fan-out).
+  // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE.
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetRealtimePriceFromStockbit(GetRealtimePriceFromStockbitRequest)
+      returns (stream GetRealtimePriceFromStockbitResponse);
+}
+
+message GetRealtimePriceFromStockbitRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE (cuan → CUAN).
+  string emiten_name = 1;
+}
+
+message CorpActionInfo {
+  bool active = 1;
+  string icon = 2;
+  string text = 3;
+  // Kosong bila API mengirim `detail: null`.
+  string detail = 4;
+}
+
+message GetRealtimePriceFromStockbitResponse {
+  string symbol = 1;
+  int64 price = 2;
+  // Dari field API `formatted_price` (teks angka, di-parse ke int64).
+  int64 formatted_price = 3;
+  string time = 4;
+  int64 volume = 5;
+  CorpActionInfo corp_action = 6;
+}

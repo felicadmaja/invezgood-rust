@@ -1,0 +1,24 @@
+[package]
+name = "realtime_price"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+futures-util = "0.3"
+prost = { version = "0.13", features = ["std", "derive"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+stockbit_browser = { path = "../stockbit_browser" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio-stream = "0.1"
+tonic = { version = "0.12", features = ["transport"] }
+user = { path = "../user" }
+
+[build-dependencies]
+prost-build = "0.13"
+protoc-bin-vendored = "3"
+tonic-build = "0.12"

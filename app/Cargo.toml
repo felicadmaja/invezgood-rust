@@ -21,6 +21,7 @@ portofolio_bandarmology = { path = "../crate/portofolio_bandarmology" }
 portofolio_catatan = { path = "../crate/portofolio_catatan" }
 portofolio_equity = { path = "../crate/portofolio_equity" }
 portofolio_history = { path = "../crate/portofolio_history" }
+realtime_price = { path = "../crate/realtime_price" }
 tls = { path = "../crate/tls" }
 stockbit_browser = { path = "../crate/stockbit_browser" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }

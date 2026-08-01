@@ -13,6 +13,7 @@ members = [
     "crate/portofolio_catatan",
     "crate/portofolio_equity",
     "crate/portofolio_history",
+    "crate/realtime_price",
     "crate/stockbit_browser",
     "crate/tls",
     "crate/user",

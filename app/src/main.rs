@@ -37,6 +37,8 @@ use portofolio_equity::portofolio_equity_server::PortofolioEquityServer;
 use portofolio_equity::PortofolioEquityService;
 use portofolio_history::portofolio_history_server::PortofolioHistoryServer;
 use portofolio_history::PortofolioHistoryService;
+use realtime_price::realtime_price_server::RealtimePriceServer;
+use realtime_price::RealtimePriceService;
 use tonic_reflection::server::Builder as ReflectionBuilder;
 use user::user_server::UserServer;
 use user::{AuthInterceptor, UserService};
@@ -92,6 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let gcs_svc = GcsGrpcService::from_env()
         .map_err(|e| format!("GCS env: {e}"))?;
     let wyckoff_glossary_svc = WyckoffGlossaryService::new(session.clone());
+    let realtime_price_svc = RealtimePriceService::new();
 
     ready_auto_scrape::spawn_on_stockbit_ready(
         user_svc.readiness_poller(),
@@ -138,6 +141,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pending_order_svc = auth_gzip_svc!(PendingOrderServer, pending_order_svc);
     let gcs_svc = auth_gzip_svc!(GcsServer, gcs_svc);
     let wyckoff_glossary_svc = auth_gzip_svc!(WyckoffGlossaryServer, wyckoff_glossary_svc);
+    let realtime_price_svc = auth_gzip_svc!(RealtimePriceServer, realtime_price_svc);
 
     let reflection_svc = ReflectionBuilder::configure()
         .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
@@ -154,6 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .register_encoded_file_descriptor_set(pending_order::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(gcs::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(wyckoff_glossary::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(realtime_price::FILE_DESCRIPTOR_SET)
         .build_v1()
         .map_err(|e| format!("reflection: {e}"))?;
     let reflection_svc = gzip_svc!(reflection_svc);
@@ -186,6 +191,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(pending_order_svc)
         .add_service(gcs_svc)
         .add_service(wyckoff_glossary_svc)
+        .add_service(realtime_price_svc)
         .add_service(reflection_svc)
         .serve_with_shutdown(addr, grpc_shutdown_signal())
         .await?;
