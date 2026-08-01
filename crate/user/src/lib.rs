@@ -7,6 +7,7 @@ pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("user
 
 mod auth;
 mod model;
+pub mod password;
 mod repository;
 mod service;
 

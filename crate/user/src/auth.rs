@@ -8,7 +8,6 @@ use crate::model::UserRow;
 
 #[derive(Debug, Clone)]
 pub struct AuthSession {
-    pub email: String,
     pub nama: String,
     pub role: String,
 }
@@ -24,17 +23,16 @@ pub async fn login(
     user: UserRow,
     password: &str,
 ) -> Result<(String, AuthSession), String> {
-    let stored_password = user
-        .password
-        .as_deref()
-        .unwrap_or_default();
+    let stored_hash = user.password.as_deref().unwrap_or_default();
 
-    if stored_password != password {
+    let valid = crate::password::verify_password(password, stored_hash)
+        .map_err(|e| format!("verifikasi password gagal: {e}"))?;
+
+    if !valid {
         return Err("email atau password salah".into());
     }
 
     let auth = AuthSession {
-        email: user.email.clone(),
         nama: user.nama.unwrap_or_default(),
         role: user.role.unwrap_or_default(),
     };

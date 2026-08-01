@@ -31,14 +31,6 @@ impl UserService {
             role: row.role.unwrap_or_default(),
         }
     }
-
-    fn auth_to_proto(auth: &crate::auth::AuthSession) -> UserRow {
-        UserRow {
-            email: auth.email.clone(),
-            nama: auth.nama.clone(),
-            role: auth.role.clone(),
-        }
-    }
 }
 
 #[tonic::async_trait]
@@ -50,12 +42,7 @@ impl User for UserService {
         let LoginRequest { email, password } = request.into_inner();
 
         if email.is_empty() || password.is_empty() {
-            return Ok(Response::new(LoginResponse {
-                success: false,
-                message: "email dan password wajib diisi".into(),
-                token: String::new(),
-                user: None,
-            }));
+            return Err(Status::invalid_argument("email dan password wajib diisi"));
         }
 
         let user = crate::repository::find_by_email(self.session.as_ref(), &email)
@@ -63,28 +50,18 @@ impl User for UserService {
             .map_err(Status::internal)?;
 
         let Some(user) = user else {
-            return Ok(Response::new(LoginResponse {
-                success: false,
-                message: "email atau password salah".into(),
-                token: String::new(),
-                user: None,
-            }));
+            return Err(Status::unauthenticated("email atau password salah"));
         };
 
-        match crate::auth::login(&self.auth_sessions, user, &password).await {
-            Ok((token, auth)) => Ok(Response::new(LoginResponse {
-                success: true,
-                message: "login berhasil".into(),
-                token,
-                user: Some(Self::auth_to_proto(&auth)),
-            })),
-            Err(message) => Ok(Response::new(LoginResponse {
-                success: false,
-                message,
-                token: String::new(),
-                user: None,
-            })),
-        }
+        let (token, auth) = crate::auth::login(&self.auth_sessions, user, &password)
+            .await
+            .map_err(Status::unauthenticated)?;
+
+        Ok(Response::new(LoginResponse {
+            token,
+            nama: auth.nama,
+            role: auth.role,
+        }))
     }
 
     async fn logout(

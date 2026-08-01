@@ -3,8 +3,8 @@ syntax = "proto3";
 package user;
 
 service User {
-  // Cek email+password di invezgood.user; bila valid buat session token in-memory.
-  // Response: success, token (untuk Logout), profil user tanpa password.
+  // Cek email+password (bcrypt) di invezgood.user; bila valid buat session token in-memory.
+  // Response: token (untuk Logout), nama, role. Error via gRPC status.
   rpc Login(LoginRequest) returns (LoginResponse);
 
   // Hapus session token dari store in-memory; idempotent bila token tidak ada.
@@ -20,10 +20,9 @@ message LoginRequest {
 }
 
 message LoginResponse {
-  bool success = 1;
-  string message = 2;
-  string token = 3;
-  optional UserRow user = 4;
+  string token = 1;
+  string nama = 2;
+  string role = 3;
 }
 
 message LogoutRequest {
