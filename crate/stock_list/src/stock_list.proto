@@ -3,7 +3,10 @@ syntax = "proto3";
 package stock_list;
 
 service StockList {
+  // GET api.invezgo.com/analysis/list/stock → upsert ke invezgood.stock_list.
+  // Bearer dari INVEZGO_BEARER_TOKEN. Response: success + pesan jumlah baris.
   rpc GetStockListFromInvezgo(GetStockListFromInvezgoRequest) returns (GetStockListFromInvezgoResponse);
+  // Token ring scan invezgood.stock_list; baca semua partition, read-only.
   rpc GetStockListFromScylla(GetStockListFromScyllaRequest) returns (GetStockListFromScyllaResponse);
 }
 

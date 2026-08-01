@@ -3,6 +3,7 @@ syntax = "proto3";
 package invezgood;
 
 service Invezgood {
+  // Health check: echo message dari request sebagai "pong: {message}".
   rpc Ping(PingRequest) returns (PingResponse);
 }
 

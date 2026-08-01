@@ -1,0 +1,45 @@
+---
+description: Wajib komentar logic di atas setiap definisi RPC di *.proto
+globs: "**/*.proto"
+alwaysApply: true
+---
+
+# Komentar logic RPC
+
+Setiap **RPC baru** atau **perubahan behavior RPC**, wajib tulis **komentar logic** (`//`) **tepat di atas baris `rpc ...`** di file `*.proto` crate/app yang sama.
+
+## Isi komentar (ringkas, 1–4 baris)
+
+Jelaskan **apa yang dilakukan RPC**, bukan hanya nama method:
+
+1. **Sumber/target data** — API eksternal, tabel Scylla (`keyspace.table`), cache, dll.
+2. **Operasi utama** — fetch, upsert, scan, transform, validasi.
+3. **Side effect** — tulis DB, panggil service lain, tidak ada (read-only).
+4. **Auth / env** — bila relevan (`INVEZGO_BEARER_TOKEN`, `SCYLLA_*`, dll.).
+5. **Response / error** — field penting atau kapan `success=false` / `Status::internal`.
+
+Bahasa Indonesia atau Inggris boleh; konsisten per file.
+
+## Format
+
+```protobuf
+service StockList {
+  // GET api.invezgo.com/analysis/list/stock → upsert ke invezgood.stock_list.
+  // Bearer dari INVEZGO_BEARER_TOKEN. Response: success + pesan jumlah baris.
+  rpc GetStockListFromInvezgo(GetStockListFromInvezgoRequest) returns (GetStockListFromInvezgoResponse);
+
+  // Token ring scan invezgood.stock_list; baca semua partition, read-only.
+  rpc GetStockListFromScylla(GetStockListFromScyllaRequest) returns (GetStockListFromScyllaResponse);
+}
+```
+
+## Saat implementasi di Rust
+
+- Update komentar di **proto dulu** (atau bersamaan) saat mengubah `service.rs`.
+- Implementasi di `service.rs` harus selaras dengan komentar RPC; bila logic berubah, **update komentar proto** dalam PR/commit yang sama.
+
+## Jangan anggap selesai bila
+
+- Ada baris `rpc ...` tanpa komentar logic di atasnya
+- Komentar hanya mengulang nama RPC (`// Get stock list from scylla`) tanpa menjelaskan operasi
+- Logic di `service.rs` sudah berubah tapi komentar proto masih lama

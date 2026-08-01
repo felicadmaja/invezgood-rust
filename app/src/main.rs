@@ -1,10 +1,15 @@
 //! Entry point — daftarkan semua layanan gRPC dari crate modul di sini.
 
 use stock_list::{connect, StockListServer, StockListService};
+use user::{UserServer, UserService};
 use tonic::transport::Server;
+use tonic_reflection::server::Builder as ReflectionBuilder;
 
 pub mod pb {
     tonic::include_proto!("invezgood");
+
+    pub const FILE_DESCRIPTOR_SET: &[u8] =
+        tonic::include_file_descriptor_set!("invezgood_descriptor");
 }
 
 use pb::invezgood_server::{Invezgood, InvezgoodServer};
@@ -38,13 +43,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr = format!("{host}:{port}").parse()?;
 
     let session = connect().await?;
-    let stock_list = StockListService::new(session);
+    let stock_list = StockListService::new(session.clone());
+    let user = UserService::new(session);
 
-    println!("invezgood gRPC listening on {addr}");
+    let reflection = ReflectionBuilder::configure()
+        .register_encoded_file_descriptor_set(stock_list::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
+        .build_v1()?;
+
+    println!("invezgood gRPC listening on {addr} (reflection enabled)");
 
     Server::builder()
+        .add_service(reflection)
         .add_service(InvezgoodServer::new(InvezgoodService))
         .add_service(StockListServer::new(stock_list))
+        .add_service(UserServer::new(user))
         .serve(addr)
         .await?;
 
