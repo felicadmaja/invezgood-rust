@@ -1,10 +1,7 @@
 {
   "mcpServers": {
     "invezgo": {
-      "url": "https://mcp.invezgo.com",
-      "headers": {
-        "Authorization": "Bearer ${env:INVEZGO_BEARER_TOKEN}"
-      }
+      "command": "/home/baki1/invezgood_rust/.cursor/mcp-invezgo.sh"
     }
   }
 }

@@ -23,16 +23,21 @@ Default listen: `0.0.0.0:50054` (env: `HOST`, `GRPC_PORT`).
 
 ## MCP Invezgo (Cursor)
 
-Konfigurasi di `.cursor/mcp.json` (project) dan `~/.cursor/mcp.json` (global).
+Invezgo MCP memakai **HTTP+SSE dengan session** (`mcp-session-id`). Konfigurasi `url` langsung sering gagal dengan error **`No sessionId`** (HTTP 400).
 
-Token: set `INVEZGO_BEARER_TOKEN` di `.env`, lalu export ke environment sebelum buka Cursor:
+MCP Invezgo lewat script `.cursor/mcp-invezgo.sh` (source `.env` → `mcp-remote` dengan `--transport http-only`).
 
-```bash
-set -a && source .env && set +a
-cursor .
+```json
+{
+  "mcpServers": {
+    "invezgo": {
+      "command": "/home/baki1/invezgood_rust/.cursor/mcp-invezgo.sh"
+    }
+  }
+}
 ```
 
-Reload window setelah itu (**Cursor Settings → MCP** → server `invezgo` harus Connected).
+Token: `INVEZGO_BEARER_TOKEN` di `.env`. Restart Cursor setelah edit.
 
 ## Deploy (PM2)
 
