@@ -6,13 +6,14 @@ use scylla::DeserializeRow;
 use scylla::statement::prepared::PreparedStatement;
 
 use crate::model::{
-    ShareHolder5Db, StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
-    StockListKeystatsDb, StockListRow, KEYSPACE, TABLE,
+    ShareHolder1Db, ShareHolder5Db, StockListBalanceStatementDb, StockListCashFlowDb,
+    StockListIncomeStatementDb, StockListKeystatsDb, StockListRow, KEYSPACE, TABLE,
 };
 
 const ROW_SELECT: &str = "code, name, sector, logo, keystats, keystats_updated_at, \
     balance_statement, balance_statement_updated_at, income_statement, income_statement_updated_at, \
-    cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at";
+    cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
+    share_holder_1, share_holder_1_updated_at";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -42,6 +43,9 @@ const UPDATE_CASH_FLOW: &str =
 
 const UPDATE_SHARE_HOLDER_5: &str =
     "UPDATE invezgood.stock_list SET share_holder_5 = ?, share_holder_5_updated_at = ? WHERE code = ?";
+
+const UPDATE_SHARE_HOLDER_1: &str =
+    "UPDATE invezgood.stock_list SET share_holder_1 = ?, share_holder_1_updated_at = ? WHERE code = ?";
 
 #[derive(Debug, DeserializeRow)]
 struct TokensRow {
@@ -145,6 +149,19 @@ pub async fn update_share_holder_5(
         .query_unpaged(UPDATE_SHARE_HOLDER_5, (share_holder_5, updated_at, code))
         .await
         .map_err(|e| format!("update share_holder_5 {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_share_holder_1(
+    session: &Session,
+    code: &str,
+    share_holder_1: ShareHolder1Db,
+    updated_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), String> {
+    session
+        .query_unpaged(UPDATE_SHARE_HOLDER_1, (share_holder_1, updated_at, code))
+        .await
+        .map_err(|e| format!("update share_holder_1 {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 

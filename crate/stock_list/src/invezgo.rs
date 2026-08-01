@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::model::{BalanceStatement, Keystats, ShareHolder5, ShareHolder5Entry};
+use crate::model::{BalanceStatement, Keystats, ShareHolder1, ShareHolder1Entry, ShareHolder5, ShareHolder5Entry};
 use scylla::client::session::Session;
 use serde::Deserialize;
 
@@ -18,6 +18,10 @@ fn financial_statement_url(code: &str, statement: &str) -> String {
 
 fn shareholder_detail_url(code: &str) -> String {
     format!("https://api.invezgo.com/analysis/shareholder-detail/{code}")
+}
+
+fn shareholder_detail_one_url(code: &str) -> String {
+    format!("https://api.invezgo.com/analysis/shareholder-detail-one?code={code}")
 }
 
 
@@ -93,6 +97,24 @@ struct InvezgoShareHolderEntry {
     date: String,
     val: String,
     percent: f64,
+}
+
+#[derive(Debug, Deserialize)]
+struct InvezgoShareHolder1Entry {
+    name: String,
+    #[serde(rename = "type")]
+    holder_type: String,
+    status: String,
+    #[serde(default)]
+    nationality: String,
+    #[serde(default)]
+    domicile: String,
+    #[serde(default)]
+    scripless: String,
+    #[serde(default)]
+    scrip: String,
+    total: String,
+    percentage: f64,
 }
 
 pub async fn fetch_balance_statement(code: &str) -> Result<BalanceStatement, String> {
@@ -232,6 +254,66 @@ fn parse_share_holder_5(body: &str) -> Result<ShareHolder5, String> {
         .collect::<Result<Vec<ShareHolder5Entry>, String>>()?;
 
     Ok(ShareHolder5 { items })
+}
+
+pub async fn fetch_share_holder_1(code: &str) -> Result<ShareHolder1, String> {
+    let token = std::env::var("INVEZGO_BEARER_TOKEN")
+        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
+
+    let response = reqwest::Client::new()
+        .get(shareholder_detail_one_url(code))
+        .header("Accept", "application/json")
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("request Invezgo shareholder-detail-one code={code} gagal: {e}"))?;
+
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("baca body Invezgo shareholder-detail-one code={code} gagal: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!(
+            "Invezgo shareholder-detail-one HTTP {status} code={code}: {body}"
+        ));
+    }
+
+    parse_share_holder_1(&body)
+}
+
+pub async fn fetch_and_save_share_holder_1(
+    session: Arc<Session>,
+    code: &str,
+) -> Result<(ShareHolder1, chrono::DateTime<chrono::Utc>), String> {
+    let entries = fetch_share_holder_1(code).await?;
+    let updated_at = chrono::Utc::now();
+    let db = crate::model::ShareHolder1Db::from(entries.clone());
+    crate::repository::update_share_holder_1(session.as_ref(), code, db, updated_at).await?;
+    Ok((entries, updated_at))
+}
+
+fn parse_share_holder_1(body: &str) -> Result<ShareHolder1, String> {
+    let parsed: Vec<InvezgoShareHolder1Entry> = serde_json::from_str(body)
+        .map_err(|e| format!("parse JSON Invezgo shareholder-detail-one gagal: {e}"))?;
+
+    let items = parsed
+        .into_iter()
+        .map(|entry| ShareHolder1Entry {
+            name: entry.name,
+            holder_type: entry.holder_type,
+            status: entry.status,
+            nationality: entry.nationality,
+            domicile: entry.domicile,
+            scripless: entry.scripless,
+            scrip: entry.scrip,
+            total: entry.total,
+            percentage: entry.percentage,
+        })
+        .collect();
+
+    Ok(ShareHolder1 { items })
 }
 
 fn parse_financial_statement(body: &str) -> Result<BalanceStatement, String> {

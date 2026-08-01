@@ -50,6 +50,12 @@ pub type ShareHolder5EntryDb = (String, chrono::DateTime<chrono::Utc>, String, f
 /// Kolom `share_holder_5` — list entri pemegang saham >1%.
 pub type ShareHolder5Db = Option<Vec<ShareHolder5EntryDb>>;
 
+/// UDT `share_holder_1_entry` — urutan field = (name, holder_type, status, nationality, domicile, scripless, scrip, total, percentage).
+pub type ShareHolder1EntryDb = (String, String, String, String, String, String, String, String, f64);
+
+/// Kolom `share_holder_1` — list entri pemegang saham detail >1%.
+pub type ShareHolder1Db = Option<Vec<ShareHolder1EntryDb>>;
+
 /// Satu baris `invezgood.stock_list`.
 #[derive(Debug, Clone, DeserializeRow, SerializeRow)]
 pub struct StockListRow {
@@ -80,6 +86,28 @@ pub struct StockListRow {
     pub share_holder_5: ShareHolder5Db,
     #[scylla(default_when_null)]
     pub share_holder_5_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[scylla(default_when_null)]
+    pub share_holder_1: ShareHolder1Db,
+    #[scylla(default_when_null)]
+    pub share_holder_1_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ShareHolder1 {
+    pub items: Vec<ShareHolder1Entry>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ShareHolder1Entry {
+    pub name: String,
+    pub holder_type: String,
+    pub status: String,
+    pub nationality: String,
+    pub domicile: String,
+    pub scripless: String,
+    pub scrip: String,
+    pub total: String,
+    pub percentage: f64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -324,6 +352,64 @@ impl From<ShareHolder5> for ShareHolder5Db {
                 .items
                 .into_iter()
                 .map(ShareHolder5EntryDb::from)
+                .collect(),
+        )
+    }
+}
+
+impl From<ShareHolder1EntryDb> for ShareHolder1Entry {
+    fn from(
+        (name, holder_type, status, nationality, domicile, scripless, scrip, total, percentage): ShareHolder1EntryDb,
+    ) -> Self {
+        Self {
+            name,
+            holder_type,
+            status,
+            nationality,
+            domicile,
+            scripless,
+            scrip,
+            total,
+            percentage,
+        }
+    }
+}
+
+impl From<ShareHolder1Entry> for ShareHolder1EntryDb {
+    fn from(e: ShareHolder1Entry) -> Self {
+        (
+            e.name,
+            e.holder_type,
+            e.status,
+            e.nationality,
+            e.domicile,
+            e.scripless,
+            e.scrip,
+            e.total,
+            e.percentage,
+        )
+    }
+}
+
+impl From<ShareHolder1Db> for ShareHolder1 {
+    fn from(entries: ShareHolder1Db) -> Self {
+        Self {
+            items: entries
+                .unwrap_or_default()
+                .into_iter()
+                .map(ShareHolder1Entry::from)
+                .collect(),
+        }
+    }
+}
+
+impl From<ShareHolder1> for ShareHolder1Db {
+    fn from(entries: ShareHolder1) -> Self {
+        Some(
+            entries
+                .items
+                .into_iter()
+                .map(ShareHolder1EntryDb::from)
                 .collect(),
         )
     }

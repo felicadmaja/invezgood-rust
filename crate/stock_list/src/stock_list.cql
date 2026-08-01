@@ -20,6 +20,8 @@
 -- | cash_flow_updated_at         | regular        | timestamp                               |
 -- | share_holder_5               | regular        | frozen<list<frozen<share_holder_5_entry>>> |
 -- | share_holder_5_updated_at    | regular        | timestamp                               |
+-- | share_holder_1               | regular        | frozen<list<frozen<share_holder_1_entry>>> |
+-- | share_holder_1_updated_at    | regular        | timestamp                               |
 --
 -- UDT stock_list_keystats:
 --   rows    → list<{ id, name, values: list<{ col, year, amount, period }> }>
@@ -31,4 +33,8 @@
 --
 -- UDT share_holder_5_entry:
 --   name text, date timestamp, val text, percent double
---   API: GET /analysis/shareholder-detail/{code} → list per pemegang saham (>1%)
+--   API: GET /analysis/shareholder-detail/{code}
+--
+-- UDT share_holder_1_entry:
+--   name, holder_type, status, nationality, domicile, scripless, scrip, total, percentage
+--   API: GET /analysis/shareholder-detail-one?code={code}

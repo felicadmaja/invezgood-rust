@@ -5,53 +5,39 @@ package stock_list;
 service StockList {
   // Cek Redis StockListUpdatedAt: kosong atau >30 hari → GET Invezgo + upsert Scylla + set timestamp.
   // Masih valid (<30 hari) → baca Scylla saja. Response: daftar saham.
-  rpc GetStockList(GetStockListRequest) returns (GetStockListResponse);
+  rpc GetAllStocks(GetAllStocksRequest) returns (GetAllStocksResponse);
 
-  // GET api.invezgo.com/analysis/keystat/{code}?type=Q → upsert invezgood.stock_list.keystats + keystats_updated_at.
-  // Baca Scylla by PK code; refresh API bila keystats_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
-  // Response: KeyStatsRow (code, rows, columns, keystats_updated_at). code wajib; kosong → InvalidArgument.
-  rpc GetKeyStats(GetKeyStatsRequest) returns (KeyStatsRow);
-
-  // GET api.invezgo.com/analysis/financial-statement/{code}?statement=BS&type=Q → upsert balance_statement + balance_statement_updated_at.
-  // Baca Scylla by PK code; refresh API bila balance_statement_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
-  // Response: BalanceStatementRow. code wajib; kosong → InvalidArgument.
-  rpc GetBalanceStatement(GetBalanceStatementRequest) returns (BalanceStatementRow);
-
-  // GET api.invezgo.com/analysis/financial-statement/{code}?statement=IS&type=Q → upsert income_statement + income_statement_updated_at.
-  // Baca Scylla by PK code; refresh API bila income_statement_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
-  // Response: IncomeStatementRow. code wajib; kosong → InvalidArgument.
-  rpc GetIncomeStatement(GetIncomeStatementRequest) returns (IncomeStatementRow);
-
-  // GET api.invezgo.com/analysis/financial-statement/{code}?statement=CF&type=Q → upsert cash_flow + cash_flow_updated_at.
-  // Baca Scylla by PK code; refresh API bila cash_flow_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
-  // Response: CashFlowStatementRow. code wajib; kosong → InvalidArgument.
-  rpc GetCashFlowStatement(GetCashFlowStatementRequest) returns (CashFlowStatementRow);
+  // statement=KEYSTATS → GET /analysis/keystat/{code}?type=Q → upsert keystats + keystats_updated_at.
+  // statement=BS|IS|CF → GET /analysis/financial-statement/{code}?statement={BS|IS|CF}&type=Q&limit=8
+  //   → upsert balance_statement | income_statement | cash_flow + *_updated_at masing-masing.
+  // Baca Scylla by PK code; refresh API bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Request: code wajib, statement wajib (KEYSTATS|BS|IS|CF). Response: FinancialStatementResponse.
+  rpc GetFinancialStatement(GetFinancialStatementRequest) returns (FinancialStatementResponse);
 
   // GET api.invezgo.com/analysis/shareholder-detail/{code} → upsert share_holder_5 + share_holder_5_updated_at.
   // Baca Scylla by PK code; refresh API bila share_holder_5_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Response: ShareHolder5Row. code wajib; kosong → InvalidArgument.
   rpc GetShareHolder5(GetShareHolder5Request) returns (ShareHolder5Row);
+
+  // GET api.invezgo.com/analysis/shareholder-detail-one?code={code} → upsert share_holder_1 + share_holder_1_updated_at.
+  // Baca Scylla by PK code; refresh API bila share_holder_1_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Response: ShareHolder1Row. code wajib; kosong → InvalidArgument.
+  rpc GetShareHolder1(GetShareHolder1Request) returns (ShareHolder1Row);
 }
 
-message GetStockListRequest {}
+message GetAllStocksRequest {}
 
-message GetKeyStatsRequest {
+message GetFinancialStatementRequest {
   string code = 1;
-}
-
-message GetBalanceStatementRequest {
-  string code = 1;
-}
-
-message GetIncomeStatementRequest {
-  string code = 1;
-}
-
-message GetCashFlowStatementRequest {
-  string code = 1;
+  // KEYSTATS | BS | IS | CF
+  string statement = 2;
 }
 
 message GetShareHolder5Request {
+  string code = 1;
+}
+
+message GetShareHolder1Request {
   string code = 1;
 }
 
@@ -74,11 +60,13 @@ message KeyStatsColumn {
   string period = 3;
 }
 
-message KeyStatsRow {
+message FinancialStatementResponse {
   string code = 1;
-  repeated KeyStatsRowItem rows = 2;
-  repeated KeyStatsColumn columns = 3;
-  optional int64 keystats_updated_at = 4; // Unix seconds UTC
+  string statement = 2;
+  repeated KeyStatsRowItem keystats_rows = 3;
+  repeated FinancialStatementRowItem rows = 4;
+  repeated KeyStatsColumn columns = 5;
+  optional int64 updated_at = 6; // Unix seconds UTC
 }
 
 message FinancialStatementRowItem {
@@ -89,27 +77,6 @@ message FinancialStatementRowItem {
   optional string parent_id = 5;
   bool is_abstract = 6;
   int32 display_order = 7;
-}
-
-message BalanceStatementRow {
-  string code = 1;
-  repeated FinancialStatementRowItem rows = 2;
-  repeated KeyStatsColumn columns = 3;
-  optional int64 balance_statement_updated_at = 4; // Unix seconds UTC
-}
-
-message IncomeStatementRow {
-  string code = 1;
-  repeated FinancialStatementRowItem rows = 2;
-  repeated KeyStatsColumn columns = 3;
-  optional int64 income_statement_updated_at = 4; // Unix seconds UTC
-}
-
-message CashFlowStatementRow {
-  string code = 1;
-  repeated FinancialStatementRowItem rows = 2;
-  repeated KeyStatsColumn columns = 3;
-  optional int64 cash_flow_updated_at = 4; // Unix seconds UTC
 }
 
 message ShareHolder5Entry {
@@ -126,6 +93,25 @@ message ShareHolder5Row {
   optional int64 share_holder_5_updated_at = 3; // Unix seconds UTC
 }
 
+message ShareHolder1Entry {
+  string code = 1;
+  string name = 2;
+  string type = 3;
+  string status = 4;
+  string nationality = 5;
+  string domicile = 6;
+  string scripless = 7;
+  string scrip = 8;
+  string total = 9;
+  double percentage = 10;
+}
+
+message ShareHolder1Row {
+  string code = 1;
+  repeated ShareHolder1Entry items = 2;
+  optional int64 share_holder_1_updated_at = 3; // Unix seconds UTC
+}
+
 message StockListRow {
   string code = 1;
   string name = 2;
@@ -134,7 +120,7 @@ message StockListRow {
   optional int64 keystats_updated_at = 5; // Unix seconds UTC
 }
 
-message GetStockListResponse {
+message GetAllStocksResponse {
   bool success = 1;
   string message = 2;
   repeated StockListRow items = 3;
