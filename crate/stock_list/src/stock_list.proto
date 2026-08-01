@@ -3,14 +3,22 @@ syntax = "proto3";
 package stock_list;
 
 service StockList {
-  // GET api.invezgo.com/analysis/list/stock → upsert ke invezgood.stock_list.
-  // Bearer dari INVEZGO_BEARER_TOKEN. Response: success + pesan jumlah baris.
+  // Cek Redis StockListUpdatedAt: kosong atau >30 hari → GET Invezgo + upsert Scylla + set timestamp.
+  // Masih valid (<30 hari) → baca Scylla saja. Response: daftar saham.
   rpc GetStockList(GetStockListRequest) returns (GetStockListResponse);
 }
 
 message GetStockListRequest {}
 
+message StockListRow {
+  string code = 1;
+  string name = 2;
+  string sector = 3;
+  string logo = 4;
+}
+
 message GetStockListResponse {
   bool success = 1;
   string message = 2;
+  repeated StockListRow items = 3;
 }

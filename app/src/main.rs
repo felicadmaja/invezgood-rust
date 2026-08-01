@@ -44,7 +44,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr = format!("{host}:{port}").parse()?;
 
     let session = connect().await?;
-    let stock_list = StockListService::new(session.clone());
+    let stock_list = StockListService::new(session.clone())
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     let top_gainer_loser = TopGainerLoserService::new(session.clone());
     let user = UserService::new(session);
 
@@ -55,9 +56,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
         .build_v1()?;
 
+    let mut builder = Server::builder();
+
+    if tls::use_tls_from_env() {
+        let tls_config = tls::load_tls_config()?;
+        println!("TLS enabled: gRPC server accepting HTTPS connections");
+        builder = builder.tls_config(tls_config)?;
+    }
+
     println!("invezgood gRPC listening on {addr} (reflection enabled)");
 
-    Server::builder()
+    builder
         .add_service(reflection)
         .add_service(InvezgoodServer::new(InvezgoodService))
         .add_service(StockListServer::new(stock_list))

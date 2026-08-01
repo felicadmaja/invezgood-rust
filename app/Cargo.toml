@@ -13,7 +13,8 @@ stock_list = { path = "../crate/stock_list" }
 user = { path = "../crate/user" }
 top_gainer_loser = { path = "../crate/top_gainer_loser" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-tonic = "0.12"
+tls = { path = "../crate/tls" }
+tonic = { version = "0.12", features = ["tls"] }
 tonic-reflection = "0.12"
 prost = "0.13"
 
