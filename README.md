@@ -57,10 +57,7 @@ grpcurl -plaintext localhost:50054 list
 grpcurl -plaintext -d '{"message":"hello"}' localhost:50054 invezgood.Invezgood/Ping
 
 # sync dari Invezgo → Scylla
-grpcurl -plaintext -d '{}' localhost:50054 stock_list.StockList/GetStockListFromInvezgo
-
-# baca semua baris dari Scylla (token ring scan)
-grpcurl -plaintext -d '{}' localhost:50054 stock_list.StockList/GetStockListFromScylla
+grpcurl -plaintext -d '{}' localhost:50054 stock_list.StockList/GetStockList
 
 # daftar user dari Scylla
 grpcurl -plaintext -d '{}' localhost:50054 user.User/GetUsersFromScylla

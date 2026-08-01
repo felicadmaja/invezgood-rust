@@ -5,27 +5,12 @@ package stock_list;
 service StockList {
   // GET api.invezgo.com/analysis/list/stock → upsert ke invezgood.stock_list.
   // Bearer dari INVEZGO_BEARER_TOKEN. Response: success + pesan jumlah baris.
-  rpc GetStockListFromInvezgo(GetStockListFromInvezgoRequest) returns (GetStockListFromInvezgoResponse);
-  // Token ring scan invezgood.stock_list; baca semua partition, read-only.
-  rpc GetStockListFromScylla(GetStockListFromScyllaRequest) returns (GetStockListFromScyllaResponse);
+  rpc GetStockList(GetStockListRequest) returns (GetStockListResponse);
 }
 
-message GetStockListFromInvezgoRequest {}
+message GetStockListRequest {}
 
-message GetStockListFromInvezgoResponse {
+message GetStockListResponse {
   bool success = 1;
   string message = 2;
-}
-
-message GetStockListFromScyllaRequest {}
-
-message StockListRow {
-  string code = 1;
-  string name = 2;
-  string sector = 3;
-  string logo = 4;
-}
-
-message GetStockListFromScyllaResponse {
-  repeated StockListRow items = 1;
 }
