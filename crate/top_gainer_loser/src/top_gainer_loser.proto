@@ -3,6 +3,17 @@ syntax = "proto3";
 package top_gainer_loser;
 
 service TopGainerLoser {
+  // GET api.invezgo.com/analysis/top/change?date={tahun_bulan_tanggal|hari_ini}&filter_column=change → upsert invezgood.top_gainer_loser.
+  // Request opsional tahun_bulan_tanggal (YYYY-MM-DD); bila kosong pakai hari ini. gain→tipe=gain, loss→tipe=loser.
+  rpc GetTopGainerLoser(GetTopGainerLoserRequest) returns (GetTopGainerLoserResponse);
+}
+
+message GetTopGainerLoserRequest {
+  optional string tahun_bulan_tanggal = 1;
+}
+
+message GetTopGainerLoserResponse {
+  repeated TopGainerLoserRow items = 1;
 }
 
 message GraphPoint {
@@ -20,5 +31,6 @@ message TopGainerLoserRow {
   string volume = 7;
   string logo = 8;
   double calculated_value = 9;
-  repeated GraphPoint graph = 10;
+  string tipe = 10;
+  repeated GraphPoint graph = 11;
 }

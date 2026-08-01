@@ -1922,7 +1922,10 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "prost",
+ "reqwest",
  "scylla",
+ "serde",
+ "serde_json",
  "tonic",
  "tonic-build",
 ]

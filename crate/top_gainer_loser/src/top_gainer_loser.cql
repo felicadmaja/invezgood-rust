@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS invezgood.top_gainer_loser (
     volume              text,
     logo                text,
     calculated_value    double,
+    tipe                text,
     graph               frozen<list<frozen<top_gainer_loser_graph_point>>>,
     PRIMARY KEY (tahun_bulan_tanggal, code)
 );
@@ -27,7 +28,8 @@ CREATE TABLE IF NOT EXISTS invezgood.top_gainer_loser (
 -- | column_name      | kind            | type                                              |
 -- |------------------|-----------------|---------------------------------------------------|
 -- | tahun_bulan_tanggal | partition_key   | date                                              |
--- | code             | clustering_key  | text                                              |
+-- | code                | clustering_key  | text                                              |
+-- | tipe                | regular         | text ("gain" | "loser")                           |
 -- | name             | regular         | text                                              |
 -- | price            | regular         | double                                            |
 -- | change_pct       | regular         | double                                            |

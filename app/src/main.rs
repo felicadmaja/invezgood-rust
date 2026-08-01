@@ -45,8 +45,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let session = connect().await?;
     let stock_list = StockListService::new(session.clone());
+    let top_gainer_loser = TopGainerLoserService::new(session.clone());
     let user = UserService::new(session);
-    let top_gainer_loser = TopGainerLoserService::new();
 
     let reflection = ReflectionBuilder::configure()
         .register_encoded_file_descriptor_set(stock_list::FILE_DESCRIPTOR_SET)

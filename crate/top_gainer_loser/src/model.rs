@@ -30,5 +30,7 @@ pub struct TopGainerLoserRow {
     #[scylla(default_when_null)]
     pub calculated_value: Option<f64>,
     #[scylla(default_when_null)]
+    pub tipe: Option<String>,
+    #[scylla(default_when_null)]
     pub graph: Option<Vec<GraphPoint>>,
 }
