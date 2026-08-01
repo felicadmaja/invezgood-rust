@@ -4,24 +4,26 @@
 -- Table: invezgood.stock_list
 
 -- Skema aktual:
--- | column_name                  | kind           | type                                    |
--- |------------------------------|----------------|-----------------------------------------|
--- | code                         | partition_key  | text                                    |
--- | name                         | regular        | text                                    |
--- | sector                       | regular        | text                                    |
--- | logo                         | regular        | text                                    |
--- | keystats                     | regular        | frozen<stock_list_keystats>             |
--- | keystats_updated_at          | regular        | timestamp                               |
--- | balance_statement            | regular        | frozen<stock_list_balance_statement>    |
--- | balance_statement_updated_at | regular        | timestamp                               |
--- | income_statement             | regular        | frozen<stock_list_income_statement>     |
--- | income_statement_updated_at  | regular        | timestamp                               |
--- | cash_flow                    | regular        | frozen<stock_list_cash_flow>            |
--- | cash_flow_updated_at         | regular        | timestamp                               |
--- | share_holder_5               | regular        | frozen<list<frozen<share_holder_5_entry>>> |
--- | share_holder_5_updated_at    | regular        | timestamp                               |
--- | share_holder_1               | regular        | frozen<list<frozen<share_holder_1_entry>>> |
--- | share_holder_1_updated_at    | regular        | timestamp                               |
+-- | column_name                         | kind           | type                                    |
+-- |-------------------------------------|----------------|-----------------------------------------|
+-- | code                                | partition_key  | text                                    |
+-- | name                                | regular        | text                                    |
+-- | sector                              | regular        | text                                    |
+-- | logo                                | regular        | text                                    |
+-- | keystats                            | regular        | frozen<stock_list_keystats>             |
+-- | keystats_updated_at                 | regular        | timestamp                               |
+-- | balance_statement                   | regular        | frozen<stock_list_balance_statement>    |
+-- | balance_statement_updated_at        | regular        | timestamp                               |
+-- | income_statement                    | regular        | frozen<stock_list_income_statement>     |
+-- | income_statement_updated_at       | regular        | timestamp                               |
+-- | cash_flow                           | regular        | frozen<stock_list_cash_flow>            |
+-- | cash_flow_updated_at                | regular        | timestamp                               |
+-- | share_holder_5                      | regular        | frozen<list<frozen<share_holder_5_entry>>> |
+-- | share_holder_5_updated_at           | regular        | timestamp                               |
+-- | share_holder_1                      | regular        | frozen<list<frozen<share_holder_1_entry>>> |
+-- | share_holder_1_updated_at           | regular        | timestamp                               |
+-- | share_holder_composition            | regular        | frozen<list<frozen<share_holder_composition_entry>>> |
+-- | share_holder_composition_updated_at | regular        | timestamp                               |
 --
 -- UDT stock_list_keystats:
 --   rows    → list<{ id, name, values: list<{ col, year, amount, period }> }>
@@ -38,3 +40,7 @@
 -- UDT share_holder_1_entry:
 --   name, holder_type, status, nationality, domicile, scripless, scrip, total, percentage
 --   API: GET /analysis/shareholder-detail-one?code={code}
+--
+-- UDT share_holder_composition_entry:
+--   name text, percentage double, badge text
+--   API: GET /analysis/shareholder/{code}

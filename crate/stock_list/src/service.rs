@@ -4,16 +4,33 @@ use chrono::{DateTime, Utc};
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 
-use crate::model::{BalanceStatement, Keystats, ShareHolder1, ShareHolder5, StockListRow as DbStockListRow};
+use crate::model::{
+    BalanceStatement, Keystats, ShareHolder1, ShareHolder5, ShareHolderComposition,
+    StockListRow as DbStockListRow,
+};
 use crate::pb::stock_list_server::StockList;
 use crate::pb::{
     FinancialStatementResponse, FinancialStatementRowItem, GetAllStocksRequest, GetAllStocksResponse,
-    GetFinancialStatementRequest, GetShareHolder1Request, GetShareHolder5Request, KeyStatsColumn,
-    KeyStatsRowItem, KeyStatsValue, ShareHolder1Entry, ShareHolder1Row, ShareHolder5Entry,
-    ShareHolder5Row, StockListRow,
+    GetFinancialStatementByCodeRequest, GetShareHolderByCodeRequest, KeystatsData, KeyStatsColumn,
+    KeyStatsRowItem, KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data,
+    ShareHolder5Entry, ShareHolderByCodeResponse, ShareHolderCompositionData,
+    ShareHolderCompositionEntry, StatementPanelData, StockListRow,
 };
 
 const CACHE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
+
+const ALL_STATEMENT_KINDS: [StatementKind; 4] = [
+    StatementKind::Keystats,
+    StatementKind::Bs,
+    StatementKind::Is,
+    StatementKind::Cf,
+];
+
+const ALL_SHARE_HOLDER_KINDS: [ShareHolderKind; 3] = [
+    ShareHolderKind::Holder5,
+    ShareHolderKind::Holder1,
+    ShareHolderKind::Composition,
+];
 
 #[derive(Clone, Copy)]
 enum StatementKind {
@@ -24,33 +41,29 @@ enum StatementKind {
 }
 
 impl StatementKind {
-    fn parse(raw: &str) -> Result<Self, Status> {
-        match raw.trim().to_ascii_uppercase().as_str() {
-            "KEYSTATS" | "KS" => Ok(Self::Keystats),
-            "BS" => Ok(Self::Bs),
-            "IS" => Ok(Self::Is),
-            "CF" => Ok(Self::Cf),
-            other => Err(Status::invalid_argument(format!(
-                "statement tidak dikenal: {other} (gunakan KEYSTATS, BS, IS, atau CF)"
-            ))),
-        }
-    }
-
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Keystats => "KEYSTATS",
-            Self::Bs => "BS",
-            Self::Is => "IS",
-            Self::Cf => "CF",
-        }
-    }
-
     fn updated_at(self, row: &DbStockListRow) -> Option<DateTime<Utc>> {
         match self {
             Self::Keystats => row.keystats_updated_at,
             Self::Bs => row.balance_statement_updated_at,
             Self::Is => row.income_statement_updated_at,
             Self::Cf => row.cash_flow_updated_at,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ShareHolderKind {
+    Holder5,
+    Holder1,
+    Composition,
+}
+
+impl ShareHolderKind {
+    fn updated_at(self, row: &DbStockListRow) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Holder5 => row.share_holder_5_updated_at,
+            Self::Holder1 => row.share_holder_1_updated_at,
+            Self::Composition => row.share_holder_composition_updated_at,
         }
     }
 }
@@ -117,31 +130,12 @@ impl StockListService {
             .collect()
     }
 
-    fn panel_to_proto(
-        code: String,
-        kind: StatementKind,
-        statement: BalanceStatement,
-        updated_at: Option<DateTime<Utc>>,
-    ) -> FinancialStatementResponse {
-        FinancialStatementResponse {
-            code,
-            statement: kind.as_str().into(),
-            keystats_rows: Vec::new(),
-            rows: Self::financial_rows_to_proto(statement.rows),
-            columns: Self::columns_to_proto(statement.columns),
-            updated_at: updated_at.map(|dt| dt.timestamp()),
-        }
-    }
-
-    fn keystats_to_proto(
-        code: String,
+    fn keystats_data_from_model(
         keystats: Keystats,
         updated_at: Option<DateTime<Utc>>,
-    ) -> FinancialStatementResponse {
-        FinancialStatementResponse {
-            code,
-            statement: StatementKind::Keystats.as_str().into(),
-            keystats_rows: keystats
+    ) -> KeystatsData {
+        KeystatsData {
+            rows: keystats
                 .rows
                 .into_iter()
                 .map(|row| KeyStatsRowItem {
@@ -159,46 +153,80 @@ impl StockListService {
                         .collect(),
                 })
                 .collect(),
-            rows: Vec::new(),
             columns: Self::columns_to_proto(keystats.columns),
             updated_at: updated_at.map(|dt| dt.timestamp()),
         }
     }
 
-    fn share_holder_5_to_proto(
-        code: String,
+    fn panel_data_from_model(
+        statement: BalanceStatement,
+        updated_at: Option<DateTime<Utc>>,
+    ) -> StatementPanelData {
+        StatementPanelData {
+            rows: Self::financial_rows_to_proto(statement.rows),
+            columns: Self::columns_to_proto(statement.columns),
+            updated_at: updated_at.map(|dt| dt.timestamp()),
+        }
+    }
+
+    fn financial_statement_from_db_row(row: &DbStockListRow) -> FinancialStatementResponse {
+        let keystats = row.keystats.clone().map(|db| {
+            Self::keystats_data_from_model(Keystats::from(db), row.keystats_updated_at)
+        });
+
+        let balance_statement = row.balance_statement.clone().map(|db| {
+            Self::panel_data_from_model(BalanceStatement::from(db), row.balance_statement_updated_at)
+        });
+
+        let income_statement = row.income_statement.clone().map(|db| {
+            Self::panel_data_from_model(BalanceStatement::from(db), row.income_statement_updated_at)
+        });
+
+        let cash_flow = row.cash_flow.clone().map(|db| {
+            Self::panel_data_from_model(BalanceStatement::from(db), row.cash_flow_updated_at)
+        });
+
+        FinancialStatementResponse {
+            code: row.code.clone(),
+            keystats,
+            balance_statement,
+            income_statement,
+            cash_flow,
+        }
+    }
+
+    fn share_holder_5_data(
+        code: &str,
         entries: ShareHolder5,
         updated_at: Option<DateTime<Utc>>,
-    ) -> ShareHolder5Row {
-        ShareHolder5Row {
-            code: code.clone(),
+    ) -> ShareHolder5Data {
+        ShareHolder5Data {
             items: entries
                 .items
                 .into_iter()
                 .map(|entry| ShareHolder5Entry {
-                    code: code.clone(),
+                    code: code.to_string(),
                     name: entry.name,
                     date: entry.date.timestamp(),
                     val: entry.val,
                     percent: entry.percent,
                 })
                 .collect(),
-            share_holder_5_updated_at: updated_at.map(|dt| dt.timestamp()),
+            updated_at: updated_at.map(|dt| dt.timestamp()),
         }
     }
 
-    fn share_holder_1_to_proto(
-        code: String,
+    fn share_holder_1_data(
+        code: &str,
         entries: ShareHolder1,
         updated_at: Option<DateTime<Utc>>,
-    ) -> ShareHolder1Row {
-        ShareHolder1Row {
-            code: code.clone(),
+    ) -> ShareHolder1Data {
+        ShareHolder1Data {
             items: entries
                 .items
                 .into_iter()
                 .map(|entry| ShareHolder1Entry {
-                    code: code.clone(),
+                    code: code.to_string(),
                     name: entry.name,
                     r#type: entry.holder_type,
                     status: entry.status,
@@ -210,155 +238,118 @@ impl StockListService {
                     percentage: entry.percentage,
                 })
                 .collect(),
-            share_holder_1_updated_at: updated_at.map(|dt| dt.timestamp()),
+            updated_at: updated_at.map(|dt| dt.timestamp()),
         }
     }
 
-    fn keystats_from_db_row(row: &DbStockListRow) -> Result<(Keystats, Option<DateTime<Utc>>), Status> {
-        let Some(keystats_db) = row.keystats.clone() else {
-            return Err(Status::not_found(format!(
-                "keystats belum tersedia untuk code={}",
-                row.code
-            )));
-        };
-
-        Ok((Keystats::from(keystats_db), row.keystats_updated_at))
+    fn share_holder_composition_data(
+        code: &str,
+        entries: ShareHolderComposition,
+        updated_at: Option<DateTime<Utc>>,
+    ) -> ShareHolderCompositionData {
+        ShareHolderCompositionData {
+            items: entries
+                .items
+                .into_iter()
+                .map(|entry| ShareHolderCompositionEntry {
+                    code: code.to_string(),
+                    name: entry.name,
+                    percentage: entry.percentage,
+                    badge: entry.badge,
+                })
+                .collect(),
+            updated_at: updated_at.map(|dt| dt.timestamp()),
+        }
     }
 
-    fn balance_from_db_row(row: &DbStockListRow) -> Result<(BalanceStatement, Option<DateTime<Utc>>), Status> {
-        let Some(balance_db) = row.balance_statement.clone() else {
-            return Err(Status::not_found(format!(
-                "balance_statement belum tersedia untuk code={}",
-                row.code
-            )));
-        };
+    fn share_holder_by_code_from_db_row(row: &DbStockListRow) -> ShareHolderByCodeResponse {
+        let code = row.code.as_str();
 
-        Ok((BalanceStatement::from(balance_db), row.balance_statement_updated_at))
+        let share_holder_5 = row.share_holder_5.clone().map(|db| {
+            Self::share_holder_5_data(
+                code,
+                ShareHolder5::from(Some(db)),
+                row.share_holder_5_updated_at,
+            )
+        });
+
+        let share_holder_1 = row.share_holder_1.clone().map(|db| {
+            Self::share_holder_1_data(
+                code,
+                ShareHolder1::from(Some(db)),
+                row.share_holder_1_updated_at,
+            )
+        });
+
+        let share_holder_composition = row.share_holder_composition.clone().map(|db| {
+            Self::share_holder_composition_data(
+                code,
+                ShareHolderComposition::from(Some(db)),
+                row.share_holder_composition_updated_at,
+            )
+        });
+
+        ShareHolderByCodeResponse {
+            code: row.code.clone(),
+            share_holder_5,
+            share_holder_1,
+            share_holder_composition,
+        }
     }
 
-    fn income_from_db_row(row: &DbStockListRow) -> Result<(BalanceStatement, Option<DateTime<Utc>>), Status> {
-        let Some(income_db) = row.income_statement.clone() else {
-            return Err(Status::not_found(format!(
-                "income_statement belum tersedia untuk code={}",
-                row.code
-            )));
-        };
-
-        Ok((BalanceStatement::from(income_db), row.income_statement_updated_at))
-    }
-
-    fn cash_flow_from_db_row(row: &DbStockListRow) -> Result<(BalanceStatement, Option<DateTime<Utc>>), Status> {
-        let Some(cash_flow_db) = row.cash_flow.clone() else {
-            return Err(Status::not_found(format!(
-                "cash_flow belum tersedia untuk code={}",
-                row.code
-            )));
-        };
-
-        Ok((BalanceStatement::from(cash_flow_db), row.cash_flow_updated_at))
-    }
-
-    fn share_holder_5_from_db_row(
-        row: &DbStockListRow,
-    ) -> Result<(ShareHolder5, Option<DateTime<Utc>>), Status> {
-        let Some(entries_db) = row.share_holder_5.clone() else {
-            return Err(Status::not_found(format!(
-                "share_holder_5 belum tersedia untuk code={}",
-                row.code
-            )));
-        };
-
-        Ok((ShareHolder5::from(Some(entries_db)), row.share_holder_5_updated_at))
-    }
-
-    fn share_holder_1_from_db_row(
-        row: &DbStockListRow,
-    ) -> Result<(ShareHolder1, Option<DateTime<Utc>>), Status> {
-        let Some(entries_db) = row.share_holder_1.clone() else {
-            return Err(Status::not_found(format!(
-                "share_holder_1 belum tersedia untuk code={}",
-                row.code
-            )));
-        };
-
-        Ok((ShareHolder1::from(Some(entries_db)), row.share_holder_1_updated_at))
-    }
-
-    async fn fetch_and_save_statement(
+    async fn refresh_statement_if_stale(
         session: Arc<Session>,
         code: &str,
         kind: StatementKind,
-    ) -> Result<FinancialStatementResponse, Status> {
+    ) -> Result<(), Status> {
         match kind {
             StatementKind::Keystats => {
-                let (keystats, updated_at) =
-                    crate::invezgo::fetch_and_save_keystats(session, code)
-                        .await
-                        .map_err(Status::internal)?;
-                Ok(Self::keystats_to_proto(code.to_string(), keystats, Some(updated_at)))
+                crate::invezgo::fetch_and_save_keystats(session, code)
+                    .await
+                    .map_err(Status::internal)?;
             }
             StatementKind::Bs => {
-                let (statement, updated_at) =
-                    crate::invezgo::fetch_and_save_balance_statement(session, code)
-                        .await
-                        .map_err(Status::internal)?;
-                Ok(Self::panel_to_proto(
-                    code.to_string(),
-                    kind,
-                    statement,
-                    Some(updated_at),
-                ))
+                crate::invezgo::fetch_and_save_balance_statement(session, code)
+                    .await
+                    .map_err(Status::internal)?;
             }
             StatementKind::Is => {
-                let (statement, updated_at) =
-                    crate::invezgo::fetch_and_save_income_statement(session, code)
-                        .await
-                        .map_err(Status::internal)?;
-                Ok(Self::panel_to_proto(
-                    code.to_string(),
-                    kind,
-                    statement,
-                    Some(updated_at),
-                ))
+                crate::invezgo::fetch_and_save_income_statement(session, code)
+                    .await
+                    .map_err(Status::internal)?;
             }
             StatementKind::Cf => {
-                let (statement, updated_at) =
-                    crate::invezgo::fetch_and_save_cash_flow(session, code)
-                        .await
-                        .map_err(Status::internal)?;
-                Ok(Self::panel_to_proto(
-                    code.to_string(),
-                    kind,
-                    statement,
-                    Some(updated_at),
-                ))
+                crate::invezgo::fetch_and_save_cash_flow(session, code)
+                    .await
+                    .map_err(Status::internal)?;
             }
         }
+        Ok(())
     }
 
-    fn statement_from_db_row(
-        row: &DbStockListRow,
-        kind: StatementKind,
-    ) -> Result<FinancialStatementResponse, Status> {
-        let code = row.code.clone();
+    async fn refresh_share_holder_if_stale(
+        session: Arc<Session>,
+        code: &str,
+        kind: ShareHolderKind,
+    ) -> Result<(), Status> {
         match kind {
-            StatementKind::Keystats => {
-                let (keystats, updated_at) = Self::keystats_from_db_row(row)?;
-                Ok(Self::keystats_to_proto(code, keystats, updated_at))
+            ShareHolderKind::Holder5 => {
+                crate::invezgo::fetch_and_save_share_holder_5(session, code)
+                    .await
+                    .map_err(Status::internal)?;
             }
-            StatementKind::Bs => {
-                let (statement, updated_at) = Self::balance_from_db_row(row)?;
-                Ok(Self::panel_to_proto(code, kind, statement, updated_at))
+            ShareHolderKind::Holder1 => {
+                crate::invezgo::fetch_and_save_share_holder_1(session, code)
+                    .await
+                    .map_err(Status::internal)?;
             }
-            StatementKind::Is => {
-                let (statement, updated_at) = Self::income_from_db_row(row)?;
-                Ok(Self::panel_to_proto(code, kind, statement, updated_at))
-            }
-            StatementKind::Cf => {
-                let (statement, updated_at) = Self::cash_flow_from_db_row(row)?;
-                Ok(Self::panel_to_proto(code, kind, statement, updated_at))
+            ShareHolderKind::Composition => {
+                crate::invezgo::fetch_and_save_share_holder_composition(session, code)
+                    .await
+                    .map_err(Status::internal)?;
             }
         }
+        Ok(())
     }
 }
 
@@ -403,123 +394,71 @@ impl StockList for StockListService {
         }))
     }
 
-    async fn get_financial_statement(
+    async fn get_financial_statement_by_code(
         &self,
-        request: Request<GetFinancialStatementRequest>,
+        request: Request<GetFinancialStatementByCodeRequest>,
     ) -> Result<Response<FinancialStatementResponse>, Status> {
-        let req = request.into_inner();
-        let code = req.code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
-        }
-
-        let kind = StatementKind::parse(&req.statement)?;
-
-        let existing = crate::repository::get_by_code(self.session.as_ref(), &code)
-            .await
-            .map_err(Status::internal)?;
-
-        let refresh = existing
-            .as_ref()
-            .map(|row| Self::should_refresh(kind.updated_at(row)))
-            .unwrap_or(true);
-
-        if refresh {
-            let response =
-                Self::fetch_and_save_statement(self.session.clone(), &code, kind).await?;
-            return Ok(Response::new(response));
-        }
-
-        let row = existing.ok_or_else(|| {
-            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-        })?;
-
-        Ok(Response::new(Self::statement_from_db_row(&row, kind)?))
-    }
-
-    async fn get_share_holder5(
-        &self,
-        request: Request<GetShareHolder5Request>,
-    ) -> Result<Response<ShareHolder5Row>, Status> {
         let code = request.into_inner().code.trim().to_ascii_uppercase();
         if code.is_empty() {
             return Err(Status::invalid_argument("code wajib diisi"));
         }
 
-        let existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+        let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
             .await
             .map_err(Status::internal)?;
 
-        let refresh = existing
-            .as_ref()
-            .map(|row| Self::should_refresh(row.share_holder_5_updated_at))
-            .unwrap_or(true);
+        for kind in ALL_STATEMENT_KINDS {
+            let refresh = existing
+                .as_ref()
+                .map(|row| Self::should_refresh(kind.updated_at(row)))
+                .unwrap_or(true);
 
-        if refresh {
-            let (entries, updated_at) =
-                crate::invezgo::fetch_and_save_share_holder_5(self.session.clone(), &code)
+            if refresh {
+                Self::refresh_statement_if_stale(self.session.clone(), &code, kind).await?;
+                existing = crate::repository::get_by_code(self.session.as_ref(), &code)
                     .await
                     .map_err(Status::internal)?;
-
-            return Ok(Response::new(Self::share_holder_5_to_proto(
-                code,
-                entries,
-                Some(updated_at),
-            )));
+            }
         }
 
         let row = existing.ok_or_else(|| {
             Status::not_found(format!("stock_list code={code} tidak ditemukan"))
         })?;
 
-        let (entries, updated_at) = Self::share_holder_5_from_db_row(&row)?;
-        Ok(Response::new(Self::share_holder_5_to_proto(
-            code,
-            entries,
-            updated_at,
-        )))
+        Ok(Response::new(Self::financial_statement_from_db_row(&row)))
     }
 
-    async fn get_share_holder1(
+    async fn get_share_holder_by_code(
         &self,
-        request: Request<GetShareHolder1Request>,
-    ) -> Result<Response<ShareHolder1Row>, Status> {
+        request: Request<GetShareHolderByCodeRequest>,
+    ) -> Result<Response<ShareHolderByCodeResponse>, Status> {
         let code = request.into_inner().code.trim().to_ascii_uppercase();
         if code.is_empty() {
             return Err(Status::invalid_argument("code wajib diisi"));
         }
 
-        let existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+        let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
             .await
             .map_err(Status::internal)?;
 
-        let refresh = existing
-            .as_ref()
-            .map(|row| Self::should_refresh(row.share_holder_1_updated_at))
-            .unwrap_or(true);
+        for kind in ALL_SHARE_HOLDER_KINDS {
+            let refresh = existing
+                .as_ref()
+                .map(|row| Self::should_refresh(kind.updated_at(row)))
+                .unwrap_or(true);
 
-        if refresh {
-            let (entries, updated_at) =
-                crate::invezgo::fetch_and_save_share_holder_1(self.session.clone(), &code)
+            if refresh {
+                Self::refresh_share_holder_if_stale(self.session.clone(), &code, kind).await?;
+                existing = crate::repository::get_by_code(self.session.as_ref(), &code)
                     .await
                     .map_err(Status::internal)?;
-
-            return Ok(Response::new(Self::share_holder_1_to_proto(
-                code,
-                entries,
-                Some(updated_at),
-            )));
+            }
         }
 
         let row = existing.ok_or_else(|| {
             Status::not_found(format!("stock_list code={code} tidak ditemukan"))
         })?;
 
-        let (entries, updated_at) = Self::share_holder_1_from_db_row(&row)?;
-        Ok(Response::new(Self::share_holder_1_to_proto(
-            code,
-            entries,
-            updated_at,
-        )))
+        Ok(Response::new(Self::share_holder_by_code_from_db_row(&row)))
     }
 }

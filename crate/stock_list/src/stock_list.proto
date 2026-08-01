@@ -7,37 +7,24 @@ service StockList {
   // Masih valid (<30 hari) → baca Scylla saja. Response: daftar saham.
   rpc GetAllStocks(GetAllStocksRequest) returns (GetAllStocksResponse);
 
-  // statement=KEYSTATS → GET /analysis/keystat/{code}?type=Q → upsert keystats + keystats_updated_at.
-  // statement=BS|IS|CF → GET /analysis/financial-statement/{code}?statement={BS|IS|CF}&type=Q&limit=8
-  //   → upsert balance_statement | income_statement | cash_flow + *_updated_at masing-masing.
-  // Baca Scylla by PK code; refresh API bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
-  // Request: code wajib, statement wajib (KEYSTATS|BS|IS|CF). Response: FinancialStatementResponse.
-  rpc GetFinancialStatement(GetFinancialStatementRequest) returns (FinancialStatementResponse);
+  // GET Invezgo per jenis → upsert keystats, balance_statement, income_statement, cash_flow + *_updated_at.
+  // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Request: code wajib. Response: FinancialStatementResponse (keystats, balance_statement, income_statement, cash_flow).
+  rpc GetFinancialStatementByCode(GetFinancialStatementByCodeRequest) returns (FinancialStatementResponse);
 
-  // GET api.invezgo.com/analysis/shareholder-detail/{code} → upsert share_holder_5 + share_holder_5_updated_at.
-  // Baca Scylla by PK code; refresh API bila share_holder_5_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
-  // Response: ShareHolder5Row. code wajib; kosong → InvalidArgument.
-  rpc GetShareHolder5(GetShareHolder5Request) returns (ShareHolder5Row);
-
-  // GET api.invezgo.com/analysis/shareholder-detail-one?code={code} → upsert share_holder_1 + share_holder_1_updated_at.
-  // Baca Scylla by PK code; refresh API bila share_holder_1_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
-  // Response: ShareHolder1Row. code wajib; kosong → InvalidArgument.
-  rpc GetShareHolder1(GetShareHolder1Request) returns (ShareHolder1Row);
+  // GET Invezgo per jenis → upsert share_holder_5, share_holder_1, share_holder_composition + *_updated_at.
+  // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Request: code wajib. Response: ShareHolderByCodeResponse.
+  rpc GetShareHolderByCode(GetShareHolderByCodeRequest) returns (ShareHolderByCodeResponse);
 }
 
 message GetAllStocksRequest {}
 
-message GetFinancialStatementRequest {
-  string code = 1;
-  // KEYSTATS | BS | IS | CF
-  string statement = 2;
-}
-
-message GetShareHolder5Request {
+message GetFinancialStatementByCodeRequest {
   string code = 1;
 }
 
-message GetShareHolder1Request {
+message GetShareHolderByCodeRequest {
   string code = 1;
 }
 
@@ -60,13 +47,24 @@ message KeyStatsColumn {
   string period = 3;
 }
 
+message KeystatsData {
+  repeated KeyStatsRowItem rows = 1;
+  repeated KeyStatsColumn columns = 2;
+  optional int64 updated_at = 3; // Unix seconds UTC
+}
+
+message StatementPanelData {
+  repeated FinancialStatementRowItem rows = 1;
+  repeated KeyStatsColumn columns = 2;
+  optional int64 updated_at = 3; // Unix seconds UTC
+}
+
 message FinancialStatementResponse {
   string code = 1;
-  string statement = 2;
-  repeated KeyStatsRowItem keystats_rows = 3;
-  repeated FinancialStatementRowItem rows = 4;
-  repeated KeyStatsColumn columns = 5;
-  optional int64 updated_at = 6; // Unix seconds UTC
+  KeystatsData keystats = 2;
+  StatementPanelData balance_statement = 3;
+  StatementPanelData income_statement = 4;
+  StatementPanelData cash_flow = 5;
 }
 
 message FinancialStatementRowItem {
@@ -87,10 +85,26 @@ message ShareHolder5Entry {
   double percent = 5;
 }
 
-message ShareHolder5Row {
+message ShareHolder5Data {
+  repeated ShareHolder5Entry items = 1;
+  optional int64 updated_at = 2; // Unix seconds UTC
+}
+
+message ShareHolder1Data {
+  repeated ShareHolder1Entry items = 1;
+  optional int64 updated_at = 2; // Unix seconds UTC
+}
+
+message ShareHolderCompositionData {
+  repeated ShareHolderCompositionEntry items = 1;
+  optional int64 updated_at = 2; // Unix seconds UTC
+}
+
+message ShareHolderByCodeResponse {
   string code = 1;
-  repeated ShareHolder5Entry items = 2;
-  optional int64 share_holder_5_updated_at = 3; // Unix seconds UTC
+  ShareHolder5Data share_holder_5 = 2;
+  ShareHolder1Data share_holder_1 = 3;
+  ShareHolderCompositionData share_holder_composition = 4;
 }
 
 message ShareHolder1Entry {
@@ -106,10 +120,11 @@ message ShareHolder1Entry {
   double percentage = 10;
 }
 
-message ShareHolder1Row {
+message ShareHolderCompositionEntry {
   string code = 1;
-  repeated ShareHolder1Entry items = 2;
-  optional int64 share_holder_1_updated_at = 3; // Unix seconds UTC
+  string name = 2;
+  double percentage = 3;
+  string badge = 4;
 }
 
 message StockListRow {

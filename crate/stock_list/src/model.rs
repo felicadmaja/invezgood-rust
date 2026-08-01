@@ -56,6 +56,12 @@ pub type ShareHolder1EntryDb = (String, String, String, String, String, String, 
 /// Kolom `share_holder_1` — list entri pemegang saham detail >1%.
 pub type ShareHolder1Db = Option<Vec<ShareHolder1EntryDb>>;
 
+/// UDT `share_holder_composition_entry` — urutan field = (name, percentage, badge).
+pub type ShareHolderCompositionEntryDb = (String, f64, String);
+
+/// Kolom `share_holder_composition` — komposisi kepemilikan (pengendali, direksi, dll.).
+pub type ShareHolderCompositionDb = Option<Vec<ShareHolderCompositionEntryDb>>;
+
 /// Satu baris `invezgood.stock_list`.
 #[derive(Debug, Clone, DeserializeRow, SerializeRow)]
 pub struct StockListRow {
@@ -90,6 +96,22 @@ pub struct StockListRow {
     pub share_holder_1: ShareHolder1Db,
     #[scylla(default_when_null)]
     pub share_holder_1_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[scylla(default_when_null)]
+    pub share_holder_composition: ShareHolderCompositionDb,
+    #[scylla(default_when_null)]
+    pub share_holder_composition_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ShareHolderComposition {
+    pub items: Vec<ShareHolderCompositionEntry>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ShareHolderCompositionEntry {
+    pub name: String,
+    pub percentage: f64,
+    pub badge: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -410,6 +432,46 @@ impl From<ShareHolder1> for ShareHolder1Db {
                 .items
                 .into_iter()
                 .map(ShareHolder1EntryDb::from)
+                .collect(),
+        )
+    }
+}
+
+impl From<ShareHolderCompositionEntryDb> for ShareHolderCompositionEntry {
+    fn from((name, percentage, badge): ShareHolderCompositionEntryDb) -> Self {
+        Self {
+            name,
+            percentage,
+            badge,
+        }
+    }
+}
+
+impl From<ShareHolderCompositionEntry> for ShareHolderCompositionEntryDb {
+    fn from(e: ShareHolderCompositionEntry) -> Self {
+        (e.name, e.percentage, e.badge)
+    }
+}
+
+impl From<ShareHolderCompositionDb> for ShareHolderComposition {
+    fn from(entries: ShareHolderCompositionDb) -> Self {
+        Self {
+            items: entries
+                .unwrap_or_default()
+                .into_iter()
+                .map(ShareHolderCompositionEntry::from)
+                .collect(),
+        }
+    }
+}
+
+impl From<ShareHolderComposition> for ShareHolderCompositionDb {
+    fn from(entries: ShareHolderComposition) -> Self {
+        Some(
+            entries
+                .items
+                .into_iter()
+                .map(ShareHolderCompositionEntryDb::from)
                 .collect(),
         )
     }
