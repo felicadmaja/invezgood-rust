@@ -30,12 +30,14 @@ use crate::{
     GetTakeProfitWyckoffRequest, GetTakeProfitWyckoffResponse,
     UpdateTakeProfitWyckoffRequest, UpdateTakeProfitWyckoffResponse,
     GetWyckoffPhaseElementRequest, GetWyckoffPhaseElementResponse,
+    GetWyckoffHorizontalLineRequest, GetWyckoffHorizontalLineResponse,
     GetWyckoffTradingRangeRequest, GetWyckoffTradingRangeResponse,
+    UpdateWyckoffHorizontalLineRequest, UpdateWyckoffHorizontalLineResponse,
     UpdateWyckoffPhaseElementRequest, UpdateWyckoffPhaseElementResponse,
     UpdateWyckoffTradingRangeRequest, UpdateWyckoffTradingRangeResponse,
 };
 
-const MAX_EMITEN_SECTOR: i32 = 47;
+const MAX_EMITEN_SECTOR: i32 = 48;
 
 /// Trim + UPPERCASE; wajib tepat 4 huruf ASCII alphabet (A–Z).
 fn parse_emiten_name(raw: &str) -> Result<String, String> {
@@ -1104,6 +1106,89 @@ impl EmitenListRpc for EmitenListService {
         );
 
         Ok(Response::new(UpdateWyckoffTradingRangeResponse {
+            success,
+            message,
+        }))
+    }
+
+    async fn get_wyckoff_horizontal_line(
+        &self,
+        request: Request<GetWyckoffHorizontalLineRequest>,
+    ) -> Result<Response<GetWyckoffHorizontalLineResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_auth(&request)?;
+        let username = claims.name.clone();
+
+        let emiten_name = parse_emiten_name(&request.into_inner().emiten_name)
+            .map_err(Status::invalid_argument)?;
+
+        let row = self
+            .repo
+            .get_by_emiten_name(&emiten_name)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?
+            .ok_or_else(|| {
+                Status::not_found(format!(
+                    "emiten_list emiten_name={emiten_name} tidak ditemukan"
+                ))
+            })?;
+
+        println!(
+            "GetWyckoffHorizontalLine {} {} {}ms",
+            username,
+            emiten_name,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(GetWyckoffHorizontalLineResponse {
+            wyckoff_horizontal_line: row.wyckoff_horizontal_line,
+        }))
+    }
+
+    async fn update_wyckoff_horizontal_line(
+        &self,
+        request: Request<UpdateWyckoffHorizontalLineRequest>,
+    ) -> Result<Response<UpdateWyckoffHorizontalLineResponse>, Status> {
+        let started = Instant::now();
+        let claims = require_admin(&request)?;
+        let username = claims.name.clone();
+        let req = request.into_inner();
+
+        let emiten_name = match parse_emiten_name(&req.emiten_name) {
+            Ok(c) => c,
+            Err(message) => {
+                return Ok(Response::new(UpdateWyckoffHorizontalLineResponse {
+                    success: false,
+                    message,
+                }));
+            }
+        };
+
+        let updated = self
+            .repo
+            .update_wyckoff_horizontal_line(&emiten_name, &req.wyckoff_horizontal_line)
+            .await
+            .map_err(|e| Status::internal(format!("Scylla update failed: {e}")))?;
+
+        let (success, message) = if updated {
+            (
+                true,
+                format!("wyckoff_horizontal_line untuk {emiten_name} berhasil diupdate"),
+            )
+        } else {
+            (
+                false,
+                format!("emiten_list emiten_name={emiten_name} tidak ditemukan"),
+            )
+        };
+
+        println!(
+            "UpdateWyckoffHorizontalLine {} {emiten_name} success={success} {}ms",
+            username,
+            started.elapsed().as_millis()
+        );
+
+        Ok(Response::new(UpdateWyckoffHorizontalLineResponse {
             success,
             message,
         }))

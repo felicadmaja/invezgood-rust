@@ -89,6 +89,16 @@ impl PortofolioService {
             .map_err(|e| Status::internal(e))
     }
 
+    /// Auto poller: lock Chrome background (yield ke RPC client), tanpa bandarmology.
+    pub async fn scrape_from_stockbit_if_allowed_background(
+        &self,
+    ) -> Result<(usize, Vec<String>), Status> {
+        acquire_portfolio_scrape_slot().await?;
+        on_demand::scrape_portofolio_all_background(Arc::clone(&self.session))
+            .await
+            .map_err(|e| Status::internal(e))
+    }
+
     async fn load_equity_proto_rows(&self) -> Result<Vec<PortofolioEquityRow>, Status> {
         let rows = self
             .equity_repo

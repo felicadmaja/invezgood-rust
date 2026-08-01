@@ -25,18 +25,91 @@ use chromiumoxide::page::{Page, ScreenshotParams};
 use futures::StreamExt;
 use rand::Rng;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, watch, Mutex};
-use tokio::time::sleep;
+use tokio::sync::{mpsc, watch, Mutex, MutexGuard};
+use tokio::time::{sleep, timeout};
 
 /// Mutex global: satu Chrome profil — readiness poller dan on-demand scrape
 /// tidak boleh memakai browser bersamaan.
 static BROWSER_SESSION_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
+/// Jumlah task interactive (RPC client) yang sedang menunggu / memakai slot Chrome.
+static INTERACTIVE_WAITERS: AtomicUsize = AtomicUsize::new(0);
+
+/// Kelas akuisisi lock Chrome.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserLockClass {
+    /// RPC client — prioritas; tunggu lock (timeout) agar server tetap merespons.
+    Interactive,
+    /// Poller / auto-scrape — yield bila ada RPC client menunggu; skip cepat jika sibuk.
+    Background,
+}
+
+/// Timeout tunggu lock untuk RPC interactive (hindari hang "server tidak merespons").
+const INTERACTIVE_LOCK_TIMEOUT: Duration = Duration::from_secs(45);
+/// Timeout singkat untuk background; gagal → skip auto-scrape / poller step.
+const BACKGROUND_LOCK_TIMEOUT: Duration = Duration::from_secs(2);
+
 pub fn browser_session_lock() -> &'static Mutex<()> {
     BROWSER_SESSION_LOCK.get_or_init(|| Mutex::new(()))
+}
+
+/// True bila ada RPC client yang menunggu Chrome (background harus yield/skip).
+pub fn browser_interactive_waiters() -> usize {
+    INTERACTIVE_WAITERS.load(Ordering::SeqCst)
+}
+
+struct InteractiveWaitGuard;
+
+impl InteractiveWaitGuard {
+    fn enter() -> Self {
+        INTERACTIVE_WAITERS.fetch_add(1, Ordering::SeqCst);
+        Self
+    }
+}
+
+impl Drop for InteractiveWaitGuard {
+    fn drop(&mut self) {
+        INTERACTIVE_WAITERS.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// Ambil exclusive Chrome session.
+/// - `Interactive`: prioritas, timeout 45s → error jelas (bukan hang client).
+/// - `Background`: skip segera bila user menunggu / lock tidak didapat cepat.
+pub async fn acquire_browser_session(
+    class: BrowserLockClass,
+) -> Result<MutexGuard<'static, ()>, String> {
+    match class {
+        BrowserLockClass::Interactive => {
+            let _waiter = InteractiveWaitGuard::enter();
+            match timeout(INTERACTIVE_LOCK_TIMEOUT, browser_session_lock().lock()).await {
+                Ok(guard) => Ok(guard),
+                Err(_) => Err(
+                    "Chrome sibuk dipakai poller/scrape background. Coba lagi sebentar \
+                     (server merespons; bukan hang)."
+                        .into(),
+                ),
+            }
+        }
+        BrowserLockClass::Background => {
+            if browser_interactive_waiters() > 0 {
+                return Err("browser skip: RPC client menunggu Chrome".into());
+            }
+            match timeout(BACKGROUND_LOCK_TIMEOUT, browser_session_lock().lock()).await {
+                Ok(guard) => {
+                    if browser_interactive_waiters() > 0 {
+                        drop(guard);
+                        return Err("browser skip: RPC client menunggu Chrome".into());
+                    }
+                    Ok(guard)
+                }
+                Err(_) => Err("browser skip: Chrome sibuk".into()),
+            }
+        }
+    }
 }
 
 /// Chrome + page yang di-reuse antar scrape (hidup selama proses `stockbit_ws`).
@@ -948,37 +1021,6 @@ async fn login_and_return_to_stream(
     Ok(())
 }
 
-/// Login ulang; bila gagal, retry terus dengan jeda acak 10–30 detik.
-async fn login_and_return_to_stream_with_retry(
-    page: &Page,
-    email: &str,
-    password: &str,
-    tx: &mpsc::Sender<ReadinessUpdate>,
-) -> Result<(), StockbitError> {
-    let mut attempt: u32 = 0;
-    loop {
-        attempt += 1;
-        match login_and_return_to_stream(page, email, password).await {
-            Ok(()) => {
-                if attempt > 1 {
-                    println!("Stockbit readiness: login berhasil setelah {attempt} percobaan");
-                }
-                return Ok(());
-            }
-            Err(e) => {
-                let wait_secs =
-                    rand::thread_rng().gen_range(LOGIN_RETRY_MIN_SECS..=LOGIN_RETRY_MAX_SECS);
-                let msg = format!(
-                    "Login gagal (percobaan {attempt}): {e}; retry dalam {wait_secs}s"
-                );
-                eprintln!("Stockbit readiness: {msg}");
-                send_update(tx, false, &msg).await;
-                sleep(Duration::from_secs(wait_secs)).await;
-            }
-        }
-    }
-}
-
 async fn send_update(tx: &mpsc::Sender<ReadinessUpdate>, ready: bool, message: &str) {
     let _ = tx
         .send(ReadinessUpdate {
@@ -990,65 +1032,112 @@ async fn send_update(tx: &mpsc::Sender<ReadinessUpdate>, ready: bool, message: &
 }
 
 /// Cek `/stream`, login bila perlu, kirim progres lewat channel.
+///
+/// Lock Chrome **tidak** dipegang saat sleep/poll idle — supaya RPC client tetap bisa
+/// invoke scrape/browser sementara poller menunggu.
 pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<(), StockbitError> {
-    let _browser_guard = browser_session_lock().lock().await;
-
     let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
     let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
 
-    let (browser, page) = launch_page().await?;
-
-    goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
-    sleep(Duration::from_secs(1)).await;
-
-    let url = page.url().await?.unwrap_or_default();
-    // Durasi jendela + interval polling: random 60–300 detik (override: STOCKBIT_SESSION_CHECK_SECS).
+    // Durasi jendela cek (override: STOCKBIT_SESSION_CHECK_SECS); poll singkat tanpa pegang lock.
     let wait_secs: u64 = std::env::var("STOCKBIT_SESSION_CHECK_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or_else(|| rand::thread_rng().gen_range(60u64..=300));
     let started = Instant::now();
-    let mut need_login = is_login_url(&url);
+    let mut need_login = false;
     let mut session_expired = false;
+    let mut decided = false;
 
-    while started.elapsed() < Duration::from_secs(wait_secs) {
-        if has_profile_avatar_modal(&page).await {
-            dismiss_profile_avatar_modal(&page).await?;
-            break;
-        }
-        if has_session_expired_modal(&page).await {
-            session_expired = true;
-            need_login = true;
+    while started.elapsed() < Duration::from_secs(wait_secs) && !decided {
+        // Yield ke RPC client bila mereka menunggu Chrome.
+        if browser_interactive_waiters() > 0 {
             println!(
-                "Modal 'Sesi Kamu Sudah Habis' terdeteksi — akan klik 'Kembali ke Halaman Utama' lalu login..."
+                "Stockbit readiness: tunda cek sesaat — {} RPC client menunggu Chrome",
+                browser_interactive_waiters()
             );
-            let _ = save_error_screenshot(&page, "session_expired_modal").await;
+            sleep(Duration::from_secs(2)).await;
+            continue;
+        }
+
+        let _browser_guard = match acquire_browser_session(BrowserLockClass::Background).await {
+            Ok(g) => g,
+            Err(e) => {
+                println!("Stockbit readiness: {e} — retry cek setelah jeda");
+                sleep(Duration::from_secs(2)).await;
+                continue;
+            }
+        };
+
+        let (browser, page) = launch_page().await?;
+        let step = async {
+            goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
+            sleep(Duration::from_secs(1)).await;
+
+            if has_profile_avatar_modal(&page).await {
+                dismiss_profile_avatar_modal(&page).await?;
+                decided = true;
+                need_login = false;
+                return Ok::<(), StockbitError>(());
+            }
+            if has_session_expired_modal(&page).await {
+                session_expired = true;
+                need_login = true;
+                decided = true;
+                println!(
+                    "Modal 'Sesi Kamu Sudah Habis' terdeteksi — akan klik 'Kembali ke Halaman Utama' lalu login..."
+                );
+                let _ = save_error_screenshot(&page, "session_expired_modal").await;
+                return Ok(());
+            }
+            let u = page.url().await?.unwrap_or_default();
+            if is_login_url(&u) {
+                need_login = true;
+                decided = true;
+                return Ok(());
+            }
+            if is_stream_url(&u) && !has_login_form(&page).await {
+                need_login = false;
+                decided = true;
+                return Ok(());
+            }
+            Ok(())
+        }
+        .await;
+
+        browser.close().await;
+        drop(_browser_guard); // lepaskan lock sebelum sleep
+
+        step?;
+
+        if decided {
             break;
         }
-        let u = page.url().await?.unwrap_or_default();
-        if is_login_url(&u) {
-            // /stream di-redirect ke /login → perlu login ulang.
-            need_login = true;
-            break;
-        }
-        if is_stream_url(&u) && !has_login_form(&page).await {
-            // Tetap di /stream tanpa form login → sudah login.
-            break;
-        }
+
         let remaining = wait_secs.saturating_sub(started.elapsed().as_secs());
         if remaining == 0 {
             break;
         }
-        let poll_secs = rand::thread_rng().gen_range(60u64..=300).min(remaining);
+        // Poll singkat (2–5s) tanpa pegang lock — RPC client bisa masuk di celah ini.
+        let poll_secs = rand::thread_rng().gen_range(2u64..=5).min(remaining);
         sleep(Duration::from_secs(poll_secs)).await;
     }
 
-    let url = page.url().await?.unwrap_or_default();
-    if !need_login {
+    if !decided {
+        // Satu kali cek final di bawah lock.
+        let _browser_guard = acquire_browser_session(BrowserLockClass::Background)
+            .await
+            .map_err(|e| -> StockbitError { e.into() })?;
+        let (browser, page) = launch_page().await?;
+        goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
+        sleep(Duration::from_secs(1)).await;
         need_login = needs_relogin(&page).await;
         if has_session_expired_modal(&page).await {
             session_expired = true;
+            need_login = true;
         }
+        browser.close().await;
+        drop(_browser_guard);
     }
 
     if need_login {
@@ -1064,36 +1153,129 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
             send_update(&tx, false, "not authenticated — login ulang").await;
         }
         send_update(&tx, false, "Sedang login stockbit.com").await;
-        login_and_return_to_stream_with_retry(&page, &email, &password, &tx).await?;
-    } else if is_already_authenticated_on_stream(&page).await {
-        send_update(&tx, false, "Sesi aktif di /stream — skip login").await;
-    } else if !is_stream_url(&url) {
-        goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
-        sleep(Duration::from_secs(1)).await;
-        if needs_relogin(&page).await {
-            if email.trim().is_empty() || password.is_empty() {
-                return Err(
-                    "Perlu login stockbit.com, tapi STOCKBIT_EMAIL / STOCKBIT_PASSWORD kosong"
-                        .into(),
-                );
+        login_and_return_to_stream_with_retry_unlocked(&email, &password, &tx).await?;
+    } else {
+        // Pastikan masih authenticated / di /stream (lock singkat).
+        let _browser_guard = acquire_browser_session(BrowserLockClass::Background)
+            .await
+            .map_err(|e| -> StockbitError { e.into() })?;
+        let (browser, page) = launch_page().await?;
+        let url = page.url().await?.unwrap_or_default();
+        if is_already_authenticated_on_stream(&page).await {
+            send_update(&tx, false, "Sesi aktif di /stream — skip login").await;
+        } else if !is_stream_url(&url) {
+            goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
+            sleep(Duration::from_secs(1)).await;
+            if needs_relogin(&page).await {
+                browser.close().await;
+                drop(_browser_guard);
+                if email.trim().is_empty() || password.is_empty() {
+                    return Err(
+                        "Perlu login stockbit.com, tapi STOCKBIT_EMAIL / STOCKBIT_PASSWORD kosong"
+                            .into(),
+                    );
+                }
+                send_update(&tx, false, "Sedang login stockbit.com").await;
+                login_and_return_to_stream_with_retry_unlocked(&email, &password, &tx).await?;
+                // verify below
+                let _browser_guard = acquire_browser_session(BrowserLockClass::Background)
+                    .await
+                    .map_err(|e| -> StockbitError { e.into() })?;
+                let (browser, page) = launch_page().await?;
+                if has_profile_avatar_modal(&page).await {
+                    dismiss_profile_avatar_modal(&page).await?;
+                }
+                let final_url = page.url().await?.unwrap_or_default();
+                if !is_stream_url(&final_url) {
+                    browser.close().await;
+                    return Err(
+                        format!("Gagal masuk /stream setelah cek sesi (URL: {final_url})").into(),
+                    );
+                }
+                send_update(&tx, true, "Stockbit ready").await;
+                browser.close().await;
+                return Ok(());
             }
-            send_update(&tx, false, "Sedang login stockbit.com").await;
-            login_and_return_to_stream_with_retry(&page, &email, &password, &tx).await?;
         }
+        if has_profile_avatar_modal(&page).await {
+            dismiss_profile_avatar_modal(&page).await?;
+        }
+        let final_url = page.url().await?.unwrap_or_default();
+        if !is_stream_url(&final_url) {
+            browser.close().await;
+            return Err(format!("Gagal masuk /stream setelah cek sesi (URL: {final_url})").into());
+        }
+        send_update(&tx, true, "Stockbit ready").await;
+        browser.close().await;
+        return Ok(());
     }
 
+    // Setelah login retry: verifikasi /stream.
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Background)
+        .await
+        .map_err(|e| -> StockbitError { e.into() })?;
+    let (browser, page) = launch_page().await?;
     if has_profile_avatar_modal(&page).await {
         dismiss_profile_avatar_modal(&page).await?;
     }
-
     let final_url = page.url().await?.unwrap_or_default();
     if !is_stream_url(&final_url) {
+        browser.close().await;
         return Err(format!("Gagal masuk /stream setelah cek sesi (URL: {final_url})").into());
     }
-
     send_update(&tx, true, "Stockbit ready").await;
     browser.close().await;
     Ok(())
+}
+
+/// Login dengan retry; **melepas** Chrome lock saat jeda retry agar RPC client tidak hang.
+async fn login_and_return_to_stream_with_retry_unlocked(
+    email: &str,
+    password: &str,
+    tx: &mpsc::Sender<ReadinessUpdate>,
+) -> Result<(), StockbitError> {
+    let mut attempt: u32 = 0;
+    loop {
+        if browser_interactive_waiters() > 0 {
+            println!(
+                "Stockbit readiness: tunda login — {} RPC client menunggu Chrome",
+                browser_interactive_waiters()
+            );
+            sleep(Duration::from_secs(2)).await;
+            continue;
+        }
+
+        attempt += 1;
+        let login_result = {
+            let _browser_guard = acquire_browser_session(BrowserLockClass::Background)
+                .await
+                .map_err(|e| -> StockbitError { e.into() })?;
+            let (browser, page) = launch_page().await?;
+            let result = login_and_return_to_stream(&page, email, password).await;
+            browser.close().await;
+            result
+        };
+
+        match login_result {
+            Ok(()) => {
+                if attempt > 1 {
+                    println!("Stockbit readiness: login berhasil setelah {attempt} percobaan");
+                }
+                return Ok(());
+            }
+            Err(e) => {
+                let wait_secs =
+                    rand::thread_rng().gen_range(LOGIN_RETRY_MIN_SECS..=LOGIN_RETRY_MAX_SECS);
+                let msg = format!(
+                    "Login gagal (percobaan {attempt}): {e}; retry dalam {wait_secs}s"
+                );
+                eprintln!("Stockbit readiness: {msg}");
+                send_update(tx, false, &msg).await;
+                // Sleep di luar lock — RPC client bisa memakai Chrome di celah ini.
+                sleep(Duration::from_secs(wait_secs)).await;
+            }
+        }
+    }
 }
 
 const BEARER_PROBE_URL: &str = "https://exodus.stockbit.com/order-trade/market-mover?\

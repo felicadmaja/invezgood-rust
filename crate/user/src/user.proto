@@ -27,6 +27,8 @@ service User {
   // 1. GetAllPortofolioFromStockbit          (holdings + equity; 1×/3 menit)
   // 2. GetAllPendingOrderFromStockbit        (1×/3 menit)
   // 3. GetLatestEmitenTrendingFromStockbit   (1×/3 menit)
+  // Poller/auto-scrape memakai Chrome lock **background** (yield ke RPC client);
+  // sleep/idle poller **tidak** memegang Chrome — client tetap bisa invoke RPC.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
   // Ubah password user di Scylla `user` (hash bcrypt).

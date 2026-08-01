@@ -103,6 +103,15 @@ service EmitenList {
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc UpdateWyckoffTradingRange(UpdateWyckoffTradingRangeRequest) returns (UpdateWyckoffTradingRangeResponse);
 
+  // Baca kolom `wyckoff_horizontal_line` untuk satu emiten (PK emiten_name).
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc GetWyckoffHorizontalLine(GetWyckoffHorizontalLineRequest) returns (GetWyckoffHorizontalLineResponse);
+
+  // Update kolom `wyckoff_horizontal_line` untuk satu emiten (PK emiten_name).
+  // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
+  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  rpc UpdateWyckoffHorizontalLine(UpdateWyckoffHorizontalLineRequest) returns (UpdateWyckoffHorizontalLineResponse);
+
   // Update kolom `catatan_pribadi` (text) untuk satu emiten (PK emiten_name).
   // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
@@ -182,6 +191,7 @@ enum EmitenSector {
   HOLDING_COMPANY = 45;
   JASA_PERINDUSTRIAN = 46;
   ENTERTAINMENT = 47;
+  TEXTILE = 48;
 }
 
 message GetAllEmitenListFromScyllaRequest {}
@@ -386,6 +396,28 @@ message UpdateWyckoffTradingRangeResponse {
   string message = 2;
 }
 
+message GetWyckoffHorizontalLineRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  string emiten_name = 1;
+}
+
+message GetWyckoffHorizontalLineResponse {
+  // Bentuk CQL list<int>; kosong bila belum di-set.
+  repeated int32 wyckoff_horizontal_line = 1;
+}
+
+message UpdateWyckoffHorizontalLineRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
+  string emiten_name = 1;
+  // Bentuk CQL list<int>.
+  repeated int32 wyckoff_horizontal_line = 2;
+}
+
+message UpdateWyckoffHorizontalLineResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 message UpdateWyckoffPhaseElementRequest {
   // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE di server (bbca → BBCA).
   string emiten_name = 1;
@@ -477,6 +509,8 @@ message EmitenListRow {
   repeated int32 wyckoff_trading_range = 19;
   // Bentuk CQL text — catatan pribadi bebas.
   string catatan_pribadi = 20;
+  // Bentuk CQL list<int> — garis horizontal Wyckoff.
+  repeated int32 wyckoff_horizontal_line = 21;
 }
 
 // Satu tahun net income: periode (Q1..Q4, Annualised, TTM ...) → nilai teks.

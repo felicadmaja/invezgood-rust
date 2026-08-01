@@ -71,6 +71,15 @@ impl EmitenTrendingService {
             .map_err(|e| Status::internal(e))?;
         Ok(())
     }
+
+    /// Auto poller: movers saja (tanpa full keystats), lock Chrome background.
+    pub async fn scrape_from_stockbit_if_allowed_background(&self) -> Result<(), Status> {
+        acquire_movers_scrape_slot().await?;
+        on_demand::scrape_emiten_trending_movers_background(Arc::clone(&self.session))
+            .await
+            .map_err(|e| Status::internal(e))?;
+        Ok(())
+    }
 }
 
 #[tonic::async_trait]

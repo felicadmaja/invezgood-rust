@@ -10,7 +10,7 @@ use std::sync::{Arc, OnceLock};
 use chrono::{Local, NaiveDate};
 use scylla::client::session::Session;
 use stockbit_browser::{
-    browser_session_lock, launch_page, open_stream_or_login,
+    acquire_browser_session, launch_page, open_stream_or_login, BrowserLockClass,
 };
 use tokio::sync::{Mutex, watch};
 
@@ -201,7 +201,7 @@ async fn run_ensure_emiten_scrape(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
     let ks = keyspace();
     let today = Local::now().date_naive();
 
@@ -310,7 +310,7 @@ async fn run_emiten_list_stockbit_scrape(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
     let ks = keyspace();
     let today = Local::now().date_naive();
 
@@ -356,10 +356,25 @@ async fn run_emiten_list_stockbit_scrape(
 }
 
 /// On-demand scrape Top Gainer/Loser (movers) → upsert `emiten_trending` + seed `emiten_list`;
-/// lalu baca `emiten_name` dari `emiten_list` (setelah seed) → keystats/profile/corpaction.
+/// lalu (opsional) keystats/profile/corpaction untuk seluruh `emiten_list`.
 /// Tidak scrape / tulis `bandarmology`.
 pub async fn scrape_emiten_trending_movers(
     session: Arc<Session>,
+) -> Result<(usize, usize), String> {
+    scrape_emiten_trending_movers_ex(session, BrowserLockClass::Interactive, true).await
+}
+
+/// Auto poller: movers saja (tanpa full keystats), lock background (yield ke RPC client).
+pub async fn scrape_emiten_trending_movers_background(
+    session: Arc<Session>,
+) -> Result<(usize, usize), String> {
+    scrape_emiten_trending_movers_ex(session, BrowserLockClass::Background, false).await
+}
+
+async fn scrape_emiten_trending_movers_ex(
+    session: Arc<Session>,
+    lock_class: BrowserLockClass,
+    with_key_stats: bool,
 ) -> Result<(usize, usize), String> {
     let email = std::env::var("STOCKBIT_EMAIL")
         .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk scrape movers".to_string())?;
@@ -369,7 +384,7 @@ pub async fn scrape_emiten_trending_movers(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(lock_class).await?;
     let ks = keyspace();
 
     println!("On-demand: emiten_trending via market-mover API (Top Gainer/Loser)...");
@@ -392,28 +407,36 @@ pub async fn scrape_emiten_trending_movers(
             .await
             .map_err(|e| e.to_string())?;
 
-        // Setelah seed movers → baca ulang emiten_list (sudah termasuk ticker baru).
-        println!("On-demand: token-ring scan emiten_list.emiten_name (setelah seed movers)...");
-        let existing = bandarmology_worker::fetch_emiten_list_emiten_names(session.as_ref(), &ks)
+        if with_key_stats {
+            // Setelah seed movers → baca ulang emiten_list (sudah termasuk ticker baru).
+            println!("On-demand: token-ring scan emiten_list.emiten_name (setelah seed movers)...");
+            let existing =
+                bandarmology_worker::fetch_emiten_list_emiten_names(session.as_ref(), &ks)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            let emitens = merge_codes_movers_first(&existing, &mover_codes);
+            println!(
+                "On-demand: {} emiten untuk key_stats/profile/corp (movers dulu={}, scan={}).",
+                emitens.len(),
+                mover_codes.len(),
+                existing.len()
+            );
+
+            let key_stats_ok = emiten_list_worker::scrape_and_insert_key_stats(
+                &page,
+                session.as_ref(),
+                &ks,
+                &emitens,
+            )
             .await
             .map_err(|e| e.to_string())?;
-        let emitens = merge_codes_movers_first(&existing, &mover_codes);
-        println!(
-            "On-demand: {} emiten untuk key_stats/profile/corp (movers dulu={}, scan={}).",
-            emitens.len(),
-            mover_codes.len(),
-            existing.len()
-        );
-
-        let key_stats_ok = emiten_list_worker::scrape_and_insert_key_stats(
-            &page,
-            session.as_ref(),
-            &ks,
-            &emitens,
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-        println!("On-demand: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");
+            println!("On-demand: {key_stats_ok} emiten key_stats/profile diupsert ke emiten_list.");
+        } else {
+            println!(
+                "On-demand: skip key_stats (auto/background); movers gainer={} loser={}.",
+                inserted_gainer, inserted_loser
+            );
+        }
 
         Ok::<(usize, usize), String>((inserted_gainer, inserted_loser))
     }
@@ -534,7 +557,7 @@ async fn run_bandarmology_harian_days(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
     let ks = keyspace();
 
     println!(
@@ -625,7 +648,7 @@ async fn run_portofolio_equity_scrape(session: Arc<Session>) -> Result<usize, St
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
     let ks = keyspace();
 
     println!("On-demand portofolio_equity: login → PIN → portfolio/v2/list summary...");
@@ -724,7 +747,7 @@ async fn run_portofolio_history_scrape(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
     let ks = keyspace();
 
     println!("On-demand portofolio history: login → PIN → /history {code}...");
@@ -764,6 +787,21 @@ async fn run_portofolio_history_scrape(
 pub async fn scrape_portofolio_all(
     session: Arc<Session>,
 ) -> Result<(usize, Vec<String>), String> {
+    scrape_portofolio_all_ex(session, BrowserLockClass::Interactive, true).await
+}
+
+/// Auto poller: tanpa bandarmology, lock background (yield ke RPC client).
+pub async fn scrape_portofolio_all_background(
+    session: Arc<Session>,
+) -> Result<(usize, Vec<String>), String> {
+    scrape_portofolio_all_ex(session, BrowserLockClass::Background, false).await
+}
+
+async fn scrape_portofolio_all_ex(
+    session: Arc<Session>,
+    lock_class: BrowserLockClass,
+    with_bandarmology: bool,
+) -> Result<(usize, Vec<String>), String> {
     let mut rx = {
         let mut slot = inflight_porto_all().lock().await;
         if let Some(existing) = slot.as_ref() {
@@ -777,7 +815,8 @@ pub async fn scrape_portofolio_all(
             *slot = Some(rx.clone());
             let session = Arc::clone(&session);
             tokio::spawn(async move {
-                let result = run_portofolio_all_scrape(session).await;
+                let result =
+                    run_portofolio_all_scrape(session, lock_class, with_bandarmology).await;
                 match &result {
                     Ok((n, codes)) => println!(
                         "On-demand portofolio selesai: {n} baris di-upsert ({} kode).",
@@ -807,6 +846,8 @@ pub async fn scrape_portofolio_all(
 
 async fn run_portofolio_all_scrape(
     session: Arc<Session>,
+    lock_class: BrowserLockClass,
+    with_bandarmology: bool,
 ) -> Result<(usize, Vec<String>), String> {
     let email = std::env::var("STOCKBIT_EMAIL")
         .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk scrape portofolio".to_string())?;
@@ -816,7 +857,7 @@ async fn run_portofolio_all_scrape(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(lock_class).await?;
     let ks = keyspace();
 
     println!("On-demand portofolio: login → PIN → portfolio/v2/list (summary + results)...");
@@ -830,10 +871,14 @@ async fn run_portofolio_all_scrape(
             .await
             .map_err(|e| format!("login Stockbit: {e}"))?;
 
-        let (n, codes) =
-            crate::portofolio_worker::scrape_and_insert_portofolio(&page, &session, &ks, true)
-                .await
-                .map_err(|e| e.to_string())?;
+        let (n, codes) = crate::portofolio_worker::scrape_and_insert_portofolio(
+            &page,
+            &session,
+            &ks,
+            with_bandarmology,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
 
         Ok::<(usize, Vec<String>), String>((n, codes))
     }
@@ -918,7 +963,7 @@ async fn run_portofolio_history_batch_scrape(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
     let ks = keyspace();
 
     println!(
@@ -955,6 +1000,18 @@ async fn run_portofolio_history_batch_scrape(
 /// Single-flight global; survive cancel RPC.
 /// Returns jumlah baris yang di-upsert.
 pub async fn scrape_pending_order_all(session: Arc<Session>) -> Result<usize, String> {
+    scrape_pending_order_all_ex(session, BrowserLockClass::Interactive).await
+}
+
+/// Auto poller: lock background (yield ke RPC client).
+pub async fn scrape_pending_order_all_background(session: Arc<Session>) -> Result<usize, String> {
+    scrape_pending_order_all_ex(session, BrowserLockClass::Background).await
+}
+
+async fn scrape_pending_order_all_ex(
+    session: Arc<Session>,
+    lock_class: BrowserLockClass,
+) -> Result<usize, String> {
     let mut rx = {
         let mut slot = inflight_pending_order().lock().await;
         if let Some(existing) = slot.as_ref() {
@@ -967,7 +1024,7 @@ pub async fn scrape_pending_order_all(session: Arc<Session>) -> Result<usize, St
             *slot = Some(rx.clone());
             let session = Arc::clone(&session);
             tokio::spawn(async move {
-                let result = run_pending_order_all_scrape(session).await;
+                let result = run_pending_order_all_scrape(session, lock_class).await;
                 match &result {
                     Ok(n) => println!(
                         "On-demand pending_order selesai: {n} baris di-upsert."
@@ -994,7 +1051,10 @@ pub async fn scrape_pending_order_all(session: Arc<Session>) -> Result<usize, St
     }
 }
 
-async fn run_pending_order_all_scrape(session: Arc<Session>) -> Result<usize, String> {
+async fn run_pending_order_all_scrape(
+    session: Arc<Session>,
+    lock_class: BrowserLockClass,
+) -> Result<usize, String> {
     let email = std::env::var("STOCKBIT_EMAIL")
         .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk scrape pending_order".to_string())?;
     let password = std::env::var("STOCKBIT_PASSWORD")
@@ -1003,7 +1063,7 @@ async fn run_pending_order_all_scrape(session: Arc<Session>) -> Result<usize, St
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(lock_class).await?;
     let ks = keyspace();
 
     println!("On-demand pending_order: login → PIN → order/v2/list...");
@@ -1120,7 +1180,7 @@ async fn run_fetch_index_symbols(label: &str, url: &str) -> Result<Vec<String>, 
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
     println!("On-demand {label}: login + GET company list...");
 
     let (browser, page) = launch_page()
@@ -1200,7 +1260,7 @@ async fn run_create_buy_limit_order(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = browser_session_lock().lock().await;
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
 
     println!(
         "On-demand buy_limit: login → trading → form buy ({emiten_name} {price}x{lot})..."

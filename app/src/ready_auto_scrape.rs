@@ -115,8 +115,12 @@ async fn run_auto_scrapes(
     pending_order: &PendingOrderService,
     emiten_trending: &EmitenTrendingService,
 ) {
+    // Background lock: yield ke RPC client (tidak pegang Chrome saat user invoke).
     println!("Readiness ready → auto GetAllPortofolioFromStockbit (holdings + equity)...");
-    match portofolio.scrape_from_stockbit_if_allowed().await {
+    match portofolio
+        .scrape_from_stockbit_if_allowed_background()
+        .await
+    {
         Ok((n, codes)) => println!(
             "Auto GetAllPortofolioFromStockbit selesai: {n} baris ({} kode).",
             codes.len()
@@ -125,13 +129,19 @@ async fn run_auto_scrapes(
     }
 
     println!("Readiness ready → auto GetAllPendingOrderFromStockbit...");
-    match pending_order.scrape_from_stockbit_if_allowed().await {
+    match pending_order
+        .scrape_from_stockbit_if_allowed_background()
+        .await
+    {
         Ok(n) => println!("Auto GetAllPendingOrderFromStockbit selesai: {n} baris."),
         Err(e) => log_auto_skip("GetAllPendingOrderFromStockbit", &e),
     }
 
     println!("Readiness ready → auto GetLatestEmitenTrendingFromStockbit...");
-    match emiten_trending.scrape_from_stockbit_if_allowed().await {
+    match emiten_trending
+        .scrape_from_stockbit_if_allowed_background()
+        .await
+    {
         Ok(()) => println!("Auto GetLatestEmitenTrendingFromStockbit selesai."),
         Err(e) => log_auto_skip("GetLatestEmitenTrendingFromStockbit", &e),
     }
