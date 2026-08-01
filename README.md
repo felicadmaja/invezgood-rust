@@ -8,6 +8,7 @@ gRPC server modular dengan [Tonic](https://github.com/hyperium/tonic).
 app/src/main.rs          # entry point — daftarkan layanan gRPC di sini
 crate/stock_list/        # modul daftar saham
 crate/user/              # modul user
+crate/top_gainer_loser/  # modul top gainer & loser
 ```
 
 Setiap fitur = crate terpisah di `crate/<nama>/` (proto + service + lib.rs).

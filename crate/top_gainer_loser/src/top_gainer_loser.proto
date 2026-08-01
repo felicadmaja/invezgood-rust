@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package top_gainer_loser;
+
+service TopGainerLoser {
+}
+
+message GraphPoint {
+  string date = 1;
+  double value = 2;
+}
+
+message TopGainerLoserRow {
+  string tahun_bulan_tanggal = 1;
+  string code = 2;
+  string name = 3;
+  double price = 4;
+  double change = 5;
+  string value = 6;
+  string volume = 7;
+  string logo = 8;
+  double calculated_value = 9;
+  repeated GraphPoint graph = 10;
+}
