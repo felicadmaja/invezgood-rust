@@ -1,7 +1,9 @@
 //! Crate gRPC `realtime_price` — stream harga dari Stockbit `emitten/{CODE}/info`.
 
 mod fetch;
+mod hours;
 mod hub;
+mod redis_cache;
 mod service;
 
 tonic::include_proto!("realtime_price");

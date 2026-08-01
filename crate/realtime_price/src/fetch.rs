@@ -18,6 +18,7 @@ struct InfoData {
     symbol: Option<String>,
     price: Option<Value>,
     formatted_price: Option<Value>,
+    date: Option<String>,
     time: Option<String>,
     volume: Option<Value>,
     corp_action: Option<CorpActionJson>,
@@ -112,5 +113,6 @@ pub async fn fetch_realtime_price(
             text: corp.text.unwrap_or_default(),
             detail: detail_to_string(&corp.detail),
         }),
+        date: d.date.unwrap_or_default(),
     })
 }

@@ -7,6 +7,9 @@ service RealtimePrice {
   // Poll API maksimal 1× per menit **per emiten_name**, dan **hanya** saat ada client
   // yang masih subscribe stream ini. Tanpa subscriber → tidak hit Stockbit API.
   // Beberapa client dengan emiten_name sama berbagi satu poller (fan-out).
+  // Jam operasional: Senin–Jumat, 08:55–12:05 dan 13:25–16:05 (waktu server).
+  // Di luar jam/hari: tidak GET API; stream mengirim response terakhir jam operasional
+  // (disimpan Redis key `stockbit:realtime_price:last:{EMITEN}`).
   // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE.
   // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
@@ -32,7 +35,10 @@ message GetRealtimePriceFromStockbitResponse {
   int64 price = 2;
   // Dari field API `formatted_price` (teks angka, di-parse ke int64).
   int64 formatted_price = 3;
+  // Dari field API `time` (contoh: "Fri 16:14") — terpisah dari `date`.
   string time = 4;
   int64 volume = 5;
   CorpActionInfo corp_action = 6;
+  // Dari field API `date` (contoh: "31 Jul 2026") — terpisah dari `time`.
+  string date = 7;
 }

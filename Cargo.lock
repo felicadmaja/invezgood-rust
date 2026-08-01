@@ -2041,10 +2041,12 @@ dependencies = [
 name = "realtime_price"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "futures-util",
  "prost",
  "prost-build",
  "protoc-bin-vendored",
+ "redis",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
