@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
-use user::{require_auth, require_stockbit_scrape_hours};
+use user::require_auth;
 use worker_scrapping::on_demand;
 
 use crate::portofolio_history_server::PortofolioHistory as PortofolioHistoryRpc;
@@ -156,8 +156,6 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
-        require_stockbit_scrape_hours()?;
-        acquire_history_scrape_slot().await?;
         let req = request.into_inner();
 
         let kode = match parse_emiten_name(&req.emiten_name) {
@@ -172,6 +170,22 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                 ));
             }
         };
+
+        if let Some(mut cached) = crate::redis_cache::get(&kode).await {
+            cached.message = format!(
+                "{} (redis cache)",
+                cached.message.trim_end_matches(" (redis cache)")
+            );
+            println!(
+                "GetPortofolioHistoryByEmitenNameFromStockbit {} {kode} success={} cache=hit {}ms",
+                username,
+                cached.success,
+                started.elapsed().as_millis()
+            );
+            return Ok(Response::new(cached));
+        }
+
+        acquire_history_scrape_slot().await?;
 
         println!(
             "GetPortofolioHistoryByEmitenNameFromStockbit {username}: {kode} — /history + upsert portofolio_history..."
@@ -198,19 +212,19 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                 let message = format!(
                     "portofolio_history {kode}: scrape selesai, {n} entri di-upsert (terbaru {date_note})"
                 );
+                let resp = GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                    success: true,
+                    message,
+                    row,
+                };
+                crate::redis_cache::set(&kode, &resp).await;
                 println!(
-                    "GetPortofolioHistoryByEmitenNameFromStockbit {} {kode} success=true history={} {}ms",
+                    "GetPortofolioHistoryByEmitenNameFromStockbit {} {kode} success=true cache=miss history={} {}ms",
                     username,
                     n,
                     started.elapsed().as_millis()
                 );
-                Ok(Response::new(
-                    GetPortofolioHistoryByEmitenNameFromStockbitResponse {
-                        success: true,
-                        message,
-                        row,
-                    },
-                ))
+                Ok(Response::new(resp))
             }
             Err(e) => {
                 eprintln!(

@@ -13,17 +13,15 @@ service PortofolioHistory {
 
   // HISTORY DARI PEMBELIAN
   // Ambil riwayat transaksi per emiten dari Stockbit lalu upsert ke `portofolio_history`.
-  // Alur: login → START TRADING/PIN bila perlu →
-  // GET carina.stockbit.com/history?page=1&limit=200&period=all&stock={emiten_name}
-  // (paginate s/d meta.max_page) → group by item.date (`20 Jul 2026`) →
-  // INSERT portofolio_history (emiten_name=symbol, tahun_bulan_tanggal=date, history=list).
+  // Alur: login → START TRADING/PIN bila perlu → GET API carina.stockbit.com/history?page=1&limit=200&period=all&stock={emiten_name}
+  // (paginate s/d meta.max_page) → group by item.date (`20 Jul 2026`) → INSERT portofolio_history (emiten_name=symbol, tahun_bulan_tanggal=date, history=list).
   // Item: command, symbol, price, lot, amount, status.
   // emiten_name: tepat 4 huruf; dinormalisasi ke UPPERCASE.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   // Rate limit: maksimal 1× per 1 detik untuk semua user (hanya RPC ini; worker scrap tidak terdampak).
-  // Hanya hari operasional Senin–Jumat dan jam server 08:45–12:15 serta 13:25–16:15
-  // (failed precondition: "Diluar hari operasional Senin-Jumat..." atau
-  // "Diluar jam 08:45-12:15 dan 13:25-16:15"). Tidak berlaku untuk worker.
+  // Jam/hari operasional (Senin–Jumat, 08:45–12:15 & 13:25–16:15) **tidak** berlaku di RPC ini; gate itu hanya untuk auto-scrape poller `IsStockbitReady`. User boleh invoke kapan saja.
+  // Redis cache per emiten_name: key `stockbit:portofolio_history:stockbit:{EMITEN}`, TTL 5 menit.
+  // Hit cache → kembalikan response cache (tanpa GET Stockbit API / tanpa rate-limit scrape).
   rpc GetPortofolioHistoryByEmitenNameFromStockbit(GetPortofolioHistoryByEmitenNameFromStockbitRequest)
       returns (GetPortofolioHistoryByEmitenNameFromStockbitResponse);
 }

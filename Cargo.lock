@@ -1669,6 +1669,7 @@ dependencies = [
  "prost",
  "prost-build",
  "protoc-bin-vendored",
+ "redis",
  "scylla",
  "tokio",
  "tonic",

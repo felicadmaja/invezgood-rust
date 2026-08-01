@@ -2,6 +2,7 @@
 
 mod database;
 pub mod model;
+mod redis_cache;
 mod repository;
 mod service;
 
