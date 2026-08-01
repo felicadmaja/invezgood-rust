@@ -3,9 +3,12 @@ syntax = "proto3";
 package emiten_trending;
 
 service EmitenTrending {
-  // Daftar trending per tanggal via MV `emiten_trending_by_tahun_bulan_tanggal`.
+  // Subscribe daftar trending per tanggal via MV `emiten_trending_by_tahun_bulan_tanggal`.
+  // Server stream: kirim snapshot segera saat subscribe, lalu ulang setiap 6 menit
+  // sampai client cancel / disconnect. Request: `tahun_bulan_tanggal` (YYYY-MM-DD).
+  // Wajib Authorization: Bearer <JWT valid>.
   rpc GetAllEmitenTrendingFromScylla(GetAllEmitenTrendingFromScyllaRequest)
-      returns (GetAllEmitenTrendingResponse);
+      returns (stream GetAllEmitenTrendingResponse);
 
   // On-demand scrape Stockbit lalu stream snapshot `emiten_trending` hari ini.
   // Hanya jalan saat RPC dipanggil. Hanya hari operasional Senin–Jumat dan jam server

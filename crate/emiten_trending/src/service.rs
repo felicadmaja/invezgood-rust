@@ -16,7 +16,7 @@ use crate::emiten_trending_server::EmitenTrending as EmitenTrendingRpc;
 use crate::model::EmitenTrending;
 use crate::repository::EmitenTrendingRepository;
 use crate::{
-    EmitenTrendingRow, GetAllEmitenTrendingFromScyllaRequest, GetAllEmitenTrendingResponse,
+    GetAllEmitenTrendingFromScyllaRequest, GetAllEmitenTrendingResponse,
     GetLatestEmitenTrendingFromStockbitRequest,
 };
 
@@ -82,12 +82,18 @@ impl EmitenTrendingService {
     }
 }
 
+/// Interval push snapshot Scylla ke client yang subscribe.
+const SCYLLA_SUBSCRIBE_INTERVAL: Duration = Duration::from_secs(6 * 60);
+
 #[tonic::async_trait]
 impl EmitenTrendingRpc for EmitenTrendingService {
+    type GetAllEmitenTrendingFromScyllaStream =
+        Pin<Box<dyn Stream<Item = Result<GetAllEmitenTrendingResponse, Status>> + Send>>;
+
     async fn get_all_emiten_trending_from_scylla(
         &self,
         request: Request<GetAllEmitenTrendingFromScyllaRequest>,
-    ) -> Result<Response<GetAllEmitenTrendingResponse>, Status> {
+    ) -> Result<Response<Self::GetAllEmitenTrendingFromScyllaStream>, Status> {
         let started = Instant::now();
         let claims = require_auth(&request)?;
         let username = claims.name.clone();
@@ -104,24 +110,56 @@ impl EmitenTrendingRpc for EmitenTrendingService {
             Status::invalid_argument("tahun_bulan_tanggal harus format YYYY-MM-DD")
         })?;
 
-        let rows: Vec<EmitenTrending> = self
-            .repo
-            .get_all_by_date(date)
-            .await
-            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
-
-        let proto_rows: Vec<EmitenTrendingRow> =
-            rows.into_iter().map(EmitenTrending::into_proto).collect();
+        let date_label = date.format("%Y-%m-%d").to_string();
+        let repo = Arc::clone(&self.repo);
+        let (tx, rx) = mpsc::channel::<Result<GetAllEmitenTrendingResponse, Status>>(2);
 
         println!(
-            "GetAllEmitenTrendingFromScylla {} {}ms",
-            username,
+            "GetAllEmitenTrendingFromScylla: client subscribe user={username} tanggal={date_label} {}ms",
             started.elapsed().as_millis()
         );
 
-        Ok(Response::new(GetAllEmitenTrendingResponse {
-            rows: proto_rows,
-        }))
+        tokio::spawn(async move {
+            loop {
+                let tick_started = Instant::now();
+                match repo.get_all_by_date(date).await {
+                    Ok(rows) => {
+                        let n = rows.len();
+                        let payload = GetAllEmitenTrendingResponse {
+                            rows: rows.into_iter().map(EmitenTrending::into_proto).collect(),
+                        };
+                        println!(
+                            "GetAllEmitenTrendingFromScylla: push user={username} tanggal={date_label} rows={n} {}ms",
+                            tick_started.elapsed().as_millis()
+                        );
+                        if tx.send(Ok(payload)).await.is_err() {
+                            println!(
+                                "GetAllEmitenTrendingFromScylla: client unsubscribe/disconnect user={username} tanggal={date_label}"
+                            );
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx
+                            .send(Err(Status::internal(format!("Scylla query failed: {e}"))))
+                            .await;
+                        break;
+                    }
+                }
+
+                tokio::select! {
+                    _ = tx.closed() => {
+                        println!(
+                            "GetAllEmitenTrendingFromScylla: client unsubscribe/disconnect user={username} tanggal={date_label}"
+                        );
+                        break;
+                    }
+                    _ = tokio::time::sleep(SCYLLA_SUBSCRIBE_INTERVAL) => {}
+                }
+            }
+        });
+
+        Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 
     type GetLatestEmitenTrendingFromStockbitStream =

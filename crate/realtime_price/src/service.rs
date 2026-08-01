@@ -67,15 +67,32 @@ impl RealtimePriceRpc for RealtimePriceService {
         );
 
         tokio::spawn(async move {
-            while let Some(msg) = sub.next().await {
-                if tx.send(Ok(msg)).await.is_err() {
-                    println!(
-                        "GetRealtimePriceFromStockbit: client unsubscribe/disconnect user={username} emiten_name={code}"
-                    );
-                    break;
+            // Jangan block hanya di `sub.next()` (bisa s/d 30s): cancel client
+            // (RST_STREAM) menutup Receiver → `tx.closed()` segera, lalu Drop Subscription.
+            loop {
+                tokio::select! {
+                    _ = tx.closed() => {
+                        println!(
+                            "GetRealtimePriceFromStockbit: client unsubscribe/disconnect user={username} emiten_name={code}"
+                        );
+                        break;
+                    }
+                    maybe = sub.next() => {
+                        match maybe {
+                            Some(msg) => {
+                                if tx.send(Ok(msg)).await.is_err() {
+                                    println!(
+                                        "GetRealtimePriceFromStockbit: client unsubscribe/disconnect user={username} emiten_name={code}"
+                                    );
+                                    break;
+                                }
+                            }
+                            None => break,
+                        }
+                    }
                 }
             }
-            // `sub` drop → kurangi subscriber; poller berhenti bila 0.
+            // `sub` drop → kurangi subscriber; poller berhenti ≤1s (cek tiap detik).
         });
 
         Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
