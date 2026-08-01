@@ -1,3 +1,4 @@
+use futures::TryStreamExt;
 use scylla::client::session::Session;
 
 use crate::model::{TopGainerLoserRow, KEYSPACE, TABLE};
@@ -5,6 +6,9 @@ use crate::model::{TopGainerLoserRow, KEYSPACE, TABLE};
 const UPSERT: &str = "INSERT INTO invezgood.top_gainer_loser \
     (tahun_bulan_tanggal, code, name, price, change_pct, value, volume, logo, calculated_value, tipe, graph) \
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+const FIND_BY_DATE: &str = "SELECT tahun_bulan_tanggal, code, name, price, change_pct, value, volume, logo, calculated_value, tipe, graph \
+    FROM invezgood.top_gainer_loser WHERE tahun_bulan_tanggal = ?";
 
 pub async fn upsert(session: &Session, row: &TopGainerLoserRow) -> Result<(), String> {
     session
@@ -32,4 +36,27 @@ pub async fn upsert(session: &Session, row: &TopGainerLoserRow) -> Result<(), St
             )
         })?;
     Ok(())
+}
+
+pub async fn find_by_date(
+    session: &Session,
+    trade_date: chrono::NaiveDate,
+) -> Result<Vec<TopGainerLoserRow>, String> {
+    let mut rows = session
+        .query_iter(FIND_BY_DATE, (trade_date,))
+        .await
+        .map_err(|e| format!("find_by_date {KEYSPACE}.{TABLE} date={trade_date}: {e}"))?
+        .rows_stream::<TopGainerLoserRow>()
+        .map_err(|e| format!("find_by_date stream {KEYSPACE}.{TABLE}: {e}"))?;
+
+    let mut items = Vec::new();
+    while let Some(row) = rows
+        .try_next()
+        .await
+        .map_err(|e| format!("find_by_date row {KEYSPACE}.{TABLE}: {e}"))?
+    {
+        items.push(row);
+    }
+
+    Ok(items)
 }

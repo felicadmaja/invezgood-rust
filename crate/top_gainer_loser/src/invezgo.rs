@@ -36,12 +36,11 @@ struct ApiTopChangeResponse {
 
 pub async fn fetch_and_save(
     session: Arc<Session>,
-    tahun_bulan_tanggal: Option<String>,
+    trade_date: chrono::NaiveDate,
 ) -> Result<Vec<TopGainerLoserRow>, String> {
     let token = std::env::var("INVEZGO_BEARER_TOKEN")
         .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
 
-    let trade_date = resolve_trade_date(tahun_bulan_tanggal)?;
     let date_param = trade_date.format("%Y-%m-%d").to_string();
     let url = format!(
         "{INVEZGO_TOP_CHANGE_URL}?date={date_param}&filter_column=change"
@@ -84,7 +83,7 @@ pub async fn fetch_and_save(
     Ok(saved)
 }
 
-fn resolve_trade_date(tahun_bulan_tanggal: Option<String>) -> Result<chrono::NaiveDate, String> {
+pub fn resolve_trade_date(tahun_bulan_tanggal: Option<String>) -> Result<chrono::NaiveDate, String> {
     match tahun_bulan_tanggal {
         Some(date) if !date.is_empty() => chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
             .map_err(|_| format!("tahun_bulan_tanggal invalid: {date} (harus YYYY-MM-DD)")),

@@ -1921,11 +1921,14 @@ name = "top_gainer_loser"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "futures",
  "prost",
  "reqwest",
  "scylla",
  "serde",
  "serde_json",
+ "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-build",
 ]
