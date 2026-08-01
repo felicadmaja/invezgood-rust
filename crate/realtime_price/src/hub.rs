@@ -1,6 +1,6 @@
-//! Poller per `emiten_name`: GET Stockbit 1×/30 detik hanya jika ada subscriber
-//! dan dalam jam operasional (bukan libur); di luar jam/libur → Redis
-//! (seed GET bila Redis kosong, kecuali hari sudah ditandai libur).
+//! Poller per `emiten_name`: setelah subscribe tunggu 5s → GET pertama,
+//! lalu 1×/30 detik jika masih ada subscriber dan jam operasional (bukan libur);
+//! di luar jam/libur → Redis (seed GET bila Redis kosong, kecuali sudah ditandai libur).
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -16,7 +16,10 @@ use crate::hours::{can_detect_holiday_by_volume, is_realtime_price_hours};
 use crate::redis_cache;
 use crate::GetRealtimePriceFromStockbitResponse;
 
-const POLL_INTERVAL: Duration = Duration::from_secs(30);
+/// Jedah pertama setelah subscribe sebelum GET API.
+const INITIAL_DELAY_SECS: u64 = 5;
+/// Interval GET API berikutnya.
+const POLL_INTERVAL_SECS: u64 = 30;
 const BROADCAST_CAP: usize = 16;
 
 struct Feed {
@@ -98,13 +101,13 @@ impl Feed {
                         resp.volume
                     );
 
-                    // Deteksi tanggal merah / cuti bersama: weekday, ≥09:10, volume masih 0.
+                    // Deteksi libur/suspend per emiten: weekday, ≥09:10, volume masih 0.
                     if can_detect_holiday_by_volume() && resp.volume == 0 {
-                        if !redis_cache::is_holiday_today().await {
-                            redis_cache::declare_holiday_today().await;
+                        if !redis_cache::is_holiday_today(&self.code).await {
+                            redis_cache::declare_holiday_today(&self.code).await;
                         }
                         // Jangan timpa Redis harga terakhir dengan volume=0; kirim cache.
-                        self.publish_cache_only("hari libur (volume=0 setelah 09:10)")
+                        self.publish_cache_only("libur/suspend emiten (volume=0 setelah 09:10)")
                             .await;
                         // Bila sama sekali belum ada cache, simpan seed volume=0 agar stream ada isi.
                         if redis_cache::get(&self.code).await.is_none()
@@ -137,17 +140,23 @@ impl Feed {
 
     async fn run_poller(self: Arc<Self>) {
         println!(
-            "RealtimePrice poller {}: start (subscriber aktif)",
+            "RealtimePrice poller {}: start — tunggu {INITIAL_DELAY_SECS}s lalu GET pertama, lalu tiap {POLL_INTERVAL_SECS}s",
             self.code
         );
+
+        // Setelah subscribe: tunggu 5 detik dulu, baru kirim data API pertama.
+        if !self.sleep_secs(INITIAL_DELAY_SECS).await {
+            return;
+        }
+
         while self.subscribers.load(Ordering::SeqCst) > 0 {
-            let holiday = redis_cache::is_holiday_today().await;
+            let holiday = redis_cache::is_holiday_today(&self.code).await;
             let in_hours = is_realtime_price_hours();
             let redis_hit = redis_cache::get(&self.code).await;
 
             if holiday {
-                // Hari sudah ditandai libur → hentikan GET API; hanya Redis/cache.
-                self.publish_cache_only("hari libur (tanggal merah/cuti bersama)")
+                // Emiten ini ditandai libur/suspend hari ini → hentikan GET; hanya Redis/cache.
+                self.publish_cache_only("libur/suspend emiten hari ini")
                     .await;
             } else if !in_hours {
                 if let Some(cached) = redis_hit {
@@ -171,7 +180,8 @@ impl Feed {
                 self.scrape_and_store().await;
             }
 
-            if !self.sleep_until_next_tick().await {
+            // Berikutnya: tiap 30 detik.
+            if !self.sleep_secs(POLL_INTERVAL_SECS).await {
                 return;
             }
         }
@@ -182,8 +192,8 @@ impl Feed {
     }
 
     /// `false` = tidak ada subscriber lagi, hentikan poller.
-    async fn sleep_until_next_tick(&self) -> bool {
-        for _ in 0..POLL_INTERVAL.as_secs() {
+    async fn sleep_secs(&self, secs: u64) -> bool {
+        for _ in 0..secs {
             if self.subscribers.load(Ordering::SeqCst) == 0 {
                 println!(
                     "RealtimePrice poller {}: stop (tidak ada subscriber) — tidak GET API lagi",
@@ -253,7 +263,7 @@ impl RealtimePriceHub {
 
         let prev = feed.subscribers.fetch_add(1, Ordering::SeqCst);
         println!(
-            "RealtimePrice {}: subscribe (total {})",
+            "RealtimePrice hub: client subscribe emiten_name={} (subscriber aktif={})",
             feed.code,
             prev + 1
         );

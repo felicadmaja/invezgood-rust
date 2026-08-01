@@ -54,11 +54,15 @@ impl RealtimePriceRpc for RealtimePriceService {
 
         let code = parse_emiten_name(&req.emiten_name).map_err(Status::invalid_argument)?;
 
+        println!(
+            "GetRealtimePriceFromStockbit: client subscribe user={username} emiten_name={code}"
+        );
+
         let mut sub = self.hub.subscribe(code.clone()).await;
         let (tx, rx) = mpsc::channel::<Result<GetRealtimePriceFromStockbitResponse, Status>>(8);
 
         println!(
-            "GetRealtimePriceFromStockbit {username}: stream dibuka {code} {}ms",
+            "GetRealtimePriceFromStockbit: stream aktif user={username} emiten_name={code} {}ms",
             started.elapsed().as_millis()
         );
 
@@ -66,7 +70,7 @@ impl RealtimePriceRpc for RealtimePriceService {
             while let Some(msg) = sub.next().await {
                 if tx.send(Ok(msg)).await.is_err() {
                     println!(
-                        "GetRealtimePriceFromStockbit {username}: client disconnect — stream {code} ditutup"
+                        "GetRealtimePriceFromStockbit: client unsubscribe/disconnect user={username} emiten_name={code}"
                     );
                     break;
                 }

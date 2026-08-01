@@ -2,7 +2,8 @@
 //!
 //! Env: `REDIS_URL` (default `redis://localhost:6379`).
 //! Key harga: `stockbit:realtime_price:last:{EMITEN}` — tanpa TTL.
-//! Key libur: `stockbit:realtime_price:holiday:{YYYY-MM-DD}` — TTL ~2 hari.
+//! Key libur per emiten: `stockbit:realtime_price:holiday:{YYYY-MM-DD}:{EMITEN}` — TTL ~2 hari
+//! (per-emiten: volume=0 bisa karena suspend, bukan libur pasar).
 
 use std::sync::OnceLock;
 
@@ -29,8 +30,12 @@ fn cache_key(emiten: &str) -> String {
     )
 }
 
-fn holiday_key(day: NaiveDate) -> String {
-    format!("stockbit:realtime_price:holiday:{}", day.format("%Y-%m-%d"))
+fn holiday_key(day: NaiveDate, emiten: &str) -> String {
+    format!(
+        "stockbit:realtime_price:holiday:{}:{}",
+        day.format("%Y-%m-%d"),
+        emiten.trim().to_ascii_uppercase()
+    )
 }
 
 static REDIS: OnceLock<Mutex<Option<ConnectionManager>>> = OnceLock::new();
@@ -105,8 +110,13 @@ pub async fn set(emiten: &str, resp: &GetRealtimePriceFromStockbitResponse) {
     }
 }
 
-/// Apakah hari lokal ini sudah ditandai libur (tanggal merah / cuti bersama).
-pub async fn is_holiday_today() -> bool {
+/// Apakah `emiten` sudah ditandai libur untuk hari lokal ini
+/// (tanggal merah / cuti bersama / tidak ada volume — per emiten).
+pub async fn is_holiday_today(emiten: &str) -> bool {
+    let emiten = emiten.trim();
+    if emiten.is_empty() {
+        return false;
+    }
     let day = today_local();
     let mut conn = match connection().await {
         Ok(c) => c,
@@ -115,7 +125,7 @@ pub async fn is_holiday_today() -> bool {
             return false;
         }
     };
-    let key = holiday_key(day);
+    let key = holiday_key(day, emiten);
     match conn.get::<_, Option<String>>(&key).await {
         Ok(Some(v)) => {
             let v = v.trim();
@@ -123,14 +133,18 @@ pub async fn is_holiday_today() -> bool {
         }
         Ok(None) => false,
         Err(e) => {
-            eprintln!("Redis realtime_price holiday get: {e}");
+            eprintln!("Redis realtime_price holiday get {emiten}: {e}");
             false
         }
     }
 }
 
-/// Tandai hari lokal sebagai libur (hentikan poll API untuk sisa hari).
-pub async fn declare_holiday_today() {
+/// Tandai `emiten` libur untuk hari lokal (hentikan poll API emiten ini untuk sisa hari).
+pub async fn declare_holiday_today(emiten: &str) {
+    let emiten = emiten.trim().to_ascii_uppercase();
+    if emiten.is_empty() {
+        return;
+    }
     let day = today_local();
     let mut conn = match connection().await {
         Ok(c) => c,
@@ -139,13 +153,14 @@ pub async fn declare_holiday_today() {
             return;
         }
     };
-    let key = holiday_key(day);
+    let key = holiday_key(day, &emiten);
     if let Err(e) = conn.set_ex::<_, _, ()>(&key, "1", HOLIDAY_TTL_SECS).await {
         eprintln!("Redis realtime_price holiday set {key}: {e}");
         return;
     }
     println!(
-        "RealtimePrice: hari {} ditandai LIBUR (volume=0 setelah 09:10) — poller API dihentikan untuk hari ini",
+        "RealtimePrice: emiten_name={} hari {} ditandai LIBUR (volume=0 setelah 09:10) — poller API dihentikan untuk emiten ini hari ini",
+        emiten,
         day.format("%Y-%m-%d")
     );
 }

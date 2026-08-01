@@ -4,15 +4,18 @@ package realtime_price;
 
 service RealtimePrice {
   // Stream harga dari GET `https://exodus.stockbit.com/emitten/{emiten_name}/info`.
-  // Poll API maksimal 1× per 30 detik **per emiten_name**, dan **hanya** saat ada client
-  // yang masih subscribe stream ini. Tanpa subscriber → tidak hit Stockbit API.
+  // Setelah client subscribe: tunggu 5 detik lalu GET API pertama; berikutnya 1× / 30 detik
+  // **per emiten_name**, dan **hanya** saat ada client yang masih subscribe stream ini.
+  // Tanpa subscriber → tidak hit Stockbit API.
   // Beberapa client dengan emiten_name sama berbagi satu poller (fan-out).
   // Jam operasional: Senin–Jumat, 08:55–12:05 dan 13:25–16:05 (waktu server).
   // Di luar jam/hari: stream dari Redis (`stockbit:realtime_price:last:{EMITEN}`).
   // Jika Redis belum ada: tetap GET API sekali untuk seed, simpan Redis; request berikutnya dari Redis.
-  // Tanggal merah / cuti bersama (Senin–Jumat): mulai jam 09:10, bila GET volume masih 0
-  // → hari ditandai libur (Redis `stockbit:realtime_price:holiday:{YYYY-MM-DD}`),
-  // poller API dihentikan untuk hari itu; stream kirim cache Redis.
+  // Tanggal merah / cuti bersama / suspend (Senin–Jumat): mulai jam 09:10, bila GET
+  // volume masih 0 untuk emiten itu → ditandai libur per emiten
+  // (Redis `stockbit:realtime_price:holiday:{YYYY-MM-DD}:{EMITEN}`),
+  // poller API dihentikan untuk emiten itu hari itu; stream kirim cache Redis.
+  // (Per-emiten: volume=0 bisa karena suspend, bukan libur pasar global.)
   // emiten_name: tepat 4 huruf; dinormalisasi UPPERCASE.
   // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
