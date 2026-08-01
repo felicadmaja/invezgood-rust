@@ -5,7 +5,7 @@ use scylla::client::session::Session;
 use scylla::DeserializeRow;
 use scylla::statement::prepared::PreparedStatement;
 
-use crate::model::{StockListRow, KEYSPACE, TABLE};
+use crate::model::{StockListKeystatsDb, StockListRow, KEYSPACE, TABLE};
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -20,6 +20,12 @@ const SCAN_WRAP: &str =
 
 const LOCAL_TOKENS: &str = "SELECT tokens FROM system.local";
 const PEERS_TOKENS: &str = "SELECT tokens FROM system.peers";
+
+const SELECT_BY_CODE: &str =
+    "SELECT code, name, sector, logo, keystats, keystats_updated_at FROM invezgood.stock_list WHERE code = ?";
+
+const UPDATE_KEYSTATS: &str =
+    "UPDATE invezgood.stock_list SET keystats = ?, keystats_updated_at = ? WHERE code = ?";
 
 #[derive(Debug, DeserializeRow)]
 struct TokensRow {
@@ -37,6 +43,32 @@ pub async fn upsert(
         .query_unpaged(UPSERT, (code, name, sector, logo))
         .await
         .map_err(|e| format!("upsert {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn get_by_code(session: &Session, code: &str) -> Result<Option<StockListRow>, String> {
+    let mut rows = session
+        .query_iter(SELECT_BY_CODE, (code,))
+        .await
+        .map_err(|e| format!("select {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .rows_stream::<StockListRow>()
+        .map_err(|e| format!("select stream {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+
+    rows.try_next()
+        .await
+        .map_err(|e| format!("select row {KEYSPACE}.{TABLE} code={code}: {e}"))
+}
+
+pub async fn update_keystats(
+    session: &Session,
+    code: &str,
+    keystats: StockListKeystatsDb,
+    updated_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), String> {
+    session
+        .query_unpaged(UPDATE_KEYSTATS, (keystats, updated_at, code))
+        .await
+        .map_err(|e| format!("update keystats {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 

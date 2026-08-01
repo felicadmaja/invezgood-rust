@@ -6,9 +6,44 @@ service StockList {
   // Cek Redis StockListUpdatedAt: kosong atau >30 hari → GET Invezgo + upsert Scylla + set timestamp.
   // Masih valid (<30 hari) → baca Scylla saja. Response: daftar saham.
   rpc GetStockList(GetStockListRequest) returns (GetStockListResponse);
+
+  // GET api.invezgo.com/analysis/keystat/{code}?type=Q → upsert invezgood.stock_list.keystats + keystats_updated_at.
+  // Baca Scylla by PK code; refresh API bila keystats_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Response: KeyStatsRow (code, rows, columns, keystats_updated_at). code wajib; kosong → InvalidArgument.
+  rpc GetKeyStats(GetKeyStatsRequest) returns (KeyStatsRow);
 }
 
 message GetStockListRequest {}
+
+message GetKeyStatsRequest {
+  string code = 1;
+}
+
+message KeyStatsValue {
+  string col = 1;
+  int32 year = 2;
+  double amount = 3;
+  string period = 4;
+}
+
+message KeyStatsRowItem {
+  string id = 1;
+  string name = 2;
+  repeated KeyStatsValue values = 3;
+}
+
+message KeyStatsColumn {
+  int32 year = 1;
+  string label = 2;
+  string period = 3;
+}
+
+message KeyStatsRow {
+  string code = 1;
+  repeated KeyStatsRowItem rows = 2;
+  repeated KeyStatsColumn columns = 3;
+  optional int64 keystats_updated_at = 4; // Unix seconds UTC
+}
 
 message StockListRow {
   string code = 1;

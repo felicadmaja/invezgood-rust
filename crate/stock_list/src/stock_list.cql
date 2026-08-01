@@ -1,17 +1,24 @@
 -- Keyspace: invezgood
 -- Tabel dibuat via MCP Scylla (2026-08-02)
 
+-- Table: invezgood.stock_list
 
 -- Skema aktual:
--- | column_name | kind           | type                              |
--- |-------------|----------------|-----------------------------------|
--- | code        | partition_key  | text                              |
--- | name        | regular        | text                              |
--- | sector      | regular        | text                              |
--- | logo                  | regular        | text                              |
--- | keystats              | regular        | frozen<stock_list_keystats>       |
--- | keystats_updated_at   | regular        | timestamp                         |
+-- | column_name                  | kind           | type                                    |
+-- |------------------------------|----------------|-----------------------------------------|
+-- | code                         | partition_key  | text                                    |
+-- | name                         | regular        | text                                    |
+-- | sector                       | regular        | text                                    |
+-- | logo                         | regular        | text                                    |
+-- | keystats                     | regular        | frozen<stock_list_keystats>             |
+-- | keystats_updated_at          | regular        | timestamp                               |
+-- | balance_statement            | regular        | frozen<stock_list_balance_statement>    |
+-- | balance_statement_updated_at | regular        | timestamp                               |
 --
 -- UDT stock_list_keystats:
 --   rows    → list<{ id, name, values: list<{ col, year, amount, period }> }>
 --   columns → list<{ year, label, period }>
+--
+-- UDT stock_list_balance_statement:
+--   rows    → list<{ id, name, level, values, parent_id, is_abstract, display_order }>
+--   columns → list<{ year, label, period }>  (reuse keystats_column)
