@@ -11,11 +11,47 @@ service StockList {
   // Baca Scylla by PK code; refresh API bila keystats_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Response: KeyStatsRow (code, rows, columns, keystats_updated_at). code wajib; kosong → InvalidArgument.
   rpc GetKeyStats(GetKeyStatsRequest) returns (KeyStatsRow);
+
+  // GET api.invezgo.com/analysis/financial-statement/{code}?statement=BS&type=Q → upsert balance_statement + balance_statement_updated_at.
+  // Baca Scylla by PK code; refresh API bila balance_statement_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Response: BalanceStatementRow. code wajib; kosong → InvalidArgument.
+  rpc GetBalanceStatement(GetBalanceStatementRequest) returns (BalanceStatementRow);
+
+  // GET api.invezgo.com/analysis/financial-statement/{code}?statement=IS&type=Q → upsert income_statement + income_statement_updated_at.
+  // Baca Scylla by PK code; refresh API bila income_statement_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Response: IncomeStatementRow. code wajib; kosong → InvalidArgument.
+  rpc GetIncomeStatement(GetIncomeStatementRequest) returns (IncomeStatementRow);
+
+  // GET api.invezgo.com/analysis/financial-statement/{code}?statement=CF&type=Q → upsert cash_flow + cash_flow_updated_at.
+  // Baca Scylla by PK code; refresh API bila cash_flow_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Response: CashFlowStatementRow. code wajib; kosong → InvalidArgument.
+  rpc GetCashFlowStatement(GetCashFlowStatementRequest) returns (CashFlowStatementRow);
+
+  // GET api.invezgo.com/analysis/shareholder-detail/{code} → upsert share_holder_5 + share_holder_5_updated_at.
+  // Baca Scylla by PK code; refresh API bila share_holder_5_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Response: ShareHolder5Row. code wajib; kosong → InvalidArgument.
+  rpc GetShareHolder5(GetShareHolder5Request) returns (ShareHolder5Row);
 }
 
 message GetStockListRequest {}
 
 message GetKeyStatsRequest {
+  string code = 1;
+}
+
+message GetBalanceStatementRequest {
+  string code = 1;
+}
+
+message GetIncomeStatementRequest {
+  string code = 1;
+}
+
+message GetCashFlowStatementRequest {
+  string code = 1;
+}
+
+message GetShareHolder5Request {
   string code = 1;
 }
 
@@ -43,6 +79,51 @@ message KeyStatsRow {
   repeated KeyStatsRowItem rows = 2;
   repeated KeyStatsColumn columns = 3;
   optional int64 keystats_updated_at = 4; // Unix seconds UTC
+}
+
+message FinancialStatementRowItem {
+  string id = 1;
+  string name = 2;
+  int32 level = 3;
+  repeated KeyStatsValue values = 4;
+  optional string parent_id = 5;
+  bool is_abstract = 6;
+  int32 display_order = 7;
+}
+
+message BalanceStatementRow {
+  string code = 1;
+  repeated FinancialStatementRowItem rows = 2;
+  repeated KeyStatsColumn columns = 3;
+  optional int64 balance_statement_updated_at = 4; // Unix seconds UTC
+}
+
+message IncomeStatementRow {
+  string code = 1;
+  repeated FinancialStatementRowItem rows = 2;
+  repeated KeyStatsColumn columns = 3;
+  optional int64 income_statement_updated_at = 4; // Unix seconds UTC
+}
+
+message CashFlowStatementRow {
+  string code = 1;
+  repeated FinancialStatementRowItem rows = 2;
+  repeated KeyStatsColumn columns = 3;
+  optional int64 cash_flow_updated_at = 4; // Unix seconds UTC
+}
+
+message ShareHolder5Entry {
+  string code = 1;
+  string name = 2;
+  int64 date = 3; // Unix seconds UTC
+  string val = 4;
+  double percent = 5;
+}
+
+message ShareHolder5Row {
+  string code = 1;
+  repeated ShareHolder5Entry items = 2;
+  optional int64 share_holder_5_updated_at = 3; // Unix seconds UTC
 }
 
 message StockListRow {

@@ -14,11 +14,21 @@
 -- | keystats_updated_at          | regular        | timestamp                               |
 -- | balance_statement            | regular        | frozen<stock_list_balance_statement>    |
 -- | balance_statement_updated_at | regular        | timestamp                               |
+-- | income_statement             | regular        | frozen<stock_list_income_statement>     |
+-- | income_statement_updated_at  | regular        | timestamp                               |
+-- | cash_flow                    | regular        | frozen<stock_list_cash_flow>            |
+-- | cash_flow_updated_at         | regular        | timestamp                               |
+-- | share_holder_5               | regular        | frozen<list<frozen<share_holder_5_entry>>> |
+-- | share_holder_5_updated_at    | regular        | timestamp                               |
 --
 -- UDT stock_list_keystats:
 --   rows    → list<{ id, name, values: list<{ col, year, amount, period }> }>
 --   columns → list<{ year, label, period }>
 --
--- UDT stock_list_balance_statement:
+-- UDT stock_list_balance_statement / stock_list_income_statement / stock_list_cash_flow:
 --   rows    → list<{ id, name, level, values, parent_id, is_abstract, display_order }>
---   columns → list<{ year, label, period }>  (reuse keystats_column)
+--   columns → list<{ year, label, period }>  (reuse keystats_column, values reuse keystats_value)
+--
+-- UDT share_holder_5_entry:
+--   name text, date timestamp, val text, percent double
+--   API: GET /analysis/shareholder-detail/{code} → list per pemegang saham (>1%)
