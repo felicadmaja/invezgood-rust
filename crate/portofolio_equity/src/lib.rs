@@ -2,7 +2,7 @@
 
 mod database;
 pub mod model;
-mod repository;
+pub mod repository;
 mod service;
 
 pub use database::session;

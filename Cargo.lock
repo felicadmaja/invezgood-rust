@@ -1603,6 +1603,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures-util",
+ "portofolio_equity",
  "prost",
  "prost-build",
  "protoc-bin-vendored",
@@ -1658,7 +1659,6 @@ dependencies = [
  "tonic",
  "tonic-build",
  "user",
- "worker_scrapping",
 ]
 
 [[package]]

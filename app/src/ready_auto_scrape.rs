@@ -8,11 +8,11 @@
 //! scrape menunggu interval poller berikutnya (9–10 menit).
 //!
 //! Urutan:
-//! 1. GetAllPortofolioFromStockbit
-//! 2. GetAllPortofolioEquityFromStockbit
-//! 3. GetPortofolioHistoryByEmitenNameFromStockbit (batch holdings)
-//! 4. GetAllPendingOrderFromStockbit
-//! 5. GetLatestEmitenTrendingFromStockbit
+//! 1. GetAllPortofolioFromStockbit (holdings + equity dari satu GET portfolio/v2/list)
+//! 2. GetAllPendingOrderFromStockbit
+//! 3. GetLatestEmitenTrendingFromStockbit
+//!
+//! `GetPortofolioHistoryByEmitenNameFromStockbit` **tidak** di-auto-invoke (hanya via RPC user).
 //!
 //! Jam operasional Senin–Jumat, 08:45–12:15 dan 13:25–16:15 (Sabtu/Minggu tidak scrape).
 //! Tiap alur memakai **rate limit RPC yang sama** (`acquire_*`):
@@ -24,8 +24,6 @@ use std::sync::Arc;
 use emiten_trending::EmitenTrendingService;
 use pending_order::PendingOrderService;
 use portofolio::PortofolioService;
-use portofolio_equity::PortofolioEquityService;
-use portofolio_history::PortofolioHistoryService;
 use stockbit_browser::ReadinessPoller;
 use tonic::{Code, Status};
 use user::require_stockbit_scrape_hours;
@@ -65,8 +63,6 @@ fn new_build_langsung_scrape() -> bool {
 pub fn spawn_on_stockbit_ready(
     poller: Arc<ReadinessPoller>,
     portofolio: PortofolioService,
-    portofolio_equity: PortofolioEquityService,
-    portofolio_history: PortofolioHistoryService,
     pending_order: PendingOrderService,
     emiten_trending: EmitenTrendingService,
 ) {
@@ -100,16 +96,9 @@ pub fn spawn_on_stockbit_ready(
                     );
                 } else {
                     println!(
-                        "Readiness poll_seq={poll_seq} ready → auto invoke 5 scrapes (gate rate limit bersama user RPC)..."
+                        "Readiness poll_seq={poll_seq} ready → auto invoke 3 scrapes (gate rate limit bersama user RPC)..."
                     );
-                    run_auto_scrapes(
-                        &portofolio,
-                        &portofolio_equity,
-                        &portofolio_history,
-                        &pending_order,
-                        &emiten_trending,
-                    )
-                    .await;
+                    run_auto_scrapes(&portofolio, &pending_order, &emiten_trending).await;
                     println!("Readiness poll_seq={poll_seq} → auto scrapes selesai.");
                 }
             }
@@ -123,57 +112,16 @@ pub fn spawn_on_stockbit_ready(
 
 async fn run_auto_scrapes(
     portofolio: &PortofolioService,
-    portofolio_equity: &PortofolioEquityService,
-    portofolio_history: &PortofolioHistoryService,
     pending_order: &PendingOrderService,
     emiten_trending: &EmitenTrendingService,
 ) {
-    println!("Readiness ready → auto GetAllPortofolioFromStockbit...");
-    let holding_codes = match portofolio.scrape_from_stockbit_if_allowed().await {
-        Ok((n, codes)) => {
-            println!(
-                "Auto GetAllPortofolioFromStockbit selesai: {n} baris ({} kode).",
-                codes.len()
-            );
-            codes
-        }
-        Err(e) => {
-            log_auto_skip("GetAllPortofolioFromStockbit", &e);
-            match portofolio.list_holding_codes().await {
-                Ok(codes) => codes,
-                Err(e2) => {
-                    eprintln!("Auto list holding codes gagal: {}", e2.message());
-                    Vec::new()
-                }
-            }
-        }
-    };
-
-    println!("Readiness ready → auto GetAllPortofolioEquityFromStockbit...");
-    match portofolio_equity.scrape_from_stockbit_if_allowed().await {
-        Ok(n) => println!("Auto GetAllPortofolioEquityFromStockbit selesai: {n} baris."),
-        Err(e) => log_auto_skip("GetAllPortofolioEquityFromStockbit", &e),
-    }
-
-    if holding_codes.is_empty() {
-        println!(
-            "Readiness ready → skip auto GetPortofolioHistoryByEmitenNameFromStockbit (tidak ada holding)"
-        );
-    } else {
-        println!(
-            "Readiness ready → auto GetPortofolioHistoryByEmitenNameFromStockbit ({} holding)...",
-            holding_codes.len()
-        );
-        match portofolio_history
-            .scrape_holdings_from_stockbit_if_allowed(&holding_codes)
-            .await
-        {
-            Ok(n) => println!(
-                "Auto GetPortofolioHistoryByEmitenNameFromStockbit selesai: {n}/{} emiten.",
-                holding_codes.len()
-            ),
-            Err(e) => log_auto_skip("GetPortofolioHistoryByEmitenNameFromStockbit", &e),
-        }
+    println!("Readiness ready → auto GetAllPortofolioFromStockbit (holdings + equity)...");
+    match portofolio.scrape_from_stockbit_if_allowed().await {
+        Ok((n, codes)) => println!(
+            "Auto GetAllPortofolioFromStockbit selesai: {n} baris ({} kode).",
+            codes.len()
+        ),
+        Err(e) => log_auto_skip("GetAllPortofolioFromStockbit", &e),
     }
 
     println!("Readiness ready → auto GetAllPendingOrderFromStockbit...");

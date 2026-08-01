@@ -6,27 +6,13 @@ service PortofolioEquity {
   // Baca semua baris dari tabel Scylla `portofolio_equity`.
   // Request kosong. Response: repeated PortofolioEquityRow.
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  // Scrape Stockbit/upsert equity dilakukan oleh `Portofolio.GetAllPortofolioFromStockbit`
+  // (satu GET `portfolio/v2/list` untuk holdings + summary).
   rpc GetAllPortofolioEquityFromScylla(GetAllPortofolioEquityFromScyllaRequest)
       returns (GetAllPortofolioEquityFromScyllaResponse);
-
-  // Scrape equity dari GET carina.stockbit.com/portfolio/v2/list (`data.summary`)
-  // lalu upsert `portofolio_equity` — alur sama `portofolio_worker::scrape_and_insert_portofolio_equity`
-  // (login → START TRADING/PIN bila perlu → Bearer trading → GET API → insert).
-  // Mapping: Trading Balance, Invested, Open (allocated), Net Profit Loss, Total Equity.
-  // Rate limit: maksimal 1× per 3 menit untuk semua user
-  // (failed precondition jika terlalu cepat). Juga terpakai oleh auto IsStockbitReady.
-  // Hanya hari operasional Senin–Jumat dan jam server 08:45–12:15 serta 13:25–16:15
-  // (failed precondition: "Diluar hari operasional Senin-Jumat..." atau
-  // "Diluar jam 08:45-12:15 dan 13:25-16:15").
-  // Request kosong. Response: repeated PortofolioEquityRow (isi setelah scrape).
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
-  rpc GetAllPortofolioEquityFromStockbit(GetAllPortofolioEquityFromStockbitRequest)
-      returns (GetAllPortofolioEquityFromStockbitResponse);
 }
 
 message GetAllPortofolioEquityFromScyllaRequest {}
-
-message GetAllPortofolioEquityFromStockbitRequest {}
 
 message PortofolioEquityRow {
   string nama = 1;
@@ -35,10 +21,4 @@ message PortofolioEquityRow {
 
 message GetAllPortofolioEquityFromScyllaResponse {
   repeated PortofolioEquityRow rows = 1;
-}
-
-message GetAllPortofolioEquityFromStockbitResponse {
-  bool success = 1;
-  string message = 2;
-  repeated PortofolioEquityRow rows = 3;
 }

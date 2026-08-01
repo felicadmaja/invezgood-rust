@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
+use portofolio_equity::repository::PortofolioEquityRepository;
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
@@ -15,7 +16,7 @@ use crate::{
     GetAllPortofolioFromScyllaRequest, GetAllPortofolioFromScyllaResponse,
     GetAllPortofolioFromStockbitRequest, GetAllPortofolioFromStockbitResponse,
     GetPortofolioFromScyllaByEmitenNameRequest, GetPortofolioFromScyllaByEmitenNameResponse,
-    PortofolioRow,
+    PortofolioEquityRow, PortofolioRow,
 };
 
 fn normalize_emiten_name(raw: &str) -> Result<String, String> {
@@ -37,7 +38,7 @@ fn portfolio_scrape_gate() -> &'static Mutex<Option<Instant>> {
     LAST_PORTFOLIO_SCRAPE.get_or_init(|| Mutex::new(None))
 }
 
-/// Izinkan scrape portfolio; tolak jika < 5 menit sejak invoke terakhir (global).
+/// Izinkan scrape portfolio; tolak jika < 3 menit sejak invoke terakhir (global).
 async fn acquire_portfolio_scrape_slot() -> Result<(), Status> {
     let mut last = portfolio_scrape_gate().lock().await;
     if let Some(at) = *last {
@@ -55,24 +56,29 @@ async fn acquire_portfolio_scrape_slot() -> Result<(), Status> {
 
 pub struct PortofolioService {
     repo: PortofolioRepository,
+    equity_repo: PortofolioEquityRepository,
     session: Arc<Session>,
 }
 
 impl PortofolioService {
     pub fn new(session: Arc<Session>) -> Self {
         let session_for_repo = session.clone();
+        let session_for_equity = session.clone();
         Self {
             repo: PortofolioRepository::new(session_for_repo),
+            equity_repo: PortofolioEquityRepository::new(session_for_equity),
             session,
         }
     }
 
     pub async fn warm_prepared(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.repo.warm_prepared().await
+        self.repo.warm_prepared().await?;
+        self.equity_repo.warm_prepared().await?;
+        Ok(())
     }
 
-    /// Jam 07–17 dicek pemanggil. Rate limit 1×/3 menit + scrape (sama RPC).
-    /// Returns `(baris_upsert, kode_holding)`.
+    /// Rate limit 1×/3 menit + scrape (sama RPC). Upsert holdings + equity.
+    /// Returns `(baris_upsert_portofolio, kode_holding)`.
     /// Dipakai juga auto `IsStockbitReady` — jatah rate limit terpakai bersama user RPC.
     pub async fn scrape_from_stockbit_if_allowed(
         &self,
@@ -83,17 +89,18 @@ impl PortofolioService {
             .map_err(|e| Status::internal(e))
     }
 
-    /// Kode holding saat ini di Scylla `portofolio` (untuk batch history).
-    pub async fn list_holding_codes(&self) -> Result<Vec<String>, Status> {
+    async fn load_equity_proto_rows(&self) -> Result<Vec<PortofolioEquityRow>, Status> {
         let rows = self
-            .repo
+            .equity_repo
             .get_all()
             .await
-            .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+            .map_err(|e| Status::internal(format!("Scylla equity query failed: {e}")))?;
         Ok(rows
             .into_iter()
-            .map(|r| r.emiten_name.trim().to_ascii_uppercase())
-            .filter(|c| !c.is_empty())
+            .map(|r| PortofolioEquityRow {
+                nama: r.nama,
+                value: r.value,
+            })
             .collect())
     }
 }
@@ -175,7 +182,7 @@ impl PortofolioRpc for PortofolioService {
         acquire_portfolio_scrape_slot().await?;
 
         println!(
-            "GetAllPortofolioFromStockbit {username}: scrape portfolio/v2/list + upsert..."
+            "GetAllPortofolioFromStockbit {username}: scrape portfolio/v2/list (holdings + equity)..."
         );
 
         match on_demand::scrape_portofolio_all(Arc::clone(&self.session)).await {
@@ -186,20 +193,24 @@ impl PortofolioRpc for PortofolioService {
                     .await
                     .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
                 let proto_rows = rows_to_proto(rows);
+                let equity_rows = self.load_equity_proto_rows().await?;
                 let message = format!(
-                    "portofolio: scrape selesai, {n} baris di-upsert (baca {} baris)",
-                    proto_rows.len()
+                    "portofolio: scrape selesai, {n} holdings di-upsert (baca {} holdings, {} equity)",
+                    proto_rows.len(),
+                    equity_rows.len()
                 );
                 println!(
-                    "GetAllPortofolioFromStockbit {} success=true rows={} {}ms",
+                    "GetAllPortofolioFromStockbit {} success=true rows={} equity={} {}ms",
                     username,
                     proto_rows.len(),
+                    equity_rows.len(),
                     started.elapsed().as_millis()
                 );
                 Ok(Response::new(GetAllPortofolioFromStockbitResponse {
                     success: true,
                     message,
                     rows: proto_rows,
+                    equity_rows,
                 }))
             }
             Err(e) => {
@@ -213,6 +224,7 @@ impl PortofolioRpc for PortofolioService {
                     success: false,
                     message: format!("scrape portofolio gagal: {e}"),
                     rows: vec![],
+                    equity_rows: vec![],
                 }))
             }
         }

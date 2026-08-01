@@ -96,8 +96,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     ready_auto_scrape::spawn_on_stockbit_ready(
         user_svc.readiness_poller(),
         PortofolioService::new(session.clone()),
-        PortofolioEquityService::new(session.clone()),
-        PortofolioHistoryService::new(session.clone()),
         PendingOrderService::new(session.clone()),
         EmitenTrendingService::new(session.clone()),
     );

@@ -20,15 +20,13 @@ service User {
   // Bila status ready: tiap siklus poller (acak 9–10 menit) server auto-invoke berurutan
   // (hari operasional Senin–Jumat; jam 08:45–12:15 dan 13:25–16:15; Sabtu/Minggu tidak scrape;
   // tidak lewat gRPC client). Auto & user RPC memakai **jatah rate limit yang sama** (gate `acquire_*` per alur):
-  // - auto sudah jalan → user invoke RPC #1–#5 bisa kena failed_precondition
-  // - user sudah invoke RPC #1–#5 → auto skip alur itu (lanjut yang lain)
+  // - auto sudah jalan → user invoke RPC #1–#3 bisa kena failed_precondition
+  // - user sudah invoke RPC #1–#3 → auto skip alur itu (lanjut yang lain)
   // Env NEW_BUILD_LANGSUNG_SCRAPE=false: setelah restart, skip auto-scrape siklus ready pertama
   // (cek web tetap); scrape menunggu interval poller berikutnya.
-  // 1. GetAllPortofolioFromStockbit          (1×/3 menit)
-  // 2. GetAllPortofolioEquityFromStockbit    (1×/3 menit)
-  // 3. GetPortofolioHistoryByEmitenNameFromStockbit (batch holdings; 1×/1 detik)
-  // 4. GetAllPendingOrderFromStockbit        (1×/3 menit)
-  // 5. GetLatestEmitenTrendingFromStockbit   (1×/3 menit)
+  // 1. GetAllPortofolioFromStockbit          (holdings + equity; 1×/3 menit)
+  // 2. GetAllPendingOrderFromStockbit        (1×/3 menit)
+  // 3. GetLatestEmitenTrendingFromStockbit   (1×/3 menit)
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
   // Ubah password user di Scylla `user` (hash bcrypt).

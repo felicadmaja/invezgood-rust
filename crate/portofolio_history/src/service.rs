@@ -67,17 +67,6 @@ impl PortofolioHistoryService {
         self.repo.warm_prepared().await
     }
 
-    /// Batch history holdings + konsumsi rate limit RPC 1×/1 detik (sama user invoke).
-    /// Dipakai auto `IsStockbitReady` (jam scrape dicek pemanggil).
-    pub async fn scrape_holdings_from_stockbit_if_allowed(
-        &self,
-        codes: &[String],
-    ) -> Result<usize, Status> {
-        acquire_history_scrape_slot().await?;
-        on_demand::scrape_portofolio_history_for_emitens(Arc::clone(&self.session), codes)
-            .await
-            .map_err(|e| Status::internal(e))
-    }
 }
 
 #[tonic::async_trait]

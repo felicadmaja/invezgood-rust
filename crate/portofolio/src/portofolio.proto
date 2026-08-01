@@ -19,8 +19,8 @@ service Portofolio {
 
   // Scrape holdings + equity dari GET carina.stockbit.com/portfolio/v2/list
   // lalu upsert `portofolio` (`data.results`) dan `portofolio_equity` (`data.summary`).
-  // Alur: login → START TRADING/PIN bila perlu → Bearer trading → GET API →
-  // pastikan emiten_list + bandarmology → TRUNCATE+insert `portofolio`.
+  // Alur sama worker: login → START TRADING/PIN bila perlu → Bearer trading → satu GET API →
+  // pastikan emiten_list → TRUNCATE+insert `portofolio` + upsert `portofolio_equity`.
   // Tidak menulis `portofolio_bandarmology`.
   // Rate limit: maksimal 1× per 3 menit untuk semua user
   // (failed precondition jika terlalu cepat).
@@ -29,8 +29,8 @@ service Portofolio {
   // "Diluar jam 08:45-12:15 dan 13:25-16:15").
   // Tidak berlaku untuk bin worker_scrapping.
   // Juga dijalankan otomatis saat poller IsStockbitReady = ready (hari + jam + rate limit sama),
-  // bersama history holdings, pending_order, dan emiten_trending.
-  // Request kosong. Response: repeated PortofolioRow setelah scrape.
+  // bersama pending_order dan emiten_trending (bukan history).
+  // Request kosong. Response: repeated PortofolioRow + repeated PortofolioEquityRow setelah scrape.
   // Hanya role ADMIN; selain itu PERMISSION_DENIED "Harus admin !".
   // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
   rpc GetAllPortofolioFromStockbit(GetAllPortofolioFromStockbitRequest)
@@ -48,6 +48,7 @@ message GetPortofolioFromScyllaByEmitenNameRequest {
 message GetPortofolioFromScyllaByEmitenNameResponse {
   PortofolioRow row = 1;
 }
+
 message PortofolioRow {
   string emiten_name = 1;
   string emiten_icon = 2;
@@ -62,6 +63,12 @@ message PortofolioRow {
   string long_name = 11;
 }
 
+// Baris equity dari `portofolio_equity` (Trading Balance, Invested, Open, Net P/L, Total Equity).
+message PortofolioEquityRow {
+  string nama = 1;
+  double value = 2;
+}
+
 message GetAllPortofolioFromScyllaResponse {
   repeated PortofolioRow rows = 1;
 }
@@ -70,4 +77,5 @@ message GetAllPortofolioFromStockbitResponse {
   bool success = 1;
   string message = 2;
   repeated PortofolioRow rows = 3;
+  repeated PortofolioEquityRow equity_rows = 4;
 }
