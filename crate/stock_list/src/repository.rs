@@ -5,16 +5,18 @@ use scylla::client::session::Session;
 use scylla::DeserializeRow;
 use scylla::statement::prepared::PreparedStatement;
 
-use crate::model::{StockListKeystatsDb, StockListRow, KEYSPACE, TABLE};
+use crate::model::{StockListRow, KEYSPACE, TABLE};
 
 const UPSERT: &str =
-    "INSERT INTO invezgood.stock_list (code, name, sector, logo, keystats) VALUES (?, ?, ?, ?, ?)";
+    "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
 
-const SCAN_RANGE: &str = "SELECT code, name, sector, logo, keystats FROM invezgood.stock_list \
-                          WHERE token(code) > ? AND token(code) <= ?";
+const SCAN_RANGE: &str =
+    "SELECT code, name, sector, logo, keystats, keystats_updated_at FROM invezgood.stock_list \
+     WHERE token(code) > ? AND token(code) <= ?";
 
-const SCAN_WRAP: &str = "SELECT code, name, sector, logo, keystats FROM invezgood.stock_list \
-                         WHERE token(code) > ? OR token(code) <= ?";
+const SCAN_WRAP: &str =
+    "SELECT code, name, sector, logo, keystats, keystats_updated_at FROM invezgood.stock_list \
+     WHERE token(code) > ? OR token(code) <= ?";
 
 const LOCAL_TOKENS: &str = "SELECT tokens FROM system.local";
 const PEERS_TOKENS: &str = "SELECT tokens FROM system.peers";
@@ -30,10 +32,9 @@ pub async fn upsert(
     name: Option<&str>,
     sector: Option<&str>,
     logo: Option<&str>,
-    keystats: Option<StockListKeystatsDb>,
 ) -> Result<(), String> {
     session
-        .query_unpaged(UPSERT, (code, name, sector, logo, keystats))
+        .query_unpaged(UPSERT, (code, name, sector, logo))
         .await
         .map_err(|e| format!("upsert {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())

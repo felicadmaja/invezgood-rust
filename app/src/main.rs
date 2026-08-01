@@ -3,8 +3,26 @@
 use stock_list::{connect, StockListServer, StockListService};
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{UserServer, UserService};
+use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder as ReflectionBuilder;
+
+/// Baca ENABLE_COMPRESSION dari env. Default true jika tidak di-set.
+fn enable_compression_from_env() -> bool {
+    std::env::var("ENABLE_COMPRESSION")
+        .map_or(true, |v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
+macro_rules! maybe_compressed {
+    ($e:expr, $enable:expr) => {
+        if $enable {
+            $e.send_compressed(CompressionEncoding::Gzip)
+                .accept_compressed(CompressionEncoding::Gzip)
+        } else {
+            $e
+        }
+    };
+}
 
 pub mod pb {
     tonic::include_proto!("invezgood");
@@ -49,12 +67,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let top_gainer_loser = TopGainerLoserService::new(session.clone());
     let user = UserService::new(session);
 
-    let reflection = ReflectionBuilder::configure()
-        .register_encoded_file_descriptor_set(stock_list::FILE_DESCRIPTOR_SET)
-        .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
-        .register_encoded_file_descriptor_set(top_gainer_loser::FILE_DESCRIPTOR_SET)
-        .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
-        .build_v1()?;
+    let enable_compression = enable_compression_from_env();
+
+    let reflection = maybe_compressed!(
+        ReflectionBuilder::configure()
+            .register_encoded_file_descriptor_set(stock_list::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(top_gainer_loser::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
+            .build_v1()?,
+        enable_compression
+    );
+
+    let invezgood_svc =
+        maybe_compressed!(InvezgoodServer::new(InvezgoodService), enable_compression);
+    let stock_list_svc = maybe_compressed!(StockListServer::new(stock_list), enable_compression);
+    let user_svc = maybe_compressed!(UserServer::new(user), enable_compression);
+    let top_gainer_loser_svc =
+        maybe_compressed!(TopGainerLoserServer::new(top_gainer_loser), enable_compression);
 
     let mut builder = Server::builder();
 
@@ -64,14 +94,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         builder = builder.tls_config(tls_config)?;
     }
 
+    if enable_compression {
+        println!("gRPC gzip compression enabled (send + accept)");
+    }
+
     println!("invezgood gRPC listening on {addr} (reflection enabled)");
 
     builder
         .add_service(reflection)
-        .add_service(InvezgoodServer::new(InvezgoodService))
-        .add_service(StockListServer::new(stock_list))
-        .add_service(UserServer::new(user))
-        .add_service(TopGainerLoserServer::new(top_gainer_loser))
+        .add_service(invezgood_svc)
+        .add_service(stock_list_svc)
+        .add_service(user_svc)
+        .add_service(top_gainer_loser_svc)
         .serve(addr)
         .await?;
 

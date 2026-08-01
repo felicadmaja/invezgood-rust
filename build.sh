@@ -59,4 +59,7 @@ pm2 status "$NAMA_APP"
 echo "✨ Selesai! Aplikasi kamu sudah versi terbaru."
 echo "📄 Log app: $LOG_FILE  (tail -f invezgood.log)"
 
-pm2 logs "$NAMA_APP"
+# Hook/CI: jangan tail log (blocking). Manual deploy tetap bisa lihat log.
+if [ "${BUILD_SKIP_PM2_LOGS:-0}" != "1" ]; then
+  pm2 logs "$NAMA_APP"
+fi

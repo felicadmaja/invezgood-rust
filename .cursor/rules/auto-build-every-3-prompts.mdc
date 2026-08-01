@@ -1,0 +1,40 @@
+---
+description: Setiap 3 prompt selesai — ./build.sh (release build + restart PM2 invezgood)
+alwaysApply: true
+---
+
+# Auto Build & PM2 Setiap 3 Prompt
+
+Setiap **3 kali** agent selesai menangani prompt user: jalankan **`./build.sh`** (cargo release + restart PM2 app `invezgood`).
+
+## Otomatis (utama)
+
+Dijalankan oleh hook **`stop`** → `.cursor/hooks/auto-build-every-3-prompts.sh` (konfig: `.cursor/hooks.json`).
+
+Pastikan **Cursor Settings → Hooks** aktif. Agent **tidak perlu** build manual bila hook jalan normal.
+
+## Counter
+
+- State: `.cursor/auto-build-counter` (integer, mulai 0).
+- Setiap agent selesai (event `stop`): counter +1.
+- Saat counter = **3**: reset ke 0, lalu `./build.sh`.
+- Debug: `.cursor/auto-build.log`.
+
+## Build workflow (counter = 3)
+
+1. `chmod +x ./build.sh` bila perlu.
+2. `BUILD_SKIP_PM2_LOGS=1 ./build.sh` — skip `pm2 logs` interaktif agar hook tidak hang.
+3. Build gagal → cek `.cursor/auto-build.log` dan `invezgood.log`.
+
+## Fallback (hook gagal / Hooks dinonaktifkan)
+
+Jika counter = 3 dan PM2 belum ter-restart otomatis, agent **wajib** jalankan:
+
+```bash
+BUILD_SKIP_PM2_LOGS=1 ./build.sh
+```
+
+## Catatan
+
+- Counter terpisah dari auto-git; keduanya naik tiap `stop` sehingga biasanya jalan bersamaan di prompt ke-3.
+- Counter tetap naik meski respons Q&A saja; build tetap dijalankan.

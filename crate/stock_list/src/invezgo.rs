@@ -52,7 +52,6 @@ pub async fn fetch_and_save(session: Arc<Session>) -> Result<usize, String> {
             item.name.as_deref(),
             item.sector.as_deref(),
             item.logo.as_deref(),
-            None,
         )
         .await?;
         saved += 1;

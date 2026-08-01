@@ -8,8 +8,9 @@
 -- | code        | partition_key  | text                              |
 -- | name        | regular        | text                              |
 -- | sector      | regular        | text                              |
--- | logo        | regular        | text                              |
--- | keystats    | regular        | frozen<stock_list_keystats>       |
+-- | logo                  | regular        | text                              |
+-- | keystats              | regular        | frozen<stock_list_keystats>       |
+-- | keystats_updated_at   | regular        | timestamp                         |
 --
 -- UDT stock_list_keystats:
 --   rows    → list<{ id, name, values: list<{ col, year, amount, period }> }>

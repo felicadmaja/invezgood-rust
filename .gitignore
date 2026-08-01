@@ -1,5 +1,6 @@
 /target/
 .cursor/auto-git-counter
+.cursor/auto-build-counter
 .env
 logs/
 *.log

@@ -24,6 +24,7 @@ impl StockListService {
             name: row.name.unwrap_or_default(),
             sector: row.sector.unwrap_or_default(),
             logo: row.logo.unwrap_or_default(),
+            keystats_updated_at: row.keystats_updated_at.map(|dt| dt.timestamp()),
         }
     }
 }

@@ -5,6 +5,10 @@
       {
         "command": ".cursor/hooks/auto-git-every-3-prompts.sh",
         "timeout": 120
+      },
+      {
+        "command": ".cursor/hooks/auto-build-every-3-prompts.sh",
+        "timeout": 900
       }
     ]
   }

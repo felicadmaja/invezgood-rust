@@ -33,6 +33,8 @@ pub struct StockListRow {
     pub logo: Option<String>,
     #[scylla(default_when_null)]
     pub keystats: Option<StockListKeystatsDb>,
+    #[scylla(default_when_null)]
+    pub keystats_updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone)]
