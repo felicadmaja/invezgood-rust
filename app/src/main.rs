@@ -1,6 +1,6 @@
 //! Entry point — daftarkan semua layanan gRPC dari crate modul di sini.
 
-use stock_list::{StockListServer, StockListService};
+use stock_list::{connect, StockListServer, StockListService};
 use tonic::transport::Server;
 
 pub mod pb {
@@ -30,16 +30,21 @@ impl Invezgood for InvezgoodService {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    dotenvy::dotenv().ok();
+
     let host = std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.into());
     let port = std::env::var("GRPC_PORT").unwrap_or_else(|_| DEFAULT_PORT.into());
     let addr = format!("{host}:{port}").parse()?;
+
+    let session = connect().await?;
+    let stock_list = StockListService::new(session);
 
     println!("invezgood gRPC listening on {addr}");
 
     Server::builder()
         .add_service(InvezgoodServer::new(InvezgoodService))
-        .add_service(StockListServer::new(StockListService))
+        .add_service(StockListServer::new(stock_list))
         .serve(addr)
         .await?;
 

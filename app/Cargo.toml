@@ -8,6 +8,7 @@ name = "invezgood"
 path = "src/main.rs"
 
 [dependencies]
+dotenvy = "0.15"
 stock_list = { path = "../crate/stock_list" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tonic = "0.12"

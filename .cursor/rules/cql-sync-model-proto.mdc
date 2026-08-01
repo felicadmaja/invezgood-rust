@@ -1,0 +1,40 @@
+---
+description: Sinkronkan model.rs dan *.proto setiap ada perubahan file .cql ScyllaDB
+globs: "**/*.cql"
+alwaysApply: true
+---
+
+# Sinkron CQL → model.rs → proto
+
+Setiap **file `.cql` baru** atau **modifikasi `.cql`** (CREATE/ALTER TABLE, kolom baru, rename, tipe berubah), **wajib** update file terkait di **crate yang sama** dalam satu perubahan:
+
+1. **`src/model.rs`** — struct baris Scylla (`DeserializeRow` / `SerializeValue` bila perlu)
+2. **`src/*.proto`** — message yang mewakili **row** atau **response item** (bukan hanya request)
+
+## Mapping kolom
+
+| Scylla (CQL) | `model.rs`                         | `.proto`     |
+|--------------|------------------------------------|--------------|
+| `text`       | `String` / `Option<String>` + `#[scylla(default_when_null)]` bila nullable | `string` |
+| `int`        | `i32` / `Option<i32>`              | `int32`      |
+| `bigint`     | `i64` / `Option<i64>`              | `int64`      |
+| `boolean`    | `bool` / `Option<bool>`            | `bool`       |
+| `timestamp`  | `chrono` + feature crate bila dipakai | `string` atau `google.protobuf.Timestamp` |
+| partition key | field wajib (`String`, bukan `Option`) | field wajib di message |
+
+- Nama field Rust/proto **snake_case**, selaras nama kolom CQL (kecuali kata reserved — pakai `#[scylla(rename = "...")]`).
+- Export konstanta `KEYSPACE` / `TABLE` di `model.rs` jika belum ada.
+- Rebuild proto (`build.rs`) tetap jalan; setelah edit jalankan `cargo check -p <crate>`.
+
+## Contoh (crate `stock_list`)
+
+Tabel `invezgood.stock_list`: `code`, `name`, `sector`, `logo`
+
+- `model.rs` → `StockListRow { code, name, sector, logo }`
+- `stock_list.proto` → `StockItem` / response `ListResponse.items` harus punya field yang sama (`code` bukan alias lama seperti `symbol` kecuali sengaja deprecated)
+
+## Jangan anggap selesai bila
+
+- Hanya `.cql` yang diubah tanpa `model.rs` dan proto response/item
+- Proto request di-update tapi message row/response masih kolom lama
+- Field DB nullable di model tanpa `Option` + `default_when_null`

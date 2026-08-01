@@ -21,6 +21,19 @@ cargo build --release && ./target/release/invezgood
 
 Default listen: `0.0.0.0:50054` (env: `HOST`, `GRPC_PORT`).
 
+## MCP Invezgo (Cursor)
+
+Konfigurasi di `.cursor/mcp.json` (project) dan `~/.cursor/mcp.json` (global).
+
+Token: set `INVEZGO_BEARER_TOKEN` di `.env`, lalu export ke environment sebelum buka Cursor:
+
+```bash
+set -a && source .env && set +a
+cursor .
+```
+
+Reload window setelah itu (**Cursor Settings → MCP** → server `invezgo` harus Connected).
+
 ## Deploy (PM2)
 
 ```bash
@@ -35,4 +48,5 @@ grpcurl -plaintext -d '{"message":"hello"}' localhost:50054 invezgood.Invezgood/
 
 # stock list
 grpcurl -plaintext -d '{"limit":5}' localhost:50054 stock_list.StockList/List
+grpcurl -plaintext -d '{}' localhost:50054 stock_list.StockList/GetStockListFromInvezgo
 ```

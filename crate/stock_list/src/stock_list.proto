@@ -4,6 +4,7 @@ package stock_list;
 
 service StockList {
   rpc List(ListRequest) returns (ListResponse);
+  rpc GetStockListFromInvezgo(GetStockListFromInvezgoRequest) returns (GetStockListFromInvezgoResponse);
 }
 
 message ListRequest {
@@ -11,10 +12,19 @@ message ListRequest {
 }
 
 message StockItem {
-  string symbol = 1;
+  string code = 1;
   string name = 2;
+  string sector = 3;
+  string logo = 4;
 }
 
 message ListResponse {
   repeated StockItem items = 1;
+}
+
+message GetStockListFromInvezgoRequest {}
+
+message GetStockListFromInvezgoResponse {
+  bool success = 1;
+  string message = 2;
 }
