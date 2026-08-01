@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+scylla = "1.5"
 tonic = "0.12"
 prost = "0.13"
 
