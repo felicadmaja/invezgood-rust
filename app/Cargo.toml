@@ -1,0 +1,17 @@
+[package]
+name = "invezgood"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "invezgood"
+path = "src/main.rs"
+
+[dependencies]
+stock_list = { path = "../crate/stock_list" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tonic = "0.12"
+prost = "0.13"
+
+[build-dependencies]
+tonic-build = "0.12"

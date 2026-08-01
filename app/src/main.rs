@@ -1,4 +1,7 @@
-use tonic::{Request, Response, Status, transport::Server};
+//! Entry point — daftarkan semua layanan gRPC dari crate modul di sini.
+
+use stock_list::{StockListServer, StockListService};
+use tonic::transport::Server;
 
 pub mod pb {
     tonic::include_proto!("invezgood");
@@ -17,10 +20,10 @@ struct InvezgoodService;
 impl Invezgood for InvezgoodService {
     async fn ping(
         &self,
-        request: Request<PingRequest>,
-    ) -> Result<Response<PingResponse>, Status> {
+        request: tonic::Request<PingRequest>,
+    ) -> Result<tonic::Response<PingResponse>, tonic::Status> {
         let message = request.into_inner().message;
-        Ok(Response::new(PingResponse {
+        Ok(tonic::Response::new(PingResponse {
             message: format!("pong: {message}"),
         }))
     }
@@ -36,6 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Server::builder()
         .add_service(InvezgoodServer::new(InvezgoodService))
+        .add_service(StockListServer::new(StockListService))
         .serve(addr)
         .await?;
 

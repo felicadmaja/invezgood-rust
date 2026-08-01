@@ -396,6 +396,7 @@ name = "invezgood"
 version = "0.1.0"
 dependencies = [
  "prost",
+ "stock_list",
  "tokio",
  "tonic",
  "tonic-build",
@@ -749,6 +750,15 @@ checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "stock_list"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "tonic",
+ "tonic-build",
 ]
 
 [[package]]
