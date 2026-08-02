@@ -13,7 +13,7 @@ const ROW_SELECT: &str = "code, name, sector, logo, keystats, keystats_updated_a
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
     company_information, company_information_updated_at, corporate_action, corporate_action_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi";
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";

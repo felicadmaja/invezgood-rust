@@ -64,6 +64,28 @@ message StockByCodeResponse {
   string catatan_pribadi = 15;
   bool is_plan_to_trade = 16;
   bool is_konglomerasi = 17;
+  WyckoffChartData wyckoff_chart = 18;
+}
+
+message WyckoffChartData {
+  repeated int32 accumulation_trading_range = 1;
+  repeated int32 distribution_trading_range = 2;
+  repeated string sc = 3;
+  repeated string ar = 4;
+  repeated string st = 5;
+  repeated string ps = 6;
+  repeated string spr = 7;
+  repeated string ut = 8;
+  repeated string sos = 9;
+  repeated string lps = 10;
+  repeated string buec = 11;
+  repeated string mup = 12;
+  repeated string psy = 13;
+  repeated string bc = 14;
+  repeated string utad = 15;
+  repeated string sow = 16;
+  repeated string lpsy = 17;
+  repeated string mdw = 18;
 }
 
 message GetFinancialStatementByCodeRequest {

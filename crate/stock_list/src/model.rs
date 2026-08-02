@@ -208,6 +208,47 @@ pub struct CorporateActionDb {
     pub data: Option<Vec<CorporateActionEntryDb>>,
 }
 
+/// UDT `wyckoff_chart` — data chart Wyckoff per saham.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct WyckoffChartDb {
+    #[scylla(default_when_null)]
+    pub accumulation_trading_range: Option<Vec<i32>>,
+    #[scylla(default_when_null)]
+    pub distribution_trading_range: Option<Vec<i32>>,
+    #[scylla(default_when_null)]
+    pub sc: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub ar: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub st: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub ps: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub spr: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub ut: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub sos: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub lps: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub buec: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub mup: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub psy: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub bc: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub utad: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub sow: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub lpsy: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub mdw: Option<Vec<String>>,
+}
+
 /// Satu baris `invezgood.stock_list`.
 #[derive(Debug, Clone, DeserializeRow, SerializeRow)]
 pub struct StockListRow {
@@ -262,6 +303,8 @@ pub struct StockListRow {
     pub is_plan_to_trade: Option<bool>,
     #[scylla(default_when_null)]
     pub is_konglomerasi: Option<bool>,
+    #[scylla(default_when_null)]
+    pub wyckoff_chart: Option<WyckoffChartDb>,
 }
 
 /// Subset kolom untuk `GetAllStocks` (list ringan).

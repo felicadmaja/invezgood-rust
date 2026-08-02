@@ -32,6 +32,13 @@
 -- | catatan_pribadi                     | regular        | text                                    |
 -- | is_plan_to_trade                    | regular        | boolean                                 |
 -- | is_konglomerasi                     | regular        | boolean                                 |
+-- | wyckoff_chart                       | regular        | frozen<wyckoff_chart>                   |
+--
+-- UDT wyckoff_chart:
+--   accumulation_trading_range list<int>, distribution_trading_range list<int>
+--   Akumulasi: sc, ar, st, ps, spr, ut, sos, lps, buec, mup list<text>
+--   Distribusi: psy, bc, utad, sow, lpsy, mdw list<text>
+--   JSON keys: SC, AR, ST, PS, SPR, UT, SOS, LPS, BUEC, MUP, PSY, BC, UTAD, SOW, LPSY, MDW
 --
 -- UDT company_information:
 --   address, industry, subsindustry, activity, name, npwp, board, sector, subsector,

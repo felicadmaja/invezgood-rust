@@ -53,7 +53,7 @@ impl User for UserService {
             return Err(Status::unauthenticated("email atau password salah"));
         };
 
-        let (token, auth) = crate::auth::login(&self.auth_sessions, user, &password)
+        let (token, auth) = crate::auth::login(&self.auth_sessions, user.clone(), &password)
             .await
             .map_err(Status::unauthenticated)?;
 
@@ -61,6 +61,7 @@ impl User for UserService {
             token,
             nama: auth.nama,
             role: auth.role,
+            email: user.email,
         }))
     }
 

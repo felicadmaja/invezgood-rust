@@ -21,7 +21,7 @@ use crate::pb::{
     ShareHolderCompositionEntry, StatementPanelData, StockByCodeResponse, StockListRow,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
     UpdateIsPlanToTradeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
-    UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse,
+    UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, WyckoffChartData,
 };
 
 const CACHE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
@@ -175,6 +175,34 @@ impl StockListService {
             catatan_pribadi: row.catatan_pribadi.clone().unwrap_or_default(),
             is_plan_to_trade: row.is_plan_to_trade.unwrap_or(false),
             is_konglomerasi: row.is_konglomerasi.unwrap_or(false),
+            wyckoff_chart: row.wyckoff_chart.as_ref().map(Self::wyckoff_chart_from_db),
+        }
+    }
+
+    fn wyckoff_chart_from_db(db: &crate::model::WyckoffChartDb) -> WyckoffChartData {
+        fn strings(v: &Option<Vec<String>>) -> Vec<String> {
+            v.clone().unwrap_or_default()
+        }
+
+        WyckoffChartData {
+            accumulation_trading_range: db.accumulation_trading_range.clone().unwrap_or_default(),
+            distribution_trading_range: db.distribution_trading_range.clone().unwrap_or_default(),
+            sc: strings(&db.sc),
+            ar: strings(&db.ar),
+            st: strings(&db.st),
+            ps: strings(&db.ps),
+            spr: strings(&db.spr),
+            ut: strings(&db.ut),
+            sos: strings(&db.sos),
+            lps: strings(&db.lps),
+            buec: strings(&db.buec),
+            mup: strings(&db.mup),
+            psy: strings(&db.psy),
+            bc: strings(&db.bc),
+            utad: strings(&db.utad),
+            sow: strings(&db.sow),
+            lpsy: strings(&db.lpsy),
+            mdw: strings(&db.mdw),
         }
     }
 
