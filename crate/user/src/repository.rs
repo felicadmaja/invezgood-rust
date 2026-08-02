@@ -10,8 +10,11 @@ use crate::model::{UserRow, KEYSPACE, TABLE};
 const SCAN_RANGE: &str =
     "SELECT email, nama, password, role FROM invezgood.user WHERE token(email) > ? AND token(email) <= ?";
 
-const SCAN_WRAP: &str =
-    "SELECT email, nama, password, role FROM invezgood.user WHERE token(email) > ? OR token(email) <= ?";
+const SCAN_GT: &str =
+    "SELECT email, nama, password, role FROM invezgood.user WHERE token(email) > ?";
+
+const SCAN_LTE: &str =
+    "SELECT email, nama, password, role FROM invezgood.user WHERE token(email) <= ?";
 
 const FIND_BY_EMAIL: &str =
     "SELECT email, nama, password, role FROM invezgood.user WHERE email = ?";
@@ -21,7 +24,7 @@ const PEERS_TOKENS: &str = "SELECT tokens FROM system.peers";
 
 #[derive(Debug, DeserializeRow)]
 struct TokensRow {
-    tokens: HashSet<i64>,
+    tokens: HashSet<String>,
 }
 
 /// Lookup satu user by partition key `email`.
@@ -52,10 +55,14 @@ pub async fn token_ring_scan(session: &Session) -> Result<Vec<UserRow>, String> 
         .prepare(SCAN_RANGE)
         .await
         .map_err(|e| format!("prepare token scan range {KEYSPACE}.{TABLE}: {e}"))?;
-    let scan_wrap = session
-        .prepare(SCAN_WRAP)
+    let scan_gt = session
+        .prepare(SCAN_GT)
         .await
-        .map_err(|e| format!("prepare token scan wrap {KEYSPACE}.{TABLE}: {e}"))?;
+        .map_err(|e| format!("prepare token scan gt {KEYSPACE}.{TABLE}: {e}"))?;
+    let scan_lte = session
+        .prepare(SCAN_LTE)
+        .await
+        .map_err(|e| format!("prepare token scan lte {KEYSPACE}.{TABLE}: {e}"))?;
 
     let mut items = Vec::new();
     let n = tokens.len();
@@ -67,7 +74,9 @@ pub async fn token_ring_scan(session: &Session) -> Result<Vec<UserRow>, String> 
         let range_rows = if start < end {
             fetch_range(session, scan_range.clone(), (start, end)).await?
         } else {
-            fetch_range(session, scan_wrap.clone(), (start, end)).await?
+            let mut rows = fetch_bound(session, scan_gt.clone(), start).await?;
+            rows.extend(fetch_bound(session, scan_lte.clone(), end).await?);
+            rows
         };
 
         items.extend(range_rows);
@@ -93,11 +102,40 @@ async fn fetch_cluster_tokens(session: &Session) -> Result<Vec<i64>, String> {
             .await
             .map_err(|e| format!("cluster tokens row: {e}"))?
         {
-            tokens.extend(row.tokens);
+            for token_str in row.tokens {
+                let token = token_str
+                    .parse::<i64>()
+                    .map_err(|e| format!("parse cluster token {token_str}: {e}"))?;
+                tokens.insert(token);
+            }
         }
     }
 
     Ok(tokens.into_iter().collect())
+}
+
+async fn fetch_bound(
+    session: &Session,
+    prepared: PreparedStatement,
+    bound: i64,
+) -> Result<Vec<UserRow>, String> {
+    let mut rows = session
+        .execute_iter(prepared, (bound,))
+        .await
+        .map_err(|e| format!("token scan {KEYSPACE}.{TABLE} bound={bound}: {e}"))?
+        .rows_stream::<UserRow>()
+        .map_err(|e| format!("token scan stream {KEYSPACE}.{TABLE}: {e}"))?;
+
+    let mut items = Vec::new();
+    while let Some(row) = rows
+        .try_next()
+        .await
+        .map_err(|e| format!("token scan row {KEYSPACE}.{TABLE}: {e}"))?
+    {
+        items.push(row);
+    }
+
+    Ok(items)
 }
 
 async fn fetch_range(

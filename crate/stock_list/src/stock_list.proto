@@ -16,6 +16,11 @@ service StockList {
   // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Request: code wajib. Response: ShareHolderByCodeResponse.
   rpc GetShareHolderByCode(GetShareHolderByCodeRequest) returns (ShareHolderByCodeResponse);
+
+  // GET api.invezgo.com/analysis/information/{code} → upsert company_information + company_information_updated_at.
+  // Baca Scylla by PK code; refresh API bila company_information_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Request: code wajib. Response: CompanyInformationByCodeResponse.
+  rpc GetCompanyInformationByCode(GetCompanyInformationByCodeRequest) returns (CompanyInformationByCodeResponse);
 }
 
 message GetAllStocksRequest {}
@@ -25,6 +30,10 @@ message GetFinancialStatementByCodeRequest {
 }
 
 message GetShareHolderByCodeRequest {
+  string code = 1;
+}
+
+message GetCompanyInformationByCodeRequest {
   string code = 1;
 }
 
@@ -125,6 +134,52 @@ message ShareHolderCompositionEntry {
   string name = 2;
   double percentage = 3;
   string badge = 4;
+}
+
+message CompanyPersonEntry {
+  string name = 1;
+  string position = 2;
+}
+
+message CompanySubsidiaryEntry {
+  string name = 1;
+  double percentage = 2;
+}
+
+message CompanyInformationData {
+  string address = 1;
+  string industry = 2;
+  string subsindustry = 3;
+  string activity = 4;
+  string name = 5;
+  string npwp = 6;
+  string board = 7;
+  string sector = 8;
+  string subsector = 9;
+  optional int64 listing_date = 10; // Unix seconds UTC
+  string website = 11;
+  string logo = 12;
+  optional string additional_info = 13;
+  optional string people = 14;
+  optional string report_type = 15;
+  optional string administration = 16;
+  optional string description = 17;
+  optional double ipo_pct = 18;
+  optional double ipo_price = 19;
+  optional string ipo_share = 20;
+  optional string ipo_underwriter = 21;
+  optional double nominal_price = 22;
+  repeated string category = 23;
+  bool active = 24;
+  repeated CompanyPersonEntry commissioner = 25;
+  repeated CompanyPersonEntry director = 26;
+  repeated CompanySubsidiaryEntry subsidiary = 27;
+  optional int64 updated_at = 28; // Unix seconds UTC
+}
+
+message CompanyInformationByCodeResponse {
+  string code = 1;
+  CompanyInformationData company_information = 2;
 }
 
 message StockListRow {

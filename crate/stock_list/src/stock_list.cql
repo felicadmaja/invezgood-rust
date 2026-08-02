@@ -15,7 +15,7 @@
 -- | balance_statement                   | regular        | frozen<stock_list_balance_statement>    |
 -- | balance_statement_updated_at        | regular        | timestamp                               |
 -- | income_statement                    | regular        | frozen<stock_list_income_statement>     |
--- | income_statement_updated_at       | regular        | timestamp                               |
+-- | income_statement_updated_at         | regular        | timestamp                               |
 -- | cash_flow                           | regular        | frozen<stock_list_cash_flow>            |
 -- | cash_flow_updated_at                | regular        | timestamp                               |
 -- | share_holder_5                      | regular        | frozen<list<frozen<share_holder_5_entry>>> |
@@ -24,23 +24,13 @@
 -- | share_holder_1_updated_at           | regular        | timestamp                               |
 -- | share_holder_composition            | regular        | frozen<list<frozen<share_holder_composition_entry>>> |
 -- | share_holder_composition_updated_at | regular        | timestamp                               |
+-- | company_information                 | regular        | frozen<company_information>             |
+-- | company_information_updated_at      | regular        | timestamp                               |
 --
--- UDT stock_list_keystats:
---   rows    → list<{ id, name, values: list<{ col, year, amount, period }> }>
---   columns → list<{ year, label, period }>
---
--- UDT stock_list_balance_statement / stock_list_income_statement / stock_list_cash_flow:
---   rows    → list<{ id, name, level, values, parent_id, is_abstract, display_order }>
---   columns → list<{ year, label, period }>  (reuse keystats_column, values reuse keystats_value)
---
--- UDT share_holder_5_entry:
---   name text, date timestamp, val text, percent double
---   API: GET /analysis/shareholder-detail/{code}
---
--- UDT share_holder_1_entry:
---   name, holder_type, status, nationality, domicile, scripless, scrip, total, percentage
---   API: GET /analysis/shareholder-detail-one?code={code}
---
--- UDT share_holder_composition_entry:
---   name text, percentage double, badge text
---   API: GET /analysis/shareholder/{code}
+-- UDT company_information:
+--   address, industry, subsindustry, activity, name, npwp, board, sector, subsector,
+--   listing_date, website, logo, additional_info, people, report_type, administration,
+--   description, ipo_pct, ipo_price, ipo_share, ipo_underwriter, nominal_price,
+--   category list<text>, active boolean,
+--   commissioner/director list<{name, position}>, subsidiary list<{name, percentage}>
+--   API: GET /analysis/information/{code}

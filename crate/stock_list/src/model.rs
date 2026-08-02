@@ -1,7 +1,9 @@
 //! Model baris tabel `invezgood.stock_list`.
 
 use scylla::DeserializeRow;
+use scylla::DeserializeValue;
 use scylla::SerializeRow;
+use scylla::SerializeValue;
 
 pub const KEYSPACE: &str = "invezgood";
 pub const TABLE: &str = "stock_list";
@@ -62,6 +64,71 @@ pub type ShareHolderCompositionEntryDb = (String, f64, String);
 /// Kolom `share_holder_composition` — komposisi kepemilikan (pengendali, direksi, dll.).
 pub type ShareHolderCompositionDb = Option<Vec<ShareHolderCompositionEntryDb>>;
 
+/// UDT `company_person_entry` — urutan field = (name, position).
+pub type CompanyPersonEntryDb = (String, String);
+
+/// UDT `company_subsidiary_entry` — urutan field = (name, percentage).
+pub type CompanySubsidiaryEntryDb = (String, f64);
+
+/// UDT `company_information` — profil perusahaan dari API /analysis/information/{code}.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct CompanyInformationDb {
+    #[scylla(default_when_null)]
+    pub address: Option<String>,
+    #[scylla(default_when_null)]
+    pub industry: Option<String>,
+    #[scylla(default_when_null)]
+    pub subsindustry: Option<String>,
+    #[scylla(default_when_null)]
+    pub activity: Option<String>,
+    #[scylla(default_when_null)]
+    pub name: Option<String>,
+    #[scylla(default_when_null)]
+    pub npwp: Option<String>,
+    #[scylla(default_when_null)]
+    pub board: Option<String>,
+    #[scylla(default_when_null)]
+    pub sector: Option<String>,
+    #[scylla(default_when_null)]
+    pub subsector: Option<String>,
+    #[scylla(default_when_null)]
+    pub listing_date: Option<chrono::DateTime<chrono::Utc>>,
+    #[scylla(default_when_null)]
+    pub website: Option<String>,
+    #[scylla(default_when_null)]
+    pub logo: Option<String>,
+    #[scylla(default_when_null)]
+    pub additional_info: Option<String>,
+    #[scylla(default_when_null)]
+    pub people: Option<String>,
+    #[scylla(default_when_null)]
+    pub report_type: Option<String>,
+    #[scylla(default_when_null)]
+    pub administration: Option<String>,
+    #[scylla(default_when_null)]
+    pub description: Option<String>,
+    #[scylla(default_when_null)]
+    pub ipo_pct: Option<f64>,
+    #[scylla(default_when_null)]
+    pub ipo_price: Option<f64>,
+    #[scylla(default_when_null)]
+    pub ipo_share: Option<String>,
+    #[scylla(default_when_null)]
+    pub ipo_underwriter: Option<String>,
+    #[scylla(default_when_null)]
+    pub nominal_price: Option<f64>,
+    #[scylla(default_when_null)]
+    pub category: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub active: Option<bool>,
+    #[scylla(default_when_null)]
+    pub commissioner: Option<Vec<CompanyPersonEntryDb>>,
+    #[scylla(default_when_null)]
+    pub director: Option<Vec<CompanyPersonEntryDb>>,
+    #[scylla(default_when_null)]
+    pub subsidiary: Option<Vec<CompanySubsidiaryEntryDb>>,
+}
+
 /// Satu baris `invezgood.stock_list`.
 #[derive(Debug, Clone, DeserializeRow, SerializeRow)]
 pub struct StockListRow {
@@ -100,6 +167,53 @@ pub struct StockListRow {
     pub share_holder_composition: ShareHolderCompositionDb,
     #[scylla(default_when_null)]
     pub share_holder_composition_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[scylla(default_when_null)]
+    pub company_information: Option<CompanyInformationDb>,
+    #[scylla(default_when_null)]
+    pub company_information_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CompanyPersonEntry {
+    pub name: String,
+    pub position: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CompanySubsidiaryEntry {
+    pub name: String,
+    pub percentage: f64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CompanyInformation {
+    pub address: String,
+    pub industry: String,
+    pub subsindustry: String,
+    pub activity: String,
+    pub name: String,
+    pub npwp: String,
+    pub board: String,
+    pub sector: String,
+    pub subsector: String,
+    pub listing_date: Option<chrono::DateTime<chrono::Utc>>,
+    pub website: String,
+    pub logo: String,
+    pub additional_info: Option<String>,
+    pub people: Option<String>,
+    pub report_type: Option<String>,
+    pub administration: Option<String>,
+    pub description: Option<String>,
+    pub ipo_pct: Option<f64>,
+    pub ipo_price: Option<f64>,
+    pub ipo_share: Option<String>,
+    pub ipo_underwriter: Option<String>,
+    pub nominal_price: Option<f64>,
+    pub category: Vec<String>,
+    pub active: bool,
+    pub commissioner: Vec<CompanyPersonEntry>,
+    pub director: Vec<CompanyPersonEntry>,
+    pub subsidiary: Vec<CompanySubsidiaryEntry>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -474,5 +588,127 @@ impl From<ShareHolderComposition> for ShareHolderCompositionDb {
                 .map(ShareHolderCompositionEntryDb::from)
                 .collect(),
         )
+    }
+}
+
+impl From<CompanyPersonEntryDb> for CompanyPersonEntry {
+    fn from((name, position): CompanyPersonEntryDb) -> Self {
+        Self { name, position }
+    }
+}
+
+impl From<CompanyPersonEntry> for CompanyPersonEntryDb {
+    fn from(e: CompanyPersonEntry) -> Self {
+        (e.name, e.position)
+    }
+}
+
+impl From<CompanySubsidiaryEntryDb> for CompanySubsidiaryEntry {
+    fn from((name, percentage): CompanySubsidiaryEntryDb) -> Self {
+        Self { name, percentage }
+    }
+}
+
+impl From<CompanySubsidiaryEntry> for CompanySubsidiaryEntryDb {
+    fn from(e: CompanySubsidiaryEntry) -> Self {
+        (e.name, e.percentage)
+    }
+}
+
+impl From<CompanyInformationDb> for CompanyInformation {
+    fn from(db: CompanyInformationDb) -> Self {
+        Self {
+            address: db.address.unwrap_or_default(),
+            industry: db.industry.unwrap_or_default(),
+            subsindustry: db.subsindustry.unwrap_or_default(),
+            activity: db.activity.unwrap_or_default(),
+            name: db.name.unwrap_or_default(),
+            npwp: db.npwp.unwrap_or_default(),
+            board: db.board.unwrap_or_default(),
+            sector: db.sector.unwrap_or_default(),
+            subsector: db.subsector.unwrap_or_default(),
+            listing_date: db.listing_date,
+            website: db.website.unwrap_or_default(),
+            logo: db.logo.unwrap_or_default(),
+            additional_info: db.additional_info,
+            people: db.people,
+            report_type: db.report_type,
+            administration: db.administration,
+            description: db.description,
+            ipo_pct: db.ipo_pct,
+            ipo_price: db.ipo_price,
+            ipo_share: db.ipo_share,
+            ipo_underwriter: db.ipo_underwriter,
+            nominal_price: db.nominal_price,
+            category: db.category.unwrap_or_default(),
+            active: db.active.unwrap_or(false),
+            commissioner: db
+                .commissioner
+                .unwrap_or_default()
+                .into_iter()
+                .map(CompanyPersonEntry::from)
+                .collect(),
+            director: db
+                .director
+                .unwrap_or_default()
+                .into_iter()
+                .map(CompanyPersonEntry::from)
+                .collect(),
+            subsidiary: db
+                .subsidiary
+                .unwrap_or_default()
+                .into_iter()
+                .map(CompanySubsidiaryEntry::from)
+                .collect(),
+        }
+    }
+}
+
+impl From<CompanyInformation> for CompanyInformationDb {
+    fn from(info: CompanyInformation) -> Self {
+        Self {
+            address: Some(info.address),
+            industry: Some(info.industry),
+            subsindustry: Some(info.subsindustry),
+            activity: Some(info.activity),
+            name: Some(info.name),
+            npwp: Some(info.npwp),
+            board: Some(info.board),
+            sector: Some(info.sector),
+            subsector: Some(info.subsector),
+            listing_date: info.listing_date,
+            website: Some(info.website),
+            logo: Some(info.logo),
+            additional_info: info.additional_info,
+            people: info.people,
+            report_type: info.report_type,
+            administration: info.administration,
+            description: info.description,
+            ipo_pct: info.ipo_pct,
+            ipo_price: info.ipo_price,
+            ipo_share: info.ipo_share,
+            ipo_underwriter: info.ipo_underwriter,
+            nominal_price: info.nominal_price,
+            category: Some(info.category),
+            active: Some(info.active),
+            commissioner: Some(
+                info.commissioner
+                    .into_iter()
+                    .map(CompanyPersonEntryDb::from)
+                    .collect(),
+            ),
+            director: Some(
+                info.director
+                    .into_iter()
+                    .map(CompanyPersonEntryDb::from)
+                    .collect(),
+            ),
+            subsidiary: Some(
+                info.subsidiary
+                    .into_iter()
+                    .map(CompanySubsidiaryEntryDb::from)
+                    .collect(),
+            ),
+        }
     }
 }

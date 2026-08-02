@@ -5,12 +5,14 @@ use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 
 use crate::model::{
-    BalanceStatement, Keystats, ShareHolder1, ShareHolder5, ShareHolderComposition,
+    BalanceStatement, CompanyInformation, Keystats, ShareHolder1, ShareHolder5, ShareHolderComposition,
     StockListRow as DbStockListRow,
 };
 use crate::pb::stock_list_server::StockList;
 use crate::pb::{
-    FinancialStatementResponse, FinancialStatementRowItem, GetAllStocksRequest, GetAllStocksResponse,
+    CompanyInformationByCodeResponse, CompanyInformationData, CompanyPersonEntry,
+    CompanySubsidiaryEntry, FinancialStatementResponse, FinancialStatementRowItem,
+    GetAllStocksRequest, GetAllStocksResponse, GetCompanyInformationByCodeRequest,
     GetFinancialStatementByCodeRequest, GetShareHolderByCodeRequest, KeystatsData, KeyStatsColumn,
     KeyStatsRowItem, KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data,
     ShareHolder5Entry, ShareHolderByCodeResponse, ShareHolderCompositionData,
@@ -297,6 +299,77 @@ impl StockListService {
         }
     }
 
+    fn company_information_data(
+        info: CompanyInformation,
+        updated_at: Option<DateTime<Utc>>,
+    ) -> CompanyInformationData {
+        CompanyInformationData {
+            address: info.address,
+            industry: info.industry,
+            subsindustry: info.subsindustry,
+            activity: info.activity,
+            name: info.name,
+            npwp: info.npwp,
+            board: info.board,
+            sector: info.sector,
+            subsector: info.subsector,
+            listing_date: info.listing_date.map(|dt| dt.timestamp()),
+            website: info.website,
+            logo: info.logo,
+            additional_info: info.additional_info,
+            people: info.people,
+            report_type: info.report_type,
+            administration: info.administration,
+            description: info.description,
+            ipo_pct: info.ipo_pct,
+            ipo_price: info.ipo_price,
+            ipo_share: info.ipo_share,
+            ipo_underwriter: info.ipo_underwriter,
+            nominal_price: info.nominal_price,
+            category: info.category,
+            active: info.active,
+            commissioner: info
+                .commissioner
+                .into_iter()
+                .map(|e| CompanyPersonEntry {
+                    name: e.name,
+                    position: e.position,
+                })
+                .collect(),
+            director: info
+                .director
+                .into_iter()
+                .map(|e| CompanyPersonEntry {
+                    name: e.name,
+                    position: e.position,
+                })
+                .collect(),
+            subsidiary: info
+                .subsidiary
+                .into_iter()
+                .map(|e| CompanySubsidiaryEntry {
+                    name: e.name,
+                    percentage: e.percentage,
+                })
+                .collect(),
+            updated_at: updated_at.map(|dt| dt.timestamp()),
+        }
+    }
+
+    fn company_information_by_code_from_db_row(row: &DbStockListRow) -> CompanyInformationByCodeResponse {
+        let company_information = row.company_information.clone().map(|db| {
+            Self::company_information_data(
+                CompanyInformation::from(db),
+                row.company_information_updated_at,
+            )
+        });
+
+        CompanyInformationByCodeResponse {
+            code: row.code.clone(),
+            company_information,
+        }
+    }
+
     async fn refresh_statement_if_stale(
         session: Arc<Session>,
         code: &str,
@@ -381,7 +454,7 @@ impl StockList for StockListService {
             "cache valid (<30 hari): baca dari Scylla".into()
         };
 
-        let rows = crate::repository::token_ring_scan(self.session.as_ref())
+        let rows = crate::repository::list_all(self.session.as_ref())
             .await
             .map_err(Status::internal)?;
 
@@ -460,5 +533,41 @@ impl StockList for StockListService {
         })?;
 
         Ok(Response::new(Self::share_holder_by_code_from_db_row(&row)))
+    }
+
+    async fn get_company_information_by_code(
+        &self,
+        request: Request<GetCompanyInformationByCodeRequest>,
+    ) -> Result<Response<CompanyInformationByCodeResponse>, Status> {
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+
+        let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+            .await
+            .map_err(Status::internal)?;
+
+        let refresh = existing
+            .as_ref()
+            .map(|row| Self::should_refresh(row.company_information_updated_at))
+            .unwrap_or(true);
+
+        if refresh {
+            crate::invezgo::fetch_and_save_company_information(self.session.clone(), &code)
+                .await
+                .map_err(Status::internal)?;
+            existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(Status::internal)?;
+        }
+
+        let row = existing.ok_or_else(|| {
+            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+        })?;
+
+        Ok(Response::new(Self::company_information_by_code_from_db_row(
+            &row,
+        )))
     }
 }

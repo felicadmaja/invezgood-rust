@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use crate::model::{
-    BalanceStatement, Keystats, ShareHolder1, ShareHolder1Entry, ShareHolder5, ShareHolder5Entry,
-    ShareHolderComposition, ShareHolderCompositionEntry,
+    BalanceStatement, CompanyInformation, CompanyPersonEntry, CompanySubsidiaryEntry, Keystats,
+    ShareHolder1, ShareHolder1Entry, ShareHolder5, ShareHolder5Entry, ShareHolderComposition,
+    ShareHolderCompositionEntry,
 };
 use scylla::client::session::Session;
 use serde::Deserialize;
@@ -29,6 +30,10 @@ fn shareholder_detail_one_url(code: &str) -> String {
 
 fn shareholder_composition_url(code: &str) -> String {
     format!("https://api.invezgo.com/analysis/shareholder/{code}")
+}
+
+fn company_information_url(code: &str) -> String {
+    format!("https://api.invezgo.com/analysis/information/{code}")
 }
 
 
@@ -130,6 +135,76 @@ struct InvezgoShareHolderCompositionEntry {
     percentage: f64,
     #[serde(default)]
     badge: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct InvezgoCompanyPersonEntry {
+    name: String,
+    position: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct InvezgoCompanySubsidiaryEntry {
+    name: String,
+    percentage: f64,
+}
+
+#[derive(Debug, Deserialize)]
+struct InvezgoCompanyInformationResponse {
+    #[serde(default)]
+    address: Option<String>,
+    #[serde(default)]
+    industry: Option<String>,
+    #[serde(default)]
+    subsindustry: Option<String>,
+    #[serde(default)]
+    activity: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    npwp: Option<String>,
+    #[serde(default)]
+    board: Option<String>,
+    #[serde(default)]
+    sector: Option<String>,
+    #[serde(default)]
+    subsector: Option<String>,
+    #[serde(default)]
+    listing_date: Option<String>,
+    #[serde(default)]
+    website: Option<String>,
+    #[serde(default)]
+    logo: Option<String>,
+    #[serde(default)]
+    additional_info: Option<String>,
+    #[serde(default)]
+    people: Option<String>,
+    #[serde(default)]
+    report_type: Option<String>,
+    #[serde(default)]
+    administration: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    ipo_pct: Option<f64>,
+    #[serde(default)]
+    ipo_price: Option<f64>,
+    #[serde(default)]
+    ipo_share: Option<String>,
+    #[serde(default)]
+    ipo_underwriter: Option<String>,
+    #[serde(default)]
+    nominal_price: Option<f64>,
+    #[serde(default)]
+    category: Vec<String>,
+    #[serde(default)]
+    active: bool,
+    #[serde(default)]
+    commissioner: Vec<InvezgoCompanyPersonEntry>,
+    #[serde(default)]
+    director: Vec<InvezgoCompanyPersonEntry>,
+    #[serde(default)]
+    subsidiary: Vec<InvezgoCompanySubsidiaryEntry>,
 }
 
 pub async fn fetch_balance_statement(code: &str) -> Result<BalanceStatement, String> {
@@ -382,6 +457,110 @@ fn parse_share_holder_composition(body: &str) -> Result<ShareHolderComposition, 
         .collect();
 
     Ok(ShareHolderComposition { items })
+}
+
+pub async fn fetch_company_information(code: &str) -> Result<CompanyInformation, String> {
+    let token = std::env::var("INVEZGO_BEARER_TOKEN")
+        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
+
+    let response = reqwest::Client::new()
+        .get(company_information_url(code))
+        .header("Accept", "application/json")
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("request Invezgo information code={code} gagal: {e}"))?;
+
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("baca body Invezgo information code={code} gagal: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!("Invezgo information HTTP {status} code={code}: {body}"));
+    }
+
+    parse_company_information(&body)
+}
+
+pub async fn fetch_and_save_company_information(
+    session: Arc<Session>,
+    code: &str,
+) -> Result<(CompanyInformation, chrono::DateTime<chrono::Utc>), String> {
+    let info = fetch_company_information(code).await?;
+    let updated_at = chrono::Utc::now();
+    let db = crate::model::CompanyInformationDb::from(info.clone());
+    crate::repository::update_company_information(session.as_ref(), code, db, updated_at).await?;
+    Ok((info, updated_at))
+}
+
+fn parse_company_information(body: &str) -> Result<CompanyInformation, String> {
+    let parsed: InvezgoCompanyInformationResponse = serde_json::from_str(body)
+        .map_err(|e| format!("parse JSON Invezgo information gagal: {e}"))?;
+
+    let listing_date = parsed
+        .listing_date
+        .as_deref()
+        .map(parse_iso_timestamp)
+        .transpose()?;
+
+    Ok(CompanyInformation {
+        address: parsed.address.unwrap_or_default(),
+        industry: parsed.industry.unwrap_or_default(),
+        subsindustry: parsed.subsindustry.unwrap_or_default(),
+        activity: parsed.activity.unwrap_or_default(),
+        name: parsed.name.unwrap_or_default(),
+        npwp: parsed.npwp.unwrap_or_default(),
+        board: parsed.board.unwrap_or_default(),
+        sector: parsed.sector.unwrap_or_default(),
+        subsector: parsed.subsector.unwrap_or_default(),
+        listing_date,
+        website: parsed.website.unwrap_or_default(),
+        logo: parsed.logo.unwrap_or_default(),
+        additional_info: parsed.additional_info,
+        people: parsed.people,
+        report_type: parsed.report_type,
+        administration: parsed.administration,
+        description: parsed.description,
+        ipo_pct: parsed.ipo_pct,
+        ipo_price: parsed.ipo_price,
+        ipo_share: parsed.ipo_share,
+        ipo_underwriter: parsed.ipo_underwriter,
+        nominal_price: parsed.nominal_price,
+        category: parsed.category,
+        active: parsed.active,
+        commissioner: parsed
+            .commissioner
+            .into_iter()
+            .map(|e| CompanyPersonEntry {
+                name: e.name,
+                position: e.position,
+            })
+            .collect(),
+        director: parsed
+            .director
+            .into_iter()
+            .map(|e| CompanyPersonEntry {
+                name: e.name,
+                position: e.position,
+            })
+            .collect(),
+        subsidiary: parsed
+            .subsidiary
+            .into_iter()
+            .map(|e| CompanySubsidiaryEntry {
+                name: e.name,
+                percentage: e.percentage,
+            })
+            .collect(),
+    })
+}
+
+fn parse_iso_timestamp(raw: &str) -> Result<chrono::DateTime<chrono::Utc>, String> {
+    chrono::DateTime::parse_from_rfc3339(raw)
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+        .map_err(|e| format!("parse timestamp {raw}: {e}"))
 }
 
 fn parse_financial_statement(body: &str) -> Result<BalanceStatement, String> {
