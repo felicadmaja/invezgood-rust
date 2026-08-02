@@ -573,16 +573,41 @@ async fn fetch_portfolio_list(
     Ok((v, rows, rate_info))
 }
 
-async fn upsert_portofolio(
+async fn fetch_portfolio_list_string(
+    http: &reqwest::Client,
+    bearer: &str,
+) -> Result<
+    (
+        Value,
+        Vec<PortoRow>,
+        crate::rate_limit_delay::RateLimitInfo,
+    ),
+    String,
+> {
+    fetch_portfolio_list(http, bearer)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn truncate_portofolio(
+    session: &Session,
+    keyspace: &str,
+) -> Result<(), String> {
+    println!("Portofolio: TRUNCATE {keyspace}.portofolio...");
+    session
+        .query_unpaged(format!("TRUNCATE {keyspace}.portofolio"), &[])
+        .await
+        .map_err(|e| format!("TRUNCATE {keyspace}.portofolio: {e}"))?;
+    println!("Portofolio: truncate selesai.");
+    Ok(())
+}
+
+async fn insert_portofolio(
     session: &Session,
     keyspace: &str,
     rows: &[PortoRow],
 ) -> Result<usize, Box<dyn std::error::Error>> {
-    println!("Portofolio: TRUNCATE {keyspace}.portofolio...");
-    session
-        .query_unpaged(format!("TRUNCATE {keyspace}.portofolio"), &[])
-        .await?;
-    println!("Portofolio: truncate selesai — mulai insert {} baris...", rows.len());
+    println!("Portofolio: mulai insert {} baris...", rows.len());
 
     let insert = session
         .prepare(format!(
@@ -675,8 +700,13 @@ pub async fn scrape_and_insert_portofolio(
         .timeout(Duration::from_secs(60))
         .build()?;
 
-    println!("Portofolio API: GET {PORTFOLIO_API_URL} (summary + results)...");
-    let (json, rows, rate) = fetch_portfolio_list(&http, &bearer).await?;
+    println!("Portofolio: TRUNCATE + GET {PORTFOLIO_API_URL} paralel...");
+    let (truncate_res, fetch_res) = tokio::join!(
+        truncate_portofolio(session.as_ref(), keyspace),
+        fetch_portfolio_list_string(&http, &bearer),
+    );
+    truncate_res.map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+    let (json, rows, rate) = fetch_res.map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
     let delay_ms = rate.inter_emiten_delay_ms();
     if delay_ms > 0 {
         println!(
@@ -710,7 +740,7 @@ pub async fn scrape_and_insert_portofolio(
 
     let _ = with_bandarmology;
 
-    let n = upsert_portofolio(session.as_ref(), keyspace, &rows).await?;
+    let n = insert_portofolio(session.as_ref(), keyspace, &rows).await?;
     println!("OK: {n} baris diinsert ke portofolio.");
 
     Ok((n, codes))

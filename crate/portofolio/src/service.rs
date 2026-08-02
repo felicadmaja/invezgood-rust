@@ -6,7 +6,7 @@ use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use user::{
-    extract_bearer_token, require_stockbit_scrape_hours, validate_session, AuthSession,
+    extract_bearer_token, validate_session, AuthSession,
     SessionStore,
 };
 use worker_scrapping::on_demand;
@@ -200,7 +200,6 @@ impl Portofolio for PortofolioService {
         let _ = request.into_inner();
 
         let result: Result<Response<GetAllPortofolioFromStockbitResponse>, Status> = async {
-            require_stockbit_scrape_hours()?;
             acquire_portfolio_scrape_slot().await?;
 
             match on_demand::scrape_portofolio_all(Arc::clone(&self.session)).await {
