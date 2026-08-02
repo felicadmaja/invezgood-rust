@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package portofolio_equity;
+
+service PortofolioEquity {
+  // Memerlukan user login (admin). Kirim metadata: authorization: Bearer <token>.
+
+  // Baca semua baris invezgood.portofolio_equity.
+  // Request kosong. Response: repeated PortofolioEquityRow.
+  // Scrape Stockbit/upsert equity dilakukan oleh `Portofolio.GetAllPortofolioFromStockbit`
+  // (satu GET `portfolio/v2/list` untuk holdings + summary).
+  rpc GetAllPortofolioEquityFromScylla(GetAllPortofolioEquityFromScyllaRequest)
+      returns (GetAllPortofolioEquityFromScyllaResponse);
+}
+
+message GetAllPortofolioEquityFromScyllaRequest {}
+
+message PortofolioEquityRow {
+  string nama = 1;
+  double value = 2;
+}
+
+message GetAllPortofolioEquityFromScyllaResponse {
+  repeated PortofolioEquityRow rows = 1;
+}

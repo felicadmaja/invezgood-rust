@@ -11,8 +11,8 @@ use user::{
 };
 use worker_scrapping::on_demand;
 
-use crate::model::PortofolioEquityRow as DbEquityRow;
 use crate::model::PortofolioRow as DbPortofolioRow;
+use portofolio_equity::repository::PortofolioEquityRepository;
 use crate::pb::portofolio_server::Portofolio;
 use crate::pb::{
     GetAllPortofolioFromScyllaRequest, GetAllPortofolioFromScyllaResponse,
@@ -48,13 +48,16 @@ async fn acquire_portfolio_scrape_slot() -> Result<(), Status> {
 pub struct PortofolioService {
     session: Arc<Session>,
     auth_sessions: SessionStore,
+    equity_repo: PortofolioEquityRepository,
 }
 
 impl PortofolioService {
     pub fn new(session: Arc<Session>, auth_sessions: SessionStore) -> Self {
+        let equity_repo = PortofolioEquityRepository::new(session.clone());
         Self {
             session,
             auth_sessions,
+            equity_repo,
         }
     }
 
@@ -121,18 +124,19 @@ impl PortofolioService {
         }
     }
 
-    fn equity_to_proto(row: DbEquityRow) -> PortofolioEquityRow {
-        PortofolioEquityRow {
-            nama: row.nama,
-            value: row.value,
-        }
-    }
-
     async fn load_equity_proto_rows(&self) -> Result<Vec<PortofolioEquityRow>, Status> {
-        let rows = crate::repository::find_all_equity(self.session.as_ref())
+        let rows = self
+            .equity_repo
+            .get_all()
             .await
             .map_err(Status::internal)?;
-        Ok(rows.into_iter().map(Self::equity_to_proto).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| PortofolioEquityRow {
+                nama: row.nama,
+                value: row.value,
+            })
+            .collect())
     }
 }
 

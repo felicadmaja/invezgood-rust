@@ -1,7 +1,7 @@
 use futures::stream::{self, StreamExt, TryStreamExt};
 use scylla::client::session::Session;
 
-use crate::model::{PortofolioEquityRow, PortofolioRow, EQUITY_TABLE, KEYSPACE, TABLE};
+use crate::model::{PortofolioRow, KEYSPACE, TABLE};
 
 const TOKEN_SEGMENTS: usize = 16;
 const SCAN_CONCURRENCY: usize = 8;
@@ -12,8 +12,6 @@ const PORTOFOLIO_COLUMNS: &str = "emiten_name, long_name, emiten_icon, balance_l
 const FIND_BY_EMITEN: &str = "SELECT emiten_name, long_name, emiten_icon, balance_lot, available_lot, \
     average_price, current_price, invested, market_value, potential_p_l, percentage \
     FROM invezgood.portofolio WHERE emiten_name = ?";
-
-const FIND_ALL_EQUITY: &str = "SELECT nama, value FROM invezgood.portofolio_equity";
 
 pub async fn find_all(session: &Session) -> Result<Vec<PortofolioRow>, String> {
     let table = format!("{KEYSPACE}.{TABLE}");
@@ -68,26 +66,6 @@ pub async fn find_by_emiten_name(
     rows.try_next()
         .await
         .map_err(|e| format!("find_by_emiten_name row {KEYSPACE}.{TABLE}: {e}"))
-}
-
-#[allow(dead_code)]
-pub async fn find_all_equity(session: &Session) -> Result<Vec<PortofolioEquityRow>, String> {
-    let mut rows = session
-        .query_iter(FIND_ALL_EQUITY, &[])
-        .await
-        .map_err(|e| format!("find_all_equity {KEYSPACE}.{EQUITY_TABLE}: {e}"))?
-        .rows_stream::<PortofolioEquityRow>()
-        .map_err(|e| format!("find_all_equity stream {KEYSPACE}.{EQUITY_TABLE}: {e}"))?;
-
-    let mut items = Vec::new();
-    while let Some(row) = rows
-        .try_next()
-        .await
-        .map_err(|e| format!("find_all_equity row {KEYSPACE}.{EQUITY_TABLE}: {e}"))?
-    {
-        items.push(row);
-    }
-    Ok(items)
 }
 
 fn token_segment_start(seg: usize, num_seg: usize) -> i64 {

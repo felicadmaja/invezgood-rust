@@ -1,10 +1,9 @@
-//! Model baris tabel `invezgood.portofolio` dan `invezgood.portofolio_equity`.
+//! Model baris tabel `invezgood.portofolio`.
 
 use scylla::DeserializeRow;
 
 pub const KEYSPACE: &str = "invezgood";
 pub const TABLE: &str = "portofolio";
-pub const EQUITY_TABLE: &str = "portofolio_equity";
 
 /// Satu baris `invezgood.portofolio`.
 #[derive(Debug, Clone, DeserializeRow)]
@@ -31,13 +30,4 @@ pub struct PortofolioRow {
     pub potential_p_l: f64,
     #[scylla(default_when_null)]
     pub percentage: f64,
-}
-
-/// Satu baris `invezgood.portofolio_equity`.
-#[derive(Debug, Clone, DeserializeRow)]
-pub struct PortofolioEquityRow {
-    #[scylla(default_when_null)]
-    pub nama: String,
-    #[scylla(default_when_null)]
-    pub value: f64,
 }

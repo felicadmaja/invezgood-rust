@@ -9,7 +9,7 @@ mod model;
 mod repository;
 mod service;
 
-pub use model::{PortofolioEquityRow, PortofolioRow, EQUITY_TABLE, KEYSPACE, TABLE};
+pub use model::{PortofolioRow, KEYSPACE, TABLE};
 
 pub use pb::portofolio_server::{Portofolio, PortofolioServer};
 pub use service::PortofolioService;

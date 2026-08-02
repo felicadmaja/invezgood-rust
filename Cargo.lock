@@ -1094,6 +1094,7 @@ dependencies = [
  "dotenvy",
  "pending_order",
  "portofolio",
+ "portofolio_equity",
  "prost",
  "stock_list",
  "stockbit_browser",
@@ -1350,6 +1351,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "portofolio_equity",
  "prost",
  "scylla",
  "tokio",
@@ -1357,6 +1359,19 @@ dependencies = [
  "tonic-build",
  "user",
  "worker_scrapping",
+]
+
+[[package]]
+name = "portofolio_equity"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "prost",
+ "scylla",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
 ]
 
 [[package]]

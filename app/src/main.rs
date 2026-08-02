@@ -8,6 +8,7 @@ use bandarmology::{BandarmologyServer, BandarmologyService};
 use broker::{BrokerServer, BrokerService};
 use pending_order::{PendingOrderServer, PendingOrderService};
 use portofolio::{PortofolioServer, PortofolioService};
+use portofolio_equity::{PortofolioEquityServer, PortofolioEquityService};
 use stock_list::{connect, StockListServer, StockListService};
 use stockbit_browser::ReadinessPoller;
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
@@ -78,6 +79,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let bandarmology = BandarmologyService::new(session.clone(), auth_sessions.clone());
     let broker = BrokerService::new(session.clone(), auth_sessions.clone());
     let portofolio = PortofolioService::new(session.clone(), auth_sessions.clone());
+    let portofolio_equity =
+        PortofolioEquityService::new(session.clone(), auth_sessions.clone());
     let pending_order = PendingOrderService::new(session.clone(), auth_sessions.clone());
 
     let readiness_poller = ReadinessPoller::new();
@@ -99,6 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(bandarmology::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(broker::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(portofolio::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(portofolio_equity::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pending_order::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
@@ -116,6 +120,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let broker_svc = maybe_compressed!(BrokerServer::new(broker), enable_compression);
     let portofolio_svc =
         maybe_compressed!(PortofolioServer::new(portofolio), enable_compression);
+    let portofolio_equity_svc = maybe_compressed!(
+        PortofolioEquityServer::new(portofolio_equity),
+        enable_compression
+    );
     let pending_order_svc =
         maybe_compressed!(PendingOrderServer::new(pending_order), enable_compression);
 
@@ -142,6 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(bandarmology_svc)
         .add_service(broker_svc)
         .add_service(portofolio_svc)
+        .add_service(portofolio_equity_svc)
         .add_service(pending_order_svc)
         .serve(addr)
         .await?;
