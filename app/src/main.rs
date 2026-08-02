@@ -1,8 +1,15 @@
 //! Entry point — daftarkan semua layanan gRPC dari crate modul di sini.
 
+mod ready_auto_scrape;
+
+use std::sync::Arc;
+
 use bandarmology::{BandarmologyServer, BandarmologyService};
 use broker::{BrokerServer, BrokerService};
+use pending_order::{PendingOrderServer, PendingOrderService};
+use portofolio::{PortofolioServer, PortofolioService};
 use stock_list::{connect, StockListServer, StockListService};
+use stockbit_browser::ReadinessPoller;
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{new_session_store, UserServer, UserService};
 use tonic::codec::CompressionEncoding;
@@ -70,6 +77,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let top_gainer_loser = TopGainerLoserService::new(session.clone(), auth_sessions.clone());
     let bandarmology = BandarmologyService::new(session.clone(), auth_sessions.clone());
     let broker = BrokerService::new(session.clone(), auth_sessions.clone());
+    let portofolio = PortofolioService::new(session.clone(), auth_sessions.clone());
+    let pending_order = PendingOrderService::new(session.clone(), auth_sessions.clone());
+
+    let readiness_poller = ReadinessPoller::start();
+    ready_auto_scrape::spawn_on_stockbit_ready(
+        Arc::clone(&readiness_poller),
+        portofolio.clone(),
+        pending_order.clone(),
+    );
+
     let user = UserService::new(session, auth_sessions);
 
     let enable_compression = enable_compression_from_env();
@@ -81,6 +98,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(top_gainer_loser::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(bandarmology::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(broker::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(portofolio::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(pending_order::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
         enable_compression
@@ -95,6 +114,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let bandarmology_svc =
         maybe_compressed!(BandarmologyServer::new(bandarmology), enable_compression);
     let broker_svc = maybe_compressed!(BrokerServer::new(broker), enable_compression);
+    let portofolio_svc =
+        maybe_compressed!(PortofolioServer::new(portofolio), enable_compression);
+    let pending_order_svc =
+        maybe_compressed!(PendingOrderServer::new(pending_order), enable_compression);
 
     let mut builder = Server::builder();
 
@@ -118,6 +141,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(top_gainer_loser_svc)
         .add_service(bandarmology_svc)
         .add_service(broker_svc)
+        .add_service(portofolio_svc)
+        .add_service(pending_order_svc)
         .serve(addr)
         .await?;
 

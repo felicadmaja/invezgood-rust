@@ -14,6 +14,9 @@ user = { path = "../crate/user" }
 top_gainer_loser = { path = "../crate/top_gainer_loser" }
 bandarmology = { path = "../crate/bandarmology" }
 broker = { path = "../crate/broker" }
+portofolio = { path = "../crate/portofolio" }
+pending_order = { path = "../crate/pending_order" }
+stockbit_browser = { path = "../crate/stockbit_browser" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tls = { path = "../crate/tls" }
 tonic = { version = "0.12", features = ["tls", "gzip"] }

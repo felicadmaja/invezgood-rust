@@ -11,6 +11,9 @@ pub mod password;
 mod repository;
 mod service;
 
-pub use auth::{extract_bearer_token, new_session_store, validate_session, AuthSession, SessionStore};
+pub use auth::{
+    extract_bearer_token, new_session_store, require_stockbit_scrape_hours, validate_session,
+    AuthSession, SessionStore,
+};
 pub use pb::user_server::{User, UserServer};
 pub use service::UserService;

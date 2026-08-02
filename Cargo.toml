@@ -6,6 +6,10 @@ members = [
     "crate/top_gainer_loser",
     "crate/bandarmology",
     "crate/broker",
+    "crate/portofolio",
+    "crate/pending_order",
+    "crate/stockbit_browser",
     "crate/tls",
+    "worker_scrapping",
 ]
 resolver = "2"

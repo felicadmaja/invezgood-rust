@@ -3,4 +3,5 @@
 .cursor/auto-build-counter
 .env
 logs/
+worker_scrapping/browser_data/
 *.log

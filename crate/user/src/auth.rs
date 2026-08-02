@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Datelike, Duration, Local, Timelike, Utc};
 use getrandom::getrandom;
 use tokio::sync::RwLock;
 
@@ -98,4 +98,31 @@ pub fn extract_bearer_token<T>(request: &tonic::Request<T>) -> Result<String, to
     }
 
     Ok(token.to_string())
+}
+
+/// Batasi RPC scrape Stockbit ke Senin–Jumat, jam 08:45–12:15 dan 13:25–16:15 (server lokal).
+pub fn require_stockbit_scrape_hours() -> Result<(), tonic::Status> {
+    let now = Local::now();
+    match now.weekday() {
+        chrono::Weekday::Sat | chrono::Weekday::Sun => {
+            return Err(tonic::Status::failed_precondition(
+                "Diluar hari operasional Senin-Jumat (Sabtu/Minggu tidak scrape)",
+            ));
+        }
+        _ => {}
+    }
+
+    let mins = now.hour() * 60 + now.minute();
+    const MORNING_START: u32 = 8 * 60 + 45;
+    const MORNING_END: u32 = 12 * 60 + 16;
+    const AFTERNOON_START: u32 = 13 * 60 + 25;
+    const AFTERNOON_END: u32 = 16 * 60 + 16;
+    let in_morning = mins >= MORNING_START && mins < MORNING_END;
+    let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
+    if !in_morning && !in_afternoon {
+        return Err(tonic::Status::failed_precondition(
+            "Diluar jam 08:45-12:15 dan 13:25-16:15",
+        ));
+    }
+    Ok(())
 }
