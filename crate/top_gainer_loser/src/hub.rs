@@ -108,7 +108,8 @@ impl TodayPollHub {
             }
 
             let now = Local::now();
-            if !is_invezgo_poll_window(now) {
+            let needs_initial_snapshot = self.last_snapshot.lock().await.is_none();
+            if !needs_initial_snapshot && !is_invezgo_poll_window(now) {
                 continue;
             }
 

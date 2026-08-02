@@ -12,7 +12,7 @@ mod model;
 mod repository;
 mod service;
 
-pub use model::{GraphPoint, TopGainerLoserRow, KEYSPACE, TABLE};
+pub use model::{GraphPointDb, TopGainerLoserRow, KEYSPACE, TABLE};
 
 pub use pb::top_gainer_loser_server::{TopGainerLoser, TopGainerLoserServer};
 pub use service::TopGainerLoserService;

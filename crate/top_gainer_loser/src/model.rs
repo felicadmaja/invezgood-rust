@@ -1,13 +1,22 @@
 //! Model baris tabel `invezgood.top_gainer_loser`.
 
 use scylla::DeserializeRow;
+use scylla::DeserializeValue;
 use scylla::SerializeRow;
+use scylla::SerializeValue;
 
 pub const KEYSPACE: &str = "invezgood";
 pub const TABLE: &str = "top_gainer_loser";
 
-/// Satu titik grafik (`date`, `value`) — maps UDT `top_gainer_loser_graph_point`.
-pub type GraphPoint = (String, f64);
+/// UDT `top_gainer_loser_graph_point`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct GraphPointDb {
+    pub date: String,
+    pub value: f64,
+}
+
+/// Kolom `graph` — list titik grafik.
+pub type GraphPointDbList = Option<Vec<GraphPointDb>>;
 
 /// Satu baris `invezgood.top_gainer_loser`.
 #[derive(Debug, Clone, DeserializeRow, SerializeRow)]
@@ -32,5 +41,5 @@ pub struct TopGainerLoserRow {
     #[scylla(default_when_null)]
     pub tipe: Option<String>,
     #[scylla(default_when_null)]
-    pub graph: Option<Vec<GraphPoint>>,
+    pub graph: GraphPointDbList,
 }

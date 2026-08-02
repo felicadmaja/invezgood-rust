@@ -70,7 +70,10 @@ impl TopGainerLoserService {
                 .graph
                 .unwrap_or_default()
                 .into_iter()
-                .map(|(date, value)| GraphPoint { date, value })
+                .map(|point| GraphPoint {
+                    date: point.date,
+                    value: point.value,
+                })
                 .collect(),
         }
     }

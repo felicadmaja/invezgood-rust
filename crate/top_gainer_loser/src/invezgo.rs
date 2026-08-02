@@ -4,7 +4,7 @@ use chrono::Local;
 use scylla::client::session::Session;
 use serde::Deserialize;
 
-use crate::model::TopGainerLoserRow;
+use crate::model::{GraphPointDb, TopGainerLoserRow};
 
 const INVEZGO_TOP_CHANGE_URL: &str = "https://api.invezgo.com/analysis/top/change";
 
@@ -106,7 +106,10 @@ fn api_item_to_row(trade_date: chrono::NaiveDate, tipe: &str, item: ApiTopItem) 
         graph: Some(
             item.graph
                 .into_iter()
-                .map(|p| (p.date, p.value))
+                .map(|p| GraphPointDb {
+                    date: p.date,
+                    value: p.value,
+                })
                 .collect(),
         ),
     }
