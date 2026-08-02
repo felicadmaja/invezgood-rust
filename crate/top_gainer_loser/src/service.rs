@@ -6,6 +6,7 @@ use futures::Stream;
 use scylla::client::session::Session;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
+use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
 use crate::hub::{SubscriberGuard, TodayPollHub};
 use crate::model::TopGainerLoserRow as DbTopGainerLoserRow;
@@ -20,15 +21,31 @@ type ResponseStream =
 pub struct TopGainerLoserService {
     session: Arc<Session>,
     today_hub: Arc<TodayPollHub>,
+    auth_sessions: SessionStore,
 }
 
 impl TopGainerLoserService {
-    pub fn new(session: Arc<Session>) -> Self {
+    pub fn new(session: Arc<Session>, auth_sessions: SessionStore) -> Self {
         let today_hub = Arc::new(TodayPollHub::new(session.clone()));
         Self {
             session,
             today_hub,
+            auth_sessions,
         }
+    }
+
+    async fn require_auth<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
+        let token = extract_bearer_token(request)?;
+        validate_session(&self.auth_sessions, &token)
+            .await
+            .map_err(|_| Status::unauthenticated("login diperlukan"))
+    }
+
+    fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
+        eprintln!(
+            "{rpc_name} {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
     }
 
     fn rows_to_response(rows: Vec<DbTopGainerLoserRow>) -> GetTopGainerLoserResponse {
@@ -67,13 +84,18 @@ impl TopGainerLoser for TopGainerLoserService {
         &self,
         request: Request<GetTopGainerLoserRequest>,
     ) -> Result<Response<ResponseStream>, Status> {
-        let trade_date = crate::invezgo::resolve_trade_date(request.into_inner().tahun_bulan_tanggal)
-            .map_err(Status::invalid_argument)?;
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let trade_date =
+            crate::invezgo::resolve_trade_date(request.into_inner().tahun_bulan_tanggal)
+                .map_err(Status::invalid_argument)?;
         let today = Local::now().date_naive();
 
         let (tx, rx) = tokio::sync::mpsc::channel(8);
 
-        if trade_date != today {
+        let result = if trade_date != today {
             let rows = crate::repository::find_by_date(self.session.as_ref(), trade_date)
                 .await
                 .map_err(Status::internal)?;
@@ -81,35 +103,38 @@ impl TopGainerLoser for TopGainerLoserService {
                 .send(Ok(Self::rows_to_response(rows)))
                 .await;
             drop(tx);
-            return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
-        }
+            Ok(Response::new(Box::pin(ReceiverStream::new(rx)) as ResponseStream))
+        } else {
+            let hub = Arc::clone(&self.today_hub);
+            tokio::spawn(async move {
+                let _guard = SubscriberGuard::new(Arc::clone(&hub));
+                let mut broadcast_rx = hub.subscribe();
 
-        let hub = Arc::clone(&self.today_hub);
-        tokio::spawn(async move {
-            let _guard = SubscriberGuard::new(Arc::clone(&hub));
-            let mut broadcast_rx = hub.subscribe();
+                hub.add_subscriber().await;
 
-            hub.add_subscriber().await;
-
-            if let Some(snapshot) = hub.last_snapshot().await {
-                if tx.send(Ok(Self::rows_to_response(snapshot))).await.is_err() {
-                    return;
-                }
-            }
-
-            loop {
-                match broadcast_rx.recv().await {
-                    Ok(rows) => {
-                        if tx.send(Ok(Self::rows_to_response(rows))).await.is_err() {
-                            break;
-                        }
+                if let Some(snapshot) = hub.last_snapshot().await {
+                    if tx.send(Ok(Self::rows_to_response(snapshot))).await.is_err() {
+                        return;
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }
-            }
-        });
 
-        Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
+                loop {
+                    match broadcast_rx.recv().await {
+                        Ok(rows) => {
+                            if tx.send(Ok(Self::rows_to_response(rows))).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            });
+
+            Ok(Response::new(Box::pin(ReceiverStream::new(rx)) as ResponseStream))
+        };
+
+        Self::log_rpc_debug("GetTopGainerLoser", &user_name, started);
+        result
     }
 }

@@ -3,7 +3,10 @@ syntax = "proto3";
 package top_gainer_loser;
 
 service TopGainerLoser {
-  // Stream subscribe: tahun_bulan_tanggal kosong/hari ini → poll Invezgo tiap 15 menit (hanya bila ada subscriber) → upsert Scylla → push ke client.
+  // Memerlukan user login. Kirim metadata: authorization: Bearer <token> (token dari user.Login).
+  //
+  // Stream subscribe: tahun_bulan_tanggal kosong/hari ini → poll Invezgo tiap 15 menit (hanya bila ada subscriber,
+  // hanya Sen–Jum 08:00–12:00 & 13:30–16:15 waktu lokal) → upsert Scylla → push ke client.
   // Tanggal bukan hari ini → satu batch dari Scylla lalu stream selesai. gain→tipe=gain, loss→tipe=loser.
   rpc GetTopGainerLoser(GetTopGainerLoserRequest) returns (stream GetTopGainerLoserResponse);
 }

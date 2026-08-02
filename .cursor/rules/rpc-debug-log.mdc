@@ -1,0 +1,97 @@
+---
+description: Setiap RPC baru wajib log debug — nama RPC, user, durasi ms
+globs: "**/service.rs"
+alwaysApply: true
+---
+
+# Debug log setiap RPC baru
+
+Setiap **RPC baru** atau **handler gRPC baru** di `service.rs`, wajib log debug saat selesai (sukses atau error).
+
+## Format (wajib)
+
+```
+{nama_rpc} {nama_user} {elapsed_ms}ms
+```
+
+Contoh output:
+
+```
+GetStockByCode Baki 12ms
+UpdateCatatanOwner Andi 3ms
+Login anonymous 45ms
+```
+
+- **nama_rpc** — nama method gRPC PascalCase (sama dengan di `.proto`), mis. `GetStockByCode`
+- **nama_user** — `AuthSession.nama` bila RPC butuh login; bila tidak ada auth gunakan `anonymous` (Login: bisa pakai email request)
+- **elapsed_ms** — durasi handler dari awal sampai return, bulatkan `as_millis()` (integer)
+
+Gunakan `eprintln!` agar masuk ke log server (`invezgood.log` via PM2).
+
+## Pola implementasi (Rust / tonic)
+
+```rust
+async fn get_stock_by_code(
+    &self,
+    request: Request<GetStockByCodeRequest>,
+) -> Result<Response<StockByCodeResponse>, Status> {
+    let started = std::time::Instant::now();
+    let rpc_name = "GetStockByCode";
+
+    let auth = self.require_auth(&request).await?;
+    let user_name = auth.nama.as_str();
+
+    let code = request.into_inner().code.trim().to_ascii_uppercase();
+    // ... logic handler ...
+
+    let result = Ok(Response::new(/* ... */));
+
+    eprintln!(
+        "{rpc_name} {user_name} {}ms",
+        started.elapsed().as_millis()
+    );
+    result
+}
+```
+
+## Auth helper
+
+- RPC **protected** (metadata `authorization: Bearer <token>`): `require_auth` harus mengembalikan `AuthSession` (bukan hanya `()`) supaya `nama` tersedia.
+- RPC **publik** (`Login`, `Ping`, dll.): log dengan `anonymous` atau identifier request yang relevan.
+
+## Wajib di setiap return path
+
+Log **selalu** dieksekusi sebelum return — termasuk error (`invalid_argument`, `not_found`, `internal`). Pola aman:
+
+```rust
+let started = std::time::Instant::now();
+let rpc_name = "MyRpc";
+let user_name = "...";
+
+let result: Result<Response<_>, Status> = async {
+    // body handler
+}.await;
+
+eprintln!(
+    "{rpc_name} {user_name} {}ms",
+    started.elapsed().as_millis()
+);
+result
+```
+
+Atau helper crate-level:
+
+```rust
+fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
+    eprintln!(
+        "{rpc_name} {user_name} {}ms",
+        started.elapsed().as_millis()
+    );
+}
+```
+
+## Jangan anggap selesai bila
+
+- Handler RPC baru tanpa `eprintln!` debug
+- Format log tidak persis `{rpc} {user} {N}ms`
+- Durasi tidak diukur (`Instant::now()` + `elapsed()`)

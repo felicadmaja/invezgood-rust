@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
-use user::{extract_bearer_token, validate_session, SessionStore};
+use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
 use crate::model::{
     BalanceStatement, CompanyInformation, CorporateAction, Keystats, ShareHolder1, ShareHolder5,
@@ -91,12 +91,18 @@ impl StockListService {
         })
     }
 
-    async fn require_auth<T>(&self, request: &Request<T>) -> Result<(), Status> {
+    async fn require_auth<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
         let token = extract_bearer_token(request)?;
         validate_session(&self.auth_sessions, &token)
             .await
-            .map_err(|_| Status::unauthenticated("login diperlukan"))?;
-        Ok(())
+            .map_err(|_| Status::unauthenticated("login diperlukan"))
+    }
+
+    fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
+        eprintln!(
+            "{rpc_name} {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
     }
 
     fn should_refresh(updated_at: Option<DateTime<Utc>>) -> bool {
@@ -551,303 +557,386 @@ impl StockList for StockListService {
         &self,
         request: Request<GetAllStocksRequest>,
     ) -> Result<Response<GetAllStocksResponse>, Status> {
-        self.require_auth(&request).await?;
-        let _inner = request.into_inner();
-        let mut redis_conn = self
-            .redis
-            .get_multiplexed_tokio_connection()
-            .await
-            .map_err(|e| Status::internal(format!("redis connect: {e}")))?;
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
 
-        let refresh = crate::redis_cache::should_refresh_from_api(&mut redis_conn)
-            .await
-            .map_err(Status::internal)?;
+        let result: Result<Response<GetAllStocksResponse>, Status> = async {
+            let _inner = request.into_inner();
+            let mut redis_conn = self
+                .redis
+                .get_multiplexed_tokio_connection()
+                .await
+                .map_err(|e| Status::internal(format!("redis connect: {e}")))?;
 
-        let message = if refresh {
-            let count = crate::invezgo::fetch_and_save(self.session.clone())
+            let refresh = crate::redis_cache::should_refresh_from_api(&mut redis_conn)
                 .await
                 .map_err(Status::internal)?;
-            crate::redis_cache::set_updated_at(&mut redis_conn)
+
+            let message = if refresh {
+                let count = crate::invezgo::fetch_and_save(self.session.clone())
+                    .await
+                    .map_err(Status::internal)?;
+                crate::redis_cache::set_updated_at(&mut redis_conn)
+                    .await
+                    .map_err(Status::internal)?;
+                format!("refresh Invezgo: {count} saham disimpan ke stock_list")
+            } else {
+                "cache valid (<30 hari): baca dari Scylla".into()
+            };
+
+            let rows = crate::repository::list_all(self.session.as_ref())
                 .await
                 .map_err(Status::internal)?;
-            format!("refresh Invezgo: {count} saham disimpan ke stock_list")
-        } else {
-            "cache valid (<30 hari): baca dari Scylla".into()
-        };
 
-        let rows = crate::repository::list_all(self.session.as_ref())
-            .await
-            .map_err(Status::internal)?;
+            let items = rows.into_iter().map(Self::summary_row_to_proto).collect();
 
-        let items = rows.into_iter().map(Self::summary_row_to_proto).collect();
+            Ok(Response::new(GetAllStocksResponse {
+                success: true,
+                message,
+                items,
+            }))
+        }
+        .await;
 
-        Ok(Response::new(GetAllStocksResponse {
-            success: true,
-            message,
-            items,
-        }))
+        Self::log_rpc_debug("GetAllStocks", &user_name, started);
+        result
     }
 
     async fn get_stock_by_code(
         &self,
         request: Request<GetStockByCodeRequest>,
     ) -> Result<Response<StockByCodeResponse>, Status> {
-        self.require_auth(&request).await?;
-        let code = request.into_inner().code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<StockByCodeResponse>, Status> = async {
+            let code = request.into_inner().code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            let row = crate::repository::get_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(Status::internal)?
+                .ok_or_else(|| Status::not_found(format!("stock_list code={code} tidak ditemukan")))?;
+
+            Ok(Response::new(Self::stock_by_code_from_db_row(&row)))
         }
+        .await;
 
-        let row = crate::repository::get_by_code(self.session.as_ref(), &code)
-            .await
-            .map_err(Status::internal)?
-            .ok_or_else(|| Status::not_found(format!("stock_list code={code} tidak ditemukan")))?;
-
-        Ok(Response::new(Self::stock_by_code_from_db_row(&row)))
+        Self::log_rpc_debug("GetStockByCode", &user_name, started);
+        result
     }
 
     async fn get_financial_statement_by_code(
         &self,
         request: Request<GetFinancialStatementByCodeRequest>,
     ) -> Result<Response<FinancialStatementResponse>, Status> {
-        self.require_auth(&request).await?;
-        let code = request.into_inner().code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
-        }
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
 
-        let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
-            .await
-            .map_err(Status::internal)?;
-
-        for kind in ALL_STATEMENT_KINDS {
-            let refresh = existing
-                .as_ref()
-                .map(|row| Self::should_refresh(kind.updated_at(row)))
-                .unwrap_or(true);
-
-            if refresh {
-                Self::refresh_statement_if_stale(self.session.clone(), &code, kind).await?;
-                existing = crate::repository::get_by_code(self.session.as_ref(), &code)
-                    .await
-                    .map_err(Status::internal)?;
+        let result: Result<Response<FinancialStatementResponse>, Status> = async {
+            let code = request.into_inner().code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
             }
+
+            let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(Status::internal)?;
+
+            for kind in ALL_STATEMENT_KINDS {
+                let refresh = existing
+                    .as_ref()
+                    .map(|row| Self::should_refresh(kind.updated_at(row)))
+                    .unwrap_or(true);
+
+                if refresh {
+                    Self::refresh_statement_if_stale(self.session.clone(), &code, kind).await?;
+                    existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+                        .await
+                        .map_err(Status::internal)?;
+                }
+            }
+
+            let row = existing.ok_or_else(|| {
+                Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+            })?;
+
+            Ok(Response::new(Self::financial_statement_from_db_row(&row)))
         }
+        .await;
 
-        let row = existing.ok_or_else(|| {
-            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-        })?;
-
-        Ok(Response::new(Self::financial_statement_from_db_row(&row)))
+        Self::log_rpc_debug("GetFinancialStatementByCode", &user_name, started);
+        result
     }
 
     async fn get_share_holder_and_company_information_by_code(
         &self,
         request: Request<GetShareHolderAndCompanyInformationByCodeRequest>,
     ) -> Result<Response<ShareHolderAndCompanyInformationByCodeResponse>, Status> {
-        self.require_auth(&request).await?;
-        let code = request.into_inner().code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
-        }
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
 
-        let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
-            .await
-            .map_err(Status::internal)?;
+        let result: Result<Response<ShareHolderAndCompanyInformationByCodeResponse>, Status> =
+            async {
+                let code = request.into_inner().code.trim().to_ascii_uppercase();
+                if code.is_empty() {
+                    return Err(Status::invalid_argument("code wajib diisi"));
+                }
 
-        for kind in ALL_SHARE_HOLDER_KINDS {
-            let refresh = existing
-                .as_ref()
-                .map(|row| Self::should_refresh(kind.updated_at(row)))
-                .unwrap_or(true);
-
-            if refresh {
-                Self::refresh_share_holder_if_stale(self.session.clone(), &code, kind).await?;
-                existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+                let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
                     .await
                     .map_err(Status::internal)?;
+
+                for kind in ALL_SHARE_HOLDER_KINDS {
+                    let refresh = existing
+                        .as_ref()
+                        .map(|row| Self::should_refresh(kind.updated_at(row)))
+                        .unwrap_or(true);
+
+                    if refresh {
+                        Self::refresh_share_holder_if_stale(self.session.clone(), &code, kind)
+                            .await?;
+                        existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+                            .await
+                            .map_err(Status::internal)?;
+                    }
+                }
+
+                let refresh_company_information = existing
+                    .as_ref()
+                    .map(|row| Self::should_refresh(row.company_information_updated_at))
+                    .unwrap_or(true);
+
+                if refresh_company_information {
+                    crate::invezgo::fetch_and_save_company_information(self.session.clone(), &code)
+                        .await
+                        .map_err(Status::internal)?;
+                    existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+                        .await
+                        .map_err(Status::internal)?;
+                }
+
+                let row = existing.ok_or_else(|| {
+                    Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                })?;
+
+                Ok(Response::new(
+                    Self::share_holder_and_company_information_from_db_row(&row),
+                ))
             }
-        }
+            .await;
 
-        let refresh_company_information = existing
-            .as_ref()
-            .map(|row| Self::should_refresh(row.company_information_updated_at))
-            .unwrap_or(true);
-
-        if refresh_company_information {
-            crate::invezgo::fetch_and_save_company_information(self.session.clone(), &code)
-                .await
-                .map_err(Status::internal)?;
-            existing = crate::repository::get_by_code(self.session.as_ref(), &code)
-                .await
-                .map_err(Status::internal)?;
-        }
-
-        let row = existing.ok_or_else(|| {
-            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-        })?;
-
-        Ok(Response::new(
-            Self::share_holder_and_company_information_from_db_row(&row),
-        ))
+        Self::log_rpc_debug("GetShareHolderAndCompanyInformationByCode", &user_name, started);
+        result
     }
 
     async fn get_corporate_action_by_code(
         &self,
         request: Request<GetCorporateActionByCodeRequest>,
     ) -> Result<Response<CorporateActionByCodeResponse>, Status> {
-        self.require_auth(&request).await?;
-        let code = request.into_inner().code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
-        }
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
 
-        let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
-            .await
-            .map_err(Status::internal)?;
+        let result: Result<Response<CorporateActionByCodeResponse>, Status> = async {
+            let code = request.into_inner().code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
 
-        let refresh = existing
-            .as_ref()
-            .map(|row| Self::should_refresh(row.corporate_action_updated_at))
-            .unwrap_or(true);
-
-        if refresh {
-            crate::invezgo::fetch_and_save_corporate_action(self.session.clone(), &code)
+            let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
                 .await
                 .map_err(Status::internal)?;
-            existing = crate::repository::get_by_code(self.session.as_ref(), &code)
-                .await
-                .map_err(Status::internal)?;
+
+            let refresh = existing
+                .as_ref()
+                .map(|row| Self::should_refresh(row.corporate_action_updated_at))
+                .unwrap_or(true);
+
+            if refresh {
+                crate::invezgo::fetch_and_save_corporate_action(self.session.clone(), &code)
+                    .await
+                    .map_err(Status::internal)?;
+                existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+                    .await
+                    .map_err(Status::internal)?;
+            }
+
+            let row = existing.ok_or_else(|| {
+                Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+            })?;
+
+            Ok(Response::new(Self::corporate_action_by_code_from_db_row(&row)))
         }
+        .await;
 
-        let row = existing.ok_or_else(|| {
-            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-        })?;
-
-        Ok(Response::new(Self::corporate_action_by_code_from_db_row(&row)))
+        Self::log_rpc_debug("GetCorporateActionByCode", &user_name, started);
+        result
     }
 
     async fn update_is_konglomerasi(
         &self,
         request: Request<UpdateIsKonglomerasiRequest>,
     ) -> Result<Response<UpdateIsKonglomerasiResponse>, Status> {
-        self.require_auth(&request).await?;
-        let inner = request.into_inner();
-        let code = inner.code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
-        }
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
 
-        crate::repository::update_is_konglomerasi(
-            self.session.as_ref(),
-            &code,
-            inner.is_konglomerasi,
-        )
-        .await
-        .map_err(|e| {
-            if e.contains("tidak ditemukan") {
-                Status::not_found(e)
-            } else {
-                Status::internal(e)
+        let result: Result<Response<UpdateIsKonglomerasiResponse>, Status> = async {
+            let inner = request.into_inner();
+            let code = inner.code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
             }
-        })?;
 
-        Ok(Response::new(UpdateIsKonglomerasiResponse {
-            code,
-            is_konglomerasi: inner.is_konglomerasi,
-        }))
+            crate::repository::update_is_konglomerasi(
+                self.session.as_ref(),
+                &code,
+                inner.is_konglomerasi,
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpdateIsKonglomerasiResponse {
+                code,
+                is_konglomerasi: inner.is_konglomerasi,
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateIsKonglomerasi", &user_name, started);
+        result
     }
 
     async fn update_is_plan_to_trade(
         &self,
         request: Request<UpdateIsPlanToTradeRequest>,
     ) -> Result<Response<UpdateIsPlanToTradeResponse>, Status> {
-        self.require_auth(&request).await?;
-        let inner = request.into_inner();
-        let code = inner.code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
-        }
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
 
-        crate::repository::update_is_plan_to_trade(
-            self.session.as_ref(),
-            &code,
-            inner.is_plan_to_trade,
-        )
-        .await
-        .map_err(|e| {
-            if e.contains("tidak ditemukan") {
-                Status::not_found(e)
-            } else {
-                Status::internal(e)
+        let result: Result<Response<UpdateIsPlanToTradeResponse>, Status> = async {
+            let inner = request.into_inner();
+            let code = inner.code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
             }
-        })?;
 
-        Ok(Response::new(UpdateIsPlanToTradeResponse {
-            code,
-            is_plan_to_trade: inner.is_plan_to_trade,
-        }))
+            crate::repository::update_is_plan_to_trade(
+                self.session.as_ref(),
+                &code,
+                inner.is_plan_to_trade,
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpdateIsPlanToTradeResponse {
+                code,
+                is_plan_to_trade: inner.is_plan_to_trade,
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateIsPlanToTrade", &user_name, started);
+        result
     }
 
     async fn update_catatan_owner(
         &self,
         request: Request<UpdateCatatanOwnerRequest>,
     ) -> Result<Response<UpdateCatatanOwnerResponse>, Status> {
-        self.require_auth(&request).await?;
-        let inner = request.into_inner();
-        let code = inner.code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
-        }
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
 
-        crate::repository::update_catatan_owner(
-            self.session.as_ref(),
-            &code,
-            inner.catatan_owner.as_str(),
-        )
-        .await
-        .map_err(|e| {
-            if e.contains("tidak ditemukan") {
-                Status::not_found(e)
-            } else {
-                Status::internal(e)
+        let result: Result<Response<UpdateCatatanOwnerResponse>, Status> = async {
+            let inner = request.into_inner();
+            let code = inner.code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
             }
-        })?;
 
-        Ok(Response::new(UpdateCatatanOwnerResponse {
-            code,
-            catatan_owner: inner.catatan_owner,
-        }))
+            crate::repository::update_catatan_owner(
+                self.session.as_ref(),
+                &code,
+                inner.catatan_owner.as_str(),
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpdateCatatanOwnerResponse {
+                code,
+                catatan_owner: inner.catatan_owner,
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateCatatanOwner", &user_name, started);
+        result
     }
 
     async fn update_catatan_pribadi(
         &self,
         request: Request<UpdateCatatanPribadiRequest>,
     ) -> Result<Response<UpdateCatatanPribadiResponse>, Status> {
-        self.require_auth(&request).await?;
-        let inner = request.into_inner();
-        let code = inner.code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
-        }
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
 
-        crate::repository::update_catatan_pribadi(
-            self.session.as_ref(),
-            &code,
-            inner.catatan_pribadi.as_str(),
-        )
-        .await
-        .map_err(|e| {
-            if e.contains("tidak ditemukan") {
-                Status::not_found(e)
-            } else {
-                Status::internal(e)
+        let result: Result<Response<UpdateCatatanPribadiResponse>, Status> = async {
+            let inner = request.into_inner();
+            let code = inner.code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
             }
-        })?;
 
-        Ok(Response::new(UpdateCatatanPribadiResponse {
-            code,
-            catatan_pribadi: inner.catatan_pribadi,
-        }))
+            crate::repository::update_catatan_pribadi(
+                self.session.as_ref(),
+                &code,
+                inner.catatan_pribadi.as_str(),
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpdateCatatanPribadiResponse {
+                code,
+                catatan_pribadi: inner.catatan_pribadi,
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateCatatanPribadi", &user_name, started);
+        result
     }
 }

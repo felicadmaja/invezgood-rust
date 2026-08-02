@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::{Datelike, Local, NaiveTime};
 use scylla::client::session::Session;
 use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
@@ -10,6 +11,29 @@ use crate::model::TopGainerLoserRow;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
 const BROADCAST_CAPACITY: usize = 32;
+
+/// Poll Invezgo hanya Sen–Jum, 08:00–12:00 dan 13:30–16:15 (waktu lokal server).
+fn is_invezgo_poll_window(now: chrono::DateTime<Local>) -> bool {
+    if !matches!(
+        now.weekday(),
+        chrono::Weekday::Mon
+            | chrono::Weekday::Tue
+            | chrono::Weekday::Wed
+            | chrono::Weekday::Thu
+            | chrono::Weekday::Fri
+    ) {
+        return false;
+    }
+
+    let time = now.time();
+    let morning_start = NaiveTime::from_hms_opt(8, 0, 0).expect("valid time");
+    let morning_end = NaiveTime::from_hms_opt(12, 0, 0).expect("valid time");
+    let afternoon_start = NaiveTime::from_hms_opt(13, 30, 0).expect("valid time");
+    let afternoon_end = NaiveTime::from_hms_opt(16, 15, 0).expect("valid time");
+
+    (time >= morning_start && time <= morning_end)
+        || (time >= afternoon_start && time <= afternoon_end)
+}
 
 pub struct TodayPollHub {
     session: Arc<Session>,
@@ -83,7 +107,12 @@ impl TodayPollHub {
                 break;
             }
 
-            let today = chrono::Local::now().date_naive();
+            let now = Local::now();
+            if !is_invezgo_poll_window(now) {
+                continue;
+            }
+
+            let today = now.date_naive();
             match crate::invezgo::fetch_and_save(self.session.clone(), today).await {
                 Ok(rows) => {
                     *self.last_snapshot.lock().await = Some(rows.clone());
