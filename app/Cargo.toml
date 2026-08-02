@@ -13,6 +13,7 @@ stock_list = { path = "../crate/stock_list" }
 user = { path = "../crate/user" }
 top_gainer_loser = { path = "../crate/top_gainer_loser" }
 bandarmology = { path = "../crate/bandarmology" }
+broker = { path = "../crate/broker" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tls = { path = "../crate/tls" }
 tonic = { version = "0.12", features = ["tls", "gzip"] }

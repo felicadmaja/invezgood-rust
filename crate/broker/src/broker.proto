@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package broker;
+
+service Broker {
+  // Memerlukan user login. Kirim metadata: authorization: Bearer <token> (token dari user.Login).
+
+  // Baca semua baris invezgood.broker. Bila kosong → GET api.invezgo.com/analysis/list/broker
+  // → upsert Scylla (code→broker_code, name). Bearer INVEZGO_BEARER_TOKEN. Response: daftar broker.
+  rpc GetAllBrokers(GetAllBrokersRequest) returns (GetAllBrokersResponse);
+
+  // Baca invezgood.broker by PK broker_code. Bila tabel kosong → sync dari Invezgo dulu.
+  // Response: satu BrokerRow atau not_found.
+  rpc GetBrokerByCode(GetBrokerByCodeRequest) returns (GetBrokerByCodeResponse);
+}
+
+message GetAllBrokersRequest {}
+
+message GetAllBrokersResponse {
+  repeated BrokerRow items = 1;
+}
+
+message GetBrokerByCodeRequest {
+  string broker_code = 1;
+}
+
+message GetBrokerByCodeResponse {
+  BrokerRow item = 1;
+}
+
+message BrokerRow {
+  string broker_code = 1;
+  string name = 2;
+  string tipe = 3;
+  string asosiasi = 4;
+  string catatan = 5;
+  string updated_at = 6;
+}

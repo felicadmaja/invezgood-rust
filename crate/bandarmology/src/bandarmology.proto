@@ -8,8 +8,8 @@ service Bandarmology {
   // "Belum ada data bandarmology market berjalan". Selain itu: cek Scylla bila bandarmology terisi → baca cache.
   // Bila belum ada: GET api.invezgo.com/analysis/summary/stock/{code}?from={date}&to={date}&investor=all&market=RG
   // (from = to, data harian) → upsert Scylla. Bearer INVEZGO_BEARER_TOKEN.
-  // Response: satu BandarmologyRow per tanggal request (urutan sama dengan request).
-  rpc GetBandarmologyByCode(GetBandarmologyByCodeRequest) returns (GetBandarmologyByCodeResponse);
+  // Stream: push satu GetBandarmologyByCodeResponse (1 BandarmologyRow) per tanggal, urutan sama dengan request.
+  rpc GetBandarmologyByCode(GetBandarmologyByCodeRequest) returns (stream GetBandarmologyByCodeResponse);
 }
 
 message GetBandarmologyByCodeRequest {
@@ -18,7 +18,7 @@ message GetBandarmologyByCodeRequest {
 }
 
 message GetBandarmologyByCodeResponse {
-  repeated BandarmologyRow items = 1;
+  BandarmologyRow item = 1;
 }
 
 message BandarmologyEntry {
