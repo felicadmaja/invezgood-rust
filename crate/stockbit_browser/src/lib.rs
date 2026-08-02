@@ -12,7 +12,7 @@
 //! `STOCKBIT_BEARER_CACHE_SECS` (default 300 — cache JWT antar scrape),
 //! `STOCKBIT_BROWSER_DATA_DIR`,
 //! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 540–600 —
-//! interval background poller untuk `IsStockbitReady`), `REDIS_URL` (state readiness).
+//! interval poller saat ada subscriber `IsStockbitReady`), `REDIS_URL` (state readiness).
 //!
 //! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
 
@@ -29,6 +29,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch, Mutex, MutexGuard};
+use tokio::task::AbortHandle;
 use tokio::time::{sleep, timeout};
 
 /// Mutex global: satu Chrome profil — readiness poller dan on-demand scrape
@@ -213,34 +214,55 @@ fn next_poll_secs() -> u64 {
     rand::thread_rng().gen_range(min..=max)
 }
 
-/// Background poller: **tunggal** per proses; cek stockbit.com setiap 540–600 detik (9–10 menit).
-/// Jumlah client `IsStockbitReady` subscribe tidak memengaruhi interval.
-/// Status terakhir disimpan di Redis (`stockbit:readiness`); RPC stream hanya baca Redis.
-/// [`Self::subscribe`] = notifikasi in-process tiap publish (auto-scrape portofolio).
+/// Poller tunggal per proses: cek stockbit.com setiap 9–10 menit **hanya bila**
+/// minimal 1 client subscribe `IsStockbitReady`. Banyak subscriber tidak menambah frekuensi.
+/// Status terakhir di Redis (`stockbit:readiness`); stream hanya baca cache poller/Redis.
 #[derive(Clone)]
 pub struct ReadinessPoller {
     notify: watch::Sender<Option<ReadinessUpdate>>,
+    subscriber_count: Arc<AtomicUsize>,
+    loop_state: Arc<Mutex<Option<LoopHandle>>>,
+}
+
+struct LoopHandle {
+    abort: AbortHandle,
+    task: tokio::task::JoinHandle<()>,
 }
 
 impl ReadinessPoller {
-    /// Mulai loop polling di background.
-    /// Hydrate dari Redis dulu; cek pertama segera; berikutnya setiap 540–600 detik.
-    pub fn start() -> Arc<Self> {
+    /// Buat poller tanpa loop — loop dimulai saat subscriber pertama `register_subscriber`.
+    pub fn new() -> Arc<Self> {
         let (notify, _) = watch::channel(None);
-        let poller = Arc::new(Self { notify });
-        let runner = Arc::clone(&poller);
-        tokio::spawn(async move {
-            if let Some(mut cached) = redis_readiness::get().await {
-                cached.poll_seq = 0; // hydrate saja — jangan trigger auto-scrape
-                println!(
-                    "Stockbit readiness poller: hydrate Redis ready={} msg={:?}",
-                    cached.ready, cached.message
-                );
-                let _ = runner.notify.send(Some(cached));
-            }
-            runner.run_loop().await;
-        });
-        poller
+        Arc::new(Self {
+            notify,
+            subscriber_count: Arc::new(AtomicUsize::new(0)),
+            loop_state: Arc::new(Mutex::new(None)),
+        })
+    }
+
+    /// Back-compat: sama `new()` + tidak auto-start loop.
+    pub fn start() -> Arc<Self> {
+        Self::new()
+    }
+
+    /// Dipanggil saat client buka stream `IsStockbitReady`.
+    pub async fn register_subscriber(self: &Arc<Self>) {
+        let prev = self.subscriber_count.fetch_add(1, Ordering::SeqCst);
+        if prev == 0 {
+            self.ensure_loop_running().await;
+        }
+    }
+
+    /// Dipanggil saat client tutup stream `IsStockbitReady`.
+    pub async fn unregister_subscriber(self: &Arc<Self>) {
+        let prev = self.subscriber_count.fetch_sub(1, Ordering::SeqCst);
+        if prev == 1 {
+            self.stop_loop().await;
+        }
+    }
+
+    pub fn subscriber_count(&self) -> usize {
+        self.subscriber_count.load(Ordering::SeqCst)
     }
 
     /// Status terakhir dari Redis (None = belum pernah dicek / Redis miss).
@@ -253,6 +275,39 @@ impl ReadinessPoller {
         self.notify.subscribe()
     }
 
+    async fn ensure_loop_running(self: &Arc<Self>) {
+        let mut guard = self.loop_state.lock().await;
+        if guard.is_some() {
+            return;
+        }
+
+        if let Some(mut cached) = redis_readiness::get().await {
+            cached.poll_seq = 0;
+            println!(
+                "Stockbit readiness poller: hydrate Redis ready={} msg={:?}",
+                cached.ready, cached.message
+            );
+            let _ = self.notify.send(Some(cached));
+        }
+
+        let poller = Arc::clone(self);
+        let task = tokio::spawn(async move {
+            poller.run_loop().await;
+        });
+        let abort = task.abort_handle();
+        *guard = Some(LoopHandle { abort, task });
+        println!("Stockbit readiness poller: dimulai (subscriber pertama)");
+    }
+
+    async fn stop_loop(&self) {
+        let mut guard = self.loop_state.lock().await;
+        if let Some(handle) = guard.take() {
+            handle.abort.abort();
+            let _ = handle.task.await;
+            println!("Stockbit readiness poller: dihentikan (tidak ada subscriber)");
+        }
+    }
+
     async fn publish(&self, update: ReadinessUpdate) {
         redis_readiness::set(&update).await;
         let _ = self.notify.send(Some(update));
@@ -261,9 +316,13 @@ impl ReadinessPoller {
     async fn run_loop(self: Arc<Self>) {
         let mut first = true;
         loop {
+            if self.subscriber_count.load(Ordering::SeqCst) == 0 {
+                break;
+            }
+
             if first {
                 first = false;
-                println!("Stockbit readiness poller: cek awal (background, bukan dari RPC)");
+                println!("Stockbit readiness poller: cek awal (ada subscriber)");
             } else {
                 let wait_secs = next_poll_secs();
                 let (min, max) = poll_interval_range();
@@ -271,6 +330,9 @@ impl ReadinessPoller {
                     "Stockbit readiness poller: cek berikutnya dalam {wait_secs}s (interval {min}–{max}s)"
                 );
                 sleep(Duration::from_secs(wait_secs)).await;
+                if self.subscriber_count.load(Ordering::SeqCst) == 0 {
+                    break;
+                }
             }
 
             let (tx, mut rx) = mpsc::channel::<ReadinessUpdate>(8);
@@ -294,6 +356,9 @@ impl ReadinessPoller {
             }
             let _ = forward.await;
         }
+
+        let mut guard = self.loop_state.lock().await;
+        *guard = None;
     }
 }
 

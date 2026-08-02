@@ -1,27 +1,55 @@
+use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use scylla::client::session::Session;
+use stockbit_browser::{ReadinessPoller, ReadinessUpdate};
+use tokio::sync::mpsc;
+use tokio::time::sleep;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 
-use crate::auth::SessionStore;
+use crate::auth::{extract_bearer_token, validate_session, SessionStore};
 use crate::model::UserRow as DbUserRow;
 use crate::pb::user_server::User;
 use crate::pb::{
-    GetUsersFromScyllaRequest, GetUsersFromScyllaResponse, LoginRequest, LoginResponse,
-    LogoutRequest, LogoutResponse, UserRow,
+    GetUsersFromScyllaRequest, GetUsersFromScyllaResponse, IsStockbitReadyRequest,
+    IsStockbitReadyResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, UserRow,
 };
+
+const READY_STREAM_CHECK_SECS: u64 = 2;
+const READY_STREAM_HEARTBEAT_TICKS: u64 = 15;
 
 pub struct UserService {
     session: Arc<Session>,
     auth_sessions: SessionStore,
+    readiness: Arc<ReadinessPoller>,
 }
 
 impl UserService {
-    pub fn new(session: Arc<Session>, auth_sessions: SessionStore) -> Self {
+    pub fn new(
+        session: Arc<Session>,
+        auth_sessions: SessionStore,
+        readiness: Arc<ReadinessPoller>,
+    ) -> Self {
         Self {
             session,
             auth_sessions,
+            readiness,
         }
+    }
+
+    pub fn readiness_poller(&self) -> Arc<ReadinessPoller> {
+        Arc::clone(&self.readiness)
+    }
+
+    async fn require_auth<T>(&self, request: &Request<T>) -> Result<String, Status> {
+        let token = extract_bearer_token(request)?;
+        let auth = validate_session(&self.auth_sessions, &token)
+            .await
+            .map_err(|_| Status::unauthenticated("login diperlukan"))?;
+        Ok(auth.nama)
     }
 
     fn db_row_to_proto(row: DbUserRow) -> UserRow {
@@ -102,5 +130,73 @@ impl User for UserService {
         let items = rows.into_iter().map(Self::db_row_to_proto).collect();
 
         Ok(Response::new(GetUsersFromScyllaResponse { items }))
+    }
+
+    type IsStockbitReadyStream =
+        Pin<Box<dyn Stream<Item = Result<IsStockbitReadyResponse, Status>> + Send>>;
+
+    async fn is_stockbit_ready(
+        &self,
+        request: Request<IsStockbitReadyRequest>,
+    ) -> Result<Response<Self::IsStockbitReadyStream>, Status> {
+        let user_name = self.require_auth(&request).await?;
+        let _ = request.into_inner();
+
+        let readiness = Arc::clone(&self.readiness);
+        let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(8);
+
+        eprintln!("IsStockbitReady {user_name}: stream dibuka (subscribe)");
+
+        tokio::spawn(async move {
+            readiness.register_subscriber().await;
+
+            let mut last: Option<(bool, String)> = None;
+            let mut ticks_since_send: u64 = 0;
+
+            loop {
+                let update = readiness.latest().await.unwrap_or_else(|| ReadinessUpdate {
+                    ready: false,
+                    message: "Menunggu pengecekan berkala ke stockbit.com (interval 9–10 menit)"
+                        .to_string(),
+                    poll_seq: 0,
+                });
+
+                let key = (update.ready, update.message.clone());
+                let changed = last.as_ref() != Some(&key);
+                let first = last.is_none();
+                let heartbeat = ticks_since_send >= READY_STREAM_HEARTBEAT_TICKS;
+
+                if first || changed || heartbeat {
+                    if first || changed {
+                        eprintln!(
+                            "IsStockbitReady {user_name}: push success={} msg={:?}",
+                            update.ready, update.message
+                        );
+                    }
+
+                    let ok = tx
+                        .send(Ok(IsStockbitReadyResponse {
+                            success: update.ready,
+                            message: update.message,
+                        }))
+                        .await
+                        .is_ok();
+                    if !ok {
+                        eprintln!("IsStockbitReady {user_name}: client disconnect — stream ditutup");
+                        break;
+                    }
+                    last = Some(key);
+                    ticks_since_send = 0;
+                } else {
+                    ticks_since_send += 1;
+                }
+
+                sleep(Duration::from_secs(READY_STREAM_CHECK_SECS)).await;
+            }
+
+            readiness.unregister_subscriber().await;
+        });
+
+        Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 }
