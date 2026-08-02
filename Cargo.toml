@@ -4,6 +4,7 @@ members = [
     "crate/stock_list",
     "crate/user",
     "crate/top_gainer_loser",
+    "crate/bandarmology",
     "crate/tls",
 ]
 resolver = "2"

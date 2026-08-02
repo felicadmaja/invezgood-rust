@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package bandarmology;
+
+service Bandarmology {
+  // Semua RPC memerlukan user login. Kirim metadata: authorization: Bearer <token> (token dari user.Login).
+
+  // Baca stockbit.bandarmology by PK agg_tahun_bulan_emiten_name = "{tahun_bulan}_{code}".
+  // Read-only Scylla. Request: code + tahun_bulan (YYYY-MM). Response: baris bandarmology bulanan.
+  rpc GetBandarmologyByCodeAndMonth(GetBandarmologyByCodeAndMonthRequest) returns (GetBandarmologyByCodeAndMonthResponse);
+
+  // Baca stockbit.bandarmology_harian by emiten_name; tahun_bulan_tanggal kosong → baris terbaru (clustering DESC).
+  // Read-only Scylla. Request: code + optional tahun_bulan_tanggal (YYYY-MM-DD).
+  rpc GetBandarmologyHarianByCode(GetBandarmologyHarianByCodeRequest) returns (GetBandarmologyHarianByCodeResponse);
+
+  // Baca stockbit.portofolio_bandarmology by emiten_name; tahun_bulan_tanggal kosong → baris terbaru (clustering DESC).
+  // Read-only Scylla. Request: code + optional tahun_bulan_tanggal (YYYY-MM-DD).
+  rpc GetPortofolioBandarmologyByCode(GetPortofolioBandarmologyByCodeRequest) returns (GetPortofolioBandarmologyByCodeResponse);
+}
+
+message GetBandarmologyByCodeAndMonthRequest {
+  string code = 1;
+  string tahun_bulan = 2;
+}
+
+message GetBandarmologyByCodeAndMonthResponse {
+  BandarmologyRow item = 1;
+}
+
+message GetBandarmologyHarianByCodeRequest {
+  string code = 1;
+  optional string tahun_bulan_tanggal = 2;
+}
+
+message GetBandarmologyHarianByCodeResponse {
+  BandarmologyHarianRow item = 1;
+}
+
+message GetPortofolioBandarmologyByCodeRequest {
+  string code = 1;
+  optional string tahun_bulan_tanggal = 2;
+}
+
+message GetPortofolioBandarmologyByCodeResponse {
+  PortofolioBandarmologyRow item = 1;
+}
+
+message BandarmologyTopStats {
+  int64 volume = 1;
+  double percent = 2;
+  int64 rp_b = 3;
+  string acc_dist = 4;
+}
+
+message BandarmologyBrokerBuy {
+  string broker_code = 1;
+  string buy_volume = 2;
+  string buy_lot = 3;
+  int64 buy_avg = 4;
+}
+
+message BandarmologyBrokerSell {
+  string broker_code = 1;
+  string sell_volume = 2;
+  string sell_lot = 3;
+  int64 sell_avg = 4;
+}
+
+message BandarmologyDay {
+  BandarmologyTopStats top_1 = 1;
+  BandarmologyTopStats top_3 = 2;
+  BandarmologyTopStats top_5 = 3;
+  BandarmologyTopStats average = 4;
+  int64 net_volume = 5;
+  string net_value = 6;
+  int64 average_rp = 7;
+  repeated BandarmologyBrokerBuy broker_buy = 8;
+  repeated BandarmologyBrokerSell broker_sell = 9;
+}
+
+message BandarmologyRow {
+  string agg_tahun_bulan_emiten_name = 1;
+  string emiten_name = 2;
+  string tahun_bulan = 3;
+  BandarmologyDay broker_summary = 4;
+  BandarmologyDay broker_summary_current_w1 = 5;
+  BandarmologyDay broker_summary_current_w2 = 6;
+  BandarmologyDay broker_summary_current_w3 = 7;
+  BandarmologyDay broker_summary_current_w4 = 8;
+  string updated_at = 9;
+}
+
+message BandarmologyHarianRow {
+  string emiten_name = 1;
+  string tahun_bulan_tanggal = 2;
+  BandarmologyDay broker_summary_harian = 3;
+  string updated_at = 4;
+}
+
+message PortofolioBandarmologyRow {
+  string emiten_name = 1;
+  string tahun_bulan_tanggal = 2;
+  BandarmologyDay bandarmology = 3;
+}

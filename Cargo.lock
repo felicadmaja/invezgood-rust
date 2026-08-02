@@ -140,6 +140,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bandarmology"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures",
+ "prost",
+ "scylla",
+ "tonic",
+ "tonic-build",
+ "user",
+]
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -915,6 +928,7 @@ dependencies = [
 name = "invezgood"
 version = "0.1.0"
 dependencies = [
+ "bandarmology",
  "dotenvy",
  "prost",
  "stock_list",

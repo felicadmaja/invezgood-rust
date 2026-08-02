@@ -1,5 +1,6 @@
 //! Entry point — daftarkan semua layanan gRPC dari crate modul di sini.
 
+use bandarmology::{BandarmologyServer, BandarmologyService};
 use stock_list::{connect, StockListServer, StockListService};
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{new_session_store, UserServer, UserService};
@@ -66,6 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let stock_list = StockListService::new(session.clone(), auth_sessions.clone())
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     let top_gainer_loser = TopGainerLoserService::new(session.clone(), auth_sessions.clone());
+    let bandarmology = BandarmologyService::new(session.clone(), auth_sessions.clone());
     let user = UserService::new(session, auth_sessions);
 
     let enable_compression = enable_compression_from_env();
@@ -75,6 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(stock_list::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(top_gainer_loser::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(bandarmology::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
         enable_compression
@@ -86,6 +89,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let user_svc = maybe_compressed!(UserServer::new(user), enable_compression);
     let top_gainer_loser_svc =
         maybe_compressed!(TopGainerLoserServer::new(top_gainer_loser), enable_compression);
+    let bandarmology_svc =
+        maybe_compressed!(BandarmologyServer::new(bandarmology), enable_compression);
 
     let mut builder = Server::builder();
 
@@ -107,6 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(stock_list_svc)
         .add_service(user_svc)
         .add_service(top_gainer_loser_svc)
+        .add_service(bandarmology_svc)
         .serve(addr)
         .await?;
 

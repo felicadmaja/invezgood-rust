@@ -1,0 +1,15 @@
+[package]
+name = "bandarmology"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4"
+futures = "0.3"
+scylla = { version = "1.5", features = ["chrono-04"] }
+tonic = "0.12"
+prost = "0.13"
+user = { path = "../user" }
+
+[build-dependencies]
+tonic-build = "0.12"
