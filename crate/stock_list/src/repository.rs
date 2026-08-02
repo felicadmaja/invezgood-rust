@@ -11,7 +11,8 @@ const ROW_SELECT: &str = "code, name, sector, logo, keystats, keystats_updated_a
     balance_statement, balance_statement_updated_at, income_statement, income_statement_updated_at, \
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
-    company_information, company_information_updated_at, corporate_action, corporate_action_updated_at";
+    company_information, company_information_updated_at, corporate_action, corporate_action_updated_at, \
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -45,11 +46,8 @@ const UPDATE_COMPANY_INFORMATION: &str =
 const UPDATE_CORPORATE_ACTION: &str =
     "UPDATE invezgood.stock_list SET corporate_action = ?, corporate_action_updated_at = ? WHERE code = ?";
 
-const LIST_ALL: &str =
-    "SELECT code, name, sector, logo, keystats_updated_at FROM invezgood.stock_list";
-
-const SELECT_SUMMARY_BY_CODE: &str =
-    "SELECT code, name, sector, logo, keystats_updated_at FROM invezgood.stock_list WHERE code = ?";
+const LIST_ALL: &str = "SELECT code, name, sector, logo, keystats_updated_at, \
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi FROM invezgood.stock_list";
 
 fn with_row_select(query: &str) -> String {
     query.replace("ROW_SELECT", ROW_SELECT)
@@ -81,22 +79,6 @@ pub async fn get_by_code(session: &Session, code: &str) -> Result<Option<StockLi
     rows.try_next()
         .await
         .map_err(|e| format!("select row {KEYSPACE}.{TABLE} code={code}: {e}"))
-}
-
-pub async fn get_summary_by_code(
-    session: &Session,
-    code: &str,
-) -> Result<Option<StockListSummaryRow>, String> {
-    let mut rows = session
-        .query_iter(SELECT_SUMMARY_BY_CODE, (code,))
-        .await
-        .map_err(|e| format!("select summary {KEYSPACE}.{TABLE} code={code}: {e}"))?
-        .rows_stream::<StockListSummaryRow>()
-        .map_err(|e| format!("select summary stream {KEYSPACE}.{TABLE} code={code}: {e}"))?;
-
-    rows.try_next()
-        .await
-        .map_err(|e| format!("select summary row {KEYSPACE}.{TABLE} code={code}: {e}"))
 }
 
 pub async fn update_keystats(

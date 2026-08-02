@@ -10,37 +10,63 @@ use scylla::SerializeValue;
 pub const KEYSPACE: &str = "invezgood";
 pub const TABLE: &str = "stock_list";
 
-/// UDT `keystats_value` — urutan field = (col, year, amount, period).
-pub type KeystatsValueDb = (String, i32, f64, String);
+/// UDT `keystats_value`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct KeystatsValueDb {
+    pub col: String,
+    pub year: i32,
+    pub amount: f64,
+    pub period: String,
+}
 
-/// UDT `keystats_column` — urutan field = (year, label, period).
-pub type KeystatsColumnDb = (i32, String, String);
+/// UDT `keystats_column`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct KeystatsColumnDb {
+    pub year: i32,
+    pub label: String,
+    pub period: String,
+}
 
-/// UDT `keystats_row` — urutan field = (id, name, values).
-pub type KeystatsRowDb = (String, String, Option<Vec<KeystatsValueDb>>);
+/// UDT `keystats_row`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct KeystatsRowDb {
+    pub id: String,
+    pub name: String,
+    #[scylla(default_when_null)]
+    pub values: Option<Vec<KeystatsValueDb>>,
+}
 
-/// UDT `stock_list_keystats` — urutan field = (rows, columns).
-pub type StockListKeystatsDb = (
-    Option<Vec<KeystatsRowDb>>,
-    Option<Vec<KeystatsColumnDb>>,
-);
+/// UDT `balance_statement_row`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct BalanceStatementRowDb {
+    pub id: String,
+    pub name: String,
+    pub level: i32,
+    #[scylla(default_when_null)]
+    pub values: Option<Vec<KeystatsValueDb>>,
+    #[scylla(default_when_null)]
+    pub parent_id: Option<String>,
+    pub is_abstract: bool,
+    pub display_order: i32,
+}
 
-/// UDT `balance_statement_row` — urutan field = (id, name, level, values, parent_id, is_abstract, display_order).
-pub type BalanceStatementRowDb = (
-    String,
-    String,
-    i32,
-    Option<Vec<KeystatsValueDb>>,
-    Option<String>,
-    bool,
-    i32,
-);
+/// UDT `stock_list_keystats` — field = rows, columns.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockListKeystatsDb {
+    #[scylla(default_when_null)]
+    pub rows: Option<Vec<KeystatsRowDb>>,
+    #[scylla(default_when_null)]
+    pub columns: Option<Vec<KeystatsColumnDb>>,
+}
 
-/// UDT `stock_list_balance_statement` — urutan field = (rows, columns).
-pub type StockListBalanceStatementDb = (
-    Option<Vec<BalanceStatementRowDb>>,
-    Option<Vec<KeystatsColumnDb>>,
-);
+/// UDT `stock_list_balance_statement` — field = rows, columns.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockListBalanceStatementDb {
+    #[scylla(default_when_null)]
+    pub rows: Option<Vec<BalanceStatementRowDb>>,
+    #[scylla(default_when_null)]
+    pub columns: Option<Vec<KeystatsColumnDb>>,
+}
 
 /// UDT `stock_list_income_statement` — struktur sama dengan balance_statement.
 pub type StockListIncomeStatementDb = StockListBalanceStatementDb;
@@ -48,29 +74,59 @@ pub type StockListIncomeStatementDb = StockListBalanceStatementDb;
 /// UDT `stock_list_cash_flow` — struktur sama dengan balance_statement.
 pub type StockListCashFlowDb = StockListBalanceStatementDb;
 
-/// UDT `share_holder_5_entry` — urutan field = (name, date, val, percent).
-pub type ShareHolder5EntryDb = (String, chrono::DateTime<chrono::Utc>, String, f64);
+/// UDT `share_holder_5_entry`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct ShareHolder5EntryDb {
+    pub name: String,
+    pub date: chrono::DateTime<chrono::Utc>,
+    pub val: String,
+    pub percent: f64,
+}
 
 /// Kolom `share_holder_5` — list entri pemegang saham >1%.
 pub type ShareHolder5Db = Option<Vec<ShareHolder5EntryDb>>;
 
-/// UDT `share_holder_1_entry` — urutan field = (name, holder_type, status, nationality, domicile, scripless, scrip, total, percentage).
-pub type ShareHolder1EntryDb = (String, String, String, String, String, String, String, String, f64);
+/// UDT `share_holder_1_entry`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct ShareHolder1EntryDb {
+    pub name: String,
+    pub holder_type: String,
+    pub status: String,
+    pub nationality: String,
+    pub domicile: String,
+    pub scripless: String,
+    pub scrip: String,
+    pub total: String,
+    pub percentage: f64,
+}
 
 /// Kolom `share_holder_1` — list entri pemegang saham detail >1%.
 pub type ShareHolder1Db = Option<Vec<ShareHolder1EntryDb>>;
 
-/// UDT `share_holder_composition_entry` — urutan field = (name, percentage, badge).
-pub type ShareHolderCompositionEntryDb = (String, f64, String);
+/// UDT `share_holder_composition_entry`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct ShareHolderCompositionEntryDb {
+    pub name: String,
+    pub percentage: f64,
+    pub badge: String,
+}
 
 /// Kolom `share_holder_composition` — komposisi kepemilikan (pengendali, direksi, dll.).
 pub type ShareHolderCompositionDb = Option<Vec<ShareHolderCompositionEntryDb>>;
 
-/// UDT `company_person_entry` — urutan field = (name, position).
-pub type CompanyPersonEntryDb = (String, String);
+/// UDT `company_person_entry`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct CompanyPersonEntryDb {
+    pub name: String,
+    pub position: String,
+}
 
-/// UDT `company_subsidiary_entry` — urutan field = (name, percentage).
-pub type CompanySubsidiaryEntryDb = (String, f64);
+/// UDT `company_subsidiary_entry`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct CompanySubsidiaryEntryDb {
+    pub name: String,
+    pub percentage: f64,
+}
 
 /// UDT `company_information` — profil perusahaan dari API /analysis/information/{code}.
 #[derive(Debug, Clone, SerializeValue, DeserializeValue)]
@@ -131,8 +187,15 @@ pub struct CompanyInformationDb {
     pub subsidiary: Option<Vec<CompanySubsidiaryEntryDb>>,
 }
 
-/// UDT `corporate_action_entry` — urutan field = (code, type, payload).
-pub type CorporateActionEntryDb = (String, String, Option<HashMap<String, String>>);
+/// UDT `corporate_action_entry`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct CorporateActionEntryDb {
+    pub code: String,
+    #[scylla(rename = "type")]
+    pub action_type: String,
+    #[scylla(default_when_null)]
+    pub payload: Option<HashMap<String, String>>,
+}
 
 /// UDT `corporate_action` — kalender corporate action dari API /analysis/calendar.
 #[derive(Debug, Clone, SerializeValue, DeserializeValue)]
@@ -191,6 +254,14 @@ pub struct StockListRow {
     pub corporate_action: Option<CorporateActionDb>,
     #[scylla(default_when_null)]
     pub corporate_action_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[scylla(default_when_null)]
+    pub catatan_owner: Option<String>,
+    #[scylla(default_when_null)]
+    pub catatan_pribadi: Option<String>,
+    #[scylla(default_when_null)]
+    pub is_plan_to_trade: Option<bool>,
+    #[scylla(default_when_null)]
+    pub is_konglomerasi: Option<bool>,
 }
 
 /// Subset kolom untuk `GetAllStocks` (list ringan).
@@ -205,6 +276,14 @@ pub struct StockListSummaryRow {
     pub logo: Option<String>,
     #[scylla(default_when_null)]
     pub keystats_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[scylla(default_when_null)]
+    pub catatan_owner: Option<String>,
+    #[scylla(default_when_null)]
+    pub catatan_pribadi: Option<String>,
+    #[scylla(default_when_null)]
+    pub is_plan_to_trade: Option<bool>,
+    #[scylla(default_when_null)]
+    pub is_konglomerasi: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -354,44 +433,54 @@ pub struct BalanceStatement {
 }
 
 impl From<KeystatsValueDb> for KeystatsValue {
-    fn from((col, year, amount, period): KeystatsValueDb) -> Self {
+    fn from(db: KeystatsValueDb) -> Self {
         Self {
-            col,
-            year,
-            amount,
-            period,
+            col: db.col,
+            year: db.year,
+            amount: db.amount,
+            period: db.period,
         }
     }
 }
 
 impl From<KeystatsValue> for KeystatsValueDb {
     fn from(v: KeystatsValue) -> Self {
-        (v.col, v.year, v.amount, v.period)
+        Self {
+            col: v.col,
+            year: v.year,
+            amount: v.amount,
+            period: v.period,
+        }
     }
 }
 
 impl From<KeystatsColumnDb> for KeystatsColumn {
-    fn from((year, label, period): KeystatsColumnDb) -> Self {
+    fn from(db: KeystatsColumnDb) -> Self {
         Self {
-            year,
-            label,
-            period,
+            year: db.year,
+            label: db.label,
+            period: db.period,
         }
     }
 }
 
 impl From<KeystatsColumn> for KeystatsColumnDb {
     fn from(c: KeystatsColumn) -> Self {
-        (c.year, c.label, c.period)
+        Self {
+            year: c.year,
+            label: c.label,
+            period: c.period,
+        }
     }
 }
 
 impl From<KeystatsRowDb> for KeystatsRow {
-    fn from((id, name, values): KeystatsRowDb) -> Self {
+    fn from(db: KeystatsRowDb) -> Self {
         Self {
-            id,
-            name,
-            values: values
+            id: db.id,
+            name: db.name,
+            values: db
+                .values
                 .unwrap_or_default()
                 .into_iter()
                 .map(KeystatsValue::from)
@@ -402,23 +491,25 @@ impl From<KeystatsRowDb> for KeystatsRow {
 
 impl From<KeystatsRow> for KeystatsRowDb {
     fn from(r: KeystatsRow) -> Self {
-        (
-            r.id,
-            r.name,
-            Some(r.values.into_iter().map(KeystatsValueDb::from).collect()),
-        )
+        Self {
+            id: r.id,
+            name: r.name,
+            values: Some(r.values.into_iter().map(KeystatsValueDb::from).collect()),
+        }
     }
 }
 
 impl From<StockListKeystatsDb> for Keystats {
-    fn from((rows, columns): StockListKeystatsDb) -> Self {
+    fn from(db: StockListKeystatsDb) -> Self {
         Self {
-            rows: rows
+            rows: db
+                .rows
                 .unwrap_or_default()
                 .into_iter()
                 .map(KeystatsRow::from)
                 .collect(),
-            columns: columns
+            columns: db
+                .columns
                 .unwrap_or_default()
                 .into_iter()
                 .map(KeystatsColumn::from)
@@ -429,56 +520,57 @@ impl From<StockListKeystatsDb> for Keystats {
 
 impl From<Keystats> for StockListKeystatsDb {
     fn from(k: Keystats) -> Self {
-        (
-            Some(k.rows.into_iter().map(KeystatsRowDb::from).collect()),
-            Some(k.columns.into_iter().map(KeystatsColumnDb::from).collect()),
-        )
+        Self {
+            rows: Some(k.rows.into_iter().map(KeystatsRowDb::from).collect()),
+            columns: Some(k.columns.into_iter().map(KeystatsColumnDb::from).collect()),
+        }
     }
 }
 
 impl From<BalanceStatementRowDb> for BalanceStatementRow {
-    fn from(
-        (id, name, level, values, parent_id, is_abstract, display_order): BalanceStatementRowDb,
-    ) -> Self {
+    fn from(db: BalanceStatementRowDb) -> Self {
         Self {
-            id,
-            name,
-            level,
-            values: values
+            id: db.id,
+            name: db.name,
+            level: db.level,
+            values: db
+                .values
                 .unwrap_or_default()
                 .into_iter()
                 .map(KeystatsValue::from)
                 .collect(),
-            parent_id,
-            is_abstract,
-            display_order,
+            parent_id: db.parent_id,
+            is_abstract: db.is_abstract,
+            display_order: db.display_order,
         }
     }
 }
 
 impl From<BalanceStatementRow> for BalanceStatementRowDb {
     fn from(r: BalanceStatementRow) -> Self {
-        (
-            r.id,
-            r.name,
-            r.level,
-            Some(r.values.into_iter().map(KeystatsValueDb::from).collect()),
-            r.parent_id,
-            r.is_abstract,
-            r.display_order,
-        )
+        Self {
+            id: r.id,
+            name: r.name,
+            level: r.level,
+            values: Some(r.values.into_iter().map(KeystatsValueDb::from).collect()),
+            parent_id: r.parent_id,
+            is_abstract: r.is_abstract,
+            display_order: r.display_order,
+        }
     }
 }
 
 impl From<StockListBalanceStatementDb> for BalanceStatement {
-    fn from((rows, columns): StockListBalanceStatementDb) -> Self {
+    fn from(db: StockListBalanceStatementDb) -> Self {
         Self {
-            rows: rows
+            rows: db
+                .rows
                 .unwrap_or_default()
                 .into_iter()
                 .map(BalanceStatementRow::from)
                 .collect(),
-            columns: columns
+            columns: db
+                .columns
                 .unwrap_or_default()
                 .into_iter()
                 .map(KeystatsColumn::from)
@@ -489,32 +581,37 @@ impl From<StockListBalanceStatementDb> for BalanceStatement {
 
 impl From<BalanceStatement> for StockListBalanceStatementDb {
     fn from(b: BalanceStatement) -> Self {
-        (
-            Some(
+        Self {
+            rows: Some(
                 b.rows
                     .into_iter()
                     .map(BalanceStatementRowDb::from)
                     .collect(),
             ),
-            Some(b.columns.into_iter().map(KeystatsColumnDb::from).collect()),
-        )
+            columns: Some(b.columns.into_iter().map(KeystatsColumnDb::from).collect()),
+        }
     }
 }
 
 impl From<ShareHolder5EntryDb> for ShareHolder5Entry {
-    fn from((name, date, val, percent): ShareHolder5EntryDb) -> Self {
+    fn from(db: ShareHolder5EntryDb) -> Self {
         Self {
-            name,
-            date,
-            val,
-            percent,
+            name: db.name,
+            date: db.date,
+            val: db.val,
+            percent: db.percent,
         }
     }
 }
 
 impl From<ShareHolder5Entry> for ShareHolder5EntryDb {
     fn from(e: ShareHolder5Entry) -> Self {
-        (e.name, e.date, e.val, e.percent)
+        Self {
+            name: e.name,
+            date: e.date,
+            val: e.val,
+            percent: e.percent,
+        }
     }
 }
 
@@ -543,36 +640,34 @@ impl From<ShareHolder5> for ShareHolder5Db {
 }
 
 impl From<ShareHolder1EntryDb> for ShareHolder1Entry {
-    fn from(
-        (name, holder_type, status, nationality, domicile, scripless, scrip, total, percentage): ShareHolder1EntryDb,
-    ) -> Self {
+    fn from(db: ShareHolder1EntryDb) -> Self {
         Self {
-            name,
-            holder_type,
-            status,
-            nationality,
-            domicile,
-            scripless,
-            scrip,
-            total,
-            percentage,
+            name: db.name,
+            holder_type: db.holder_type,
+            status: db.status,
+            nationality: db.nationality,
+            domicile: db.domicile,
+            scripless: db.scripless,
+            scrip: db.scrip,
+            total: db.total,
+            percentage: db.percentage,
         }
     }
 }
 
 impl From<ShareHolder1Entry> for ShareHolder1EntryDb {
     fn from(e: ShareHolder1Entry) -> Self {
-        (
-            e.name,
-            e.holder_type,
-            e.status,
-            e.nationality,
-            e.domicile,
-            e.scripless,
-            e.scrip,
-            e.total,
-            e.percentage,
-        )
+        Self {
+            name: e.name,
+            holder_type: e.holder_type,
+            status: e.status,
+            nationality: e.nationality,
+            domicile: e.domicile,
+            scripless: e.scripless,
+            scrip: e.scrip,
+            total: e.total,
+            percentage: e.percentage,
+        }
     }
 }
 
@@ -601,18 +696,22 @@ impl From<ShareHolder1> for ShareHolder1Db {
 }
 
 impl From<ShareHolderCompositionEntryDb> for ShareHolderCompositionEntry {
-    fn from((name, percentage, badge): ShareHolderCompositionEntryDb) -> Self {
+    fn from(db: ShareHolderCompositionEntryDb) -> Self {
         Self {
-            name,
-            percentage,
-            badge,
+            name: db.name,
+            percentage: db.percentage,
+            badge: db.badge,
         }
     }
 }
 
 impl From<ShareHolderCompositionEntry> for ShareHolderCompositionEntryDb {
     fn from(e: ShareHolderCompositionEntry) -> Self {
-        (e.name, e.percentage, e.badge)
+        Self {
+            name: e.name,
+            percentage: e.percentage,
+            badge: e.badge,
+        }
     }
 }
 
@@ -641,26 +740,38 @@ impl From<ShareHolderComposition> for ShareHolderCompositionDb {
 }
 
 impl From<CompanyPersonEntryDb> for CompanyPersonEntry {
-    fn from((name, position): CompanyPersonEntryDb) -> Self {
-        Self { name, position }
+    fn from(db: CompanyPersonEntryDb) -> Self {
+        Self {
+            name: db.name,
+            position: db.position,
+        }
     }
 }
 
 impl From<CompanyPersonEntry> for CompanyPersonEntryDb {
     fn from(e: CompanyPersonEntry) -> Self {
-        (e.name, e.position)
+        Self {
+            name: e.name,
+            position: e.position,
+        }
     }
 }
 
 impl From<CompanySubsidiaryEntryDb> for CompanySubsidiaryEntry {
-    fn from((name, percentage): CompanySubsidiaryEntryDb) -> Self {
-        Self { name, percentage }
+    fn from(db: CompanySubsidiaryEntryDb) -> Self {
+        Self {
+            name: db.name,
+            percentage: db.percentage,
+        }
     }
 }
 
 impl From<CompanySubsidiaryEntry> for CompanySubsidiaryEntryDb {
     fn from(e: CompanySubsidiaryEntry) -> Self {
-        (e.name, e.percentage)
+        Self {
+            name: e.name,
+            percentage: e.percentage,
+        }
     }
 }
 
@@ -763,22 +874,22 @@ impl From<CompanyInformation> for CompanyInformationDb {
 }
 
 impl From<CorporateActionEntryDb> for CorporateActionEntry {
-    fn from((code, action_type, payload): CorporateActionEntryDb) -> Self {
+    fn from(db: CorporateActionEntryDb) -> Self {
         Self {
-            code,
-            action_type,
-            payload: payload.unwrap_or_default(),
+            code: db.code,
+            action_type: db.action_type,
+            payload: db.payload.unwrap_or_default(),
         }
     }
 }
 
 impl From<CorporateActionEntry> for CorporateActionEntryDb {
     fn from(entry: CorporateActionEntry) -> Self {
-        (
-            entry.code,
-            entry.action_type,
-            Some(entry.payload).filter(|m| !m.is_empty()),
-        )
+        Self {
+            code: entry.code,
+            action_type: entry.action_type,
+            payload: Some(entry.payload).filter(|m| !m.is_empty()),
+        }
     }
 }
 

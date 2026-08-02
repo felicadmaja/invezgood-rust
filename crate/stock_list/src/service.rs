@@ -89,13 +89,69 @@ impl StockListService {
         Utc::now().timestamp() - updated_at.timestamp() > CACHE_MAX_AGE_SECS
     }
 
-    fn stock_by_code_from_summary(row: StockListSummaryRow) -> StockByCodeResponse {
+    fn stock_by_code_from_db_row(row: &DbStockListRow) -> StockByCodeResponse {
+        let code = row.code.as_str();
+
         StockByCodeResponse {
-            code: row.code,
-            name: row.name.unwrap_or_default(),
-            sector: row.sector.unwrap_or_default(),
-            logo: row.logo.unwrap_or_default(),
-            keystats_updated_at: row.keystats_updated_at.map(|dt| dt.timestamp()),
+            code: row.code.clone(),
+            name: row.name.clone().unwrap_or_default(),
+            sector: row.sector.clone().unwrap_or_default(),
+            logo: row.logo.clone().unwrap_or_default(),
+            keystats: row.keystats.clone().map(|db| {
+                Self::keystats_data_from_model(Keystats::from(db), row.keystats_updated_at)
+            }),
+            balance_statement: row.balance_statement.clone().map(|db| {
+                Self::panel_data_from_model(
+                    BalanceStatement::from(db),
+                    row.balance_statement_updated_at,
+                )
+            }),
+            income_statement: row.income_statement.clone().map(|db| {
+                Self::panel_data_from_model(
+                    BalanceStatement::from(db),
+                    row.income_statement_updated_at,
+                )
+            }),
+            cash_flow: row.cash_flow.clone().map(|db| {
+                Self::panel_data_from_model(BalanceStatement::from(db), row.cash_flow_updated_at)
+            }),
+            share_holder_5: row.share_holder_5.clone().map(|db| {
+                Self::share_holder_5_data(
+                    code,
+                    ShareHolder5::from(Some(db)),
+                    row.share_holder_5_updated_at,
+                )
+            }),
+            share_holder_1: row.share_holder_1.clone().map(|db| {
+                Self::share_holder_1_data(
+                    code,
+                    ShareHolder1::from(Some(db)),
+                    row.share_holder_1_updated_at,
+                )
+            }),
+            share_holder_composition: row.share_holder_composition.clone().map(|db| {
+                Self::share_holder_composition_data(
+                    code,
+                    ShareHolderComposition::from(Some(db)),
+                    row.share_holder_composition_updated_at,
+                )
+            }),
+            company_information: row.company_information.clone().map(|db| {
+                Self::company_information_data(
+                    CompanyInformation::from(db),
+                    row.company_information_updated_at,
+                )
+            }),
+            corporate_action: row.corporate_action.clone().map(|db| {
+                Self::corporate_action_data(
+                    CorporateAction::from(db),
+                    row.corporate_action_updated_at,
+                )
+            }),
+            catatan_owner: row.catatan_owner.clone().unwrap_or_default(),
+            catatan_pribadi: row.catatan_pribadi.clone().unwrap_or_default(),
+            is_plan_to_trade: row.is_plan_to_trade.unwrap_or(false),
+            is_konglomerasi: row.is_konglomerasi.unwrap_or(false),
         }
     }
 
@@ -106,6 +162,10 @@ impl StockListService {
             sector: row.sector.unwrap_or_default(),
             logo: row.logo.unwrap_or_default(),
             keystats_updated_at: row.keystats_updated_at.map(|dt| dt.timestamp()),
+            catatan_owner: row.catatan_owner.unwrap_or_default(),
+            catatan_pribadi: row.catatan_pribadi.unwrap_or_default(),
+            is_plan_to_trade: row.is_plan_to_trade.unwrap_or(false),
+            is_konglomerasi: row.is_konglomerasi.unwrap_or(false),
         }
     }
 
@@ -518,12 +578,12 @@ impl StockList for StockListService {
             return Err(Status::invalid_argument("code wajib diisi"));
         }
 
-        let row = crate::repository::get_summary_by_code(self.session.as_ref(), &code)
+        let row = crate::repository::get_by_code(self.session.as_ref(), &code)
             .await
             .map_err(Status::internal)?
             .ok_or_else(|| Status::not_found(format!("stock_list code={code} tidak ditemukan")))?;
 
-        Ok(Response::new(Self::stock_by_code_from_summary(row)))
+        Ok(Response::new(Self::stock_by_code_from_db_row(&row)))
     }
 
     async fn get_financial_statement_by_code(

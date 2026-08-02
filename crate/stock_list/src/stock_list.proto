@@ -37,7 +37,19 @@ message StockByCodeResponse {
   string name = 2;
   string sector = 3;
   string logo = 4;
-  optional int64 keystats_updated_at = 5; // Unix seconds UTC
+  KeystatsData keystats = 5;
+  StatementPanelData balance_statement = 6;
+  StatementPanelData income_statement = 7;
+  StatementPanelData cash_flow = 8;
+  ShareHolder5Data share_holder_5 = 9;
+  ShareHolder1Data share_holder_1 = 10;
+  ShareHolderCompositionData share_holder_composition = 11;
+  CompanyInformationData company_information = 12;
+  CorporateActionData corporate_action = 13;
+  string catatan_owner = 14;
+  string catatan_pribadi = 15;
+  bool is_plan_to_trade = 16;
+  bool is_konglomerasi = 17;
 }
 
 message GetFinancialStatementByCodeRequest {
@@ -218,6 +230,10 @@ message StockListRow {
   string sector = 3;
   string logo = 4;
   optional int64 keystats_updated_at = 5; // Unix seconds UTC
+  string catatan_owner = 6;
+  string catatan_pribadi = 7;
+  bool is_plan_to_trade = 8;
+  bool is_konglomerasi = 9;
 }
 
 message GetAllStocksResponse {

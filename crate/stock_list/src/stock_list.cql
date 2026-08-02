@@ -28,6 +28,10 @@
 -- | company_information_updated_at      | regular        | timestamp                               |
 -- | corporate_action                    | regular        | frozen<corporate_action>                |
 -- | corporate_action_updated_at         | regular        | timestamp                               |
+-- | catatan_owner                       | regular        | text                                    |
+-- | catatan_pribadi                     | regular        | text                                    |
+-- | is_plan_to_trade                    | regular        | boolean                                 |
+-- | is_konglomerasi                     | regular        | boolean                                 |
 --
 -- UDT company_information:
 --   address, industry, subsindustry, activity, name, npwp, board, sector, subsector,
