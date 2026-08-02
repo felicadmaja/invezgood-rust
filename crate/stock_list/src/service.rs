@@ -5,18 +5,20 @@ use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 
 use crate::model::{
-    BalanceStatement, CompanyInformation, Keystats, ShareHolder1, ShareHolder5, ShareHolderComposition,
-    StockListRow as DbStockListRow,
+    BalanceStatement, CompanyInformation, CorporateAction, Keystats, ShareHolder1, ShareHolder5,
+    ShareHolderComposition, StockListRow as DbStockListRow, StockListSummaryRow,
 };
 use crate::pb::stock_list_server::StockList;
 use crate::pb::{
     CompanyInformationByCodeResponse, CompanyInformationData, CompanyPersonEntry,
-    CompanySubsidiaryEntry, FinancialStatementResponse, FinancialStatementRowItem,
+    CompanySubsidiaryEntry, CorporateActionByCodeResponse, CorporateActionData,
+    CorporateActionEntry, FinancialStatementResponse, FinancialStatementRowItem,
     GetAllStocksRequest, GetAllStocksResponse, GetCompanyInformationByCodeRequest,
-    GetFinancialStatementByCodeRequest, GetShareHolderByCodeRequest, KeystatsData, KeyStatsColumn,
-    KeyStatsRowItem, KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data,
-    ShareHolder5Entry, ShareHolderByCodeResponse, ShareHolderCompositionData,
-    ShareHolderCompositionEntry, StatementPanelData, StockListRow,
+    GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest,
+    GetShareHolderByCodeRequest, KeystatsData, KeyStatsColumn, KeyStatsRowItem, KeyStatsValue,
+    ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data, ShareHolder5Entry,
+    ShareHolderByCodeResponse, ShareHolderCompositionData, ShareHolderCompositionEntry,
+    StatementPanelData, StockListRow,
 };
 
 const CACHE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
@@ -88,7 +90,7 @@ impl StockListService {
         Utc::now().timestamp() - updated_at.timestamp() > CACHE_MAX_AGE_SECS
     }
 
-    fn db_row_to_proto(row: DbStockListRow) -> StockListRow {
+    fn summary_row_to_proto(row: StockListSummaryRow) -> StockListRow {
         StockListRow {
             code: row.code,
             name: row.name.unwrap_or_default(),
@@ -370,6 +372,41 @@ impl StockListService {
         }
     }
 
+    fn corporate_action_data(
+        action: CorporateAction,
+        updated_at: Option<DateTime<Utc>>,
+    ) -> CorporateActionData {
+        CorporateActionData {
+            total_page: action.total_page,
+            page: action.page,
+            next_page: action.next_page,
+            data: action
+                .data
+                .into_iter()
+                .map(|entry| CorporateActionEntry {
+                    code: entry.code,
+                    r#type: entry.action_type,
+                    payload: entry.payload,
+                })
+                .collect(),
+            updated_at: updated_at.map(|dt| dt.timestamp()),
+        }
+    }
+
+    fn corporate_action_by_code_from_db_row(row: &DbStockListRow) -> CorporateActionByCodeResponse {
+        let corporate_action = row.corporate_action.clone().map(|db| {
+            Self::corporate_action_data(
+                CorporateAction::from(db),
+                row.corporate_action_updated_at,
+            )
+        });
+
+        CorporateActionByCodeResponse {
+            code: row.code.clone(),
+            corporate_action,
+        }
+    }
+
     async fn refresh_statement_if_stale(
         session: Arc<Session>,
         code: &str,
@@ -458,7 +495,7 @@ impl StockList for StockListService {
             .await
             .map_err(Status::internal)?;
 
-        let items = rows.into_iter().map(Self::db_row_to_proto).collect();
+        let items = rows.into_iter().map(Self::summary_row_to_proto).collect();
 
         Ok(Response::new(GetAllStocksResponse {
             success: true,
@@ -569,5 +606,39 @@ impl StockList for StockListService {
         Ok(Response::new(Self::company_information_by_code_from_db_row(
             &row,
         )))
+    }
+
+    async fn get_corporate_action_by_code(
+        &self,
+        request: Request<GetCorporateActionByCodeRequest>,
+    ) -> Result<Response<CorporateActionByCodeResponse>, Status> {
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+
+        let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+            .await
+            .map_err(Status::internal)?;
+
+        let refresh = existing
+            .as_ref()
+            .map(|row| Self::should_refresh(row.corporate_action_updated_at))
+            .unwrap_or(true);
+
+        if refresh {
+            crate::invezgo::fetch_and_save_corporate_action(self.session.clone(), &code)
+                .await
+                .map_err(Status::internal)?;
+            existing = crate::repository::get_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(Status::internal)?;
+        }
+
+        let row = existing.ok_or_else(|| {
+            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+        })?;
+
+        Ok(Response::new(Self::corporate_action_by_code_from_db_row(&row)))
     }
 }

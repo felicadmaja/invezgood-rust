@@ -2,16 +2,16 @@ use futures::TryStreamExt;
 use scylla::client::session::Session;
 
 use crate::model::{
-    CompanyInformationDb, ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb,
+    CompanyInformationDb, CorporateActionDb, ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb,
     StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
-    StockListKeystatsDb, StockListRow, KEYSPACE, TABLE,
+    StockListKeystatsDb, StockListRow, StockListSummaryRow, KEYSPACE, TABLE,
 };
 
 const ROW_SELECT: &str = "code, name, sector, logo, keystats, keystats_updated_at, \
     balance_statement, balance_statement_updated_at, income_statement, income_statement_updated_at, \
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
-    company_information, company_information_updated_at";
+    company_information, company_information_updated_at, corporate_action, corporate_action_updated_at";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -41,6 +41,9 @@ const UPDATE_SHARE_HOLDER_COMPOSITION: &str =
 
 const UPDATE_COMPANY_INFORMATION: &str =
     "UPDATE invezgood.stock_list SET company_information = ?, company_information_updated_at = ? WHERE code = ?";
+
+const UPDATE_CORPORATE_ACTION: &str =
+    "UPDATE invezgood.stock_list SET corporate_action = ?, corporate_action_updated_at = ? WHERE code = ?";
 
 const LIST_ALL: &str =
     "SELECT code, name, sector, logo, keystats_updated_at FROM invezgood.stock_list";
@@ -189,13 +192,26 @@ pub async fn update_company_information(
     Ok(())
 }
 
+pub async fn update_corporate_action(
+    session: &Session,
+    code: &str,
+    corporate_action: CorporateActionDb,
+    updated_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), String> {
+    session
+        .query_unpaged(UPDATE_CORPORATE_ACTION, (corporate_action, updated_at, code))
+        .await
+        .map_err(|e| format!("update corporate_action {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
 /// Daftar semua saham — kolom ringan saja (untuk GetAllStocks).
-pub async fn list_all(session: &Session) -> Result<Vec<StockListRow>, String> {
+pub async fn list_all(session: &Session) -> Result<Vec<StockListSummaryRow>, String> {
     let mut rows = session
         .query_iter(LIST_ALL, &[])
         .await
         .map_err(|e| format!("list all {KEYSPACE}.{TABLE}: {e}"))?
-        .rows_stream::<StockListRow>()
+        .rows_stream::<StockListSummaryRow>()
         .map_err(|e| format!("list all stream {KEYSPACE}.{TABLE}: {e}"))?;
 
     let mut items = Vec::new();

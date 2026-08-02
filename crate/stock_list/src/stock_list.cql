@@ -26,6 +26,8 @@
 -- | share_holder_composition_updated_at | regular        | timestamp                               |
 -- | company_information                 | regular        | frozen<company_information>             |
 -- | company_information_updated_at      | regular        | timestamp                               |
+-- | corporate_action                    | regular        | frozen<corporate_action>                |
+-- | corporate_action_updated_at         | regular        | timestamp                               |
 --
 -- UDT company_information:
 --   address, industry, subsindustry, activity, name, npwp, board, sector, subsector,
@@ -34,3 +36,8 @@
 --   category list<text>, active boolean,
 --   commissioner/director list<{name, position}>, subsidiary list<{name, percentage}>
 --   API: GET /analysis/information/{code}
+--
+-- UDT corporate_action:
+--   total_page int, page int, next_page int,
+--   data list<frozen<{code, type, payload map<text,text>}>>
+--   API: GET /analysis/calendar?code={code}&page={page}

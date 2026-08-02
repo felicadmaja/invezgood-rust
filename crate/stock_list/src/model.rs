@@ -1,5 +1,7 @@
 //! Model baris tabel `invezgood.stock_list`.
 
+use std::collections::HashMap;
+
 use scylla::DeserializeRow;
 use scylla::DeserializeValue;
 use scylla::SerializeRow;
@@ -129,6 +131,20 @@ pub struct CompanyInformationDb {
     pub subsidiary: Option<Vec<CompanySubsidiaryEntryDb>>,
 }
 
+/// UDT `corporate_action_entry` — urutan field = (code, type, payload).
+pub type CorporateActionEntryDb = (String, String, Option<HashMap<String, String>>);
+
+/// UDT `corporate_action` — kalender corporate action dari API /analysis/calendar.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct CorporateActionDb {
+    pub total_page: i32,
+    pub page: i32,
+    #[scylla(default_when_null)]
+    pub next_page: Option<i32>,
+    #[scylla(default_when_null)]
+    pub data: Option<Vec<CorporateActionEntryDb>>,
+}
+
 /// Satu baris `invezgood.stock_list`.
 #[derive(Debug, Clone, DeserializeRow, SerializeRow)]
 pub struct StockListRow {
@@ -171,6 +187,24 @@ pub struct StockListRow {
     pub company_information: Option<CompanyInformationDb>,
     #[scylla(default_when_null)]
     pub company_information_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[scylla(default_when_null)]
+    pub corporate_action: Option<CorporateActionDb>,
+    #[scylla(default_when_null)]
+    pub corporate_action_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Subset kolom untuk `GetAllStocks` (list ringan).
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct StockListSummaryRow {
+    pub code: String,
+    #[scylla(default_when_null)]
+    pub name: Option<String>,
+    #[scylla(default_when_null)]
+    pub sector: Option<String>,
+    #[scylla(default_when_null)]
+    pub logo: Option<String>,
+    #[scylla(default_when_null)]
+    pub keystats_updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone)]
@@ -214,6 +248,21 @@ pub struct CompanyInformation {
     pub commissioner: Vec<CompanyPersonEntry>,
     pub director: Vec<CompanyPersonEntry>,
     pub subsidiary: Vec<CompanySubsidiaryEntry>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CorporateActionEntry {
+    pub code: String,
+    pub action_type: String,
+    pub payload: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CorporateAction {
+    pub total_page: i32,
+    pub page: i32,
+    pub next_page: Option<i32>,
+    pub data: Vec<CorporateActionEntry>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -707,6 +756,59 @@ impl From<CompanyInformation> for CompanyInformationDb {
                 info.subsidiary
                     .into_iter()
                     .map(CompanySubsidiaryEntryDb::from)
+                    .collect(),
+            ),
+        }
+    }
+}
+
+impl From<CorporateActionEntryDb> for CorporateActionEntry {
+    fn from((code, action_type, payload): CorporateActionEntryDb) -> Self {
+        Self {
+            code,
+            action_type,
+            payload: payload.unwrap_or_default(),
+        }
+    }
+}
+
+impl From<CorporateActionEntry> for CorporateActionEntryDb {
+    fn from(entry: CorporateActionEntry) -> Self {
+        (
+            entry.code,
+            entry.action_type,
+            Some(entry.payload).filter(|m| !m.is_empty()),
+        )
+    }
+}
+
+impl From<CorporateActionDb> for CorporateAction {
+    fn from(db: CorporateActionDb) -> Self {
+        Self {
+            total_page: db.total_page,
+            page: db.page,
+            next_page: db.next_page,
+            data: db
+                .data
+                .unwrap_or_default()
+                .into_iter()
+                .map(CorporateActionEntry::from)
+                .collect(),
+        }
+    }
+}
+
+impl From<CorporateAction> for CorporateActionDb {
+    fn from(action: CorporateAction) -> Self {
+        Self {
+            total_page: action.total_page,
+            page: action.page,
+            next_page: action.next_page,
+            data: Some(
+                action
+                    .data
+                    .into_iter()
+                    .map(CorporateActionEntryDb::from)
                     .collect(),
             ),
         }

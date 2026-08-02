@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::model::{
-    BalanceStatement, CompanyInformation, CompanyPersonEntry, CompanySubsidiaryEntry, Keystats,
-    ShareHolder1, ShareHolder1Entry, ShareHolder5, ShareHolder5Entry, ShareHolderComposition,
-    ShareHolderCompositionEntry,
+    BalanceStatement, CompanyInformation, CompanyPersonEntry, CompanySubsidiaryEntry, CorporateAction,
+    CorporateActionEntry, Keystats, ShareHolder1, ShareHolder1Entry, ShareHolder5, ShareHolder5Entry,
+    ShareHolderComposition, ShareHolderCompositionEntry,
 };
 use scylla::client::session::Session;
 use serde::Deserialize;
@@ -34,6 +35,10 @@ fn shareholder_composition_url(code: &str) -> String {
 
 fn company_information_url(code: &str) -> String {
     format!("https://api.invezgo.com/analysis/information/{code}")
+}
+
+fn corporate_action_url(code: &str, page: i32) -> String {
+    format!("https://api.invezgo.com/analysis/calendar?code={code}&page={page}")
 }
 
 
@@ -205,6 +210,25 @@ struct InvezgoCompanyInformationResponse {
     director: Vec<InvezgoCompanyPersonEntry>,
     #[serde(default)]
     subsidiary: Vec<InvezgoCompanySubsidiaryEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct InvezgoCorporateActionResponse {
+    #[serde(rename = "totalPage")]
+    total_page: i32,
+    page: i32,
+    #[serde(default, rename = "nextPage")]
+    next_page: Option<i32>,
+    #[serde(default)]
+    data: Vec<InvezgoCorporateActionEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct InvezgoCorporateActionEntry {
+    code: String,
+    #[serde(rename = "type")]
+    action_type: String,
+    payload: serde_json::Value,
 }
 
 pub async fn fetch_balance_statement(code: &str) -> Result<BalanceStatement, String> {
@@ -493,6 +517,102 @@ pub async fn fetch_and_save_company_information(
     let db = crate::model::CompanyInformationDb::from(info.clone());
     crate::repository::update_company_information(session.as_ref(), code, db, updated_at).await?;
     Ok((info, updated_at))
+}
+
+pub async fn fetch_corporate_action(code: &str) -> Result<CorporateAction, String> {
+    let token = std::env::var("INVEZGO_BEARER_TOKEN")
+        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
+
+    let client = reqwest::Client::new();
+    let mut page = 1;
+    let mut merged = CorporateAction::default();
+
+    loop {
+        let response = client
+            .get(corporate_action_url(code, page))
+            .header("Accept", "application/json")
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| format!("request Invezgo calendar code={code} page={page} gagal: {e}"))?;
+
+        let status = response.status();
+        let body = response.text().await.map_err(|e| {
+            format!("baca body Invezgo calendar code={code} page={page} gagal: {e}")
+        })?;
+
+        if !status.is_success() {
+            return Err(format!(
+                "Invezgo calendar HTTP {status} code={code} page={page}: {body}"
+            ));
+        }
+
+        let parsed = parse_corporate_action_page(&body)?;
+        if page == 1 {
+            merged.total_page = parsed.total_page;
+            merged.page = parsed.page;
+        }
+        merged.data.extend(parsed.data);
+
+        match parsed.next_page {
+            Some(next) if next > page => page = next,
+            _ => {
+                merged.next_page = parsed.next_page;
+                break;
+            }
+        }
+    }
+
+    Ok(merged)
+}
+
+pub async fn fetch_and_save_corporate_action(
+    session: Arc<Session>,
+    code: &str,
+) -> Result<(CorporateAction, chrono::DateTime<chrono::Utc>), String> {
+    let action = fetch_corporate_action(code).await?;
+    let updated_at = chrono::Utc::now();
+    let db = crate::model::CorporateActionDb::from(action.clone());
+    crate::repository::update_corporate_action(session.as_ref(), code, db, updated_at).await?;
+    Ok((action, updated_at))
+}
+
+fn parse_corporate_action_page(body: &str) -> Result<CorporateAction, String> {
+    let parsed: InvezgoCorporateActionResponse = serde_json::from_str(body)
+        .map_err(|e| format!("parse JSON Invezgo calendar gagal: {e}"))?;
+
+    Ok(CorporateAction {
+        total_page: parsed.total_page,
+        page: parsed.page,
+        next_page: parsed.next_page,
+        data: parsed
+            .data
+            .into_iter()
+            .map(|entry| CorporateActionEntry {
+                code: entry.code,
+                action_type: entry.action_type,
+                payload: json_object_to_string_map(entry.payload),
+            })
+            .collect(),
+    })
+}
+
+fn json_object_to_string_map(value: serde_json::Value) -> HashMap<String, String> {
+    let serde_json::Value::Object(map) = value else {
+        return HashMap::new();
+    };
+
+    map.into_iter()
+        .map(|(key, val)| (key, json_value_to_string(val)))
+        .collect()
+}
+
+fn json_value_to_string(value: serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s,
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    }
 }
 
 fn parse_company_information(body: &str) -> Result<CompanyInformation, String> {
