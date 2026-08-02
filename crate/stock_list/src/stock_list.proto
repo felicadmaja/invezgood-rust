@@ -7,20 +7,18 @@ service StockList {
   // Masih valid (<30 hari) → baca Scylla saja. Response: daftar saham.
   rpc GetAllStocks(GetAllStocksRequest) returns (GetAllStocksResponse);
 
+  // Baca Scylla by PK code. Request: code wajib. Response: StockByCodeResponse.
+  rpc GetStockByCode(GetStockByCodeRequest) returns (StockByCodeResponse);
+
   // GET Invezgo per jenis → upsert keystats, balance_statement, income_statement, cash_flow + *_updated_at.
   // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Request: code wajib. Response: FinancialStatementResponse (keystats, balance_statement, income_statement, cash_flow).
   rpc GetFinancialStatementByCode(GetFinancialStatementByCodeRequest) returns (FinancialStatementResponse);
 
-  // GET Invezgo per jenis → upsert share_holder_5, share_holder_1, share_holder_composition + *_updated_at.
+  // GET Invezgo → upsert share_holder_5/1/composition + company_information + *_updated_at.
   // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
-  // Request: code wajib. Response: ShareHolderByCodeResponse.
-  rpc GetShareHolderByCode(GetShareHolderByCodeRequest) returns (ShareHolderByCodeResponse);
-
-  // GET api.invezgo.com/analysis/information/{code} → upsert company_information + company_information_updated_at.
-  // Baca Scylla by PK code; refresh API bila company_information_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
-  // Request: code wajib. Response: CompanyInformationByCodeResponse.
-  rpc GetCompanyInformationByCode(GetCompanyInformationByCodeRequest) returns (CompanyInformationByCodeResponse);
+  // Request: code wajib. Response: ShareHolderAndCompanyInformationByCodeResponse.
+  rpc GetShareHolderAndCompanyInformationByCode(GetShareHolderAndCompanyInformationByCodeRequest) returns (ShareHolderAndCompanyInformationByCodeResponse);
 
   // GET api.invezgo.com/analysis/calendar?code={code} → upsert corporate_action + corporate_action_updated_at.
   // Baca Scylla by PK code; refresh API bila corporate_action_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
@@ -30,15 +28,23 @@ service StockList {
 
 message GetAllStocksRequest {}
 
+message GetStockByCodeRequest {
+  string code = 1;
+}
+
+message StockByCodeResponse {
+  string code = 1;
+  string name = 2;
+  string sector = 3;
+  string logo = 4;
+  optional int64 keystats_updated_at = 5; // Unix seconds UTC
+}
+
 message GetFinancialStatementByCodeRequest {
   string code = 1;
 }
 
-message GetShareHolderByCodeRequest {
-  string code = 1;
-}
-
-message GetCompanyInformationByCodeRequest {
+message GetShareHolderAndCompanyInformationByCodeRequest {
   string code = 1;
 }
 
@@ -118,11 +124,12 @@ message ShareHolderCompositionData {
   optional int64 updated_at = 2; // Unix seconds UTC
 }
 
-message ShareHolderByCodeResponse {
+message ShareHolderAndCompanyInformationByCodeResponse {
   string code = 1;
   ShareHolder5Data share_holder_5 = 2;
   ShareHolder1Data share_holder_1 = 3;
   ShareHolderCompositionData share_holder_composition = 4;
+  CompanyInformationData company_information = 5;
 }
 
 message ShareHolder1Entry {
@@ -184,11 +191,6 @@ message CompanyInformationData {
   repeated CompanyPersonEntry director = 26;
   repeated CompanySubsidiaryEntry subsidiary = 27;
   optional int64 updated_at = 28; // Unix seconds UTC
-}
-
-message CompanyInformationByCodeResponse {
-  string code = 1;
-  CompanyInformationData company_information = 2;
 }
 
 message CorporateActionEntry {

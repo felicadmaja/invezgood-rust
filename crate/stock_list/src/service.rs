@@ -10,15 +10,14 @@ use crate::model::{
 };
 use crate::pb::stock_list_server::StockList;
 use crate::pb::{
-    CompanyInformationByCodeResponse, CompanyInformationData, CompanyPersonEntry,
-    CompanySubsidiaryEntry, CorporateActionByCodeResponse, CorporateActionData,
-    CorporateActionEntry, FinancialStatementResponse, FinancialStatementRowItem,
-    GetAllStocksRequest, GetAllStocksResponse, GetCompanyInformationByCodeRequest,
-    GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest,
-    GetShareHolderByCodeRequest, KeystatsData, KeyStatsColumn, KeyStatsRowItem, KeyStatsValue,
-    ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data, ShareHolder5Entry,
-    ShareHolderByCodeResponse, ShareHolderCompositionData, ShareHolderCompositionEntry,
-    StatementPanelData, StockListRow,
+    CompanyInformationData, CompanyPersonEntry, CompanySubsidiaryEntry,
+    CorporateActionByCodeResponse, CorporateActionData, CorporateActionEntry,
+    FinancialStatementResponse, FinancialStatementRowItem, GetAllStocksRequest, GetAllStocksResponse,
+    GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest, GetStockByCodeRequest,
+    GetShareHolderAndCompanyInformationByCodeRequest, KeystatsData, KeyStatsColumn, KeyStatsRowItem,
+    KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data, ShareHolder5Entry,
+    ShareHolderAndCompanyInformationByCodeResponse, ShareHolderCompositionData,
+    ShareHolderCompositionEntry, StatementPanelData, StockByCodeResponse, StockListRow,
 };
 
 const CACHE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
@@ -88,6 +87,16 @@ impl StockListService {
             return true;
         };
         Utc::now().timestamp() - updated_at.timestamp() > CACHE_MAX_AGE_SECS
+    }
+
+    fn stock_by_code_from_summary(row: StockListSummaryRow) -> StockByCodeResponse {
+        StockByCodeResponse {
+            code: row.code,
+            name: row.name.unwrap_or_default(),
+            sector: row.sector.unwrap_or_default(),
+            logo: row.logo.unwrap_or_default(),
+            keystats_updated_at: row.keystats_updated_at.map(|dt| dt.timestamp()),
+        }
     }
 
     fn summary_row_to_proto(row: StockListSummaryRow) -> StockListRow {
@@ -266,7 +275,9 @@ impl StockListService {
         }
     }
 
-    fn share_holder_by_code_from_db_row(row: &DbStockListRow) -> ShareHolderByCodeResponse {
+    fn share_holder_and_company_information_from_db_row(
+        row: &DbStockListRow,
+    ) -> ShareHolderAndCompanyInformationByCodeResponse {
         let code = row.code.as_str();
 
         let share_holder_5 = row.share_holder_5.clone().map(|db| {
@@ -293,11 +304,19 @@ impl StockListService {
             )
         });
 
-        ShareHolderByCodeResponse {
+        let company_information = row.company_information.clone().map(|db| {
+            Self::company_information_data(
+                CompanyInformation::from(db),
+                row.company_information_updated_at,
+            )
+        });
+
+        ShareHolderAndCompanyInformationByCodeResponse {
             code: row.code.clone(),
             share_holder_5,
             share_holder_1,
             share_holder_composition,
+            company_information,
         }
     }
 
@@ -355,20 +374,6 @@ impl StockListService {
                 })
                 .collect(),
             updated_at: updated_at.map(|dt| dt.timestamp()),
-        }
-    }
-
-    fn company_information_by_code_from_db_row(row: &DbStockListRow) -> CompanyInformationByCodeResponse {
-        let company_information = row.company_information.clone().map(|db| {
-            Self::company_information_data(
-                CompanyInformation::from(db),
-                row.company_information_updated_at,
-            )
-        });
-
-        CompanyInformationByCodeResponse {
-            code: row.code.clone(),
-            company_information,
         }
     }
 
@@ -504,6 +509,23 @@ impl StockList for StockListService {
         }))
     }
 
+    async fn get_stock_by_code(
+        &self,
+        request: Request<GetStockByCodeRequest>,
+    ) -> Result<Response<StockByCodeResponse>, Status> {
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+
+        let row = crate::repository::get_summary_by_code(self.session.as_ref(), &code)
+            .await
+            .map_err(Status::internal)?
+            .ok_or_else(|| Status::not_found(format!("stock_list code={code} tidak ditemukan")))?;
+
+        Ok(Response::new(Self::stock_by_code_from_summary(row)))
+    }
+
     async fn get_financial_statement_by_code(
         &self,
         request: Request<GetFinancialStatementByCodeRequest>,
@@ -538,10 +560,10 @@ impl StockList for StockListService {
         Ok(Response::new(Self::financial_statement_from_db_row(&row)))
     }
 
-    async fn get_share_holder_by_code(
+    async fn get_share_holder_and_company_information_by_code(
         &self,
-        request: Request<GetShareHolderByCodeRequest>,
-    ) -> Result<Response<ShareHolderByCodeResponse>, Status> {
+        request: Request<GetShareHolderAndCompanyInformationByCodeRequest>,
+    ) -> Result<Response<ShareHolderAndCompanyInformationByCodeResponse>, Status> {
         let code = request.into_inner().code.trim().to_ascii_uppercase();
         if code.is_empty() {
             return Err(Status::invalid_argument("code wajib diisi"));
@@ -565,32 +587,12 @@ impl StockList for StockListService {
             }
         }
 
-        let row = existing.ok_or_else(|| {
-            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-        })?;
-
-        Ok(Response::new(Self::share_holder_by_code_from_db_row(&row)))
-    }
-
-    async fn get_company_information_by_code(
-        &self,
-        request: Request<GetCompanyInformationByCodeRequest>,
-    ) -> Result<Response<CompanyInformationByCodeResponse>, Status> {
-        let code = request.into_inner().code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
-        }
-
-        let mut existing = crate::repository::get_by_code(self.session.as_ref(), &code)
-            .await
-            .map_err(Status::internal)?;
-
-        let refresh = existing
+        let refresh_company_information = existing
             .as_ref()
             .map(|row| Self::should_refresh(row.company_information_updated_at))
             .unwrap_or(true);
 
-        if refresh {
+        if refresh_company_information {
             crate::invezgo::fetch_and_save_company_information(self.session.clone(), &code)
                 .await
                 .map_err(Status::internal)?;
@@ -603,9 +605,9 @@ impl StockList for StockListService {
             Status::not_found(format!("stock_list code={code} tidak ditemukan"))
         })?;
 
-        Ok(Response::new(Self::company_information_by_code_from_db_row(
-            &row,
-        )))
+        Ok(Response::new(
+            Self::share_holder_and_company_information_from_db_row(&row),
+        ))
     }
 
     async fn get_corporate_action_by_code(

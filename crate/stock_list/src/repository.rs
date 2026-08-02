@@ -48,6 +48,9 @@ const UPDATE_CORPORATE_ACTION: &str =
 const LIST_ALL: &str =
     "SELECT code, name, sector, logo, keystats_updated_at FROM invezgood.stock_list";
 
+const SELECT_SUMMARY_BY_CODE: &str =
+    "SELECT code, name, sector, logo, keystats_updated_at FROM invezgood.stock_list WHERE code = ?";
+
 fn with_row_select(query: &str) -> String {
     query.replace("ROW_SELECT", ROW_SELECT)
 }
@@ -78,6 +81,22 @@ pub async fn get_by_code(session: &Session, code: &str) -> Result<Option<StockLi
     rows.try_next()
         .await
         .map_err(|e| format!("select row {KEYSPACE}.{TABLE} code={code}: {e}"))
+}
+
+pub async fn get_summary_by_code(
+    session: &Session,
+    code: &str,
+) -> Result<Option<StockListSummaryRow>, String> {
+    let mut rows = session
+        .query_iter(SELECT_SUMMARY_BY_CODE, (code,))
+        .await
+        .map_err(|e| format!("select summary {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .rows_stream::<StockListSummaryRow>()
+        .map_err(|e| format!("select summary stream {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+
+    rows.try_next()
+        .await
+        .map_err(|e| format!("select summary row {KEYSPACE}.{TABLE} code={code}: {e}"))
 }
 
 pub async fn update_keystats(
