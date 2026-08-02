@@ -99,9 +99,14 @@ impl TopGainerLoser for TopGainerLoserService {
         let (tx, rx) = tokio::sync::mpsc::channel(8);
 
         let result = if trade_date != today {
-            let rows = crate::repository::find_by_date(self.session.as_ref(), trade_date)
+            let mut rows = crate::repository::find_by_date(self.session.as_ref(), trade_date)
                 .await
                 .map_err(Status::internal)?;
+            if rows.is_empty() {
+                rows = crate::invezgo::fetch_and_save(self.session.clone(), trade_date)
+                    .await
+                    .map_err(Status::internal)?;
+            }
             let _ = tx
                 .send(Ok(Self::rows_to_response(rows)))
                 .await;

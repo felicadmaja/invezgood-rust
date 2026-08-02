@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use getrandom::getrandom;
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
 use crate::model::UserRow;
+
+/// Panjang token session: 32 byte random → 64 karakter hex (256-bit entropy).
+const SESSION_TOKEN_BYTES: usize = 32;
 
 #[derive(Debug, Clone)]
 pub struct AuthSession {
@@ -16,6 +19,12 @@ pub type SessionStore = Arc<RwLock<HashMap<String, AuthSession>>>;
 
 pub fn new_session_store() -> SessionStore {
     Arc::new(RwLock::new(HashMap::new()))
+}
+
+fn generate_session_token() -> Result<String, String> {
+    let mut bytes = [0u8; SESSION_TOKEN_BYTES];
+    getrandom(&mut bytes).map_err(|e| format!("generate session token gagal: {e}"))?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 pub async fn login(
@@ -37,7 +46,7 @@ pub async fn login(
         role: user.role.unwrap_or_default(),
     };
 
-    let token = Uuid::new_v4().to_string();
+    let token = generate_session_token()?;
     store.write().await.insert(token.clone(), auth.clone());
 
     Ok((token, auth))

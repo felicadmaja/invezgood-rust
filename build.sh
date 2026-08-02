@@ -61,5 +61,9 @@ echo "📄 Log app: $LOG_FILE  (tail -f invezgood.log)"
 
 # Hook/CI: jangan tail log (blocking). Manual deploy tetap bisa lihat log.
 if [ "${BUILD_SKIP_PM2_LOGS:-0}" != "1" ]; then
-  pm2 logs "$NAMA_APP"
+  APP_ID=$(pm2 jlist 2>/dev/null | python3 -c "import sys,json; print(next((a['pm_id'] for a in json.load(sys.stdin) if a.get('name')=='$NAMA_APP'), '?'))")
+  echo "[TAILING] Tailing last 15 lines for [$NAMA_APP] process (change the value with --lines option)"
+  tail -n 15 -f "$LOG_FILE" | while IFS= read -r line; do
+    printf '\033[37m%s|invezgood  |\033[0m %s\n' "$APP_ID" "$line"
+  done
 fi

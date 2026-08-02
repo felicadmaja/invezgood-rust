@@ -2215,12 +2215,12 @@ version = "0.1.0"
 dependencies = [
  "bcrypt",
  "futures",
+ "getrandom 0.2.17",
  "prost",
  "scylla",
  "tokio",
  "tonic",
  "tonic-build",
- "uuid",
 ]
 
 [[package]]

@@ -3,7 +3,7 @@ syntax = "proto3";
 package user;
 
 service User {
-  // Cek email+password (bcrypt) di invezgood.user; bila valid buat session token in-memory.
+  // Cek email+password (bcrypt) di invezgood.user; bila valid buat session token in-memory (256-bit CSPRNG, 64 hex).
   // Response: token (untuk Logout), nama, role. Error via gRPC status.
   rpc Login(LoginRequest) returns (LoginResponse);
 
