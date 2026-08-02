@@ -27,9 +27,9 @@ struct ApiSummaryEntry {
     sell_volume: String,
     #[serde(default, deserialize_with = "deserialize_string_field")]
     sell_value: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_f64")]
     buy_avg: Option<f64>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_f64")]
     sell_avg: Option<f64>,
     #[serde(default, deserialize_with = "deserialize_string_field")]
     net_value: String,
@@ -52,6 +52,27 @@ where
         serde_json::Value::Null => String::new(),
         other => other.to_string(),
     })
+}
+
+fn deserialize_optional_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::Number(n) => n
+            .as_f64()
+            .map(Some)
+            .ok_or_else(|| serde::de::Error::custom("invalid number for f64")),
+        serde_json::Value::String(s) if s.trim().is_empty() => Ok(None),
+        serde_json::Value::String(s) => s
+            .trim()
+            .parse::<f64>()
+            .map(Some)
+            .map_err(|_| serde::de::Error::custom(format!("invalid f64 string: {s}"))),
+        _ => Err(serde::de::Error::custom("expected number, string, or null")),
+    }
 }
 
 pub async fn fetch_and_save(

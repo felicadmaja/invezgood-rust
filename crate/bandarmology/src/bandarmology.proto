@@ -3,9 +3,8 @@ syntax = "proto3";
 package bandarmology;
 
 service Bandarmology {
-  // Semua RPC memerlukan user login. Kirim metadata: authorization: Bearer <token> (token dari user.Login).
-
-  // Per tanggal di tahun_bulan_tanggal: tanggal hari ini sebelum jam 18:00 waktu lokal → gagal
+  // Memerlukan user login. Kirim metadata: authorization: Bearer <token> (token dari user.Login).
+  // Tanpa token valid → unauthenticated. Per tanggal di tahun_bulan_tanggal: tanggal hari ini sebelum jam 18:00 waktu lokal → gagal
   // "Belum ada data bandarmology market berjalan". Selain itu: cek Scylla bila bandarmology terisi → baca cache.
   // Bila belum ada: GET api.invezgo.com/analysis/summary/stock/{code}?from={date}&to={date}&investor=all&market=RG
   // (from = to, data harian) → upsert Scylla. Bearer INVEZGO_BEARER_TOKEN.
