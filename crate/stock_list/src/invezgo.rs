@@ -118,20 +118,24 @@ struct InvezgoShareHolderEntry {
 
 #[derive(Debug, Deserialize)]
 struct InvezgoShareHolder1Entry {
-    name: String,
-    #[serde(rename = "type")]
-    holder_type: String,
-    status: String,
     #[serde(default)]
-    nationality: String,
+    name: Option<String>,
+    #[serde(rename = "type", default)]
+    holder_type: Option<String>,
     #[serde(default)]
-    domicile: String,
+    status: Option<String>,
     #[serde(default)]
-    scripless: String,
+    nationality: Option<String>,
     #[serde(default)]
-    scrip: String,
-    total: String,
-    percentage: f64,
+    domicile: Option<String>,
+    #[serde(default)]
+    scripless: Option<String>,
+    #[serde(default)]
+    scrip: Option<String>,
+    #[serde(default)]
+    total: Option<String>,
+    #[serde(default)]
+    percentage: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -415,15 +419,15 @@ fn parse_share_holder_1(body: &str) -> Result<ShareHolder1, String> {
     let items = parsed
         .into_iter()
         .map(|entry| ShareHolder1Entry {
-            name: entry.name,
-            holder_type: entry.holder_type,
-            status: entry.status,
-            nationality: entry.nationality,
-            domicile: entry.domicile,
-            scripless: entry.scripless,
-            scrip: entry.scrip,
-            total: entry.total,
-            percentage: entry.percentage,
+            name: entry.name.unwrap_or_default(),
+            holder_type: entry.holder_type.unwrap_or_default(),
+            status: entry.status.unwrap_or_default(),
+            nationality: entry.nationality.unwrap_or_default(),
+            domicile: entry.domicile.unwrap_or_default(),
+            scripless: entry.scripless.unwrap_or_default(),
+            scrip: entry.scrip.unwrap_or_default(),
+            total: entry.total.unwrap_or_default(),
+            percentage: entry.percentage.unwrap_or(0.0),
         })
         .collect();
 

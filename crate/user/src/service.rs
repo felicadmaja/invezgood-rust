@@ -3,7 +3,7 @@ use std::sync::Arc;
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 
-use crate::auth::{new_session_store, SessionStore};
+use crate::auth::SessionStore;
 use crate::model::UserRow as DbUserRow;
 use crate::pb::user_server::User;
 use crate::pb::{
@@ -17,10 +17,10 @@ pub struct UserService {
 }
 
 impl UserService {
-    pub fn new(session: Arc<Session>) -> Self {
+    pub fn new(session: Arc<Session>, auth_sessions: SessionStore) -> Self {
         Self {
             session,
-            auth_sessions: new_session_store(),
+            auth_sessions,
         }
     }
 

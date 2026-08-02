@@ -3,6 +3,8 @@ syntax = "proto3";
 package stock_list;
 
 service StockList {
+  // Semua RPC memerlukan user login. Kirim metadata: authorization: Bearer <token> (token dari user.Login).
+  //
   // Cek Redis StockListUpdatedAt: kosong atau >30 hari → GET Invezgo + upsert Scylla + set timestamp.
   // Masih valid (<30 hari) → baca Scylla saja. Response: daftar saham.
   rpc GetAllStocks(GetAllStocksRequest) returns (GetAllStocksResponse);
@@ -24,6 +26,18 @@ service StockList {
   // Baca Scylla by PK code; refresh API bila corporate_action_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Request: code wajib. Response: CorporateActionByCodeResponse.
   rpc GetCorporateActionByCode(GetCorporateActionByCodeRequest) returns (CorporateActionByCodeResponse);
+
+  // Update kolom is_konglomerasi di Scylla by PK code.
+  rpc UpdateIsKonglomerasi(UpdateIsKonglomerasiRequest) returns (UpdateIsKonglomerasiResponse);
+
+  // Update kolom is_plan_to_trade di Scylla by PK code.
+  rpc UpdateIsPlanToTrade(UpdateIsPlanToTradeRequest) returns (UpdateIsPlanToTradeResponse);
+
+  // Update kolom catatan_owner di Scylla by PK code.
+  rpc UpdateCatatanOwner(UpdateCatatanOwnerRequest) returns (UpdateCatatanOwnerResponse);
+
+  // Update kolom catatan_pribadi di Scylla by PK code.
+  rpc UpdateCatatanPribadi(UpdateCatatanPribadiRequest) returns (UpdateCatatanPribadiResponse);
 }
 
 message GetAllStocksRequest {}
@@ -62,6 +76,46 @@ message GetShareHolderAndCompanyInformationByCodeRequest {
 
 message GetCorporateActionByCodeRequest {
   string code = 1;
+}
+
+message UpdateIsKonglomerasiRequest {
+  string code = 1;
+  bool is_konglomerasi = 2;
+}
+
+message UpdateIsKonglomerasiResponse {
+  string code = 1;
+  bool is_konglomerasi = 2;
+}
+
+message UpdateIsPlanToTradeRequest {
+  string code = 1;
+  bool is_plan_to_trade = 2;
+}
+
+message UpdateIsPlanToTradeResponse {
+  string code = 1;
+  bool is_plan_to_trade = 2;
+}
+
+message UpdateCatatanOwnerRequest {
+  string code = 1;
+  string catatan_owner = 2;
+}
+
+message UpdateCatatanOwnerResponse {
+  string code = 1;
+  string catatan_owner = 2;
+}
+
+message UpdateCatatanPribadiRequest {
+  string code = 1;
+  string catatan_pribadi = 2;
+}
+
+message UpdateCatatanPribadiResponse {
+  string code = 1;
+  string catatan_pribadi = 2;
 }
 
 message KeyStatsValue {

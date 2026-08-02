@@ -1,5 +1,6 @@
 use futures::TryStreamExt;
 use scylla::client::session::Session;
+use scylla::DeserializeRow;
 
 use crate::model::{
     CompanyInformationDb, CorporateActionDb, ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb,
@@ -46,11 +47,46 @@ const UPDATE_COMPANY_INFORMATION: &str =
 const UPDATE_CORPORATE_ACTION: &str =
     "UPDATE invezgood.stock_list SET corporate_action = ?, corporate_action_updated_at = ? WHERE code = ?";
 
+const UPDATE_IS_KONGLOMERASI: &str =
+    "UPDATE invezgood.stock_list SET is_konglomerasi = ? WHERE code = ?";
+
+const UPDATE_IS_PLAN_TO_TRADE: &str =
+    "UPDATE invezgood.stock_list SET is_plan_to_trade = ? WHERE code = ?";
+
+const UPDATE_CATATAN_OWNER: &str =
+    "UPDATE invezgood.stock_list SET catatan_owner = ? WHERE code = ?";
+
+const UPDATE_CATATAN_PRIBADI: &str =
+    "UPDATE invezgood.stock_list SET catatan_pribadi = ? WHERE code = ?";
+
+const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?";
+
 const LIST_ALL: &str = "SELECT code, name, sector, logo, keystats_updated_at, \
     catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi FROM invezgood.stock_list";
 
 fn with_row_select(query: &str) -> String {
     query.replace("ROW_SELECT", ROW_SELECT)
+}
+
+#[derive(Debug, DeserializeRow)]
+struct CodeOnlyRow {
+    #[allow(dead_code)]
+    code: String,
+}
+
+async fn code_exists(session: &Session, code: &str) -> Result<bool, String> {
+    let mut rows = session
+        .query_iter(SELECT_CODE, (code,))
+        .await
+        .map_err(|e| format!("select code {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .rows_stream::<CodeOnlyRow>()
+        .map_err(|e| format!("select code stream {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+
+    Ok(rows
+        .try_next()
+        .await
+        .map_err(|e| format!("select code row {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .is_some())
 }
 
 pub async fn upsert(
@@ -203,6 +239,70 @@ pub async fn update_corporate_action(
         .query_unpaged(UPDATE_CORPORATE_ACTION, (corporate_action, updated_at, code))
         .await
         .map_err(|e| format!("update corporate_action {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_is_konglomerasi(
+    session: &Session,
+    code: &str,
+    is_konglomerasi: bool,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_IS_KONGLOMERASI, (is_konglomerasi, code))
+        .await
+        .map_err(|e| format!("update is_konglomerasi {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_is_plan_to_trade(
+    session: &Session,
+    code: &str,
+    is_plan_to_trade: bool,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_IS_PLAN_TO_TRADE, (is_plan_to_trade, code))
+        .await
+        .map_err(|e| format!("update is_plan_to_trade {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_catatan_owner(
+    session: &Session,
+    code: &str,
+    catatan_owner: &str,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_CATATAN_OWNER, (catatan_owner, code))
+        .await
+        .map_err(|e| format!("update catatan_owner {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_catatan_pribadi(
+    session: &Session,
+    code: &str,
+    catatan_pribadi: &str,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_CATATAN_PRIBADI, (catatan_pribadi, code))
+        .await
+        .map_err(|e| format!("update catatan_pribadi {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 

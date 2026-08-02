@@ -3,6 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
+use user::{extract_bearer_token, validate_session, SessionStore};
 
 use crate::model::{
     BalanceStatement, CompanyInformation, CorporateAction, Keystats, ShareHolder1, ShareHolder5,
@@ -18,6 +19,9 @@ use crate::pb::{
     KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data, ShareHolder5Entry,
     ShareHolderAndCompanyInformationByCodeResponse, ShareHolderCompositionData,
     ShareHolderCompositionEntry, StatementPanelData, StockByCodeResponse, StockListRow,
+    UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
+    UpdateIsPlanToTradeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
+    UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse,
 };
 
 const CACHE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
@@ -74,12 +78,25 @@ impl ShareHolderKind {
 pub struct StockListService {
     session: Arc<Session>,
     redis: redis::Client,
+    auth_sessions: SessionStore,
 }
 
 impl StockListService {
-    pub fn new(session: Arc<Session>) -> Result<Self, String> {
+    pub fn new(session: Arc<Session>, auth_sessions: SessionStore) -> Result<Self, String> {
         let redis = crate::redis_cache::client_from_env()?;
-        Ok(Self { session, redis })
+        Ok(Self {
+            session,
+            redis,
+            auth_sessions,
+        })
+    }
+
+    async fn require_auth<T>(&self, request: &Request<T>) -> Result<(), Status> {
+        let token = extract_bearer_token(request)?;
+        validate_session(&self.auth_sessions, &token)
+            .await
+            .map_err(|_| Status::unauthenticated("login diperlukan"))?;
+        Ok(())
     }
 
     fn should_refresh(updated_at: Option<DateTime<Utc>>) -> bool {
@@ -532,8 +549,10 @@ impl StockListService {
 impl StockList for StockListService {
     async fn get_all_stocks(
         &self,
-        _request: Request<GetAllStocksRequest>,
+        request: Request<GetAllStocksRequest>,
     ) -> Result<Response<GetAllStocksResponse>, Status> {
+        self.require_auth(&request).await?;
+        let _inner = request.into_inner();
         let mut redis_conn = self
             .redis
             .get_multiplexed_tokio_connection()
@@ -573,6 +592,7 @@ impl StockList for StockListService {
         &self,
         request: Request<GetStockByCodeRequest>,
     ) -> Result<Response<StockByCodeResponse>, Status> {
+        self.require_auth(&request).await?;
         let code = request.into_inner().code.trim().to_ascii_uppercase();
         if code.is_empty() {
             return Err(Status::invalid_argument("code wajib diisi"));
@@ -590,6 +610,7 @@ impl StockList for StockListService {
         &self,
         request: Request<GetFinancialStatementByCodeRequest>,
     ) -> Result<Response<FinancialStatementResponse>, Status> {
+        self.require_auth(&request).await?;
         let code = request.into_inner().code.trim().to_ascii_uppercase();
         if code.is_empty() {
             return Err(Status::invalid_argument("code wajib diisi"));
@@ -624,6 +645,7 @@ impl StockList for StockListService {
         &self,
         request: Request<GetShareHolderAndCompanyInformationByCodeRequest>,
     ) -> Result<Response<ShareHolderAndCompanyInformationByCodeResponse>, Status> {
+        self.require_auth(&request).await?;
         let code = request.into_inner().code.trim().to_ascii_uppercase();
         if code.is_empty() {
             return Err(Status::invalid_argument("code wajib diisi"));
@@ -674,6 +696,7 @@ impl StockList for StockListService {
         &self,
         request: Request<GetCorporateActionByCodeRequest>,
     ) -> Result<Response<CorporateActionByCodeResponse>, Status> {
+        self.require_auth(&request).await?;
         let code = request.into_inner().code.trim().to_ascii_uppercase();
         if code.is_empty() {
             return Err(Status::invalid_argument("code wajib diisi"));
@@ -702,5 +725,129 @@ impl StockList for StockListService {
         })?;
 
         Ok(Response::new(Self::corporate_action_by_code_from_db_row(&row)))
+    }
+
+    async fn update_is_konglomerasi(
+        &self,
+        request: Request<UpdateIsKonglomerasiRequest>,
+    ) -> Result<Response<UpdateIsKonglomerasiResponse>, Status> {
+        self.require_auth(&request).await?;
+        let inner = request.into_inner();
+        let code = inner.code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+
+        crate::repository::update_is_konglomerasi(
+            self.session.as_ref(),
+            &code,
+            inner.is_konglomerasi,
+        )
+        .await
+        .map_err(|e| {
+            if e.contains("tidak ditemukan") {
+                Status::not_found(e)
+            } else {
+                Status::internal(e)
+            }
+        })?;
+
+        Ok(Response::new(UpdateIsKonglomerasiResponse {
+            code,
+            is_konglomerasi: inner.is_konglomerasi,
+        }))
+    }
+
+    async fn update_is_plan_to_trade(
+        &self,
+        request: Request<UpdateIsPlanToTradeRequest>,
+    ) -> Result<Response<UpdateIsPlanToTradeResponse>, Status> {
+        self.require_auth(&request).await?;
+        let inner = request.into_inner();
+        let code = inner.code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+
+        crate::repository::update_is_plan_to_trade(
+            self.session.as_ref(),
+            &code,
+            inner.is_plan_to_trade,
+        )
+        .await
+        .map_err(|e| {
+            if e.contains("tidak ditemukan") {
+                Status::not_found(e)
+            } else {
+                Status::internal(e)
+            }
+        })?;
+
+        Ok(Response::new(UpdateIsPlanToTradeResponse {
+            code,
+            is_plan_to_trade: inner.is_plan_to_trade,
+        }))
+    }
+
+    async fn update_catatan_owner(
+        &self,
+        request: Request<UpdateCatatanOwnerRequest>,
+    ) -> Result<Response<UpdateCatatanOwnerResponse>, Status> {
+        self.require_auth(&request).await?;
+        let inner = request.into_inner();
+        let code = inner.code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+
+        crate::repository::update_catatan_owner(
+            self.session.as_ref(),
+            &code,
+            inner.catatan_owner.as_str(),
+        )
+        .await
+        .map_err(|e| {
+            if e.contains("tidak ditemukan") {
+                Status::not_found(e)
+            } else {
+                Status::internal(e)
+            }
+        })?;
+
+        Ok(Response::new(UpdateCatatanOwnerResponse {
+            code,
+            catatan_owner: inner.catatan_owner,
+        }))
+    }
+
+    async fn update_catatan_pribadi(
+        &self,
+        request: Request<UpdateCatatanPribadiRequest>,
+    ) -> Result<Response<UpdateCatatanPribadiResponse>, Status> {
+        self.require_auth(&request).await?;
+        let inner = request.into_inner();
+        let code = inner.code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+
+        crate::repository::update_catatan_pribadi(
+            self.session.as_ref(),
+            &code,
+            inner.catatan_pribadi.as_str(),
+        )
+        .await
+        .map_err(|e| {
+            if e.contains("tidak ditemukan") {
+                Status::not_found(e)
+            } else {
+                Status::internal(e)
+            }
+        })?;
+
+        Ok(Response::new(UpdateCatatanPribadiResponse {
+            code,
+            catatan_pribadi: inner.catatan_pribadi,
+        }))
     }
 }

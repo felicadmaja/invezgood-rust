@@ -1810,6 +1810,7 @@ dependencies = [
  "serde_json",
  "tonic",
  "tonic-build",
+ "user",
 ]
 
 [[package]]

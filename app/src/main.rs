@@ -2,7 +2,7 @@
 
 use stock_list::{connect, StockListServer, StockListService};
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
-use user::{UserServer, UserService};
+use user::{new_session_store, UserServer, UserService};
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder as ReflectionBuilder;
@@ -62,10 +62,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr = format!("{host}:{port}").parse()?;
 
     let session = connect().await?;
-    let stock_list = StockListService::new(session.clone())
+    let auth_sessions = new_session_store();
+    let stock_list = StockListService::new(session.clone(), auth_sessions.clone())
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     let top_gainer_loser = TopGainerLoserService::new(session.clone());
-    let user = UserService::new(session);
+    let user = UserService::new(session, auth_sessions);
 
     let enable_compression = enable_compression_from_env();
 
