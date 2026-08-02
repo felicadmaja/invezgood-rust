@@ -13,7 +13,7 @@ pub struct BrokerRow {
     #[scylla(default_when_null)]
     pub name: Option<String>,
     #[scylla(default_when_null)]
-    pub tipe: Option<String>,
+    pub tipe: Option<i8>,
     #[scylla(default_when_null)]
     pub asosiasi: Option<String>,
     #[scylla(default_when_null)]

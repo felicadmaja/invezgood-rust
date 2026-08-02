@@ -50,7 +50,7 @@ pub async fn fetch_and_save(session: Arc<Session>) -> Result<Vec<BrokerRow>, Str
         let row = BrokerRow {
             broker_code: broker_code.clone(),
             name: Some(item.name),
-            tipe: None,
+            tipe: Some(0),
             asosiasi: None,
             catatan: None,
             updated_at: Some(now),

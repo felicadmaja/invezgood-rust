@@ -12,6 +12,21 @@ service Broker {
   // Baca invezgood.broker by PK broker_code. Bila tabel kosong → sync dari Invezgo dulu.
   // Response: satu BrokerRow atau not_found.
   rpc GetBrokerByCode(GetBrokerByCodeRequest) returns (GetBrokerByCodeResponse);
+
+  // Update kolom name/tipe/asosiasi/catatan di invezgood.broker by PK broker_code.
+  // Field optional: hanya yang diisi yang diupdate. Broker harus sudah ada → not_found bila tidak ada.
+  // Response: BrokerRow terbaru.
+  rpc UpdateBrokerByCode(UpdateBrokerByCodeRequest) returns (UpdateBrokerByCodeResponse);
+
+  // Hapus baris invezgood.broker by PK broker_code. Broker harus ada → not_found bila tidak ada.
+  // Response: success + message.
+  rpc DeleteBrokerByCode(DeleteBrokerByCodeRequest) returns (DeleteBrokerByCodeResponse);
+}
+
+enum TipeBroker {
+  LOCAL = 0;
+  FOREIGN = 1;
+  GOVERNMENT = 2;
 }
 
 message GetAllBrokersRequest {}
@@ -28,10 +43,31 @@ message GetBrokerByCodeResponse {
   BrokerRow item = 1;
 }
 
+message UpdateBrokerByCodeRequest {
+  string broker_code = 1;
+  optional string name = 2;
+  optional TipeBroker tipe = 3;
+  optional string asosiasi = 4;
+  optional string catatan = 5;
+}
+
+message UpdateBrokerByCodeResponse {
+  BrokerRow item = 1;
+}
+
+message DeleteBrokerByCodeRequest {
+  string broker_code = 1;
+}
+
+message DeleteBrokerByCodeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 message BrokerRow {
   string broker_code = 1;
   string name = 2;
-  string tipe = 3;
+  optional TipeBroker tipe = 3;
   string asosiasi = 4;
   string catatan = 5;
   string updated_at = 6;

@@ -12,6 +12,8 @@ const FIND_BY_CODE: &str = "SELECT broker_code, name, tipe, asosiasi, catatan, u
 const UPSERT: &str = "INSERT INTO invezgood.broker \
     (broker_code, name, tipe, asosiasi, catatan, updated_at) VALUES (?, ?, ?, ?, ?, ?)";
 
+const DELETE_BY_CODE: &str = "DELETE FROM invezgood.broker WHERE broker_code = ?";
+
 pub async fn find_all(session: &Session) -> Result<Vec<BrokerRow>, String> {
     let mut rows = session
         .query_iter(FIND_ALL, &[])
@@ -55,7 +57,7 @@ pub async fn upsert(session: &Session, row: &BrokerRow) -> Result<(), String> {
             (
                 &row.broker_code,
                 row.name.as_deref(),
-                row.tipe.as_deref(),
+                row.tipe,
                 row.asosiasi.as_deref(),
                 row.catatan.as_deref(),
                 row.updated_at,
@@ -68,5 +70,20 @@ pub async fn upsert(session: &Session, row: &BrokerRow) -> Result<(), String> {
                 row.broker_code
             )
         })?;
+    Ok(())
+}
+
+pub async fn update_by_code(
+    session: &Session,
+    row: &BrokerRow,
+) -> Result<(), String> {
+    upsert(session, row).await
+}
+
+pub async fn delete_by_code(session: &Session, broker_code: &str) -> Result<(), String> {
+    session
+        .query_unpaged(DELETE_BY_CODE, (broker_code,))
+        .await
+        .map_err(|e| format!("delete_by_code {KEYSPACE}.{TABLE} code={broker_code}: {e}"))?;
     Ok(())
 }
