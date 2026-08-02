@@ -38,6 +38,12 @@ service StockList {
 
   // Update kolom catatan_pribadi di Scylla by PK code.
   rpc UpdateCatatanPribadi(UpdateCatatanPribadiRequest) returns (UpdateCatatanPribadiResponse);
+
+  // Baca kolom wyckoff_chart di Scylla by PK code. Request: code wajib. Response: GetWyckoffChartByCodeResponse.
+  rpc GetWyckoffChartByCode(GetWyckoffChartByCodeRequest) returns (GetWyckoffChartByCodeResponse);
+
+  // Update kolom wyckoff_chart di Scylla by PK code. Request: code + wyckoff_chart. Response: success + message.
+  rpc UpdateWyckoffChartByCode(UpdateWyckoffChartByCodeRequest) returns (UpdateWyckoffChartByCodeResponse);
 }
 
 message GetAllStocksRequest {}
@@ -98,6 +104,25 @@ message GetShareHolderAndCompanyInformationByCodeRequest {
 
 message GetCorporateActionByCodeRequest {
   string code = 1;
+}
+
+message GetWyckoffChartByCodeRequest {
+  string code = 1;
+}
+
+message GetWyckoffChartByCodeResponse {
+  string code = 1;
+  WyckoffChartData wyckoff_chart = 2;
+}
+
+message UpdateWyckoffChartByCodeRequest {
+  string code = 1;
+  WyckoffChartData wyckoff_chart = 2;
+}
+
+message UpdateWyckoffChartByCodeResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 message UpdateIsKonglomerasiRequest {

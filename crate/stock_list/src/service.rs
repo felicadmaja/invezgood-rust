@@ -15,13 +15,16 @@ use crate::pb::{
     CorporateActionByCodeResponse, CorporateActionData, CorporateActionEntry,
     FinancialStatementResponse, FinancialStatementRowItem, GetAllStocksRequest, GetAllStocksResponse,
     GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest, GetStockByCodeRequest,
-    GetShareHolderAndCompanyInformationByCodeRequest, KeystatsData, KeyStatsColumn, KeyStatsRowItem,
+    GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
+    GetWyckoffChartByCodeResponse,
+    KeystatsData, KeyStatsColumn, KeyStatsRowItem,
     KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data, ShareHolder5Entry,
     ShareHolderAndCompanyInformationByCodeResponse, ShareHolderCompositionData,
     ShareHolderCompositionEntry, StatementPanelData, StockByCodeResponse, StockListRow,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
     UpdateIsPlanToTradeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
-    UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, WyckoffChartData,
+    UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, UpdateWyckoffChartByCodeRequest,
+    UpdateWyckoffChartByCodeResponse, WyckoffChartData,
 };
 
 const CACHE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
@@ -203,6 +206,45 @@ impl StockListService {
             sow: strings(&db.sow),
             lpsy: strings(&db.lpsy),
             mdw: strings(&db.mdw),
+        }
+    }
+
+    fn wyckoff_chart_to_db(data: WyckoffChartData) -> crate::model::WyckoffChartDb {
+        fn opt_strings(values: Vec<String>) -> Option<Vec<String>> {
+            if values.is_empty() {
+                None
+            } else {
+                Some(values)
+            }
+        }
+
+        fn opt_i32s(values: Vec<i32>) -> Option<Vec<i32>> {
+            if values.is_empty() {
+                None
+            } else {
+                Some(values)
+            }
+        }
+
+        crate::model::WyckoffChartDb {
+            accumulation_trading_range: opt_i32s(data.accumulation_trading_range),
+            distribution_trading_range: opt_i32s(data.distribution_trading_range),
+            sc: opt_strings(data.sc),
+            ar: opt_strings(data.ar),
+            st: opt_strings(data.st),
+            ps: opt_strings(data.ps),
+            spr: opt_strings(data.spr),
+            ut: opt_strings(data.ut),
+            sos: opt_strings(data.sos),
+            lps: opt_strings(data.lps),
+            buec: opt_strings(data.buec),
+            mup: opt_strings(data.mup),
+            psy: opt_strings(data.psy),
+            bc: opt_strings(data.bc),
+            utad: opt_strings(data.utad),
+            sow: opt_strings(data.sow),
+            lpsy: opt_strings(data.lpsy),
+            mdw: opt_strings(data.mdw),
         }
     }
 
@@ -808,6 +850,39 @@ impl StockList for StockListService {
         result
     }
 
+    async fn get_wyckoff_chart_by_code(
+        &self,
+        request: Request<GetWyckoffChartByCodeRequest>,
+    ) -> Result<Response<GetWyckoffChartByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<GetWyckoffChartByCodeResponse>, Status> = async {
+            let code = request.into_inner().code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            let row = crate::repository::get_wyckoff_chart_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(Status::internal)?
+                .ok_or_else(|| Status::not_found(format!("stock_list code={code} tidak ditemukan")))?;
+
+            Ok(Response::new(GetWyckoffChartByCodeResponse {
+                code: row.code,
+                wyckoff_chart: row
+                    .wyckoff_chart
+                    .as_ref()
+                    .map(Self::wyckoff_chart_from_db),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("GetWyckoffChartByCode", &user_name, started);
+        result
+    }
+
     async fn update_is_konglomerasi(
         &self,
         request: Request<UpdateIsKonglomerasiRequest>,
@@ -965,6 +1040,50 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("UpdateCatatanPribadi", &user_name, started);
+        result
+    }
+
+    async fn update_wyckoff_chart_by_code(
+        &self,
+        request: Request<UpdateWyckoffChartByCodeRequest>,
+    ) -> Result<Response<UpdateWyckoffChartByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<UpdateWyckoffChartByCodeResponse>, Status> = async {
+            let inner = request.into_inner();
+            let code = inner.code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            let Some(wyckoff_chart) = inner.wyckoff_chart else {
+                return Err(Status::invalid_argument("wyckoff_chart wajib diisi"));
+            };
+
+            crate::repository::update_wyckoff_chart(
+                self.session.as_ref(),
+                &code,
+                Self::wyckoff_chart_to_db(wyckoff_chart),
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpdateWyckoffChartByCodeResponse {
+                success: true,
+                message: format!("wyckoff_chart code={code} berhasil diupdate"),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateWyckoffChartByCode", &user_name, started);
         result
     }
 }

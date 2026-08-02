@@ -5,7 +5,8 @@ use scylla::DeserializeRow;
 use crate::model::{
     CompanyInformationDb, CorporateActionDb, ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb,
     StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
-    StockListKeystatsDb, StockListRow, StockListSummaryRow, KEYSPACE, TABLE,
+    StockListKeystatsDb, StockListRow, StockListSummaryRow, WyckoffChartByCodeRow, WyckoffChartDb,
+    KEYSPACE, TABLE,
 };
 
 const ROW_SELECT: &str = "code, name, sector, logo, keystats, keystats_updated_at, \
@@ -19,6 +20,9 @@ const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
 
 const SELECT_BY_CODE: &str = "SELECT ROW_SELECT FROM invezgood.stock_list WHERE code = ?";
+
+const SELECT_WYCKOFF_CHART_BY_CODE: &str =
+    "SELECT code, wyckoff_chart FROM invezgood.stock_list WHERE code = ?";
 
 const UPDATE_KEYSTATS: &str =
     "UPDATE invezgood.stock_list SET keystats = ?, keystats_updated_at = ? WHERE code = ?";
@@ -58,6 +62,9 @@ const UPDATE_CATATAN_OWNER: &str =
 
 const UPDATE_CATATAN_PRIBADI: &str =
     "UPDATE invezgood.stock_list SET catatan_pribadi = ? WHERE code = ?";
+
+const UPDATE_WYCKOFF_CHART: &str =
+    "UPDATE invezgood.stock_list SET wyckoff_chart = ? WHERE code = ?";
 
 const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?";
 
@@ -115,6 +122,22 @@ pub async fn get_by_code(session: &Session, code: &str) -> Result<Option<StockLi
     rows.try_next()
         .await
         .map_err(|e| format!("select row {KEYSPACE}.{TABLE} code={code}: {e}"))
+}
+
+pub async fn get_wyckoff_chart_by_code(
+    session: &Session,
+    code: &str,
+) -> Result<Option<WyckoffChartByCodeRow>, String> {
+    let mut rows = session
+        .query_iter(SELECT_WYCKOFF_CHART_BY_CODE, (code,))
+        .await
+        .map_err(|e| format!("select wyckoff_chart {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .rows_stream::<WyckoffChartByCodeRow>()
+        .map_err(|e| format!("select wyckoff_chart stream {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+
+    rows.try_next()
+        .await
+        .map_err(|e| format!("select wyckoff_chart row {KEYSPACE}.{TABLE} code={code}: {e}"))
 }
 
 pub async fn update_keystats(
@@ -303,6 +326,22 @@ pub async fn update_catatan_pribadi(
         .query_unpaged(UPDATE_CATATAN_PRIBADI, (catatan_pribadi, code))
         .await
         .map_err(|e| format!("update catatan_pribadi {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_wyckoff_chart(
+    session: &Session,
+    code: &str,
+    wyckoff_chart: WyckoffChartDb,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_WYCKOFF_CHART, (wyckoff_chart, code))
+        .await
+        .map_err(|e| format!("update wyckoff_chart {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 

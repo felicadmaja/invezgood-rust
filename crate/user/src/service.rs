@@ -62,6 +62,7 @@ impl User for UserService {
             nama: auth.nama,
             role: auth.role,
             email: user.email,
+            expires_in: crate::auth::SESSION_EXPIRES_SECS,
         }))
     }
 

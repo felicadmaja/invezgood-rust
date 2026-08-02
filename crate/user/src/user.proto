@@ -4,7 +4,7 @@ package user;
 
 service User {
   // Cek email+password (bcrypt) di invezgood.user; bila valid buat session token in-memory (256-bit CSPRNG, 64 hex).
-  // Response: token (untuk Logout), nama, role, email. Error via gRPC status.
+  // Response: token, nama, role, email, expires_in (detik, sesi 12 jam). Error via gRPC status.
   rpc Login(LoginRequest) returns (LoginResponse);
 
   // Hapus session token dari store in-memory; idempotent bila token tidak ada.
@@ -24,6 +24,7 @@ message LoginResponse {
   string nama = 2;
   string role = 3;
   string email = 4;
+  int64 expires_in = 5;
 }
 
 message LogoutRequest {

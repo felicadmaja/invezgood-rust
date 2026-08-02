@@ -307,6 +307,14 @@ pub struct StockListRow {
     pub wyckoff_chart: Option<WyckoffChartDb>,
 }
 
+/// Subset kolom untuk `GetWyckoffChartByCode`.
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct WyckoffChartByCodeRow {
+    pub code: String,
+    #[scylla(default_when_null)]
+    pub wyckoff_chart: Option<WyckoffChartDb>,
+}
+
 /// Subset kolom untuk `GetAllStocks` (list ringan).
 #[derive(Debug, Clone, DeserializeRow)]
 pub struct StockListSummaryRow {

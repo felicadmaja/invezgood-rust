@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use chrono::{DateTime, Duration, Utc};
 use getrandom::getrandom;
 use tokio::sync::RwLock;
 
@@ -9,10 +10,14 @@ use crate::model::UserRow;
 /// Panjang token session: 32 byte random → 64 karakter hex (256-bit entropy).
 const SESSION_TOKEN_BYTES: usize = 32;
 
+/// Satu sesi login berlaku 12 jam.
+pub const SESSION_EXPIRES_SECS: i64 = 12 * 60 * 60;
+
 #[derive(Debug, Clone)]
 pub struct AuthSession {
     pub nama: String,
     pub role: String,
+    pub expires_at: DateTime<Utc>,
 }
 
 pub type SessionStore = Arc<RwLock<HashMap<String, AuthSession>>>;
@@ -44,6 +49,7 @@ pub async fn login(
     let auth = AuthSession {
         nama: user.nama.unwrap_or_default(),
         role: user.role.unwrap_or_default(),
+        expires_at: Utc::now() + Duration::seconds(SESSION_EXPIRES_SECS),
     };
 
     let token = generate_session_token()?;
@@ -57,12 +63,17 @@ pub async fn logout(store: &SessionStore, token: &str) -> bool {
 }
 
 pub async fn validate_session(store: &SessionStore, token: &str) -> Result<AuthSession, String> {
-    store
-        .read()
-        .await
-        .get(token)
-        .cloned()
-        .ok_or_else(|| "session tidak valid atau sudah logout".into())
+    let mut guard = store.write().await;
+    let Some(auth) = guard.get(token).cloned() else {
+        return Err("session tidak valid atau sudah logout".into());
+    };
+
+    if Utc::now() > auth.expires_at {
+        guard.remove(token);
+        return Err("session sudah expired".into());
+    }
+
+    Ok(auth)
 }
 
 /// Ambil token login dari metadata gRPC: `authorization: Bearer <token>`.
