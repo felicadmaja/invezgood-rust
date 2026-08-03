@@ -4,9 +4,9 @@ package top_gainer_loser;
 
 service TopGainerLoser {
   // Memerlukan user login. Kirim metadata: authorization: Bearer <token> (token dari user.Login).
-  // Stream subscribe: tahun_bulan_tanggal kosong/hari ini → poll Invezgo tiap 30 menit (hanya bila ada subscriber,
-  // hanya Sen–Jum 08:00–12:00 & 13:30–16:15 waktu lokal; kecuali last_snapshot kosong → GET API segera) → upsert Scylla → push ke client.
-  // Tanggal bukan hari ini → baca Scylla; bila kosong GET Invezgo + upsert Scylla lalu return. Stream selesai.
+  // Baca Scylla by tahun_bulan_tanggal (kosong = hari ini).
+  // Hari ini: hanya Scylla — tidak GET Invezgo (API biasanya kosong, hemat jatah). Stream 1 pesan lalu selesai.
+  // Tanggal lampau: bila Scylla kosong → GET Invezgo + upsert Scylla lalu return. Stream selesai.
   // gain→tipe=gain, loss→tipe=loser.
   rpc GetTopGainerLoser(GetTopGainerLoserRequest) returns (stream GetTopGainerLoserResponse);
 }

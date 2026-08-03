@@ -6,7 +6,6 @@ pub mod pb {
 pub const FILE_DESCRIPTOR_SET: &[u8] =
     tonic::include_file_descriptor_set!("top_gainer_loser_descriptor");
 
-mod hub;
 mod invezgo;
 mod model;
 mod repository;

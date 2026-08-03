@@ -61,24 +61,6 @@ impl PortofolioService {
         }
     }
 
-    pub async fn scrape_from_stockbit_if_allowed(
-        &self,
-    ) -> Result<(usize, Vec<String>), Status> {
-        acquire_portfolio_scrape_slot().await?;
-        on_demand::scrape_portofolio_all(Arc::clone(&self.session))
-            .await
-            .map_err(Status::internal)
-    }
-
-    pub async fn scrape_from_stockbit_if_allowed_background(
-        &self,
-    ) -> Result<(usize, Vec<String>), Status> {
-        acquire_portfolio_scrape_slot().await?;
-        on_demand::scrape_portofolio_all_background(Arc::clone(&self.session))
-            .await
-            .map_err(Status::internal)
-    }
-
     async fn require_admin<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
         let token = extract_bearer_token(request)?;
         let auth = validate_session(&self.auth_sessions, &token)

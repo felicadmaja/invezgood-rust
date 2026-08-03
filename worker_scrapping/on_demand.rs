@@ -55,20 +55,6 @@ async fn wait_watch<T: Clone>(mut rx: watch::Receiver<Option<T>>, label: &str) -
 pub async fn scrape_portofolio_all(
     session: Arc<Session>,
 ) -> Result<(usize, Vec<String>), String> {
-    scrape_portofolio_all_ex(session, BrowserLockClass::Interactive, false).await
-}
-
-pub async fn scrape_portofolio_all_background(
-    session: Arc<Session>,
-) -> Result<(usize, Vec<String>), String> {
-    scrape_portofolio_all_ex(session, BrowserLockClass::Background, false).await
-}
-
-async fn scrape_portofolio_all_ex(
-    session: Arc<Session>,
-    lock_class: BrowserLockClass,
-    with_bandarmology: bool,
-) -> Result<(usize, Vec<String>), String> {
     let rx = {
         let mut slot = inflight_porto_all().lock().await;
         if let Some(existing) = slot.as_ref() {
@@ -79,7 +65,7 @@ async fn scrape_portofolio_all_ex(
             *slot = Some(rx.clone());
             tokio::spawn(async move {
                 let result =
-                    run_portofolio_all_scrape(session, lock_class, with_bandarmology).await;
+                    run_portofolio_all_scrape(session, BrowserLockClass::Interactive, false).await;
                 let _ = tx.send(Some(result));
                 *inflight_porto_all().lock().await = None;
             });

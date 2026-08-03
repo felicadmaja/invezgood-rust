@@ -8,7 +8,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
-use crate::hub::{PollUpdate, SubscriberGuard, TodayPollHub};
 use crate::model::TopGainerLoserRow as DbTopGainerLoserRow;
 use crate::pb::top_gainer_loser_server::TopGainerLoser;
 use crate::pb::{
@@ -20,16 +19,13 @@ type ResponseStream =
 
 pub struct TopGainerLoserService {
     session: Arc<Session>,
-    today_hub: Arc<TodayPollHub>,
     auth_sessions: SessionStore,
 }
 
 impl TopGainerLoserService {
     pub fn new(session: Arc<Session>, auth_sessions: SessionStore) -> Self {
-        let today_hub = Arc::new(TodayPollHub::new(session.clone()));
         Self {
             session,
-            today_hub,
             auth_sessions,
         }
     }
@@ -48,10 +44,13 @@ impl TopGainerLoserService {
         );
     }
 
-    fn success_response(rows: Vec<DbTopGainerLoserRow>) -> GetTopGainerLoserResponse {
+    fn success_response(
+        rows: Vec<DbTopGainerLoserRow>,
+        empty_message: impl Into<String>,
+    ) -> GetTopGainerLoserResponse {
         let n = rows.len();
         let message = if n == 0 {
-            "Invezgo mengembalikan data kosong (gain=0, loss=0)".to_string()
+            empty_message.into()
         } else {
             format!("{n} baris top gainer/loser")
         };
@@ -111,92 +110,47 @@ impl TopGainerLoser for TopGainerLoserService {
             crate::invezgo::resolve_trade_date(request.into_inner().tahun_bulan_tanggal)
                 .map_err(Status::invalid_argument)?;
         let today = Local::now().date_naive();
+        let is_today = trade_date == today;
 
         let (tx, rx) = tokio::sync::mpsc::channel(8);
 
-        let result = if trade_date != today {
-            let rows = crate::repository::find_by_date(self.session.as_ref(), trade_date)
-                .await
-                .map_err(Status::internal)?;
-            let response = if rows.is_empty() {
-                match crate::invezgo::fetch_and_save(self.session.clone(), trade_date).await {
-                    Ok(fetched) => Self::success_response(fetched),
-                    Err(error) => Self::error_response(error),
-                }
-            } else {
-                Self::success_response(rows)
-            };
+        let rows = crate::repository::find_by_date(self.session.as_ref(), trade_date)
+            .await
+            .map_err(Status::internal)?;
+
+        let response = if !rows.is_empty() {
+            Self::success_response(rows, "")
+        } else if is_today {
+            // Hari ini: jangan GET Invezgo — API biasanya kosong dan membuang jatah.
             eprintln!(
-                "GetTopGainerLoser {user_name} push date={trade_date} success={} items={} msg={}",
-                response.success,
-                response.items.len(),
-                response.message
+                "GetTopGainerLoser {user_name} skip Invezgo API date={trade_date} (hari ini, Scylla kosong)"
             );
-            let _ = tx.send(Ok(response)).await;
-            drop(tx);
-            Ok(Response::new(Box::pin(ReceiverStream::new(rx)) as ResponseStream))
+            Self::success_response(
+                vec![],
+                "hari ini: tidak ada data di Scylla; Invezgo API dilewati (hasil biasanya kosong)",
+            )
         } else {
-            let hub = Arc::clone(&self.today_hub);
-            let stream_user = user_name.clone();
-            tokio::spawn(async move {
-                let _guard = SubscriberGuard::new(Arc::clone(&hub));
-                let mut broadcast_rx = hub.subscribe();
-
-                hub.add_subscriber().await;
-
-                if let Some(snapshot) = hub.last_snapshot().await {
-                    let response = Self::success_response(snapshot);
-                    eprintln!(
-                        "GetTopGainerLoser {stream_user} push snapshot success={} items={} msg={}",
-                        response.success,
-                        response.items.len(),
-                        response.message
-                    );
-                    if tx.send(Ok(response)).await.is_err() {
-                        return;
-                    }
-                } else {
-                    eprintln!(
-                        "GetTopGainerLoser {stream_user} menunggu fetch Invezgo (belum ada snapshot)"
-                    );
-                }
-
-                loop {
-                    match broadcast_rx.recv().await {
-                        Ok(PollUpdate::Ok(rows)) => {
-                            let response = Self::success_response(rows);
-                            eprintln!(
-                                "GetTopGainerLoser {stream_user} push poll success={} items={} msg={}",
-                                response.success,
-                                response.items.len(),
-                                response.message
-                            );
-                            if tx.send(Ok(response)).await.is_err() {
-                                break;
-                            }
-                        }
-                        Ok(PollUpdate::Err(message)) => {
-                            eprintln!(
-                                "GetTopGainerLoser {stream_user} push poll error: {message}"
-                            );
-                            if tx
-                                .send(Ok(Self::error_response(message)))
-                                .await
-                                .is_err()
-                            {
-                                break;
-                            }
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                    }
-                }
-            });
-
-            Ok(Response::new(Box::pin(ReceiverStream::new(rx)) as ResponseStream))
+            match crate::invezgo::fetch_and_save(self.session.clone(), trade_date).await {
+                Ok(fetched) => Self::success_response(
+                    fetched,
+                    "Invezgo mengembalikan data kosong (gain=0, loss=0)",
+                ),
+                Err(error) => Self::error_response(error),
+            }
         };
 
+        eprintln!(
+            "GetTopGainerLoser {user_name} push date={trade_date} today={is_today} success={} items={} msg={}",
+            response.success,
+            response.items.len(),
+            response.message
+        );
+        let _ = tx.send(Ok(response)).await;
+        drop(tx);
+
         Self::log_rpc_debug("GetTopGainerLoser", &user_name, started);
-        result
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(rx)) as ResponseStream
+        ))
     }
 }

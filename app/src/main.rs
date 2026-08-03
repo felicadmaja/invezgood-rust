@@ -1,9 +1,5 @@
 //! Entry point — daftarkan semua layanan gRPC dari crate modul di sini.
 
-mod ready_auto_scrape;
-
-use std::sync::Arc;
-
 use bandarmology::{BandarmologyServer, BandarmologyService};
 use broker::{BrokerServer, BrokerService};
 use pending_order::{PendingOrderServer, PendingOrderService};
@@ -84,7 +80,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pending_order = PendingOrderService::new(session.clone(), auth_sessions.clone());
 
     let readiness_poller = ReadinessPoller::new();
-    ready_auto_scrape::spawn_on_stockbit_ready(Arc::clone(&readiness_poller), portofolio.clone());
 
     let user = UserService::new(session, auth_sessions, readiness_poller);
 
