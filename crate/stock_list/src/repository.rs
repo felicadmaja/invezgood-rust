@@ -6,7 +6,7 @@ use crate::model::{
     CompanyInformationDb, CorporateActionDb, ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb,
     StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
     StockListKeystatsDb, StockListKeystatsRow, StockListRow, StockListSummaryRow,
-    WyckoffChartByCodeRow, WyckoffChartDb, KEYSPACE, TABLE,
+    HorizontalLineByCodeRow, WyckoffChartByCodeRow, WyckoffChartDb, KEYSPACE, TABLE,
 };
 
 const ROW_SELECT: &str = "code, name, sector, logo, keystats, keystats_updated_at, \
@@ -14,7 +14,7 @@ const ROW_SELECT: &str = "code, name, sector, logo, keystats, keystats_updated_a
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
     company_information, company_information_updated_at, corporate_action, corporate_action_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart";
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -23,6 +23,9 @@ const SELECT_BY_CODE: &str = "SELECT ROW_SELECT FROM invezgood.stock_list WHERE 
 
 const SELECT_WYCKOFF_CHART_BY_CODE: &str =
     "SELECT code, wyckoff_chart FROM invezgood.stock_list WHERE code = ?";
+
+const SELECT_HORIZONTAL_LINE_BY_CODE: &str =
+    "SELECT code, horizontal_line FROM invezgood.stock_list WHERE code = ?";
 
 const UPDATE_KEYSTATS: &str =
     "UPDATE invezgood.stock_list SET keystats = ?, keystats_updated_at = ? WHERE code = ?";
@@ -65,6 +68,9 @@ const UPDATE_CATATAN_PRIBADI: &str =
 
 const UPDATE_WYCKOFF_CHART: &str =
     "UPDATE invezgood.stock_list SET wyckoff_chart = ? WHERE code = ?";
+
+const UPDATE_HORIZONTAL_LINE: &str =
+    "UPDATE invezgood.stock_list SET horizontal_line = ? WHERE code = ?";
 
 const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?";
 
@@ -141,6 +147,24 @@ pub async fn get_wyckoff_chart_by_code(
     rows.try_next()
         .await
         .map_err(|e| format!("select wyckoff_chart row {KEYSPACE}.{TABLE} code={code}: {e}"))
+}
+
+pub async fn get_horizontal_line_by_code(
+    session: &Session,
+    code: &str,
+) -> Result<Option<HorizontalLineByCodeRow>, String> {
+    let mut rows = session
+        .query_iter(SELECT_HORIZONTAL_LINE_BY_CODE, (code,))
+        .await
+        .map_err(|e| format!("select horizontal_line {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .rows_stream::<HorizontalLineByCodeRow>()
+        .map_err(|e| {
+            format!("select horizontal_line stream {KEYSPACE}.{TABLE} code={code}: {e}")
+        })?;
+
+    rows.try_next()
+        .await
+        .map_err(|e| format!("select horizontal_line row {KEYSPACE}.{TABLE} code={code}: {e}"))
 }
 
 pub async fn update_keystats(
@@ -345,6 +369,22 @@ pub async fn update_wyckoff_chart(
         .query_unpaged(UPDATE_WYCKOFF_CHART, (wyckoff_chart, code))
         .await
         .map_err(|e| format!("update wyckoff_chart {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_horizontal_line(
+    session: &Session,
+    code: &str,
+    horizontal_line: &[i32],
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_HORIZONTAL_LINE, (horizontal_line, code))
+        .await
+        .map_err(|e| format!("update horizontal_line {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 

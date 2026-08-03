@@ -33,6 +33,7 @@
 -- | is_plan_to_trade                    | regular        | boolean                                 |
 -- | is_konglomerasi                     | regular        | boolean                                 |
 -- | wyckoff_chart                       | regular        | frozen<wyckoff_chart>                   |
+-- | horizontal_line                     | regular        | list<int>                               |
 --
 -- UDT wyckoff_chart:
 --   accumulation_trading_range list<int>, distribution_trading_range list<int>

@@ -16,13 +16,15 @@ use crate::pb::{
     CorporateActionByCodeResponse, CorporateActionData, CorporateActionEntry,
     FinancialStatementResponse, FinancialStatementRowItem, GetAllKeyStatsRequest,
     GetAllKeyStatsResponse, GetAllStocksRequest, GetAllStocksResponse,
-    GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest, GetStockByCodeRequest,
+    GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest,
+    GetHorizontalLineByCodeRequest, GetHorizontalLineByCodeResponse, GetStockByCodeRequest,
     GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
     GetWyckoffChartByCodeResponse,
     KeystatsData, KeystatsResponse, KeyStatsColumn, KeyStatsRowItem,
     KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data, ShareHolder5Entry,
     ShareHolderAndCompanyInformationByCodeResponse, ShareHolderCompositionData,
     ShareHolderCompositionEntry, StatementPanelData, StockByCodeResponse, StockListRow,
+    UpdateHorizontalLineByCodeRequest, UpdateHorizontalLineByCodeResponse,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
     UpdateIsPlanToTradeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
     UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, UpdateWyckoffChartByCodeRequest,
@@ -181,6 +183,7 @@ impl StockListService {
             is_plan_to_trade: row.is_plan_to_trade.unwrap_or(false),
             is_konglomerasi: row.is_konglomerasi.unwrap_or(false),
             wyckoff_chart: row.wyckoff_chart.as_ref().map(Self::wyckoff_chart_from_db),
+            horizontal_line: row.horizontal_line.clone().unwrap_or_default(),
         }
     }
 
@@ -1138,6 +1141,79 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("UpdateWyckoffChartByCode", &user_name, started);
+        result
+    }
+
+    async fn get_horizontal_line_by_code(
+        &self,
+        request: Request<GetHorizontalLineByCodeRequest>,
+    ) -> Result<Response<GetHorizontalLineByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<GetHorizontalLineByCodeResponse>, Status> = async {
+            let code = request.into_inner().code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            let row = crate::repository::get_horizontal_line_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(Status::internal)?
+                .ok_or_else(|| Status::not_found(format!("stock_list code={code} tidak ditemukan")))?;
+
+            Ok(Response::new(GetHorizontalLineByCodeResponse {
+                code: row.code,
+                horizontal_line: row.horizontal_line.unwrap_or_default(),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("GetHorizontalLineByCode", &user_name, started);
+        result
+    }
+
+    async fn update_horizontal_line_by_code(
+        &self,
+        request: Request<UpdateHorizontalLineByCodeRequest>,
+    ) -> Result<Response<UpdateHorizontalLineByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<UpdateHorizontalLineByCodeResponse>, Status> = async {
+            let inner = request.into_inner();
+            let code = inner.code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            crate::repository::update_horizontal_line(
+                self.session.as_ref(),
+                &code,
+                &inner.horizontal_line,
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpdateHorizontalLineByCodeResponse {
+                success: true,
+                message: format!(
+                    "horizontal_line code={code} berhasil diupdate ({} nilai)",
+                    inner.horizontal_line.len()
+                ),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateHorizontalLineByCode", &user_name, started);
         result
     }
 }

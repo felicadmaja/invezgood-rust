@@ -48,6 +48,13 @@ service StockList {
 
   // Update kolom wyckoff_chart di Scylla by PK code. Request: code + wyckoff_chart. Response: success + message.
   rpc UpdateWyckoffChartByCode(UpdateWyckoffChartByCodeRequest) returns (UpdateWyckoffChartByCodeResponse);
+
+  // Update kolom horizontal_line di Scylla by PK code. Request: code + horizontal_line. Response: success + message.
+  rpc UpdateHorizontalLineByCode(UpdateHorizontalLineByCodeRequest)
+      returns (UpdateHorizontalLineByCodeResponse);
+
+  // Baca kolom horizontal_line di Scylla by PK code. Request: code wajib. Response: code + horizontal_line.
+  rpc GetHorizontalLineByCode(GetHorizontalLineByCodeRequest) returns (GetHorizontalLineByCodeResponse);
 }
 
 message GetAllStocksRequest {}
@@ -75,6 +82,7 @@ message StockByCodeResponse {
   bool is_plan_to_trade = 16;
   bool is_konglomerasi = 17;
   WyckoffChartData wyckoff_chart = 18;
+  repeated int32 horizontal_line = 19;
 }
 
 message WyckoffChartData {
@@ -131,6 +139,25 @@ message UpdateWyckoffChartByCodeRequest {
 }
 
 message UpdateWyckoffChartByCodeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetHorizontalLineByCodeRequest {
+  string code = 1;
+}
+
+message GetHorizontalLineByCodeResponse {
+  string code = 1;
+  repeated int32 horizontal_line = 2;
+}
+
+message UpdateHorizontalLineByCodeRequest {
+  string code = 1;
+  repeated int32 horizontal_line = 2;
+}
+
+message UpdateHorizontalLineByCodeResponse {
   bool success = 1;
   string message = 2;
 }

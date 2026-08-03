@@ -305,6 +305,8 @@ pub struct StockListRow {
     pub is_konglomerasi: Option<bool>,
     #[scylla(default_when_null)]
     pub wyckoff_chart: Option<WyckoffChartDb>,
+    #[scylla(default_when_null)]
+    pub horizontal_line: Option<Vec<i32>>,
 }
 
 /// Subset kolom untuk `GetWyckoffChartByCode`.
@@ -313,6 +315,14 @@ pub struct WyckoffChartByCodeRow {
     pub code: String,
     #[scylla(default_when_null)]
     pub wyckoff_chart: Option<WyckoffChartDb>,
+}
+
+/// Subset kolom untuk `GetHorizontalLineByCode`.
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct HorizontalLineByCodeRow {
+    pub code: String,
+    #[scylla(default_when_null)]
+    pub horizontal_line: Option<Vec<i32>>,
 }
 
 /// Subset kolom untuk `GetAllKeyStats`.
