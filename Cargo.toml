@@ -9,6 +9,7 @@ members = [
     "crate/portofolio",
     "crate/portofolio_equity",
     "crate/pending_order",
+    "crate/emiten_trending",
     "crate/stockbit_browser",
     "crate/tls",
     "worker_scrapping",

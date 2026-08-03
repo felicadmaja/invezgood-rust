@@ -1,4 +1,4 @@
-//! On-demand scrape Stockbit: portofolio, pending_order, buy limit order.
+//! On-demand scrape Stockbit: portofolio, pending_order, buy limit order, emiten_trending.
 
 use std::sync::{Arc, OnceLock};
 
@@ -20,6 +20,10 @@ static INFLIGHT_BUY_LIMIT: OnceLock<
     Mutex<Option<watch::Receiver<Option<Result<(), String>>>>>,
 > = OnceLock::new();
 
+static INFLIGHT_EMITEN_TRENDING: OnceLock<
+    Mutex<Option<watch::Receiver<Option<Result<(usize, usize), String>>>>>,
+> = OnceLock::new();
+
 fn inflight_porto_all(
 ) -> &'static Mutex<Option<watch::Receiver<Option<Result<(usize, Vec<String>), String>>>>> {
     INFLIGHT_PORTO_ALL.get_or_init(|| Mutex::new(None))
@@ -32,6 +36,11 @@ fn inflight_pending_order(
 
 fn inflight_buy_limit() -> &'static Mutex<Option<watch::Receiver<Option<Result<(), String>>>>> {
     INFLIGHT_BUY_LIMIT.get_or_init(|| Mutex::new(None))
+}
+
+fn inflight_emiten_trending(
+) -> &'static Mutex<Option<watch::Receiver<Option<Result<(usize, usize), String>>>>> {
+    INFLIGHT_EMITEN_TRENDING.get_or_init(|| Mutex::new(None))
 }
 
 fn keyspace() -> String {
@@ -236,6 +245,68 @@ async fn run_create_buy_limit_order(
         .map_err(|e| e.to_string())?;
 
         Ok::<(), String>(())
+    }
+    .await;
+
+    browser.close().await;
+    result
+}
+
+pub async fn scrape_emiten_trending_movers(
+    session: Arc<Session>,
+) -> Result<(usize, usize), String> {
+    let rx = {
+        let mut slot = inflight_emiten_trending().lock().await;
+        if let Some(existing) = slot.as_ref() {
+            existing.clone()
+        } else {
+            let (tx, rx) = watch::channel::<Option<Result<(usize, usize), String>>>(None);
+            *slot = Some(rx.clone());
+            tokio::spawn(async move {
+                let result = run_emiten_trending_movers_scrape(session).await;
+                let _ = tx.send(Some(result));
+                *inflight_emiten_trending().lock().await = None;
+            });
+            rx
+        }
+    };
+    wait_watch(rx, "on-demand emiten_trending").await?
+}
+
+async fn run_emiten_trending_movers_scrape(
+    session: Arc<Session>,
+) -> Result<(usize, usize), String> {
+    let email = std::env::var("STOCKBIT_EMAIL")
+        .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk scrape movers".to_string())?;
+    let password = std::env::var("STOCKBIT_PASSWORD")
+        .map_err(|_| "STOCKBIT_PASSWORD wajib diisi untuk scrape movers".to_string())?;
+    if email.trim().is_empty() || password.trim().is_empty() {
+        return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
+    }
+
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
+    let ks = keyspace();
+
+    println!("On-demand: emiten_trending via market-mover API (Top Gainer/Loser)...");
+
+    let (browser, page) = launch_page()
+        .await
+        .map_err(|e| format!("launch Chrome: {e}"))?;
+
+    let result = async {
+        open_stream_or_login(&page, email.trim(), password.trim())
+            .await
+            .map_err(|e| format!("login Stockbit: {e}"))?;
+
+        let (gainer, loser) = crate::emiten_trending_worker::scrape_and_insert_movers(
+            &page,
+            session.as_ref(),
+            &ks,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+        Ok::<(usize, usize), String>((gainer, loser))
     }
     .await;
 

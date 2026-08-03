@@ -2,6 +2,7 @@
 
 use bandarmology::{BandarmologyServer, BandarmologyService};
 use broker::{BrokerServer, BrokerService};
+use emiten_trending::{EmitenTrendingServer, EmitenTrendingService};
 use pending_order::{PendingOrderServer, PendingOrderService};
 use portofolio::{PortofolioServer, PortofolioService};
 use portofolio_equity::{PortofolioEquityServer, PortofolioEquityService};
@@ -78,6 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let portofolio_equity =
         PortofolioEquityService::new(session.clone(), auth_sessions.clone());
     let pending_order = PendingOrderService::new(session.clone(), auth_sessions.clone());
+    let emiten_trending = EmitenTrendingService::new(session.clone(), auth_sessions.clone());
 
     let readiness_poller = ReadinessPoller::new();
 
@@ -95,6 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(portofolio::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(portofolio_equity::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pending_order::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(emiten_trending::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
         enable_compression
@@ -117,6 +120,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
     let pending_order_svc =
         maybe_compressed!(PendingOrderServer::new(pending_order), enable_compression);
+    let emiten_trending_svc = maybe_compressed!(
+        EmitenTrendingServer::new(emiten_trending),
+        enable_compression
+    );
 
     let mut builder = Server::builder();
 
@@ -143,6 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(portofolio_svc)
         .add_service(portofolio_equity_svc)
         .add_service(pending_order_svc)
+        .add_service(emiten_trending_svc)
         .serve(addr)
         .await?;
 
