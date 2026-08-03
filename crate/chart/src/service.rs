@@ -1,22 +1,21 @@
 use std::sync::Arc;
 
-use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
-use crate::invezgo;
+use crate::cache::ChartCache;
 use crate::pb::chart_server::Chart;
 use crate::pb::{GetChartFromInvezgoRequest, GetChartFromInvezgoResponse};
 
 pub struct ChartService {
-    session: Arc<Session>,
+    cache: Arc<ChartCache>,
     auth_sessions: SessionStore,
 }
 
 impl ChartService {
-    pub fn new(session: Arc<Session>, auth_sessions: SessionStore) -> Self {
+    pub fn new(cache: Arc<ChartCache>, auth_sessions: SessionStore) -> Self {
         Self {
-            session,
+            cache,
             auth_sessions,
         }
     }
@@ -28,9 +27,14 @@ impl ChartService {
             .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
 
-    fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
+    fn log_rpc_debug(
+        rpc_name: &str,
+        user_name: &str,
+        started: std::time::Instant,
+        detail: &str,
+    ) {
         eprintln!(
-            "{rpc_name} {user_name} {}ms",
+            "{rpc_name} {user_name} {}ms - {detail}",
             started.elapsed().as_millis()
         );
     }
@@ -67,35 +71,36 @@ impl Chart for ChartService {
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
+        let mut cache_detail = String::new();
+
         let result: Result<Response<GetChartFromInvezgoResponse>, Status> = async {
             let req = request.into_inner();
             let code = Self::normalize_code(&req.code)?;
             let from_date = Self::normalize_date("from_date", &req.from_date)?;
             let to_date = Self::normalize_date("to_date", &req.to_date)?;
 
-            match invezgo::fetch_and_save_chart(
-                self.session.as_ref(),
-                &code,
-                &from_date,
-                &to_date,
-            )
-            .await
-            {
-                Ok(items) => Ok(Response::new(GetChartFromInvezgoResponse {
-                    success: true,
-                    message: format!("{} baris di-upsert ke invezgood.chart", items.len()),
-                    items,
-                })),
-                Err(error) => Ok(Response::new(GetChartFromInvezgoResponse {
-                    success: false,
-                    message: error,
-                    items: vec![],
-                })),
+            match self.cache.get_chart(&code, &from_date, &to_date).await {
+                Ok((items, detail)) => {
+                    cache_detail = detail;
+                    Ok(Response::new(GetChartFromInvezgoResponse {
+                        success: true,
+                        message: format!("{} baris", items.len()),
+                        items,
+                    }))
+                }
+                Err(error) => {
+                    cache_detail = format!("chart error: {error}");
+                    Ok(Response::new(GetChartFromInvezgoResponse {
+                        success: false,
+                        message: error,
+                        items: vec![],
+                    }))
+                }
             }
         }
         .await;
 
-        Self::log_rpc_debug("GetChartFromInvezgo", &user_name, started);
+        Self::log_rpc_debug("GetChartFromInvezgo", &user_name, started, &cache_detail);
         result
     }
 }

@@ -4,8 +4,8 @@ package chart;
 
 service Chart {
   // Memerlukan user login. Kirim metadata: authorization: Bearer <token>.
-  // GET Invezgo analysis/chart/stock/{code}?from=&to= → upsert invezgood.chart.
-  // Field date API (ISO-8601) disimpan sebagai date tanpa jam.
+  // Cache 2 lapis (Moka → Redis → Invezgo API). Key: code + from_date + to_date.
+  // GET Invezgo analysis/chart/stock/{code}?from=&to= bila cache miss.
   rpc GetChartFromInvezgo(GetChartFromInvezgoRequest) returns (GetChartFromInvezgoResponse);
 }
 

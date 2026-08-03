@@ -81,7 +81,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         PortofolioEquityService::new(session.clone(), auth_sessions.clone());
     let pending_order = PendingOrderService::new(session.clone(), auth_sessions.clone());
     let emiten_trending = EmitenTrendingService::new(session.clone(), auth_sessions.clone());
-    let chart = ChartService::new(session.clone(), auth_sessions.clone());
+    let chart = ChartService::new(
+        chart::new_shared_cache()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
+        auth_sessions.clone(),
+    );
 
     let readiness_poller = ReadinessPoller::new();
 
