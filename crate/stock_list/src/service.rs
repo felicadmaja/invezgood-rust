@@ -18,6 +18,7 @@ use crate::pb::{
     GetAllKeyStatsResponse, GetAllStocksRequest, GetAllStocksResponse,
     GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest,
     GetHorizontalLineByCodeRequest, GetHorizontalLineByCodeResponse, GetStockByCodeRequest,
+    GetStockByRepeatedCodeRequest, GetStockByRepeatedCodeResponse,
     GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
     GetWyckoffChartByCodeResponse,
     KeystatsData, KeystatsResponse, KeyStatsColumn, KeyStatsRowItem,
@@ -727,6 +728,43 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("GetStockByCode", &user_name, started);
+        result
+    }
+
+    async fn get_stock_by_repeated_code(
+        &self,
+        request: Request<GetStockByRepeatedCodeRequest>,
+    ) -> Result<Response<GetStockByRepeatedCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<GetStockByRepeatedCodeResponse>, Status> = async {
+            let codes = request.into_inner().code;
+            if codes.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi (minimal 1)"));
+            }
+
+            let mut items = Vec::new();
+            let mut seen = std::collections::HashSet::new();
+            for raw in codes {
+                let code = raw.trim().to_ascii_uppercase();
+                if code.is_empty() || !seen.insert(code.clone()) {
+                    continue;
+                }
+                if let Some(row) = crate::repository::get_by_code(self.session.as_ref(), &code)
+                    .await
+                    .map_err(Status::internal)?
+                {
+                    items.push(Self::stock_by_code_from_db_row(&row));
+                }
+            }
+
+            Ok(Response::new(GetStockByRepeatedCodeResponse { items }))
+        }
+        .await;
+
+        Self::log_rpc_debug("GetStockByRepeatedCode", &user_name, started);
         result
     }
 

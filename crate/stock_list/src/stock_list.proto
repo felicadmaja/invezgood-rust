@@ -12,6 +12,11 @@ service StockList {
   // Baca Scylla by PK code. Request: code wajib. Response: StockByCodeResponse.
   rpc GetStockByCode(GetStockByCodeRequest) returns (StockByCodeResponse);
 
+  // Baca Scylla by banyak PK code (tanpa GET Invezgo). Code kosong di-skip; code tidak ketemu diabaikan.
+  // Request: repeated code. Response: repeated StockByCodeResponse (urutan mengikuti request yang valid).
+  rpc GetStockByRepeatedCode(GetStockByRepeatedCodeRequest)
+      returns (GetStockByRepeatedCodeResponse);
+
   // GET Invezgo per jenis → upsert keystats, balance_statement, income_statement, cash_flow + *_updated_at.
   // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Request: code wajib. Response: FinancialStatementResponse (keystats, balance_statement, income_statement, cash_flow).
@@ -61,6 +66,14 @@ message GetAllStocksRequest {}
 
 message GetStockByCodeRequest {
   string code = 1;
+}
+
+message GetStockByRepeatedCodeRequest {
+  repeated string code = 1;
+}
+
+message GetStockByRepeatedCodeResponse {
+  repeated StockByCodeResponse items = 1;
 }
 
 message StockByCodeResponse {
