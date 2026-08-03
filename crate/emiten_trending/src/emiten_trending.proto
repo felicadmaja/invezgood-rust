@@ -11,8 +11,9 @@ service EmitenTrending {
 
   // On-demand saja (bukan auto dari IsStockbitReady / poller).
   // Scrape Stockbit market-mover (TOP_GAINER + TOP_LOSER) → upsert invezgood.emiten_trending.
-  // Rate limit 1×/5 menit global. Jam operasional Senin–Jumat 08:45–12:15 & 13:25–16:15.
-  // Admin only. Setelah scrape, baca ulang hari ini dan return rows.
+  // Setelah upsert, baca ulang dari Scylla (hari ini) lalu return rows.
+  // Rate limit 1×/5 menit global. Jam operasional Senin–Jumat 08:15–12:00 & 13:30–16:15.
+  // Admin only.
   rpc GetLatestEmitenTrendingFromStockbit(GetLatestEmitenTrendingFromStockbitRequest)
       returns (GetAllEmitenTrendingResponse);
 }

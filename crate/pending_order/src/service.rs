@@ -35,15 +35,20 @@ fn buy_limit_gate() -> &'static Mutex<Option<Instant>> {
     LAST_BUY_LIMIT.get_or_init(|| Mutex::new(None))
 }
 
-async fn acquire_pending_order_scrape_slot() -> Result<(), Status> {
+/// `Ok(())` bila slot tersedia; `Err(message)` bila rate limit.
+async fn try_acquire_pending_order_scrape_slot(user_name: &str) -> Result<(), String> {
     let mut last = pending_order_scrape_gate().lock().await;
     if let Some(at) = *last {
         let elapsed = at.elapsed();
         if elapsed < PENDING_ORDER_SCRAPE_COOLDOWN {
             let remaining_secs = (PENDING_ORDER_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
-            return Err(Status::failed_precondition(format!(
+            let message = format!(
                 "Rate limit: maksimal 1× / 3 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
-            )));
+            );
+            eprintln!(
+                "GetAllPendingOrderFromStockbit {user_name} rate-limit ditolak: sisa {remaining_secs}s"
+            );
+            return Err(message);
         }
     }
     *last = Some(Instant::now());
@@ -208,7 +213,13 @@ impl PendingOrder for PendingOrderService {
         let result: Result<Response<GetAllPendingOrderFromStockbitResponse>, Status> = async {
             let _inner = request.into_inner();
             require_stockbit_scrape_hours()?;
-            acquire_pending_order_scrape_slot().await?;
+            if let Err(message) = try_acquire_pending_order_scrape_slot(&user_name).await {
+                return Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
+                    success: false,
+                    message,
+                    rows: vec![],
+                }));
+            }
 
             match on_demand::scrape_pending_order_all(Arc::clone(&self.session)).await {
                 Ok(n) => {
