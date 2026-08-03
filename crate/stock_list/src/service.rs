@@ -7,17 +7,19 @@ use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
 use crate::model::{
     BalanceStatement, CompanyInformation, CorporateAction, Keystats, ShareHolder1, ShareHolder5,
-    ShareHolderComposition, StockListRow as DbStockListRow, StockListSummaryRow,
+    ShareHolderComposition, StockListKeystatsRow, StockListRow as DbStockListRow,
+    StockListSummaryRow,
 };
 use crate::pb::stock_list_server::StockList;
 use crate::pb::{
     CompanyInformationData, CompanyPersonEntry, CompanySubsidiaryEntry,
     CorporateActionByCodeResponse, CorporateActionData, CorporateActionEntry,
-    FinancialStatementResponse, FinancialStatementRowItem, GetAllStocksRequest, GetAllStocksResponse,
+    FinancialStatementResponse, FinancialStatementRowItem, GetAllKeyStatsRequest,
+    GetAllKeyStatsResponse, GetAllStocksRequest, GetAllStocksResponse,
     GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest, GetStockByCodeRequest,
     GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
     GetWyckoffChartByCodeResponse,
-    KeystatsData, KeyStatsColumn, KeyStatsRowItem,
+    KeystatsData, KeystatsResponse, KeyStatsColumn, KeyStatsRowItem,
     KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data, ShareHolder5Entry,
     ShareHolderAndCompanyInformationByCodeResponse, ShareHolderCompositionData,
     ShareHolderCompositionEntry, StatementPanelData, StockByCodeResponse, StockListRow,
@@ -335,29 +337,54 @@ impl StockListService {
         }
     }
 
-    fn financial_statement_from_db_row(row: &DbStockListRow) -> FinancialStatementResponse {
-        let keystats = row.keystats.clone().map(|db| {
-            Self::keystats_data_from_model(Keystats::from(db), row.keystats_updated_at)
-        });
-
-        let balance_statement = row.balance_statement.clone().map(|db| {
-            Self::panel_data_from_model(BalanceStatement::from(db), row.balance_statement_updated_at)
-        });
-
-        let income_statement = row.income_statement.clone().map(|db| {
-            Self::panel_data_from_model(BalanceStatement::from(db), row.income_statement_updated_at)
-        });
-
-        let cash_flow = row.cash_flow.clone().map(|db| {
-            Self::panel_data_from_model(BalanceStatement::from(db), row.cash_flow_updated_at)
-        });
-
+    fn financial_statement_from_parts(
+        code: &str,
+        keystats: Option<crate::model::StockListKeystatsDb>,
+        keystats_updated_at: Option<DateTime<Utc>>,
+        balance_statement: Option<crate::model::StockListBalanceStatementDb>,
+        balance_statement_updated_at: Option<DateTime<Utc>>,
+        income_statement: Option<crate::model::StockListIncomeStatementDb>,
+        income_statement_updated_at: Option<DateTime<Utc>>,
+        cash_flow: Option<crate::model::StockListCashFlowDb>,
+        cash_flow_updated_at: Option<DateTime<Utc>>,
+    ) -> FinancialStatementResponse {
         FinancialStatementResponse {
-            code: row.code.clone(),
-            keystats,
-            balance_statement,
-            income_statement,
-            cash_flow,
+            code: code.to_string(),
+            keystats: keystats.map(|db| {
+                Self::keystats_data_from_model(Keystats::from(db), keystats_updated_at)
+            }),
+            balance_statement: balance_statement.map(|db| {
+                Self::panel_data_from_model(BalanceStatement::from(db), balance_statement_updated_at)
+            }),
+            income_statement: income_statement.map(|db| {
+                Self::panel_data_from_model(BalanceStatement::from(db), income_statement_updated_at)
+            }),
+            cash_flow: cash_flow.map(|db| {
+                Self::panel_data_from_model(BalanceStatement::from(db), cash_flow_updated_at)
+            }),
+        }
+    }
+
+    fn financial_statement_from_db_row(row: &DbStockListRow) -> FinancialStatementResponse {
+        Self::financial_statement_from_parts(
+            &row.code,
+            row.keystats.clone(),
+            row.keystats_updated_at,
+            row.balance_statement.clone(),
+            row.balance_statement_updated_at,
+            row.income_statement.clone(),
+            row.income_statement_updated_at,
+            row.cash_flow.clone(),
+            row.cash_flow_updated_at,
+        )
+    }
+
+    fn keystats_response_from_row(row: StockListKeystatsRow) -> KeystatsResponse {
+        KeystatsResponse {
+            code: row.code,
+            keystats: row.keystats.map(|db| {
+                Self::keystats_data_from_model(Keystats::from(db), row.keystats_updated_at)
+            }),
         }
     }
 
@@ -741,6 +768,33 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("GetFinancialStatementByCode", &user_name, started);
+        result
+    }
+
+    async fn get_all_key_stats(
+        &self,
+        request: Request<GetAllKeyStatsRequest>,
+    ) -> Result<Response<GetAllKeyStatsResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<GetAllKeyStatsResponse>, Status> = async {
+            let _inner = request.into_inner();
+            let rows = crate::repository::list_all_keystats(self.session.as_ref())
+                .await
+                .map_err(Status::internal)?;
+
+            let items = rows
+                .into_iter()
+                .map(Self::keystats_response_from_row)
+                .collect();
+
+            Ok(Response::new(GetAllKeyStatsResponse { items }))
+        }
+        .await;
+
+        Self::log_rpc_debug("GetAllKeyStats", &user_name, started);
         result
     }
 

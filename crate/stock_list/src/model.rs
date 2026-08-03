@@ -315,6 +315,16 @@ pub struct WyckoffChartByCodeRow {
     pub wyckoff_chart: Option<WyckoffChartDb>,
 }
 
+/// Subset kolom untuk `GetAllKeyStats`.
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct StockListKeystatsRow {
+    pub code: String,
+    #[scylla(default_when_null)]
+    pub keystats: Option<StockListKeystatsDb>,
+    #[scylla(default_when_null)]
+    pub keystats_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 /// Subset kolom untuk `GetAllStocks` (list ringan).
 #[derive(Debug, Clone, DeserializeRow)]
 pub struct StockListSummaryRow {

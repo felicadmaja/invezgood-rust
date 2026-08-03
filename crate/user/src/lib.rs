@@ -6,6 +6,7 @@ pub mod pb {
 pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("user_descriptor");
 
 mod auth;
+mod invezgo;
 mod model;
 pub mod password;
 mod repository;

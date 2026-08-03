@@ -14,8 +14,9 @@ use crate::auth::{extract_bearer_token, validate_session, SessionStore};
 use crate::model::UserRow as DbUserRow;
 use crate::pb::user_server::User;
 use crate::pb::{
-    GetUsersFromScyllaRequest, GetUsersFromScyllaResponse, IsStockbitReadyRequest,
-    IsStockbitReadyResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, UserRow,
+    CekUsageRequest, GetUsersFromScyllaRequest, GetUsersFromScyllaResponse, IsStockbitReadyRequest,
+    IsStockbitReadyResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse,
+    UsageResponse, UserRow,
 };
 
 const READY_STREAM_CHECK_SECS: u64 = 2;
@@ -198,5 +199,28 @@ impl User for UserService {
         });
 
         Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
+    }
+
+    async fn cek_usage(
+        &self,
+        request: Request<CekUsageRequest>,
+    ) -> Result<Response<UsageResponse>, Status> {
+        let started = std::time::Instant::now();
+        let user_name = self.require_auth(&request).await?;
+        let _ = request.into_inner();
+
+        let result: Result<Response<UsageResponse>, Status> = async {
+            let usage = crate::invezgo::fetch_usage()
+                .await
+                .map_err(Status::internal)?;
+            Ok(Response::new(usage))
+        }
+        .await;
+
+        eprintln!(
+            "CekUsage {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
+        result
     }
 }

@@ -19,6 +19,12 @@ service User {
   // Subscribe stream: server push saat status berubah + heartbeat ~30s.
   // Wajib authorization: Bearer <token>. success=true bila sesi Stockbit sudah login/ready.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
+
+
+  // GET api.invezgo.com/usage/api → jatah pemakaian API Invezgo (Bearer INVEZGO_BEARER_TOKEN).
+  // Wajib authorization: Bearer <token> login. Request kosong. Response: UsageResponse.
+  // Error: unauthenticated / internal (token env kosong, HTTP non-2xx, parse gagal).
+  rpc CekUsage(CekUsageRequest) returns (UsageResponse);
 }
 
 message LoginRequest {
@@ -60,4 +66,14 @@ message IsStockbitReadyRequest {}
 message IsStockbitReadyResponse {
   bool success = 1;
   string message = 2;
+}
+
+message CekUsageRequest {}
+
+message UsageResponse {
+  int64 usage = 1;
+  int64 remaining = 2;
+  int64 limit = 3;
+  bool is_blocked = 4;
+  string expire = 5;
 }

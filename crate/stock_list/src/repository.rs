@@ -5,8 +5,8 @@ use scylla::DeserializeRow;
 use crate::model::{
     CompanyInformationDb, CorporateActionDb, ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb,
     StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
-    StockListKeystatsDb, StockListRow, StockListSummaryRow, WyckoffChartByCodeRow, WyckoffChartDb,
-    KEYSPACE, TABLE,
+    StockListKeystatsDb, StockListKeystatsRow, StockListRow, StockListSummaryRow,
+    WyckoffChartByCodeRow, WyckoffChartDb, KEYSPACE, TABLE,
 };
 
 const ROW_SELECT: &str = "code, name, sector, logo, keystats, keystats_updated_at, \
@@ -70,6 +70,9 @@ const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?"
 
 const LIST_ALL: &str = "SELECT code, name, sector, logo, keystats_updated_at, \
     catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi FROM invezgood.stock_list";
+
+const LIST_ALL_KEYSTATS: &str =
+    "SELECT code, keystats, keystats_updated_at FROM invezgood.stock_list";
 
 fn with_row_select(query: &str) -> String {
     query.replace("ROW_SELECT", ROW_SELECT)
@@ -359,6 +362,27 @@ pub async fn list_all(session: &Session) -> Result<Vec<StockListSummaryRow>, Str
         .try_next()
         .await
         .map_err(|e| format!("list all row {KEYSPACE}.{TABLE}: {e}"))?
+    {
+        items.push(row);
+    }
+
+    Ok(items)
+}
+
+/// Daftar semua keystats (untuk GetAllKeyStats).
+pub async fn list_all_keystats(session: &Session) -> Result<Vec<StockListKeystatsRow>, String> {
+    let mut rows = session
+        .query_iter(LIST_ALL_KEYSTATS, &[])
+        .await
+        .map_err(|e| format!("list all keystats {KEYSPACE}.{TABLE}: {e}"))?
+        .rows_stream::<StockListKeystatsRow>()
+        .map_err(|e| format!("list all keystats stream {KEYSPACE}.{TABLE}: {e}"))?;
+
+    let mut items = Vec::new();
+    while let Some(row) = rows
+        .try_next()
+        .await
+        .map_err(|e| format!("list all keystats row {KEYSPACE}.{TABLE}: {e}"))?
     {
         items.push(row);
     }
