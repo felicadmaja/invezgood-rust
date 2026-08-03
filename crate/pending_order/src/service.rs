@@ -6,7 +6,7 @@ use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use user::{
-    extract_bearer_token, require_stockbit_scrape_hours, validate_session, AuthSession,
+    extract_bearer_token, validate_session, AuthSession,
     SessionStore,
 };
 use worker_scrapping::on_demand;
@@ -212,7 +212,6 @@ impl PendingOrder for PendingOrderService {
 
         let result: Result<Response<GetAllPendingOrderFromStockbitResponse>, Status> = async {
             let _inner = request.into_inner();
-            require_stockbit_scrape_hours()?;
             if let Err(message) = try_acquire_pending_order_scrape_slot(&user_name).await {
                 return Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
                     success: false,

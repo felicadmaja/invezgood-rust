@@ -1,0 +1,87 @@
+use tonic::{Request, Response, Status};
+use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
+
+use crate::invezgo;
+use crate::pb::chart_server::Chart;
+use crate::pb::{GetChartFromInvezgoRequest, GetChartFromInvezgoResponse};
+
+pub struct ChartService {
+    auth_sessions: SessionStore,
+}
+
+impl ChartService {
+    pub fn new(auth_sessions: SessionStore) -> Self {
+        Self { auth_sessions }
+    }
+
+    async fn require_auth<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
+        let token = extract_bearer_token(request)?;
+        validate_session(&self.auth_sessions, &token)
+            .await
+            .map_err(|_| Status::unauthenticated("login diperlukan"))
+    }
+
+    fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
+        eprintln!(
+            "{rpc_name} {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
+    }
+
+    fn normalize_code(raw: &str) -> Result<String, Status> {
+        let code = raw.trim().to_ascii_uppercase();
+        if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+            return Err(Status::invalid_argument(format!(
+                "code tidak valid ({raw}); wajib tepat 4 huruf alphabet"
+            )));
+        }
+        Ok(code)
+    }
+
+    fn normalize_date(field: &str, raw: &str) -> Result<String, Status> {
+        let value = raw.trim();
+        if value.is_empty() {
+            return Err(Status::invalid_argument(format!("{field} wajib diisi")));
+        }
+        chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| {
+            Status::invalid_argument(format!("{field} harus format YYYY-MM-DD"))
+        })?;
+        Ok(value.to_string())
+    }
+}
+
+#[tonic::async_trait]
+impl Chart for ChartService {
+    async fn get_chart_from_invezgo(
+        &self,
+        request: Request<GetChartFromInvezgoRequest>,
+    ) -> Result<Response<GetChartFromInvezgoResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<GetChartFromInvezgoResponse>, Status> = async {
+            let req = request.into_inner();
+            let code = Self::normalize_code(&req.code)?;
+            let from_date = Self::normalize_date("from_date", &req.from_date)?;
+            let to_date = Self::normalize_date("to_date", &req.to_date)?;
+
+            match invezgo::fetch_chart(&code, &from_date, &to_date).await {
+                Ok(items) => Ok(Response::new(GetChartFromInvezgoResponse {
+                    success: true,
+                    message: String::new(),
+                    items,
+                })),
+                Err(error) => Ok(Response::new(GetChartFromInvezgoResponse {
+                    success: false,
+                    message: error,
+                    items: vec![],
+                })),
+            }
+        }
+        .await;
+
+        Self::log_rpc_debug("GetChartFromInvezgo", &user_name, started);
+        result
+    }
+}

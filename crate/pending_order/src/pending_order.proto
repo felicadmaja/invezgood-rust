@@ -16,7 +16,6 @@ service PendingOrder {
   // On-demand saja (bukan auto dari readiness poller). Scrape order Stockbit
   // (carina.stockbit.com/order/v2/list) via Chrome → upsert invezgood.pending_order.
   // Rate limit: 1× / 3 menit global → success=false + message rate limit (bukan gRPC error).
-  // Jam operasional Senin–Jumat 08:45–12:15 & 13:25–16:15.
   rpc GetAllPendingOrderFromStockbit(GetAllPendingOrderFromStockbitRequest)
       returns (GetAllPendingOrderFromStockbitResponse);
 

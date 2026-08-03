@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package chart;
+
+service Chart {
+  // Memerlukan user login. Kirim metadata: authorization: Bearer <token>.
+  // Proxy GET Invezgo analysis/chart/stock/{code}?from=&to= — tanpa ScyllaDB.
+  rpc GetChartFromInvezgo(GetChartFromInvezgoRequest) returns (GetChartFromInvezgoResponse);
+}
+
+message GetChartFromInvezgoRequest {
+  string code = 1;
+  string from_date = 2;
+  string to_date = 3;
+}
+
+message ChartBar {
+  string date = 1;
+  double open = 2;
+  double high = 3;
+  double low = 4;
+  double close = 5;
+  string volume = 6;
+}
+
+message GetChartFromInvezgoResponse {
+  repeated ChartBar items = 1;
+  bool success = 2;
+  string message = 3;
+}
