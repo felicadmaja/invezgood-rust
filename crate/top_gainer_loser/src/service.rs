@@ -49,9 +49,15 @@ impl TopGainerLoserService {
     }
 
     fn success_response(rows: Vec<DbTopGainerLoserRow>) -> GetTopGainerLoserResponse {
+        let n = rows.len();
+        let message = if n == 0 {
+            "Invezgo mengembalikan data kosong (gain=0, loss=0)".to_string()
+        } else {
+            format!("{n} baris top gainer/loser")
+        };
         GetTopGainerLoserResponse {
             success: true,
-            message: String::new(),
+            message,
             items: rows.into_iter().map(Self::db_row_to_proto).collect(),
         }
     }
@@ -120,11 +126,18 @@ impl TopGainerLoser for TopGainerLoserService {
             } else {
                 Self::success_response(rows)
             };
+            eprintln!(
+                "GetTopGainerLoser {user_name} push date={trade_date} success={} items={} msg={}",
+                response.success,
+                response.items.len(),
+                response.message
+            );
             let _ = tx.send(Ok(response)).await;
             drop(tx);
             Ok(Response::new(Box::pin(ReceiverStream::new(rx)) as ResponseStream))
         } else {
             let hub = Arc::clone(&self.today_hub);
+            let stream_user = user_name.clone();
             tokio::spawn(async move {
                 let _guard = SubscriberGuard::new(Arc::clone(&hub));
                 let mut broadcast_rx = hub.subscribe();
@@ -132,27 +145,40 @@ impl TopGainerLoser for TopGainerLoserService {
                 hub.add_subscriber().await;
 
                 if let Some(snapshot) = hub.last_snapshot().await {
-                    if tx
-                        .send(Ok(Self::success_response(snapshot)))
-                        .await
-                        .is_err()
-                    {
+                    let response = Self::success_response(snapshot);
+                    eprintln!(
+                        "GetTopGainerLoser {stream_user} push snapshot success={} items={} msg={}",
+                        response.success,
+                        response.items.len(),
+                        response.message
+                    );
+                    if tx.send(Ok(response)).await.is_err() {
                         return;
                     }
+                } else {
+                    eprintln!(
+                        "GetTopGainerLoser {stream_user} menunggu fetch Invezgo (belum ada snapshot)"
+                    );
                 }
 
                 loop {
                     match broadcast_rx.recv().await {
                         Ok(PollUpdate::Ok(rows)) => {
-                            if tx
-                                .send(Ok(Self::success_response(rows)))
-                                .await
-                                .is_err()
-                            {
+                            let response = Self::success_response(rows);
+                            eprintln!(
+                                "GetTopGainerLoser {stream_user} push poll success={} items={} msg={}",
+                                response.success,
+                                response.items.len(),
+                                response.message
+                            );
+                            if tx.send(Ok(response)).await.is_err() {
                                 break;
                             }
                         }
                         Ok(PollUpdate::Err(message)) => {
+                            eprintln!(
+                                "GetTopGainerLoser {stream_user} push poll error: {message}"
+                            );
                             if tx
                                 .send(Ok(Self::error_response(message)))
                                 .await

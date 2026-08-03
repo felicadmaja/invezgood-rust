@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 
 use crate::model::TopGainerLoserRow;
 
-const POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
+const POLL_INTERVAL: Duration = Duration::from_secs(30 * 60);
 const BROADCAST_CAPACITY: usize = 32;
 
 #[derive(Clone)]
@@ -120,8 +120,16 @@ impl TodayPollHub {
             }
 
             let today = now.date_naive();
+            eprintln!(
+                "top_gainer_loser poll fetch mulai date={today} subscribers={}",
+                self.subscribers.load(Ordering::SeqCst)
+            );
             match crate::invezgo::fetch_and_save(self.session.clone(), today).await {
                 Ok(rows) => {
+                    eprintln!(
+                        "top_gainer_loser poll fetch ok date={today} rows={}",
+                        rows.len()
+                    );
                     *self.last_snapshot.lock().await = Some(rows.clone());
                     let _ = self.tx.send(PollUpdate::Ok(rows));
                 }

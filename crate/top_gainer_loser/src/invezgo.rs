@@ -34,6 +34,15 @@ struct ApiTopChangeResponse {
     loss: Vec<ApiTopItem>,
 }
 
+fn body_preview(body: &str, max_chars: usize) -> String {
+    let trimmed = body.trim();
+    if trimmed.chars().count() <= max_chars {
+        return trimmed.to_string();
+    }
+    let preview: String = trimmed.chars().take(max_chars).collect();
+    format!("{preview}… ({} chars)", trimmed.len())
+}
+
 pub async fn fetch_and_save(
     session: Arc<Session>,
     trade_date: chrono::NaiveDate,
@@ -42,9 +51,9 @@ pub async fn fetch_and_save(
         .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
 
     let date_param = trade_date.format("%Y-%m-%d").to_string();
-    let url = format!(
-        "{INVEZGO_TOP_CHANGE_URL}?date={date_param}&filter_column=change"
-    );
+    let url = format!("{INVEZGO_TOP_CHANGE_URL}?date={date_param}");
+
+    eprintln!("top_gainer_loser Invezgo GET {url}");
 
     let response = reqwest::Client::new()
         .get(&url)
@@ -59,15 +68,25 @@ pub async fn fetch_and_save(
         .await
         .map_err(|e| format!("baca body Invezgo gagal: {e}"))?;
 
+    eprintln!(
+        "top_gainer_loser Invezgo HTTP {status} url={url} body={}",
+        body_preview(&body, 2000)
+    );
+
     if !status.is_success() {
-        eprintln!(
-            "top_gainer_loser Invezgo API gagal: HTTP {status} url={url} body={body}"
-        );
         return Err(format!("Invezgo HTTP {status}: {body}"));
     }
 
-    let parsed: ApiTopChangeResponse = serde_json::from_str(&body)
-        .map_err(|e| format!("parse JSON Invezgo gagal: {e}"))?;
+    let parsed: ApiTopChangeResponse = serde_json::from_str(&body).map_err(|e| {
+        format!(
+            "parse JSON Invezgo gagal: {e}; body={}",
+            body_preview(&body, 500)
+        )
+    })?;
+
+    let gain_n = parsed.gain.len();
+    let loss_n = parsed.loss.len();
+    eprintln!("top_gainer_loser Invezgo parsed date={date_param} gain={gain_n} loss={loss_n}");
 
     let mut saved = Vec::new();
 
@@ -81,6 +100,12 @@ pub async fn fetch_and_save(
         let row = api_item_to_row(trade_date, "loser", item);
         crate::repository::upsert(session.as_ref(), &row).await?;
         saved.push(row);
+    }
+
+    if saved.is_empty() {
+        eprintln!(
+            "top_gainer_loser Invezgo kosong untuk {date_param}: tidak ada baris di-upsert"
+        );
     }
 
     Ok(saved)
