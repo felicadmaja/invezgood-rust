@@ -8,7 +8,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
-use crate::hub::{SubscriberGuard, TodayPollHub};
+use crate::hub::{PollUpdate, SubscriberGuard, TodayPollHub};
 use crate::model::TopGainerLoserRow as DbTopGainerLoserRow;
 use crate::pb::top_gainer_loser_server::TopGainerLoser;
 use crate::pb::{
@@ -48,9 +48,19 @@ impl TopGainerLoserService {
         );
     }
 
-    fn rows_to_response(rows: Vec<DbTopGainerLoserRow>) -> GetTopGainerLoserResponse {
+    fn success_response(rows: Vec<DbTopGainerLoserRow>) -> GetTopGainerLoserResponse {
         GetTopGainerLoserResponse {
+            success: true,
+            message: String::new(),
             items: rows.into_iter().map(Self::db_row_to_proto).collect(),
+        }
+    }
+
+    fn error_response(message: String) -> GetTopGainerLoserResponse {
+        GetTopGainerLoserResponse {
+            success: false,
+            message,
+            items: vec![],
         }
     }
 
@@ -99,17 +109,18 @@ impl TopGainerLoser for TopGainerLoserService {
         let (tx, rx) = tokio::sync::mpsc::channel(8);
 
         let result = if trade_date != today {
-            let mut rows = crate::repository::find_by_date(self.session.as_ref(), trade_date)
+            let rows = crate::repository::find_by_date(self.session.as_ref(), trade_date)
                 .await
                 .map_err(Status::internal)?;
-            if rows.is_empty() {
-                rows = crate::invezgo::fetch_and_save(self.session.clone(), trade_date)
-                    .await
-                    .map_err(Status::internal)?;
-            }
-            let _ = tx
-                .send(Ok(Self::rows_to_response(rows)))
-                .await;
+            let response = if rows.is_empty() {
+                match crate::invezgo::fetch_and_save(self.session.clone(), trade_date).await {
+                    Ok(fetched) => Self::success_response(fetched),
+                    Err(error) => Self::error_response(error),
+                }
+            } else {
+                Self::success_response(rows)
+            };
+            let _ = tx.send(Ok(response)).await;
             drop(tx);
             Ok(Response::new(Box::pin(ReceiverStream::new(rx)) as ResponseStream))
         } else {
@@ -121,15 +132,32 @@ impl TopGainerLoser for TopGainerLoserService {
                 hub.add_subscriber().await;
 
                 if let Some(snapshot) = hub.last_snapshot().await {
-                    if tx.send(Ok(Self::rows_to_response(snapshot))).await.is_err() {
+                    if tx
+                        .send(Ok(Self::success_response(snapshot)))
+                        .await
+                        .is_err()
+                    {
                         return;
                     }
                 }
 
                 loop {
                     match broadcast_rx.recv().await {
-                        Ok(rows) => {
-                            if tx.send(Ok(Self::rows_to_response(rows))).await.is_err() {
+                        Ok(PollUpdate::Ok(rows)) => {
+                            if tx
+                                .send(Ok(Self::success_response(rows)))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Ok(PollUpdate::Err(message)) => {
+                            if tx
+                                .send(Ok(Self::error_response(message)))
+                                .await
+                                .is_err()
+                            {
                                 break;
                             }
                         }

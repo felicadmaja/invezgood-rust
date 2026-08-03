@@ -12,6 +12,12 @@ use crate::model::TopGainerLoserRow;
 const POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
 const BROADCAST_CAPACITY: usize = 32;
 
+#[derive(Clone)]
+pub enum PollUpdate {
+    Ok(Vec<TopGainerLoserRow>),
+    Err(String),
+}
+
 /// Poll Invezgo hanya Sen–Jum, 08:00–12:00 dan 13:30–16:15 (waktu lokal server).
 fn is_invezgo_poll_window(now: chrono::DateTime<Local>) -> bool {
     if !matches!(
@@ -38,7 +44,7 @@ fn is_invezgo_poll_window(now: chrono::DateTime<Local>) -> bool {
 pub struct TodayPollHub {
     session: Arc<Session>,
     subscribers: AtomicUsize,
-    tx: broadcast::Sender<Vec<TopGainerLoserRow>>,
+    tx: broadcast::Sender<PollUpdate>,
     poll_task: Mutex<Option<JoinHandle<()>>>,
     last_snapshot: Mutex<Option<Vec<TopGainerLoserRow>>>,
 }
@@ -55,7 +61,7 @@ impl TodayPollHub {
         }
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<Vec<TopGainerLoserRow>> {
+    pub fn subscribe(&self) -> broadcast::Receiver<PollUpdate> {
         self.tx.subscribe()
     }
 
@@ -117,9 +123,12 @@ impl TodayPollHub {
             match crate::invezgo::fetch_and_save(self.session.clone(), today).await {
                 Ok(rows) => {
                     *self.last_snapshot.lock().await = Some(rows.clone());
-                    let _ = self.tx.send(rows);
+                    let _ = self.tx.send(PollUpdate::Ok(rows));
                 }
-                Err(error) => eprintln!("top_gainer_loser poll Invezgo gagal: {error}"),
+                Err(error) => {
+                    eprintln!("top_gainer_loser poll Invezgo gagal: {error}");
+                    let _ = self.tx.send(PollUpdate::Err(error));
+                }
             }
         }
 

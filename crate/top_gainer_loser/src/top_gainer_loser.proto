@@ -17,6 +17,8 @@ message GetTopGainerLoserRequest {
 
 message GetTopGainerLoserResponse {
   repeated TopGainerLoserRow items = 1;
+  bool success = 2;
+  string message = 3;
 }
 
 message GraphPoint {
