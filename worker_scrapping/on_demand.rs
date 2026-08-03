@@ -132,17 +132,6 @@ async fn run_portofolio_all_scrape(
 }
 
 pub async fn scrape_pending_order_all(session: Arc<Session>) -> Result<usize, String> {
-    scrape_pending_order_all_ex(session, BrowserLockClass::Interactive).await
-}
-
-pub async fn scrape_pending_order_all_background(session: Arc<Session>) -> Result<usize, String> {
-    scrape_pending_order_all_ex(session, BrowserLockClass::Background).await
-}
-
-async fn scrape_pending_order_all_ex(
-    session: Arc<Session>,
-    lock_class: BrowserLockClass,
-) -> Result<usize, String> {
     let rx = {
         let mut slot = inflight_pending_order().lock().await;
         if let Some(existing) = slot.as_ref() {
@@ -151,7 +140,8 @@ async fn scrape_pending_order_all_ex(
             let (tx, rx) = watch::channel::<Option<Result<usize, String>>>(None);
             *slot = Some(rx.clone());
             tokio::spawn(async move {
-                let result = run_pending_order_all_scrape(session, lock_class).await;
+                let result =
+                    run_pending_order_all_scrape(session, BrowserLockClass::Interactive).await;
                 let _ = tx.send(Some(result));
                 *inflight_pending_order().lock().await = None;
             });

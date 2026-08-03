@@ -1,8 +1,8 @@
-//! Auto-scrape portofolio + pending_order saat poller Stockbit ready.
+//! Auto-scrape portofolio saat poller Stockbit ready.
+//! Pending order tidak di-auto-scrape — hanya on-demand via RPC GetAllPendingOrderFromStockbit.
 
 use std::sync::Arc;
 
-use pending_order::PendingOrderService;
 use portofolio::PortofolioService;
 use stockbit_browser::ReadinessPoller;
 use tonic::{Code, Status};
@@ -38,11 +38,7 @@ fn new_build_langsung_scrape() -> bool {
     true
 }
 
-pub fn spawn_on_stockbit_ready(
-    poller: Arc<ReadinessPoller>,
-    portofolio: PortofolioService,
-    pending_order: PendingOrderService,
-) {
+pub fn spawn_on_stockbit_ready(poller: Arc<ReadinessPoller>, portofolio: PortofolioService) {
     let skip_first_scrape = !new_build_langsung_scrape();
     let mut rx = poller.subscribe();
     tokio::spawn(async move {
@@ -73,9 +69,9 @@ pub fn spawn_on_stockbit_ready(
                     );
                 } else {
                     eprintln!(
-                        "Readiness poll_seq={poll_seq} ready → auto invoke portofolio + pending_order..."
+                        "Readiness poll_seq={poll_seq} ready → auto invoke portofolio..."
                     );
-                    run_auto_scrapes(&portofolio, &pending_order).await;
+                    run_auto_scrapes(&portofolio).await;
                 }
             }
 
@@ -86,20 +82,12 @@ pub fn spawn_on_stockbit_ready(
     });
 }
 
-async fn run_auto_scrapes(portofolio: &PortofolioService, pending_order: &PendingOrderService) {
+async fn run_auto_scrapes(portofolio: &PortofolioService) {
     match portofolio.scrape_from_stockbit_if_allowed_background().await {
         Ok((n, codes)) => eprintln!(
             "Auto GetAllPortofolioFromStockbit selesai: {n} baris ({} kode).",
             codes.len()
         ),
         Err(e) => log_auto_skip("GetAllPortofolioFromStockbit", &e),
-    }
-
-    match pending_order
-        .scrape_from_stockbit_if_allowed_background()
-        .await
-    {
-        Ok(n) => eprintln!("Auto GetAllPendingOrderFromStockbit selesai: {n} baris."),
-        Err(e) => log_auto_skip("GetAllPendingOrderFromStockbit", &e),
     }
 }

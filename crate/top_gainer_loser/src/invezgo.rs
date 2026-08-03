@@ -60,6 +60,9 @@ pub async fn fetch_and_save(
         .map_err(|e| format!("baca body Invezgo gagal: {e}"))?;
 
     if !status.is_success() {
+        eprintln!(
+            "top_gainer_loser Invezgo API gagal: HTTP {status} url={url} body={body}"
+        );
         return Err(format!("Invezgo HTTP {status}: {body}"));
     }
 

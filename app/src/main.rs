@@ -84,11 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let pending_order = PendingOrderService::new(session.clone(), auth_sessions.clone());
 
     let readiness_poller = ReadinessPoller::new();
-    ready_auto_scrape::spawn_on_stockbit_ready(
-        Arc::clone(&readiness_poller),
-        portofolio.clone(),
-        pending_order.clone(),
-    );
+    ready_auto_scrape::spawn_on_stockbit_ready(Arc::clone(&readiness_poller), portofolio.clone());
 
     let user = UserService::new(session, auth_sessions, readiness_poller);
 
