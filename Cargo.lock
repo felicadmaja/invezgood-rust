@@ -304,6 +304,7 @@ dependencies = [
  "chrono",
  "prost",
  "reqwest 0.12.28",
+ "scylla",
  "serde",
  "serde_json",
  "tonic",

@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
@@ -6,12 +9,16 @@ use crate::pb::chart_server::Chart;
 use crate::pb::{GetChartFromInvezgoRequest, GetChartFromInvezgoResponse};
 
 pub struct ChartService {
+    session: Arc<Session>,
     auth_sessions: SessionStore,
 }
 
 impl ChartService {
-    pub fn new(auth_sessions: SessionStore) -> Self {
-        Self { auth_sessions }
+    pub fn new(session: Arc<Session>, auth_sessions: SessionStore) -> Self {
+        Self {
+            session,
+            auth_sessions,
+        }
     }
 
     async fn require_auth<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
@@ -66,10 +73,17 @@ impl Chart for ChartService {
             let from_date = Self::normalize_date("from_date", &req.from_date)?;
             let to_date = Self::normalize_date("to_date", &req.to_date)?;
 
-            match invezgo::fetch_chart(&code, &from_date, &to_date).await {
+            match invezgo::fetch_and_save_chart(
+                self.session.as_ref(),
+                &code,
+                &from_date,
+                &to_date,
+            )
+            .await
+            {
                 Ok(items) => Ok(Response::new(GetChartFromInvezgoResponse {
                     success: true,
-                    message: String::new(),
+                    message: format!("{} baris di-upsert ke invezgood.chart", items.len()),
                     items,
                 })),
                 Err(error) => Ok(Response::new(GetChartFromInvezgoResponse {
