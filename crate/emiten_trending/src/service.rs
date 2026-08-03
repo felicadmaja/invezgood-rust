@@ -1,13 +1,10 @@
-use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use chrono::Local;
 use scylla::client::session::Session;
-use tokio::sync::{mpsc, Mutex};
-use tokio_stream::wrappers::ReceiverStream;
-use tokio_stream::Stream;
+use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use user::{
     extract_bearer_token, require_stockbit_scrape_hours, validate_session, AuthSession,
@@ -23,7 +20,7 @@ use crate::pb::{
 };
 use crate::repository::EmitenTrendingRepository;
 
-const MOVERS_SCRAPE_COOLDOWN: Duration = Duration::from_secs(3 * 60);
+const MOVERS_SCRAPE_COOLDOWN: Duration = Duration::from_secs(5 * 60);
 
 static LAST_MOVERS_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
@@ -31,15 +28,19 @@ fn movers_scrape_gate() -> &'static Mutex<Option<Instant>> {
     LAST_MOVERS_SCRAPE.get_or_init(|| Mutex::new(None))
 }
 
-async fn acquire_movers_scrape_slot() -> Result<(), Status> {
+async fn acquire_movers_scrape_slot(user_name: &str) -> Result<(), Status> {
     let mut last = movers_scrape_gate().lock().await;
     if let Some(at) = *last {
         let elapsed = at.elapsed();
         if elapsed < MOVERS_SCRAPE_COOLDOWN {
             let remaining_secs = (MOVERS_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
-            return Err(Status::failed_precondition(format!(
-                "Rate limit: maksimal 1× / 3 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
-            )));
+            let message = format!(
+                "Rate limit: maksimal 1× / 5 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
+            );
+            eprintln!(
+                "GetLatestEmitenTrendingFromStockbit {user_name} rate-limit ditolak: sisa {remaining_secs}s"
+            );
+            return Err(Status::failed_precondition(message));
         }
     }
     *last = Some(Instant::now());
@@ -124,49 +125,35 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         result
     }
 
-    type GetLatestEmitenTrendingFromStockbitStream =
-        Pin<Box<dyn Stream<Item = Result<GetAllEmitenTrendingResponse, Status>> + Send>>;
-
     async fn get_latest_emiten_trending_from_stockbit(
         &self,
         request: Request<GetLatestEmitenTrendingFromStockbitRequest>,
-    ) -> Result<Response<Self::GetLatestEmitenTrendingFromStockbitStream>, Status> {
+    ) -> Result<Response<GetAllEmitenTrendingResponse>, Status> {
         let started = Instant::now();
         let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
         let _ = request.into_inner();
 
-        let result: Result<Response<Self::GetLatestEmitenTrendingFromStockbitStream>, Status> =
-            async {
-                require_stockbit_scrape_hours()?;
-                acquire_movers_scrape_slot().await?;
+        let result: Result<Response<GetAllEmitenTrendingResponse>, Status> = async {
+            require_stockbit_scrape_hours()?;
+            acquire_movers_scrape_slot(&user_name).await?;
 
-                on_demand::scrape_emiten_trending_movers(Arc::clone(&self.session))
-                    .await
-                    .map_err(|e| Status::internal(format!("Scrape movers gagal: {e}")))?;
+            on_demand::scrape_emiten_trending_movers(Arc::clone(&self.session))
+                .await
+                .map_err(|e| Status::internal(format!("Scrape movers gagal: {e}")))?;
 
-                let today = Local::now().date_naive();
-                let rows = self
-                    .repo
-                    .get_all_by_date(today)
-                    .await
-                    .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+            let today = Local::now().date_naive();
+            let rows = self
+                .repo
+                .get_all_by_date(today)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
 
-                let payload = GetAllEmitenTrendingResponse {
-                    rows: rows.into_iter().map(EmitenTrending::into_proto).collect(),
-                };
-
-                let (tx, rx) = mpsc::channel(1);
-                if tx.send(Ok(payload)).await.is_err() {
-                    return Err(Status::internal("stream closed before send"));
-                }
-
-                Ok(Response::new(
-                    Box::pin(ReceiverStream::new(rx))
-                        as Self::GetLatestEmitenTrendingFromStockbitStream,
-                ))
-            }
-            .await;
+            Ok(Response::new(GetAllEmitenTrendingResponse {
+                rows: rows.into_iter().map(EmitenTrending::into_proto).collect(),
+            }))
+        }
+        .await;
 
         Self::log_rpc_debug("GetLatestEmitenTrendingFromStockbit", &user_name, started);
         result

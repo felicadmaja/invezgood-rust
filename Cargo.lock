@@ -551,7 +551,6 @@ dependencies = [
  "prost",
  "scylla",
  "tokio",
- "tokio-stream",
  "tonic",
  "tonic-build",
  "user",

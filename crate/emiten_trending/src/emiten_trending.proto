@@ -4,16 +4,17 @@ package emiten_trending;
 
 service EmitenTrending {
   // On-demand sekali: baca Scylla via MV emiten_trending_by_tahun_bulan_tanggal → tabel dasar.
-  // Request: tahun_bulan_tanggal (YYYY-MM-DD). Auth: Bearer login. Response: rows.
+  // Tanpa rate limit / jam operasional. Request: tahun_bulan_tanggal (YYYY-MM-DD).
+  // Auth: Bearer login. Response: rows.
   rpc GetAllEmitenTrendingFromScylla(GetAllEmitenTrendingFromScyllaRequest)
       returns (GetAllEmitenTrendingResponse);
 
   // On-demand saja (bukan auto dari IsStockbitReady / poller).
   // Scrape Stockbit market-mover (TOP_GAINER + TOP_LOSER) → upsert invezgood.emiten_trending.
-  // Rate limit 1×/3 menit global. Jam operasional Senin–Jumat 08:45–12:15 & 13:25–16:15.
-  // Admin only. Setelah scrape, baca ulang hari ini dan stream 1 pesan.
+  // Rate limit 1×/5 menit global. Jam operasional Senin–Jumat 08:45–12:15 & 13:25–16:15.
+  // Admin only. Setelah scrape, baca ulang hari ini dan return rows.
   rpc GetLatestEmitenTrendingFromStockbit(GetLatestEmitenTrendingFromStockbitRequest)
-      returns (stream GetAllEmitenTrendingResponse);
+      returns (GetAllEmitenTrendingResponse);
 }
 
 message GetAllEmitenTrendingFromScyllaRequest {
