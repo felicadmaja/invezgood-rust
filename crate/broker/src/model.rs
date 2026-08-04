@@ -22,6 +22,8 @@ pub struct BrokerRow {
     #[scylla(default_when_null)]
     pub catatan: Option<String>,
     #[scylla(default_when_null)]
+    pub is_huge: Option<bool>,
+    #[scylla(default_when_null)]
     pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 

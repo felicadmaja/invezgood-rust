@@ -1,18 +1,26 @@
 use futures::TryStreamExt;
 use scylla::client::session::Session;
 
-use crate::model::{BrokerRow, KEYSPACE, TABLE};
+use crate::model::{
+    BrokerRow, BrokerStalkerRow, KEYSPACE, TABLE, TABLE_BROKER_STALKER,
+};
 
-const FIND_ALL: &str = "SELECT broker_code, name, tipe, asosiasi, catatan, updated_at \
+const FIND_ALL: &str = "SELECT broker_code, name, tipe, asosiasi, catatan, is_huge, updated_at \
     FROM invezgood.broker";
 
-const FIND_BY_CODE: &str = "SELECT broker_code, name, tipe, asosiasi, catatan, updated_at \
+const FIND_BY_CODE: &str = "SELECT broker_code, name, tipe, asosiasi, catatan, is_huge, updated_at \
     FROM invezgood.broker WHERE broker_code = ?";
 
 const UPSERT: &str = "INSERT INTO invezgood.broker \
-    (broker_code, name, tipe, asosiasi, catatan, updated_at) VALUES (?, ?, ?, ?, ?, ?)";
+    (broker_code, name, tipe, asosiasi, catatan, is_huge, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
 
 const DELETE_BY_CODE: &str = "DELETE FROM invezgood.broker WHERE broker_code = ?";
+
+const FIND_STALKER: &str = "SELECT broker_code, tahun_bulan, summary, list \
+    FROM invezgood.broker_stalker WHERE broker_code = ? AND tahun_bulan = ?";
+
+const UPSERT_STALKER: &str = "INSERT INTO invezgood.broker_stalker \
+    (broker_code, tahun_bulan, summary, list) VALUES (?, ?, ?, ?)";
 
 pub async fn find_all(session: &Session) -> Result<Vec<BrokerRow>, String> {
     let mut rows = session
@@ -60,6 +68,7 @@ pub async fn upsert(session: &Session, row: &BrokerRow) -> Result<(), String> {
                 row.tipe,
                 row.asosiasi.as_deref(),
                 row.catatan.as_deref(),
+                row.is_huge,
                 row.updated_at,
             ),
         )
@@ -85,5 +94,49 @@ pub async fn delete_by_code(session: &Session, broker_code: &str) -> Result<(), 
         .query_unpaged(DELETE_BY_CODE, (broker_code,))
         .await
         .map_err(|e| format!("delete_by_code {KEYSPACE}.{TABLE} code={broker_code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn find_stalker(
+    session: &Session,
+    broker_code: &str,
+    tahun_bulan: &str,
+) -> Result<Option<BrokerStalkerRow>, String> {
+    let mut rows = session
+        .query_iter(FIND_STALKER, (broker_code, tahun_bulan))
+        .await
+        .map_err(|e| {
+            format!(
+                "find_stalker {KEYSPACE}.{TABLE_BROKER_STALKER} code={broker_code} bulan={tahun_bulan}: {e}"
+            )
+        })?
+        .rows_stream::<BrokerStalkerRow>()
+        .map_err(|e| {
+            format!("find_stalker stream {KEYSPACE}.{TABLE_BROKER_STALKER}: {e}")
+        })?;
+
+    rows.try_next().await.map_err(|e| {
+        format!("find_stalker row {KEYSPACE}.{TABLE_BROKER_STALKER}: {e}")
+    })
+}
+
+pub async fn upsert_stalker(session: &Session, row: &BrokerStalkerRow) -> Result<(), String> {
+    session
+        .query_unpaged(
+            UPSERT_STALKER,
+            (
+                &row.broker_code,
+                &row.tahun_bulan,
+                row.summary.as_ref(),
+                row.list.as_ref(),
+            ),
+        )
+        .await
+        .map_err(|e| {
+            format!(
+                "upsert_stalker {KEYSPACE}.{TABLE_BROKER_STALKER} code={} bulan={}: {e}",
+                row.broker_code, row.tahun_bulan
+            )
+        })?;
     Ok(())
 }
