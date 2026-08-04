@@ -21,6 +21,58 @@ service Broker {
   // Hapus baris invezgood.broker by PK broker_code. Broker harus ada → not_found bila tidak ada.
   // Response: success + message.
   rpc DeleteBrokerByCode(DeleteBrokerByCodeRequest) returns (DeleteBrokerByCodeResponse);
+
+
+  // buatkan rpc 'BrokerStalkerFromInvezgo'
+  // request:
+  // string broker_code
+  // string tahun_bulan
+  // logic : curl 'https://api.invezgo.com/analysis/stalker/list/{broker_code}?from={tahun_bulan-01}&to={tahun_bulan-tanggal akhir bulan}&investor=all&market=RG' \
+  // output data dari api
+  /*
+  {
+  "summary": {
+    "stocks": 481,
+    "total_net": -3522930617000,
+    "total_volume": -225265000,
+    "top": "TPIA",
+    "concentration": 18.7,
+    "buy_dom": 47.2
+  },
+  "list": [
+    {
+      "code": "TPIA",
+      "value": 658748027500,
+      "volume": 373271500,
+      "transaction": 44,
+      "buy_dom": 58.7
+    },
+    {
+      "code": "ASII",
+      "value": 404320500000,
+      "volume": 87715200,
+      "transaction": 44,
+      "buy_dom": 56.3
+    },
+    {
+      "code": "TINS",
+      "value": 110107770000,
+      "volume": 29902600,
+      "transaction": 44,
+      "buy_dom": 60.4
+    },
+    {
+      "code": "KLBF",
+      "value": 87807977000,
+      "volume": 118622200,
+      "transaction": 44,
+      "buy_dom": 60.5
+    },
+    ...
+  ]
+}
+  */
+  // masukkan ke dalam table 'broker_stalker'
 }
 
 enum TipeBroker {
@@ -71,4 +123,16 @@ message BrokerRow {
   string asosiasi = 4;
   string catatan = 5;
   string updated_at = 6;
+}
+
+// Baris invezgood.broker_stalker (list = list<frozen<map<text,text>>>).
+message BrokerStalkerListItem {
+  map<string, string> fields = 1;
+}
+
+message BrokerStalkerRow {
+  string broker_code = 1;
+  string tahun_bulan = 2;
+  map<string, string> summary = 3;
+  repeated BrokerStalkerListItem list = 4;
 }
