@@ -649,28 +649,6 @@ async fn insert_portofolio(
             )
             .await?;
         n += 1;
-        if n > 1 {
-            println!();
-        }
-        println!(
-            "Insert portofolio [{n}/{}]: {emiten} ({long_name}) \
-             balance_lot={} available_lot={} avg={:.4} last={} \
-             invested={:.2} mv={:.2} pl={:.2} pct={:.4}%{}",
-            rows.len(),
-            row.balance_lot,
-            row.available_lot,
-            row.average_price,
-            row.current_price,
-            row.invested,
-            row.market_value,
-            row.potential_p_l,
-            row.percentage,
-            if emiten_icon.is_empty() {
-                String::new()
-            } else {
-                format!(" icon={emiten_icon}")
-            },
-        );
     }
     println!("Insert portofolio selesai: {n}/{} baris.", rows.len());
     Ok(n)
@@ -718,13 +696,12 @@ pub async fn scrape_and_insert_portofolio(
     truncate_portofolio(session.as_ref(), keyspace).await?;
 
     println!("Portofolio equity: upsert dari data.summary API...");
-    let equity_ok = portofolio_equity_worker::upsert_portofolio_equity_from_json(
+    portofolio_equity_worker::upsert_portofolio_equity_from_json(
         session.as_ref(),
         keyspace,
         &json,
     )
     .await?;
-    println!("OK: {equity_ok} baris diupsert ke portofolio_equity.");
 
     let mut codes: Vec<String> = rows
         .iter()

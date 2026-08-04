@@ -69,10 +69,6 @@ pub async fn upsert_portofolio_equity(
             .execute_unpaged(&insert, (nama.as_str(), *value))
             .await?;
         n += 1;
-        println!(
-            "INFO insert portofolio_equity [{n}/{}]: {nama} = {value}",
-            rows.len()
-        );
     }
     Ok(n)
 }
