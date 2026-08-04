@@ -737,7 +737,7 @@ pub async fn scrape_and_insert_portofolio(
     let _ = with_bandarmology;
 
     let n = insert_portofolio(session.as_ref(), keyspace, &rows).await?;
-    println!("OK: {n} baris diinsert ke portofolio.");
+    println!("\x1b[32mOK: {n} baris diinsert ke portofolio.\x1b[0m");
 
     Ok((n, codes))
 }
