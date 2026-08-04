@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS invezgood.broker (
     asosiasi    text,
     catatan     text,
     is_huge     boolean,
+    is_top      boolean,
     updated_at  timestamp
 );
 
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS invezgood.broker (
 -- | asosiasi    | regular       | text      |
 -- | catatan     | regular       | text      |
 -- | is_huge     | regular       | boolean   |
+-- | is_top      | regular       | boolean   |
 -- | updated_at  | regular       | timestamp |
 --
 -- Contoh baris (API list/broker):
@@ -34,5 +36,6 @@ CREATE TABLE IF NOT EXISTS invezgood.broker (
 -- Backfill default 0 (per PK; Scylla tidak mendukung UPDATE tanpa WHERE):
 -- UPDATE invezgood.broker SET tipe = 0 WHERE broker_code = '<code>';
 --
--- Migrasi is_huge (jalan sekali bila tabel sudah ada tanpa kolom):
+-- Migrasi is_huge / is_top (jalan sekali bila tabel sudah ada tanpa kolom):
 -- ALTER TABLE invezgood.broker ADD is_huge boolean;
+-- ALTER TABLE invezgood.broker ADD is_top boolean;

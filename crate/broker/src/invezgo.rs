@@ -62,6 +62,7 @@ pub async fn fetch_and_save(session: Arc<Session>) -> Result<Vec<BrokerRow>, Str
             asosiasi: None,
             catatan: None,
             is_huge: Some(false),
+            is_top: Some(false),
             updated_at: Some(now),
         };
 

@@ -13,7 +13,7 @@ service Broker {
   // Response: satu BrokerRow atau not_found.
   rpc GetBrokerByCode(GetBrokerByCodeRequest) returns (GetBrokerByCodeResponse);
 
-  // Update kolom name/tipe/asosiasi/catatan/is_huge di invezgood.broker by PK broker_code.
+  // Update kolom name/tipe/asosiasi/catatan/is_huge/is_top di invezgood.broker by PK broker_code.
   // Field optional: hanya yang diisi yang diupdate. Broker harus sudah ada → not_found bila tidak ada.
   // Response: BrokerRow terbaru.
   rpc UpdateBrokerByCode(UpdateBrokerByCodeRequest) returns (UpdateBrokerByCodeResponse);
@@ -27,6 +27,14 @@ service Broker {
   // ?from=YYYY-MM-01&to=akhir-bulan&investor=all&market=RG (Bearer INVEZGO_BEARER_TOKEN),
   // upsert summary+list ke Scylla, return BrokerStalkerRow.
   rpc BrokerStalkerFromInvezgo(BrokerStalkerFromInvezgoRequest) returns (BrokerStalkerFromInvezgoResponse);
+
+  // Update kolom is_huge di invezgood.broker by PK broker_code (+ updated_at).
+  // Broker harus ada → not_found bila tidak ada. Response: success + message.
+  rpc UpdateKapitalisasi(UpdateKapitalisasiRequest) returns (UpdateKapitalisasiResponse);
+
+  // Update kolom is_top di invezgood.broker by PK broker_code (+ updated_at).
+  // Broker harus ada → not_found bila tidak ada. Response: success + message.
+  rpc UpdateTopBroker(UpdateTopBrokerRequest) returns (UpdateTopBrokerResponse);
 }
 
 enum TipeBroker {
@@ -56,6 +64,7 @@ message UpdateBrokerByCodeRequest {
   optional string asosiasi = 4;
   optional string catatan = 5;
   optional bool is_huge = 6;
+  optional bool is_top = 7;
 }
 
 message UpdateBrokerByCodeResponse {
@@ -80,6 +89,26 @@ message BrokerStalkerFromInvezgoResponse {
   BrokerStalkerRow item = 1;
 }
 
+message UpdateKapitalisasiRequest {
+  string broker_code = 1;
+  bool is_huge = 2;
+}
+
+message UpdateKapitalisasiResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateTopBrokerRequest {
+  string broker_code = 1;
+  bool is_top = 2;
+}
+
+message UpdateTopBrokerResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 message BrokerRow {
   string broker_code = 1;
   string name = 2;
@@ -88,6 +117,7 @@ message BrokerRow {
   string catatan = 5;
   string updated_at = 6;
   bool is_huge = 7;
+  bool is_top = 8;
 }
 
 // Baris invezgood.broker_stalker (list = list<frozen<map<text,text>>>).

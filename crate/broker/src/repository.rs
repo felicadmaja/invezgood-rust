@@ -5,16 +5,20 @@ use crate::model::{
     BrokerRow, BrokerStalkerRow, KEYSPACE, TABLE, TABLE_BROKER_STALKER,
 };
 
-const FIND_ALL: &str = "SELECT broker_code, name, tipe, asosiasi, catatan, is_huge, updated_at \
+const FIND_ALL: &str = "SELECT broker_code, name, tipe, asosiasi, catatan, is_huge, is_top, updated_at \
     FROM invezgood.broker";
 
-const FIND_BY_CODE: &str = "SELECT broker_code, name, tipe, asosiasi, catatan, is_huge, updated_at \
+const FIND_BY_CODE: &str = "SELECT broker_code, name, tipe, asosiasi, catatan, is_huge, is_top, updated_at \
     FROM invezgood.broker WHERE broker_code = ?";
 
 const UPSERT: &str = "INSERT INTO invezgood.broker \
-    (broker_code, name, tipe, asosiasi, catatan, is_huge, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    (broker_code, name, tipe, asosiasi, catatan, is_huge, is_top, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
 const DELETE_BY_CODE: &str = "DELETE FROM invezgood.broker WHERE broker_code = ?";
+
+const UPDATE_IS_HUGE: &str = "UPDATE invezgood.broker SET is_huge = ?, updated_at = ? WHERE broker_code = ?";
+
+const UPDATE_IS_TOP: &str = "UPDATE invezgood.broker SET is_top = ?, updated_at = ? WHERE broker_code = ?";
 
 const FIND_STALKER: &str = "SELECT broker_code, tahun_bulan, summary, list \
     FROM invezgood.broker_stalker WHERE broker_code = ? AND tahun_bulan = ?";
@@ -69,6 +73,7 @@ pub async fn upsert(session: &Session, row: &BrokerRow) -> Result<(), String> {
                 row.asosiasi.as_deref(),
                 row.catatan.as_deref(),
                 row.is_huge,
+                row.is_top,
                 row.updated_at,
             ),
         )
@@ -94,6 +99,36 @@ pub async fn delete_by_code(session: &Session, broker_code: &str) -> Result<(), 
         .query_unpaged(DELETE_BY_CODE, (broker_code,))
         .await
         .map_err(|e| format!("delete_by_code {KEYSPACE}.{TABLE} code={broker_code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_is_huge(
+    session: &Session,
+    broker_code: &str,
+    is_huge: bool,
+    updated_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), String> {
+    session
+        .query_unpaged(UPDATE_IS_HUGE, (is_huge, updated_at, broker_code))
+        .await
+        .map_err(|e| {
+            format!("update_is_huge {KEYSPACE}.{TABLE} code={broker_code}: {e}")
+        })?;
+    Ok(())
+}
+
+pub async fn update_is_top(
+    session: &Session,
+    broker_code: &str,
+    is_top: bool,
+    updated_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), String> {
+    session
+        .query_unpaged(UPDATE_IS_TOP, (is_top, updated_at, broker_code))
+        .await
+        .map_err(|e| {
+            format!("update_is_top {KEYSPACE}.{TABLE} code={broker_code}: {e}")
+        })?;
     Ok(())
 }
 

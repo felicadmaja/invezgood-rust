@@ -12,7 +12,8 @@ use crate::pb::{
     BrokerStalkerListItem, BrokerStalkerRow, DeleteBrokerByCodeRequest,
     DeleteBrokerByCodeResponse, GetAllBrokersRequest, GetAllBrokersResponse,
     GetBrokerByCodeRequest, GetBrokerByCodeResponse, TipeBroker, UpdateBrokerByCodeRequest,
-    UpdateBrokerByCodeResponse,
+    UpdateBrokerByCodeResponse, UpdateKapitalisasiRequest, UpdateKapitalisasiResponse,
+    UpdateTopBrokerRequest, UpdateTopBrokerResponse,
 };
 
 pub struct BrokerService {
@@ -64,6 +65,7 @@ impl BrokerService {
                 .map(|ts| ts.to_rfc3339())
                 .unwrap_or_default(),
             is_huge: row.is_huge.unwrap_or(false),
+            is_top: row.is_top.unwrap_or(false),
         }
     }
 
@@ -185,9 +187,10 @@ impl Broker for BrokerService {
                 && inner.asosiasi.is_none()
                 && inner.catatan.is_none()
                 && inner.is_huge.is_none()
+                && inner.is_top.is_none()
             {
                 return Err(Status::invalid_argument(
-                    "minimal satu field update wajib diisi (name, tipe, asosiasi, catatan, is_huge)",
+                    "minimal satu field update wajib diisi (name, tipe, asosiasi, catatan, is_huge, is_top)",
                 ));
             }
 
@@ -215,6 +218,9 @@ impl Broker for BrokerService {
             }
             if let Some(is_huge) = inner.is_huge {
                 row.is_huge = Some(is_huge);
+            }
+            if let Some(is_top) = inner.is_top {
+                row.is_top = Some(is_top);
             }
             row.updated_at = Some(Utc::now());
 
@@ -342,6 +348,104 @@ impl Broker for BrokerService {
             Self::log_rpc_debug("BrokerStalkerFromInvezgo", &user_name, started);
         }
 
+        result
+    }
+
+    async fn update_kapitalisasi(
+        &self,
+        request: Request<UpdateKapitalisasiRequest>,
+    ) -> Result<Response<UpdateKapitalisasiResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<UpdateKapitalisasiResponse>, Status> = async {
+            let inner = request.into_inner();
+            let broker_code = inner.broker_code.trim().to_ascii_uppercase();
+            if broker_code.is_empty() {
+                return Err(Status::invalid_argument("broker_code wajib diisi"));
+            }
+
+            let exists = crate::repository::find_by_code(self.session.as_ref(), &broker_code)
+                .await
+                .map_err(Status::internal)?
+                .is_some();
+
+            if !exists {
+                return Err(Status::not_found(format!(
+                    "broker_code={broker_code} tidak ditemukan"
+                )));
+            }
+
+            crate::repository::update_is_huge(
+                self.session.as_ref(),
+                &broker_code,
+                inner.is_huge,
+                Utc::now(),
+            )
+            .await
+            .map_err(Status::internal)?;
+
+            Ok(Response::new(UpdateKapitalisasiResponse {
+                success: true,
+                message: format!(
+                    "broker_code={broker_code} is_huge={} berhasil diupdate",
+                    inner.is_huge
+                ),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateKapitalisasi", &user_name, started);
+        result
+    }
+
+    async fn update_top_broker(
+        &self,
+        request: Request<UpdateTopBrokerRequest>,
+    ) -> Result<Response<UpdateTopBrokerResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<UpdateTopBrokerResponse>, Status> = async {
+            let inner = request.into_inner();
+            let broker_code = inner.broker_code.trim().to_ascii_uppercase();
+            if broker_code.is_empty() {
+                return Err(Status::invalid_argument("broker_code wajib diisi"));
+            }
+
+            let exists = crate::repository::find_by_code(self.session.as_ref(), &broker_code)
+                .await
+                .map_err(Status::internal)?
+                .is_some();
+
+            if !exists {
+                return Err(Status::not_found(format!(
+                    "broker_code={broker_code} tidak ditemukan"
+                )));
+            }
+
+            crate::repository::update_is_top(
+                self.session.as_ref(),
+                &broker_code,
+                inner.is_top,
+                Utc::now(),
+            )
+            .await
+            .map_err(Status::internal)?;
+
+            Ok(Response::new(UpdateTopBrokerResponse {
+                success: true,
+                message: format!(
+                    "broker_code={broker_code} is_top={} berhasil diupdate",
+                    inner.is_top
+                ),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateTopBroker", &user_name, started);
         result
     }
 }
