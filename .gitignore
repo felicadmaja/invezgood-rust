@@ -5,3 +5,4 @@
 logs/
 worker_scrapping/browser_data/
 *.log
+backup_database/
