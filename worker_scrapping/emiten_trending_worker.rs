@@ -80,7 +80,7 @@ async fn fetch_market_mover(
     let status = resp.status();
     let rate = RateLimitInfo::from_headers(resp.headers());
     let rate_log = crate::rate_limit_delay::rate_limit_headers_log(resp.headers());
-    println!("  market-mover {mover_type} → HTTP {status} | {rate_log}");
+    println!("\x1b[32m  market-mover {mover_type} → HTTP {status} | {rate_log}\x1b[0m");
     crate::http_abort::abort_app_if_http_4xx(status, &format!("market-mover {mover_type}"));
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {

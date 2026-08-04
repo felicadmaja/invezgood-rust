@@ -607,8 +607,6 @@ async fn insert_portofolio(
     keyspace: &str,
     rows: &[PortoRow],
 ) -> Result<usize, Box<dyn std::error::Error>> {
-    println!("Portofolio: mulai insert {} baris...", rows.len());
-
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.portofolio (\
@@ -714,7 +712,7 @@ pub async fn scrape_and_insert_portofolio(
     let _ = with_bandarmology;
 
     let n = insert_portofolio(session.as_ref(), keyspace, &rows).await?;
-    println!("\x1b[32mOK: {n} baris diinsert ke portofolio.\x1b[0m");
+    println!("OK: {n} baris diinsert ke portofolio.");
 
     Ok((n, codes))
 }

@@ -81,7 +81,7 @@ pub async fn upsert_portofolio_equity_from_json(
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let rows = equity_rows_from_portfolio_json(v)?;
     println!(
-        "Portofolio equity API summary: {}",
+        "\x1b[32mPortofolio equity API summary: {}\x1b[0m",
         rows
             .iter()
             .map(|(n, v)| format!("{n}={v}"))

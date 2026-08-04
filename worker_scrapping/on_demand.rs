@@ -292,9 +292,7 @@ async fn run_emiten_trending_movers_scrape(
     let _browser_guard = acquire_browser_session(lock_class).await?;
     let ks = keyspace();
 
-    println!(
-        "\x1b[32mOn-demand: emiten_trending via market-mover API (Top Gainer/Loser)...\x1b[0m"
-    );
+    println!("On-demand: emiten_trending via market-mover API (Top Gainer/Loser)...");
 
     let (browser, page) = launch_page()
         .await
