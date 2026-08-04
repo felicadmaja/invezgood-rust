@@ -16,6 +16,8 @@ service User {
   // Status login Chrome scraper Stockbit (state di Redis stockbit:readiness).
   // Poller global 9–10 menit hanya jalan bila minimal 1 client subscribe stream ini;
   // banyak subscriber tidak menambah frekuensi poll.
+  // Setelah tiap tick (bila ready): auto-invoke scrape portofolio + emiten_trending +
+  // pending_order — hanya Senin–Jumat 09:00–12:00 & 13:30–16:00.
   // Subscribe stream: server push saat status berubah + heartbeat ~30s.
   // Wajib authorization: Bearer <token>. success=true bila sesi Stockbit sudah login/ready.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);

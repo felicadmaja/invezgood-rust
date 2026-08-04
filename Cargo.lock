@@ -1188,6 +1188,7 @@ dependencies = [
  "tonic-reflection",
  "top_gainer_loser",
  "user",
+ "worker_scrapping",
 ]
 
 [[package]]

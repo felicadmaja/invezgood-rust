@@ -146,7 +146,7 @@ impl User for UserService {
         let readiness = Arc::clone(&self.readiness);
         let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(8);
 
-        eprintln!("IsStockbitReady {user_name}: stream dibuka (subscribe)");
+        eprintln!("IsStockbitReady {user_name}: client connect — stream dibuka");
 
         tokio::spawn(async move {
             readiness.register_subscriber().await;
@@ -183,7 +183,9 @@ impl User for UserService {
                         .await
                         .is_ok();
                     if !ok {
-                        eprintln!("IsStockbitReady {user_name}: client disconnect — stream ditutup");
+                        eprintln!(
+                            "\x1b[31mIsStockbitReady {user_name}: client disconnect — stream ditutup\x1b[0m"
+                        );
                         break;
                     }
                     last = Some(key);

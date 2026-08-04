@@ -700,7 +700,7 @@ pub async fn scrape_and_insert_portofolio(
         .timeout(Duration::from_secs(60))
         .build()?;
 
-    println!("Portofolio: GET {PORTFOLIO_API_URL}...");
+    println!("\x1b[32mPortofolio: GET {PORTFOLIO_API_URL}...\x1b[0m");
     let (json, rows, rate) = fetch_portfolio_list_string(&http, &bearer).await?;
     let delay_ms = rate.inter_emiten_delay_ms();
     if delay_ms > 0 {

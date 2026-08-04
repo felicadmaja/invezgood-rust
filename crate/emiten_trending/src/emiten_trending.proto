@@ -9,11 +9,12 @@ service EmitenTrending {
   rpc GetAllEmitenTrendingFromScylla(GetAllEmitenTrendingFromScyllaRequest)
       returns (GetAllEmitenTrendingResponse);
 
-  // On-demand saja (bukan auto dari IsStockbitReady / poller).
+  // On-demand (admin) + auto dari IsStockbitReady poller (Senin–Jumat 09:00–12:00 &
+  // 13:30–16:00 bila Stockbit ready).
   // Scrape Stockbit market-mover (TOP_GAINER + TOP_LOSER) → upsert invezgood.emiten_trending.
   // Setelah upsert, baca ulang dari Scylla (hari ini) lalu return rows.
-  // Rate limit 1×/5 menit global. Jam operasional Senin–Jumat 08:15–12:00 & 13:30–16:15.
-  // Admin only.
+  // Rate limit on-demand 1×/5 menit global. Jam operasional on-demand Senin–Jumat
+  // 08:15–12:00 & 13:30–16:15. Admin only.
   rpc GetLatestEmitenTrendingFromStockbit(GetLatestEmitenTrendingFromStockbitRequest)
       returns (GetAllEmitenTrendingResponse);
 }

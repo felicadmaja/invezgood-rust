@@ -24,13 +24,19 @@ use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
 use chromiumoxide::page::{Page, ScreenshotParams};
 use futures::StreamExt;
 use rand::Rng;
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch, Mutex, MutexGuard};
 use tokio::task::AbortHandle;
 use tokio::time::{sleep, timeout};
+
+/// Hook setelah setiap tick poller readiness (`ready` = status terakhir).
+pub type AfterPollHook =
+    Arc<dyn Fn(bool) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
 /// Mutex global: satu Chrome profil — readiness poller dan on-demand scrape
 /// tidak boleh memakai browser bersamaan.
@@ -217,11 +223,13 @@ fn next_poll_secs() -> u64 {
 /// Poller tunggal per proses: cek stockbit.com setiap 9–10 menit **hanya bila**
 /// minimal 1 client subscribe `IsStockbitReady`. Banyak subscriber tidak menambah frekuensi.
 /// Status terakhir di Redis (`stockbit:readiness`); stream hanya baca cache poller/Redis.
+/// Opsional: `set_after_poll_hook` untuk auto-scrape (portofolio / emiten / pending) setelah tick.
 #[derive(Clone)]
 pub struct ReadinessPoller {
     notify: watch::Sender<Option<ReadinessUpdate>>,
     subscriber_count: Arc<AtomicUsize>,
     loop_state: Arc<Mutex<Option<LoopHandle>>>,
+    after_poll: Arc<Mutex<Option<AfterPollHook>>>,
 }
 
 struct LoopHandle {
@@ -237,12 +245,18 @@ impl ReadinessPoller {
             notify,
             subscriber_count: Arc::new(AtomicUsize::new(0)),
             loop_state: Arc::new(Mutex::new(None)),
+            after_poll: Arc::new(Mutex::new(None)),
         })
     }
 
     /// Back-compat: sama `new()` + tidak auto-start loop.
     pub fn start() -> Arc<Self> {
         Self::new()
+    }
+
+    /// Daftarkan hook yang dipanggil setelah setiap tick poller (sukses atau gagal cek).
+    pub async fn set_after_poll_hook(self: &Arc<Self>, hook: AfterPollHook) {
+        *self.after_poll.lock().await = Some(hook);
     }
 
     /// Dipanggil saat client buka stream `IsStockbitReady`.
@@ -355,6 +369,15 @@ impl ReadinessPoller {
                 }
             }
             let _ = forward.await;
+
+            let ready = redis_readiness::get()
+                .await
+                .map(|u| u.ready)
+                .unwrap_or(false);
+            let hook = self.after_poll.lock().await.clone();
+            if let Some(hook) = hook {
+                hook(ready).await;
+            }
         }
 
         let mut guard = self.loop_state.lock().await;

@@ -271,7 +271,7 @@ pub async fn scrape_and_insert_pending_order(
         .timeout(Duration::from_secs(60))
         .build()?;
 
-    println!("Pending order API: GET {ORDER_LIST_API_URL}...");
+    println!("\x1b[32mPending order API: GET {ORDER_LIST_API_URL}...\x1b[0m");
     let (rows, rate) = fetch_order_list(&http, &bearer).await?;
     let delay_ms = rate.inter_emiten_delay_ms();
     if delay_ms > 0 {

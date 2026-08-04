@@ -20,6 +20,7 @@ pending_order = { path = "../crate/pending_order" }
 emiten_trending = { path = "../crate/emiten_trending" }
 chart = { path = "../crate/chart" }
 stockbit_browser = { path = "../crate/stockbit_browser" }
+worker_scrapping = { path = "../worker_scrapping" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tls = { path = "../crate/tls" }
 tonic = { version = "0.12", features = ["tls", "gzip"] }

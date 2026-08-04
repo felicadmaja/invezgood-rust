@@ -263,7 +263,11 @@ pub async fn scrape_emiten_trending_movers(
             let (tx, rx) = watch::channel::<Option<Result<(usize, usize), String>>>(None);
             *slot = Some(rx.clone());
             tokio::spawn(async move {
-                let result = run_emiten_trending_movers_scrape(session).await;
+                let result = run_emiten_trending_movers_scrape(
+                    session,
+                    BrowserLockClass::Interactive,
+                )
+                .await;
                 let _ = tx.send(Some(result));
                 *inflight_emiten_trending().lock().await = None;
             });
@@ -275,6 +279,7 @@ pub async fn scrape_emiten_trending_movers(
 
 async fn run_emiten_trending_movers_scrape(
     session: Arc<Session>,
+    lock_class: BrowserLockClass,
 ) -> Result<(usize, usize), String> {
     let email = std::env::var("STOCKBIT_EMAIL")
         .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk scrape movers".to_string())?;
@@ -284,7 +289,7 @@ async fn run_emiten_trending_movers_scrape(
         return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
     }
 
-    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
+    let _browser_guard = acquire_browser_session(lock_class).await?;
     let ks = keyspace();
 
     println!("On-demand: emiten_trending via market-mover API (Top Gainer/Loser)...");
@@ -312,4 +317,64 @@ async fn run_emiten_trending_movers_scrape(
 
     browser.close().await;
     result
+}
+
+/// Senin–Jumat, jam 09:00–12:00 dan 13:30–16:00 (waktu server lokal).
+pub fn is_stockbit_poller_scrape_hours() -> bool {
+    use chrono::{Datelike, Local, Timelike};
+
+    let now = Local::now();
+    match now.weekday() {
+        chrono::Weekday::Sat | chrono::Weekday::Sun => return false,
+        _ => {}
+    }
+
+    let mins = now.hour() * 60 + now.minute();
+    const MORNING_START: u32 = 9 * 60;
+    const MORNING_END: u32 = 12 * 60 + 1;
+    const AFTERNOON_START: u32 = 13 * 60 + 30;
+    const AFTERNOON_END: u32 = 16 * 60 + 1;
+    let in_morning = mins >= MORNING_START && mins < MORNING_END;
+    let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
+    in_morning || in_afternoon
+}
+
+/// Dipanggil dari readiness poller setelah tiap tick: scrape portofolio, emiten_trending,
+/// pending_order — hanya Senin–Jumat 09:00–12:00 & 13:30–16:00, dan hanya bila `ready`.
+pub async fn run_poller_stockbit_scrapes(session: Arc<Session>, ready: bool) {
+    if !ready {
+        println!("Poller scrapes: Stockbit belum ready — skip");
+        return;
+    }
+    if !is_stockbit_poller_scrape_hours() {
+        println!(
+            "Poller scrapes: diluar jam operasional Senin–Jumat 09:00–12:00 & 13:30–16:00 — skip"
+        );
+        return;
+    }
+
+    println!(
+        "Poller scrapes: mulai GetAllPortofolioFromStockbit + GetLatestEmitenTrendingFromStockbit + GetAllPendingOrderFromStockbit"
+    );
+
+    match run_portofolio_all_scrape(Arc::clone(&session), BrowserLockClass::Background, false)
+        .await
+    {
+        Ok((n, _)) => println!("Poller GetAllPortofolioFromStockbit OK: {n} holdings"),
+        Err(e) => eprintln!("Poller GetAllPortofolioFromStockbit skip/fail: {e}"),
+    }
+
+    match run_emiten_trending_movers_scrape(Arc::clone(&session), BrowserLockClass::Background)
+        .await
+    {
+        Ok((g, l)) => {
+            println!("Poller GetLatestEmitenTrendingFromStockbit OK: gainer={g} loser={l}")
+        }
+        Err(e) => eprintln!("Poller GetLatestEmitenTrendingFromStockbit skip/fail: {e}"),
+    }
+
+    match run_pending_order_all_scrape(session, BrowserLockClass::Background).await {
+        Ok(n) => println!("Poller GetAllPendingOrderFromStockbit OK: {n} baris"),
+        Err(e) => eprintln!("Poller GetAllPendingOrderFromStockbit skip/fail: {e}"),
+    }
 }
