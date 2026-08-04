@@ -11,8 +11,15 @@ use crate::pb::{
     GetHistoryChartFromInvezgoRequest, GetHistoryChartFromInvezgoResponse,
 };
 
-/// Batasi GetCurrentDayChartFromInvezgo ke Senin–Jumat, jam 09:00–12:00 dan 13:30–16:00 (server lokal).
-fn require_current_day_chart_hours() -> Result<(), Status> {
+enum CurrentDayMode {
+    /// Jam operasional: hit API live.
+    Live,
+    /// Setelah 16:00: cache EOD, miss → API 1x.
+    EodCache,
+}
+
+/// Senin–Jumat: jam operasional live, atau setelah 16:00 via cache EOD.
+fn require_current_day_chart_access() -> Result<CurrentDayMode, Status> {
     let now = Local::now();
     match now.weekday() {
         chrono::Weekday::Sat | chrono::Weekday::Sun => {
@@ -30,12 +37,16 @@ fn require_current_day_chart_hours() -> Result<(), Status> {
     const AFTERNOON_END: u32 = 16 * 60 + 1;
     let in_morning = mins >= MORNING_START && mins < MORNING_END;
     let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
-    if !in_morning && !in_afternoon {
-        return Err(Status::failed_precondition(
-            "Diluar jam 09:00-12:00 dan 13:30-16:00",
-        ));
+    if in_morning || in_afternoon {
+        return Ok(CurrentDayMode::Live);
     }
-    Ok(())
+    // > 16:00 (setelah jam operasional sore)
+    if mins > 16 * 60 {
+        return Ok(CurrentDayMode::EodCache);
+    }
+    Err(Status::failed_precondition(
+        "Diluar jam 09:00-12:00 dan 13:30-16:00",
+    ))
 }
 
 fn minutes_now() -> u32 {
@@ -92,9 +103,8 @@ impl ChartService {
         if value.is_empty() {
             return Err(Status::invalid_argument(format!("{field} wajib diisi")));
         }
-        chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| {
-            Status::invalid_argument(format!("{field} harus format YYYY-MM-DD"))
-        })?;
+        chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d")
+            .map_err(|_| Status::invalid_argument(format!("{field} harus format YYYY-MM-DD")))?;
         Ok(value.to_string())
     }
 }
@@ -110,9 +120,10 @@ impl Chart for ChartService {
         let user_name = auth.nama;
 
         let mut code_log = String::new();
+        let mut cache_hit = false;
 
         let result: Result<Response<GetCurrentDayChartFromInvezgoResponse>, Status> = async {
-            require_current_day_chart_hours()?;
+            let mode = require_current_day_chart_access()?;
             let code = Self::normalize_code(&request.into_inner().code)?;
             code_log = code.clone();
 
@@ -131,23 +142,67 @@ impl Chart for ChartService {
                 }
             }
 
-            match crate::invezgo::fetch_intraday_data(&code).await {
-                Ok(data) => {
-                    if can_detect_intraday_holiday() && data.volume == 0 {
-                        if let Err(error) = self.cache.mark_intraday_holiday(&code).await {
+            if matches!(mode, CurrentDayMode::EodCache) {
+                match self.cache.get_intraday_eod(&code).await {
+                    Ok(Some((data, detail))) => {
+                        code_log = format!("{code} {detail}");
+                        cache_hit = true;
+                        return Ok(Response::new(data));
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        return Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
+                            code: code.clone(),
+                            success: false,
+                            message: error,
+                            ..Default::default()
+                        }));
+                    }
+                }
+
+                match crate::invezgo::fetch_intraday_data(&code).await {
+                    Ok(data) => {
+                        if can_detect_intraday_holiday() && data.volume == 0 {
+                            if let Err(error) = self.cache.mark_intraday_holiday(&code).await {
+                                eprintln!(
+                                    "GetCurrentDayChartFromInvezgo mark holiday {code} gagal: {error}"
+                                );
+                            }
+                            return Ok(Response::new(holiday_response(&code)));
+                        }
+                        if let Err(error) = self.cache.set_intraday_eod(&code, &data).await {
                             eprintln!(
-                                "GetCurrentDayChartFromInvezgo mark holiday {code} gagal: {error}"
+                                "GetCurrentDayChartFromInvezgo set eod {code} gagal: {error}"
                             );
                         }
-                        return Ok(Response::new(holiday_response(&code)));
+                        code_log = format!("{code} intraday eod MISS — GET Invezgo");
+                        Ok(Response::new(data))
                     }
-                    Ok(Response::new(data))
+                    Err(error) => Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
+                        success: false,
+                        message: error,
+                        ..Default::default()
+                    })),
                 }
-                Err(error) => Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
-                    success: false,
-                    message: error,
-                    ..Default::default()
-                })),
+            } else {
+                match crate::invezgo::fetch_intraday_data(&code).await {
+                    Ok(data) => {
+                        if can_detect_intraday_holiday() && data.volume == 0 {
+                            if let Err(error) = self.cache.mark_intraday_holiday(&code).await {
+                                eprintln!(
+                                    "GetCurrentDayChartFromInvezgo mark holiday {code} gagal: {error}"
+                                );
+                            }
+                            return Ok(Response::new(holiday_response(&code)));
+                        }
+                        Ok(Response::new(data))
+                    }
+                    Err(error) => Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
+                        success: false,
+                        message: error,
+                        ..Default::default()
+                    })),
+                }
             }
         }
         .await;
@@ -158,10 +213,14 @@ impl Chart for ChartService {
             }
         }
 
-        eprintln!(
-            "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {}ms - {code_log}\x1b[0m",
-            started.elapsed().as_millis()
-        );
+        let elapsed = started.elapsed().as_millis();
+        if cache_hit {
+            eprintln!("GetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}");
+        } else {
+            eprintln!(
+                "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}\x1b[0m"
+            );
+        }
         result
     }
 

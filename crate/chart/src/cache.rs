@@ -7,13 +7,15 @@ use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 
 use crate::invezgo;
-use crate::pb::ChartBar;
+use crate::pb::{ChartBar, GetCurrentDayChartFromInvezgoResponse};
 
 const REDIS_KEY_PREFIX: &str = "chart:";
 const REDIS_HOLIDAY_PREFIX: &str = "chart:intraday-holiday:";
+const REDIS_INTRADAY_EOD_PREFIX: &str = "chart:intraday-eod:";
 const DEFAULT_MOKA_MAX_ENTRIES: u64 = 10_000;
 const DEFAULT_CACHE_TTL_SECS: u64 = 24 * 60 * 60;
 const HOLIDAY_TTL_SECS: u64 = 24 * 60 * 60;
+const INTRADAY_EOD_TTL_SECS: u64 = 24 * 60 * 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedChartBar {
@@ -51,10 +53,85 @@ impl From<CachedChartBar> for ChartBar {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CachedIntradayData {
+    code: String,
+    open: f64,
+    high: f64,
+    low: f64,
+    close: f64,
+    avg: f64,
+    volume: i64,
+    freq: i64,
+    value: i64,
+    prev: f64,
+    bid_price: f64,
+    bid_lot: i64,
+    bid_freq: i64,
+    offer_price: f64,
+    offer_lot: i64,
+    offer_freq: i64,
+    iep: f64,
+    iev: i64,
+}
+
+impl From<&GetCurrentDayChartFromInvezgoResponse> for CachedIntradayData {
+    fn from(r: &GetCurrentDayChartFromInvezgoResponse) -> Self {
+        Self {
+            code: r.code.clone(),
+            open: r.open,
+            high: r.high,
+            low: r.low,
+            close: r.close,
+            avg: r.avg,
+            volume: r.volume,
+            freq: r.freq,
+            value: r.value,
+            prev: r.prev,
+            bid_price: r.bid_price,
+            bid_lot: r.bid_lot,
+            bid_freq: r.bid_freq,
+            offer_price: r.offer_price,
+            offer_lot: r.offer_lot,
+            offer_freq: r.offer_freq,
+            iep: r.iep,
+            iev: r.iev,
+        }
+    }
+}
+
+impl From<CachedIntradayData> for GetCurrentDayChartFromInvezgoResponse {
+    fn from(c: CachedIntradayData) -> Self {
+        Self {
+            code: c.code,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+            avg: c.avg,
+            volume: c.volume,
+            freq: c.freq,
+            value: c.value,
+            prev: c.prev,
+            bid_price: c.bid_price,
+            bid_lot: c.bid_lot,
+            bid_freq: c.bid_freq,
+            offer_price: c.offer_price,
+            offer_lot: c.offer_lot,
+            offer_freq: c.offer_freq,
+            iep: c.iep,
+            iev: c.iev,
+            success: true,
+            message: "ok".to_string(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ChartCache {
     moka: Cache<String, Vec<CachedChartBar>>,
     holiday_moka: Cache<String, bool>,
+    intraday_eod_moka: Cache<String, CachedIntradayData>,
     redis: redis::Client,
     ttl: Duration,
 }
@@ -82,6 +159,11 @@ impl ChartCache {
             .time_to_live(Duration::from_secs(HOLIDAY_TTL_SECS))
             .build();
 
+        let intraday_eod_moka = Cache::builder()
+            .max_capacity(max_entries)
+            .time_to_live(Duration::from_secs(INTRADAY_EOD_TTL_SECS))
+            .build();
+
         let redis_url =
             std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
         let redis = redis::Client::open(redis_url).map_err(|e| format!("redis client: {e}"))?;
@@ -89,6 +171,7 @@ impl ChartCache {
         Ok(Self {
             moka,
             holiday_moka,
+            intraday_eod_moka,
             redis,
             ttl,
         })
@@ -142,6 +225,78 @@ impl ChartCache {
         Ok(())
     }
 
+    fn intraday_eod_key(code: &str) -> String {
+        let today = Local::now().format("%Y-%m-%d");
+        format!("{REDIS_INTRADAY_EOD_PREFIX}{today}:{code}")
+    }
+
+    /// Cache EOD intraday setelah 16:00: Moka → Redis → None.
+    pub async fn get_intraday_eod(
+        &self,
+        code: &str,
+    ) -> Result<Option<(GetCurrentDayChartFromInvezgoResponse, String)>, String> {
+        let key = Self::intraday_eod_key(code);
+
+        if let Some(cached) = self.intraday_eod_moka.get(&key).await {
+            return Ok(Some((
+                cached.into(),
+                format!("intraday eod HIT moka {key}"),
+            )));
+        }
+
+        let mut conn = self
+            .redis
+            .get_multiplexed_async_connection()
+            .await
+            .map_err(|e| format!("redis connect GET eod {key}: {e}"))?;
+
+        let raw: Option<String> = conn
+            .get(&key)
+            .await
+            .map_err(|e| format!("redis GET eod {key}: {e}"))?;
+
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        let cached: CachedIntradayData =
+            serde_json::from_str(&raw).map_err(|e| format!("redis JSON eod {key}: {e}"))?;
+        self.intraday_eod_moka
+            .insert(key.clone(), cached.clone())
+            .await;
+        Ok(Some((
+            cached.into(),
+            format!("intraday eod HIT redis {key}"),
+        )))
+    }
+
+    /// Simpan snapshot EOD intraday (TTL 24 jam, key per tanggal+code).
+    pub async fn set_intraday_eod(
+        &self,
+        code: &str,
+        data: &GetCurrentDayChartFromInvezgoResponse,
+    ) -> Result<(), String> {
+        let key = Self::intraday_eod_key(code);
+        let cached = CachedIntradayData::from(data);
+        self.intraday_eod_moka
+            .insert(key.clone(), cached.clone())
+            .await;
+
+        let mut conn = self
+            .redis
+            .get_multiplexed_async_connection()
+            .await
+            .map_err(|e| format!("redis connect SET eod {key}: {e}"))?;
+
+        let payload = serde_json::to_string(&cached)
+            .map_err(|e| format!("redis serialize eod {key}: {e}"))?;
+
+        conn.set_ex::<_, _, ()>(&key, payload, INTRADAY_EOD_TTL_SECS)
+            .await
+            .map_err(|e| format!("redis SETEX eod {key}: {e}"))?;
+        Ok(())
+    }
+
     pub fn cache_key(code: &str, from_date: &str, to_date: &str) -> String {
         format!("{REDIS_KEY_PREFIX}{code}:{from_date}:{to_date}")
     }
@@ -173,10 +328,7 @@ impl ChartCache {
         let cached: Vec<CachedChartBar> = items.iter().map(CachedChartBar::from).collect();
         self.moka.insert(key.clone(), cached.clone()).await;
         self.redis_set(&key, &cached).await?;
-        Ok((
-            items,
-            format!("chart cache MISS {key} — GET Invezgo"),
-        ))
+        Ok((items, format!("chart cache MISS {key} — GET Invezgo")))
     }
 
     async fn redis_get(&self, key: &str) -> Result<Option<Vec<CachedChartBar>>, String> {
@@ -195,7 +347,9 @@ impl ChartCache {
             return Ok(None);
         };
 
-        serde_json::from_str(&raw).map(Some).map_err(|e| format!("redis JSON {key}: {e}"))
+        serde_json::from_str(&raw)
+            .map(Some)
+            .map_err(|e| format!("redis JSON {key}: {e}"))
     }
 
     async fn redis_set(&self, key: &str, value: &[CachedChartBar]) -> Result<(), String> {
