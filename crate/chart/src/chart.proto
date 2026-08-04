@@ -6,7 +6,8 @@ service Chart {
   // Memerlukan user login. Kirim metadata: authorization: Bearer <token>.
   // GET api.invezgo.com/analysis/intraday-data/{code}?market=RG (Bearer INVEZGO_BEARER_TOKEN).
   // Jam operasional Senin–Jumat 08:00–12:00 & 13:30–16:00 (waktu server lokal).
-  // Response: field intraday hari ini dari API + success/message. Read-only, tanpa cache.
+  // Setelah 08:15: bila volume API = 0, code itu dianggap market libur hari ini — di-cache, request berikutnya tidak hit API lagi; success=false message "hari libur".
+  // Response: field intraday hari ini dari API + success/message.
   rpc GetCurrentDayChartFromInvezgo(GetCurrentDayChartFromInvezgoRequest)
       returns (GetCurrentDayChartFromInvezgoResponse);
 

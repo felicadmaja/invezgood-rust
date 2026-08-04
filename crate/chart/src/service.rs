@@ -38,6 +38,25 @@ fn require_current_day_chart_hours() -> Result<(), Status> {
     Ok(())
 }
 
+fn minutes_now() -> u32 {
+    let now = Local::now();
+    now.hour() * 60 + now.minute()
+}
+
+/// Setelah 08:15 volume=0 → anggap market libur untuk code tersebut.
+fn can_detect_intraday_holiday() -> bool {
+    minutes_now() >= 8 * 60 + 15
+}
+
+fn holiday_response(code: &str) -> GetCurrentDayChartFromInvezgoResponse {
+    GetCurrentDayChartFromInvezgoResponse {
+        code: code.to_string(),
+        success: false,
+        message: "hari libur".to_string(),
+        ..Default::default()
+    }
+}
+
 pub struct ChartService {
     cache: Arc<ChartCache>,
     auth_sessions: SessionStore,
@@ -108,8 +127,34 @@ impl Chart for ChartService {
             require_current_day_chart_hours()?;
             let code = Self::normalize_code(&request.into_inner().code)?;
 
+            match self.cache.is_intraday_holiday(&code).await {
+                Ok(true) => {
+                    detail = format!("{code} holiday cache");
+                    return Ok(Response::new(holiday_response(&code)));
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    detail = format!("holiday cache error: {error}");
+                    return Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
+                        code: code.clone(),
+                        success: false,
+                        message: error,
+                        ..Default::default()
+                    }));
+                }
+            }
+
             match crate::invezgo::fetch_intraday_data(&code).await {
                 Ok(data) => {
+                    if can_detect_intraday_holiday() && data.volume == 0 {
+                        if let Err(error) = self.cache.mark_intraday_holiday(&code).await {
+                            eprintln!(
+                                "GetCurrentDayChartFromInvezgo mark holiday {code} gagal: {error}"
+                            );
+                        }
+                        detail = format!("{code} volume=0 → hari libur");
+                        return Ok(Response::new(holiday_response(&code)));
+                    }
                     detail = format!("{code} close={}", data.close);
                     Ok(Response::new(data))
                 }
@@ -177,11 +222,9 @@ impl Chart for ChartService {
         }
         .await;
 
-        Self::log_rpc_debug(
-            "GetHistoryChartFromInvezgo",
-            &user_name,
-            started,
-            &cache_detail,
+        eprintln!(
+            "\x1b[32mGetHistoryChartFromInvezgo {user_name} {}ms - {cache_detail}\x1b[0m",
+            started.elapsed().as_millis()
         );
         result
     }
