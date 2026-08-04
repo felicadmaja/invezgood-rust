@@ -161,3 +161,9 @@ rm -rf "$RESTORE_DIR"
 ---
 
 
+- File `.gz` di `backup_database/` di-gitignore; bersihkan lama secara berkala bila disk penuh, mis.:
+
+  ```bash
+  # hapus backup lebih dari 14 hari
+  find /home/baki1/invezgood_rust/backup_database -name 'backup_invezgood_*.gz' -mtime +14 -delete
+  ```
