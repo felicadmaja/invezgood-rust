@@ -77,18 +77,6 @@ impl ChartService {
             .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
 
-    fn log_rpc_debug(
-        rpc_name: &str,
-        user_name: &str,
-        started: std::time::Instant,
-        detail: &str,
-    ) {
-        eprintln!(
-            "{rpc_name} {user_name} {}ms - {detail}",
-            started.elapsed().as_millis()
-        );
-    }
-
     fn normalize_code(raw: &str) -> Result<String, Status> {
         let code = raw.trim().to_ascii_uppercase();
         if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
@@ -152,14 +140,19 @@ impl Chart for ChartService {
                                 "GetCurrentDayChartFromInvezgo mark holiday {code} gagal: {error}"
                             );
                         }
-                        detail = format!("{code} volume=0 → hari libur");
+                        detail = format!(
+                            "GET intraday-data/{code}?market=RG volume=0 → hari libur"
+                        );
                         return Ok(Response::new(holiday_response(&code)));
                     }
-                    detail = format!("{code} close={}", data.close);
+                    detail = format!(
+                        "GET intraday-data/{code}?market=RG close={}",
+                        data.close
+                    );
                     Ok(Response::new(data))
                 }
                 Err(error) => {
-                    detail = format!("intraday error: {error}");
+                    detail = format!("GET intraday-data/{code}?market=RG error: {error}");
                     Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
                         success: false,
                         message: error,
@@ -176,11 +169,9 @@ impl Chart for ChartService {
             }
         }
 
-        Self::log_rpc_debug(
-            "GetCurrentDayChartFromInvezgo",
-            &user_name,
-            started,
-            &detail,
+        eprintln!(
+            "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {}ms - {detail}\x1b[0m",
+            started.elapsed().as_millis()
         );
         result
     }
@@ -222,10 +213,15 @@ impl Chart for ChartService {
         }
         .await;
 
-        eprintln!(
-            "\x1b[32mGetHistoryChartFromInvezgo {user_name} {}ms - {cache_detail}\x1b[0m",
-            started.elapsed().as_millis()
-        );
+        let elapsed = started.elapsed().as_millis();
+        let is_cache_hit = cache_detail.contains("HIT moka") || cache_detail.contains("HIT redis");
+        if is_cache_hit {
+            eprintln!("GetHistoryChartFromInvezgo {user_name} {elapsed}ms - {cache_detail}");
+        } else {
+            eprintln!(
+                "\x1b[32mGetHistoryChartFromInvezgo {user_name} {elapsed}ms - {cache_detail}\x1b[0m"
+            );
+        }
         result
     }
 }

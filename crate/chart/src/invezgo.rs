@@ -13,7 +13,21 @@ struct ApiChartBar {
     high: f64,
     low: f64,
     close: f64,
+    #[serde(deserialize_with = "deserialize_volume")]
     volume: String,
+}
+
+fn deserialize_volume<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::String(s) => s,
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    })
 }
 
 /// Parse ISO-8601 API date → `YYYY-MM-DD`.
@@ -104,8 +118,6 @@ pub async fn fetch_intraday_data(code: &str) -> Result<GetCurrentDayChartFromInv
         .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
 
     let url = format!("{INVEZGO_INTRADAY_DATA_URL}/{code}?market=RG");
-
-    eprintln!("chart Invezgo GET {url}");
 
     let response = reqwest::Client::new()
         .get(&url)

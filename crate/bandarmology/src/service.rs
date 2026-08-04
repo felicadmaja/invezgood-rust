@@ -95,20 +95,21 @@ impl BandarmologyService {
         session: Arc<Session>,
         code: &str,
         trade_date: NaiveDate,
-    ) -> Result<DbBandarmologyRow, Status> {
+    ) -> Result<(DbBandarmologyRow, bool), Status> {
         if let Some(row) =
             crate::repository::find_by_code_and_date(session.as_ref(), code, trade_date)
                 .await
                 .map_err(Status::internal)?
         {
             if crate::repository::has_bandarmology_data(&row) {
-                return Ok(row);
+                return Ok((row, false));
             }
         }
 
-        crate::invezgo::fetch_and_save(session, code, trade_date)
+        let row = crate::invezgo::fetch_and_save(session, code, trade_date)
             .await
-            .map_err(Status::internal)
+            .map_err(Status::internal)?;
+        Ok((row, true))
     }
 }
 
@@ -120,7 +121,6 @@ impl Bandarmology for BandarmologyService {
         &self,
         request: Request<GetBandarmologyByCodeRequest>,
     ) -> Result<Response<ResponseStream>, Status> {
-        let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
@@ -145,11 +145,24 @@ impl Bandarmology for BandarmologyService {
 
         let session = Arc::clone(&self.session);
         let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let user_name_spawn = user_name.clone();
 
         tokio::spawn(async move {
             for trade_date in trade_dates {
+                let item_started = std::time::Instant::now();
+                let date_str = trade_date.format("%Y-%m-%d").to_string();
                 match Self::load_or_fetch(Arc::clone(&session), &code, trade_date).await {
-                    Ok(row) => {
+                    Ok((row, from_api)) => {
+                        let elapsed = item_started.elapsed().as_millis();
+                        if from_api {
+                            eprintln!(
+                                "\x1b[32mGetBandarmologyByCode {user_name_spawn} {elapsed}ms - GET summary/stock/{code}?from={date_str}&to={date_str}&investor=all&market=RG\x1b[0m"
+                            );
+                        } else {
+                            eprintln!(
+                                "GetBandarmologyByCode {user_name_spawn} {elapsed}ms - cache HIT {code} {date_str}"
+                            );
+                        }
                         if tx
                             .send(Ok(GetBandarmologyByCodeResponse {
                                 item: Some(Self::row_to_proto(row)),
@@ -161,6 +174,11 @@ impl Bandarmology for BandarmologyService {
                         }
                     }
                     Err(status) => {
+                        eprintln!(
+                            "GetBandarmologyByCode {user_name_spawn} {}ms - error {code} {date_str}: {}",
+                            item_started.elapsed().as_millis(),
+                            status.message()
+                        );
                         let _ = tx.send(Err(status)).await;
                         break;
                     }
@@ -168,10 +186,6 @@ impl Bandarmology for BandarmologyService {
             }
         });
 
-        eprintln!(
-            "\x1b[32mGetBandarmologyByCode {user_name} {}ms\x1b[0m",
-            started.elapsed().as_millis()
-        );
         Ok(Response::new(
             Box::pin(ReceiverStream::new(rx)) as ResponseStream
         ))
