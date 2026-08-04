@@ -700,13 +700,8 @@ pub async fn scrape_and_insert_portofolio(
         .timeout(Duration::from_secs(60))
         .build()?;
 
-    println!("Portofolio: TRUNCATE + GET {PORTFOLIO_API_URL} paralel...");
-    let (truncate_res, fetch_res) = tokio::join!(
-        truncate_portofolio(session.as_ref(), keyspace),
-        fetch_portfolio_list_string(&http, &bearer),
-    );
-    truncate_res.map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
-    let (json, rows, rate) = fetch_res.map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+    println!("Portofolio: GET {PORTFOLIO_API_URL}...");
+    let (json, rows, rate) = fetch_portfolio_list_string(&http, &bearer).await?;
     let delay_ms = rate.inter_emiten_delay_ms();
     if delay_ms > 0 {
         println!(
@@ -719,6 +714,9 @@ pub async fn scrape_and_insert_portofolio(
         sleep(Duration::from_millis(delay_ms)).await;
     }
 
+    println!("Portofolio: {} baris dari data.results — truncate lalu insert...", rows.len());
+    truncate_portofolio(session.as_ref(), keyspace).await?;
+
     println!("Portofolio equity: upsert dari data.summary API...");
     let equity_ok = portofolio_equity_worker::upsert_portofolio_equity_from_json(
         session.as_ref(),
@@ -727,8 +725,6 @@ pub async fn scrape_and_insert_portofolio(
     )
     .await?;
     println!("OK: {equity_ok} baris diupsert ke portofolio_equity.");
-
-    println!("Portofolio: {} baris dari data.results.", rows.len());
 
     let mut codes: Vec<String> = rows
         .iter()

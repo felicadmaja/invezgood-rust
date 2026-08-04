@@ -38,13 +38,6 @@ impl BandarmologyService {
             .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
 
-    fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
-        eprintln!(
-            "{rpc_name} {user_name} {}ms",
-            started.elapsed().as_millis()
-        );
-    }
-
     fn parse_trade_date(value: &str) -> Result<NaiveDate, Status> {
         NaiveDate::parse_from_str(value.trim(), "%Y-%m-%d").map_err(|_| {
             Status::invalid_argument(format!(
@@ -175,7 +168,10 @@ impl Bandarmology for BandarmologyService {
             }
         });
 
-        Self::log_rpc_debug("GetBandarmologyByCode", &user_name, started);
+        eprintln!(
+            "\x1b[32mGetBandarmologyByCode {user_name} {}ms\x1b[0m",
+            started.elapsed().as_millis()
+        );
         Ok(Response::new(
             Box::pin(ReceiverStream::new(rx)) as ResponseStream
         ))

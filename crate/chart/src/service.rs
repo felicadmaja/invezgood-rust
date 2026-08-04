@@ -222,14 +222,10 @@ impl Chart for ChartService {
         }
         .await;
 
-        let elapsed = started.elapsed().as_millis();
-        if cache_detail.contains("GET Invezgo") {
-            eprintln!(
-                "\x1b[32mGetHistoryChartFromInvezgo {user_name} {elapsed}ms - {cache_detail}\x1b[0m"
-            );
-        } else {
-            eprintln!("GetHistoryChartFromInvezgo {user_name} {elapsed}ms - {cache_detail}");
-        }
+        eprintln!(
+            "\x1b[32mGetHistoryChartFromInvezgo {user_name} {}ms - {cache_detail}\x1b[0m",
+            started.elapsed().as_millis()
+        );
         result
     }
 }

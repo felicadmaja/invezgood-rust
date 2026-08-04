@@ -14,8 +14,8 @@ service Portofolio {
       returns (GetPortofolioFromScyllaByEmitenNameResponse);
 
   // On-demand saja (bukan auto dari IsStockbitReady). Scrape holdings + equity Stockbit
-  // (carina.stockbit.com/portfolio/v2/list) → upsert invezgood.portofolio + portofolio_equity.
-  // Rate limit: 1× / 3 menit global.
+  // (carina.stockbit.com/portfolio/v2/list) → setelah data siap: TRUNCATE portofolio lalu
+  // insert holdings + upsert portofolio_equity. Rate limit: 1× / 3 menit global.
   rpc GetAllPortofolioFromStockbit(GetAllPortofolioFromStockbitRequest)
       returns (GetAllPortofolioFromStockbitResponse);
 }
