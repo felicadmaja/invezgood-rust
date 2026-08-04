@@ -11,7 +11,7 @@ use crate::pb::{
     GetHistoryChartFromInvezgoRequest, GetHistoryChartFromInvezgoResponse,
 };
 
-/// Batasi GetCurrentDayChartFromInvezgo ke Senin–Jumat, jam 08:00–12:00 dan 13:30–16:00 (server lokal).
+/// Batasi GetCurrentDayChartFromInvezgo ke Senin–Jumat, jam 09:00–12:00 dan 13:30–16:00 (server lokal).
 fn require_current_day_chart_hours() -> Result<(), Status> {
     let now = Local::now();
     match now.weekday() {
@@ -24,7 +24,7 @@ fn require_current_day_chart_hours() -> Result<(), Status> {
     }
 
     let mins = now.hour() * 60 + now.minute();
-    const MORNING_START: u32 = 8 * 60;
+    const MORNING_START: u32 = 9 * 60;
     const MORNING_END: u32 = 12 * 60 + 1;
     const AFTERNOON_START: u32 = 13 * 60 + 30;
     const AFTERNOON_END: u32 = 16 * 60 + 1;
@@ -32,7 +32,7 @@ fn require_current_day_chart_hours() -> Result<(), Status> {
     let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
     if !in_morning && !in_afternoon {
         return Err(Status::failed_precondition(
-            "Diluar jam 08:00-12:00 dan 13:30-16:00",
+            "Diluar jam 09:00-12:00 dan 13:30-16:00",
         ));
     }
     Ok(())
@@ -43,9 +43,9 @@ fn minutes_now() -> u32 {
     now.hour() * 60 + now.minute()
 }
 
-/// Setelah 08:15 volume=0 → anggap market libur untuk code tersebut.
+/// Setelah 09:15 volume=0 → anggap market libur untuk code tersebut.
 fn can_detect_intraday_holiday() -> bool {
-    minutes_now() >= 8 * 60 + 15
+    minutes_now() >= 9 * 60 + 15
 }
 
 fn holiday_response(code: &str) -> GetCurrentDayChartFromInvezgoResponse {
@@ -222,10 +222,14 @@ impl Chart for ChartService {
         }
         .await;
 
-        eprintln!(
-            "\x1b[32mGetHistoryChartFromInvezgo {user_name} {}ms - {cache_detail}\x1b[0m",
-            started.elapsed().as_millis()
-        );
+        let elapsed = started.elapsed().as_millis();
+        if cache_detail.contains("GET Invezgo") {
+            eprintln!(
+                "\x1b[32mGetHistoryChartFromInvezgo {user_name} {elapsed}ms - {cache_detail}\x1b[0m"
+            );
+        } else {
+            eprintln!("GetHistoryChartFromInvezgo {user_name} {elapsed}ms - {cache_detail}");
+        }
         result
     }
 }

@@ -86,6 +86,8 @@ pub async fn fetch_and_save(
     let date_param = trade_date.format("%Y-%m-%d").to_string();
     let url = summary_stock_url(code, &date_param);
 
+    eprintln!("\x1b[32mbandarmology Invezgo GET {url}\x1b[0m");
+
     let response = reqwest::Client::new()
         .get(&url)
         .bearer_auth(token)

@@ -52,7 +52,7 @@ pub async fn fetch_from_api(
 
     let url = format!("{INVEZGO_CHART_STOCK_URL}/{code}?from={from_date}&to={to_date}");
 
-    eprintln!("chart Invezgo GET {url}");
+    eprintln!("\x1b[32mchart Invezgo GET {url}\x1b[0m");
 
     let response = reqwest::Client::new()
         .get(&url)
