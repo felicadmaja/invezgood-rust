@@ -146,7 +146,7 @@ impl User for UserService {
         let readiness = Arc::clone(&self.readiness);
         let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(8);
 
-        eprintln!("IsStockbitReady {user_name}: client connect — stream dibuka");
+        eprintln!("\x1b[32mIsStockbitReady {user_name}: client connect — stream dibuka\x1b[0m");
 
         tokio::spawn(async move {
             readiness.register_subscriber().await;

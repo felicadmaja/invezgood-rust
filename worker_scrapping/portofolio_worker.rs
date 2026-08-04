@@ -541,7 +541,7 @@ async fn fetch_portfolio_json(
     let status = resp.status();
     let rate_info = crate::rate_limit_delay::RateLimitInfo::from_headers(resp.headers());
     let rate = crate::rate_limit_delay::rate_limit_headers_log(resp.headers());
-    println!("  portfolio/v2/list → HTTP {status} | {rate}");
+    println!("\x1b[32m  portfolio/v2/list → HTTP {status} | {rate}\x1b[0m");
     crate::http_abort::abort_app_if_http_4xx(status, "portfolio/v2/list");
     let body = resp.text().await.unwrap_or_default();
     if !status.is_success() {
@@ -676,7 +676,7 @@ pub async fn scrape_and_insert_portofolio(
         .timeout(Duration::from_secs(60))
         .build()?;
 
-    println!("\x1b[32mPortofolio: GET {PORTFOLIO_API_URL}...\x1b[0m");
+    println!("Portofolio: GET {PORTFOLIO_API_URL}...");
     let (json, rows, rate) = fetch_portfolio_list_string(&http, &bearer).await?;
     let delay_ms = rate.inter_emiten_delay_ms();
     if delay_ms > 0 {
