@@ -189,16 +189,13 @@ impl Bandarmology for BandarmologyService {
 
             if !aborted {
                 let elapsed = started.elapsed().as_millis();
-                let detail = format!(
-                    "{code} {dates_n} tanggal (cache={cache_hits} api={api_gets})"
-                );
                 if api_gets > 0 {
                     eprintln!(
-                        "\x1b[32mGetBandarmologyByCode {user_name_spawn} {elapsed}ms - {detail}\x1b[0m"
+                        "\x1b[32mGetBandarmologyByCode {user_name_spawn} {elapsed}ms - {code} {dates_n} tanggal (cache={cache_hits} GET Invezgo={api_gets})\x1b[0m"
                     );
                 } else {
                     eprintln!(
-                        "GetBandarmologyByCode {user_name_spawn} {elapsed}ms - {detail}"
+                        "GetBandarmologyByCode {user_name_spawn} {elapsed}ms - {code} {dates_n} tanggal (cache={cache_hits} api=0)"
                     );
                 }
             }

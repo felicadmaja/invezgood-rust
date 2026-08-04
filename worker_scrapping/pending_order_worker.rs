@@ -189,10 +189,6 @@ async fn upsert_pending_orders(
     session
         .query_unpaged(format!("TRUNCATE {keyspace}.pending_order"), &[])
         .await?;
-    println!(
-        "Pending order: truncate selesai — mulai insert {} baris...",
-        rows.len()
-    );
 
     let insert = session
         .prepare(format!(
@@ -229,27 +225,7 @@ async fn upsert_pending_orders(
             )
             .await?;
         n += 1;
-        println!(
-            "INFO insert pending_order [{n}/{}]: order_id={} emiten={} status={} side={} \
-             time_open={} lot_open={} lot_done={} price={} amount_open={} \
-             amount_match={} amount_match_total={} is_gtc={} updated_at={}",
-            rows.len(),
-            row.order_id,
-            row.emiten_name,
-            row.status,
-            row.side,
-            row.time_open.to_rfc3339(),
-            row.lot_open,
-            row.lot_done,
-            row.price_order,
-            row.amount_open,
-            row.amount_match,
-            row.amount_match_total,
-            row.is_gtc,
-            updated_at.to_rfc3339(),
-        );
     }
-    println!("INFO insert pending_order selesai: {n}/{} baris.", rows.len());
     Ok(n)
 }
 

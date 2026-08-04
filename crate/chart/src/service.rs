@@ -109,20 +109,19 @@ impl Chart for ChartService {
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
-        let mut detail = String::new();
+        let mut code_log = String::new();
 
         let result: Result<Response<GetCurrentDayChartFromInvezgoResponse>, Status> = async {
             require_current_day_chart_hours()?;
             let code = Self::normalize_code(&request.into_inner().code)?;
+            code_log = code.clone();
 
             match self.cache.is_intraday_holiday(&code).await {
                 Ok(true) => {
-                    detail = format!("{code} holiday cache");
                     return Ok(Response::new(holiday_response(&code)));
                 }
                 Ok(false) => {}
                 Err(error) => {
-                    detail = format!("holiday cache error: {error}");
                     return Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
                         code: code.clone(),
                         success: false,
@@ -140,37 +139,27 @@ impl Chart for ChartService {
                                 "GetCurrentDayChartFromInvezgo mark holiday {code} gagal: {error}"
                             );
                         }
-                        detail = format!(
-                            "GET intraday-data/{code}?market=RG volume=0 → hari libur"
-                        );
                         return Ok(Response::new(holiday_response(&code)));
                     }
-                    detail = format!(
-                        "GET intraday-data/{code}?market=RG close={}",
-                        data.close
-                    );
                     Ok(Response::new(data))
                 }
-                Err(error) => {
-                    detail = format!("GET intraday-data/{code}?market=RG error: {error}");
-                    Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
-                        success: false,
-                        message: error,
-                        ..Default::default()
-                    }))
-                }
+                Err(error) => Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
+                    success: false,
+                    message: error,
+                    ..Default::default()
+                })),
             }
         }
         .await;
 
-        if detail.is_empty() {
+        if code_log.is_empty() {
             if let Err(ref status) = result {
-                detail = status.message().to_string();
+                code_log = status.message().to_string();
             }
         }
 
         eprintln!(
-            "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {}ms - {detail}\x1b[0m",
+            "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {}ms - {code_log}\x1b[0m",
             started.elapsed().as_millis()
         );
         result
