@@ -9,7 +9,7 @@ pub const TABLE: &str = "emiten_trending";
 pub const MV_BY_DATE: &str = "emiten_trending_by_tahun_bulan_tanggal";
 pub const MV_BY_EMITEN: &str = "emiten_trending_by_emiten_name";
 
-/// Baris tabel dasar `emiten_trending`.
+/// Baris tabel dasar / MV full-column `emiten_trending_by_tahun_bulan_tanggal`.
 #[derive(Debug, Clone, scylla::DeserializeRow)]
 pub struct EmitenTrending {
     #[scylla(default_when_null)]
@@ -58,15 +58,6 @@ impl EmitenTrending {
                 .unwrap_or_default(),
         }
     }
-}
-
-/// Baris MV `emiten_trending_by_tahun_bulan_tanggal`.
-#[derive(Debug, Clone, scylla::DeserializeRow)]
-#[allow(dead_code)]
-pub struct EmitenTrendingByTahunBulanTanggal {
-    pub tahun_bulan_tanggal: NaiveDate,
-    #[scylla(default_when_null)]
-    pub agg_tahun_bulan_tanggal_emiten_name: String,
 }
 
 /// Kunci partition: `YYYY-MM-DD_EMITEN`.

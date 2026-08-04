@@ -302,11 +302,6 @@ async fn insert_emiten_trending(
                 ),
             )
             .await?;
-        println!(
-            "emiten_trending upsert {emiten} ({long_name}) ({gainer_or_loser}): \
-             price={price} change={price_change} value={} volume={} freq={}",
-            row.value, row.volume, row.freq
-        );
         n += 1;
     }
     Ok(n)

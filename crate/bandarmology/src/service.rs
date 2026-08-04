@@ -146,22 +146,22 @@ impl Bandarmology for BandarmologyService {
         let session = Arc::clone(&self.session);
         let (tx, rx) = tokio::sync::mpsc::channel(8);
         let user_name_spawn = user_name.clone();
+        let dates_n = trade_dates.len();
 
         tokio::spawn(async move {
+            let started = std::time::Instant::now();
+            let mut cache_hits = 0usize;
+            let mut api_gets = 0usize;
+            let mut aborted = false;
+
             for trade_date in trade_dates {
-                let item_started = std::time::Instant::now();
                 let date_str = trade_date.format("%Y-%m-%d").to_string();
                 match Self::load_or_fetch(Arc::clone(&session), &code, trade_date).await {
                     Ok((row, from_api)) => {
-                        let elapsed = item_started.elapsed().as_millis();
                         if from_api {
-                            eprintln!(
-                                "\x1b[32mGetBandarmologyByCode {user_name_spawn} {elapsed}ms - GET summary/stock/{code}?from={date_str}&to={date_str}&investor=all&market=RG\x1b[0m"
-                            );
+                            api_gets += 1;
                         } else {
-                            eprintln!(
-                                "GetBandarmologyByCode {user_name_spawn} {elapsed}ms - cache HIT {code} {date_str}"
-                            );
+                            cache_hits += 1;
                         }
                         if tx
                             .send(Ok(GetBandarmologyByCodeResponse {
@@ -170,18 +170,36 @@ impl Bandarmology for BandarmologyService {
                             .await
                             .is_err()
                         {
+                            aborted = true;
                             break;
                         }
                     }
                     Err(status) => {
                         eprintln!(
-                            "GetBandarmologyByCode {user_name_spawn} {}ms - error {code} {date_str}: {}",
-                            item_started.elapsed().as_millis(),
+                            "GetBandarmologyByCode {user_name_spawn} {}ms - {code} error {date_str}: {}",
+                            started.elapsed().as_millis(),
                             status.message()
                         );
                         let _ = tx.send(Err(status)).await;
+                        aborted = true;
                         break;
                     }
+                }
+            }
+
+            if !aborted {
+                let elapsed = started.elapsed().as_millis();
+                let detail = format!(
+                    "{code} {dates_n} tanggal (cache={cache_hits} api={api_gets})"
+                );
+                if api_gets > 0 {
+                    eprintln!(
+                        "\x1b[32mGetBandarmologyByCode {user_name_spawn} {elapsed}ms - {detail}\x1b[0m"
+                    );
+                } else {
+                    eprintln!(
+                        "GetBandarmologyByCode {user_name_spawn} {elapsed}ms - {detail}"
+                    );
                 }
             }
         });

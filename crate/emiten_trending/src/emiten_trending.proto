@@ -3,7 +3,7 @@ syntax = "proto3";
 package emiten_trending;
 
 service EmitenTrending {
-  // On-demand sekali: baca Scylla via MV emiten_trending_by_tahun_bulan_tanggal → tabel dasar.
+  // On-demand sekali: baca Scylla MV emiten_trending_by_tahun_bulan_tanggal (full columns, 1 query).
   // Tanpa rate limit / jam operasional. Request: tahun_bulan_tanggal (YYYY-MM-DD).
   // Auth: Bearer login. Response: rows.
   rpc GetAllEmitenTrendingFromScylla(GetAllEmitenTrendingFromScyllaRequest)
