@@ -1,9 +1,10 @@
 use chrono::NaiveDate;
 use serde::Deserialize;
 
-use crate::pb::ChartBar;
+use crate::pb::{ChartBar, GetCurrentDayChartFromInvezgoResponse};
 
 const INVEZGO_CHART_STOCK_URL: &str = "https://api.invezgo.com/analysis/chart/stock";
+const INVEZGO_INTRADAY_DATA_URL: &str = "https://api.invezgo.com/analysis/intraday-data";
 
 #[derive(Debug, Deserialize)]
 struct ApiChartBar {
@@ -74,4 +75,78 @@ pub async fn fetch_from_api(
         .map_err(|e| format!("parse JSON Invezgo chart/stock gagal: {e}"))?;
 
     parsed.into_iter().map(api_bar_to_proto).collect()
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiIntradayData {
+    code: String,
+    open: f64,
+    high: f64,
+    low: f64,
+    close: f64,
+    avg: f64,
+    volume: i64,
+    freq: i64,
+    value: i64,
+    prev: f64,
+    bid_price: f64,
+    bid_lot: i64,
+    bid_freq: i64,
+    offer_price: f64,
+    offer_lot: i64,
+    offer_freq: i64,
+    iep: f64,
+    iev: i64,
+}
+
+pub async fn fetch_intraday_data(code: &str) -> Result<GetCurrentDayChartFromInvezgoResponse, String> {
+    let token = std::env::var("INVEZGO_BEARER_TOKEN")
+        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
+
+    let url = format!("{INVEZGO_INTRADAY_DATA_URL}/{code}?market=RG");
+
+    eprintln!("chart Invezgo GET {url}");
+
+    let response = reqwest::Client::new()
+        .get(&url)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("request Invezgo intraday-data gagal: {e}"))?;
+
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("baca body Invezgo intraday-data gagal: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!("Invezgo HTTP {status} intraday-data: {body}"));
+    }
+
+    let parsed: ApiIntradayData = serde_json::from_str(&body)
+        .map_err(|e| format!("parse JSON Invezgo intraday-data gagal: {e}"))?;
+
+    Ok(GetCurrentDayChartFromInvezgoResponse {
+        code: parsed.code,
+        open: parsed.open,
+        high: parsed.high,
+        low: parsed.low,
+        close: parsed.close,
+        avg: parsed.avg,
+        volume: parsed.volume,
+        freq: parsed.freq,
+        value: parsed.value,
+        prev: parsed.prev,
+        bid_price: parsed.bid_price,
+        bid_lot: parsed.bid_lot,
+        bid_freq: parsed.bid_freq,
+        offer_price: parsed.offer_price,
+        offer_lot: parsed.offer_lot,
+        offer_freq: parsed.offer_freq,
+        iep: parsed.iep,
+        iev: parsed.iev,
+        success: true,
+        message: "ok".to_string(),
+    })
 }

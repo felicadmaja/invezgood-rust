@@ -4,12 +4,47 @@ package chart;
 
 service Chart {
   // Memerlukan user login. Kirim metadata: authorization: Bearer <token>.
+  // GET api.invezgo.com/analysis/intraday-data/{code}?market=RG (Bearer INVEZGO_BEARER_TOKEN).
+  // Jam operasional Senin–Jumat 08:00–12:00 & 13:30–16:00 (waktu server lokal).
+  // Response: field intraday hari ini dari API + success/message. Read-only, tanpa cache.
+  rpc GetCurrentDayChartFromInvezgo(GetCurrentDayChartFromInvezgoRequest)
+      returns (GetCurrentDayChartFromInvezgoResponse);
+
+  // Memerlukan user login. Kirim metadata: authorization: Bearer <token>.
   // Cache 2 lapis (Moka → Redis → Invezgo API). Key: code + from_date + to_date.
   // GET Invezgo analysis/chart/stock/{code}?from=&to= bila cache miss.
-  rpc GetChartFromInvezgo(GetChartFromInvezgoRequest) returns (GetChartFromInvezgoResponse);
+  rpc GetHistoryChartFromInvezgo(GetHistoryChartFromInvezgoRequest)
+      returns (GetHistoryChartFromInvezgoResponse);
 }
 
-message GetChartFromInvezgoRequest {
+message GetCurrentDayChartFromInvezgoRequest {
+  string code = 1;
+}
+
+message GetCurrentDayChartFromInvezgoResponse {
+  string code = 1;
+  double open = 2;
+  double high = 3;
+  double low = 4;
+  double close = 5;
+  double avg = 6;
+  int64 volume = 7;
+  int64 freq = 8;
+  int64 value = 9;
+  double prev = 10;
+  double bid_price = 11;
+  int64 bid_lot = 12;
+  int64 bid_freq = 13;
+  double offer_price = 14;
+  int64 offer_lot = 15;
+  int64 offer_freq = 16;
+  double iep = 17;
+  int64 iev = 18;
+  bool success = 19;
+  string message = 20;
+}
+
+message GetHistoryChartFromInvezgoRequest {
   string code = 1;
   string from_date = 2;
   string to_date = 3;
@@ -24,7 +59,7 @@ message ChartBar {
   string volume = 6;
 }
 
-message GetChartFromInvezgoResponse {
+message GetHistoryChartFromInvezgoResponse {
   repeated ChartBar items = 1;
   bool success = 2;
   string message = 3;
