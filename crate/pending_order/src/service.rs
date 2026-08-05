@@ -123,6 +123,20 @@ impl PendingOrderService {
         Ok(name)
     }
 
+    fn parse_tahun_bulan_tanggal(raw: &str) -> Result<chrono::NaiveDate, Status> {
+        let value = raw.trim();
+        if value.is_empty() {
+            return Err(Status::invalid_argument(
+                "tahun_bulan_tanggal wajib diisi (YYYY-MM-DD)",
+            ));
+        }
+        chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| {
+            Status::invalid_argument(format!(
+                "tahun_bulan_tanggal tidak valid (harus YYYY-MM-DD): {value}"
+            ))
+        })
+    }
+
     fn row_to_proto(row: DbPendingOrderRow) -> PendingOrderRow {
         PendingOrderRow {
             order_id: row.order_id,
@@ -161,8 +175,10 @@ impl PendingOrder for PendingOrderService {
         let user_name = auth.nama;
 
         let result: Result<Response<GetAllPendingOrderFromScyllaResponse>, Status> = async {
-            let _inner = request.into_inner();
-            let rows = crate::repository::find_all(self.session.as_ref())
+            let date = Self::parse_tahun_bulan_tanggal(
+                &request.into_inner().tahun_bulan_tanggal,
+            )?;
+            let rows = crate::repository::find_by_tahun_bulan_tanggal(self.session.as_ref(), date)
                 .await
                 .map_err(Status::internal)?;
 

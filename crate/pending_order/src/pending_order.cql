@@ -1,5 +1,5 @@
 -- Keyspace: invezgood
--- Pending order. Scrape Stockbit hanya upsert by (order_id, tahun_bulan_tanggal) (tanpa TRUNCATE).
+-- Pending order. Scrape Stockbit hanya upsert by (order_id, tahun_bulan_tanggal)
 -- tahun_bulan_tanggal = tanggal dari time_open (YYYY-MM-DD), clustering DESC.
 
 CREATE KEYSPACE IF NOT EXISTS invezgood
@@ -40,6 +40,13 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_status AS
     PRIMARY KEY (status, tahun_bulan_tanggal, order_id)
     WITH CLUSTERING ORDER BY (tahun_bulan_tanggal DESC, order_id ASC);
 
+CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_tahun_bulan_tanggal AS
+    SELECT * FROM invezgood.pending_order
+    WHERE tahun_bulan_tanggal IS NOT NULL
+      AND order_id IS NOT NULL
+    PRIMARY KEY (tahun_bulan_tanggal, order_id)
+    WITH CLUSTERING ORDER BY (order_id ASC);
+
 -- Skema aktual:
 -- | column_name         | kind            | type      |
 -- |---------------------|-----------------|-----------|
@@ -62,5 +69,6 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_status AS
 -- Migrasi PK (order_id) → ((order_id), tahun_bulan_tanggal DESC):
 -- DROP MATERIALIZED VIEW IF EXISTS invezgood.pending_order_by_emiten_name;
 -- DROP MATERIALIZED VIEW IF EXISTS invezgood.pending_order_by_status;
+-- DROP MATERIALIZED VIEW IF EXISTS invezgood.pending_order_by_tahun_bulan_tanggal;
 -- DROP TABLE IF EXISTS invezgood.pending_order;
 -- lalu jalankan CREATE di atas.

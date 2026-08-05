@@ -1,7 +1,7 @@
 use futures::stream::{self, StreamExt, TryStreamExt};
 use scylla::client::session::Session;
 
-use crate::model::{PendingOrderRow, KEYSPACE, MV_BY_EMITEN, TABLE};
+use crate::model::{PendingOrderRow, KEYSPACE, MV_BY_EMITEN, MV_BY_TAHUN_BULAN_TANGGAL, TABLE};
 
 const TOKEN_SEGMENTS: usize = 16;
 const SCAN_CONCURRENCY: usize = 8;
@@ -68,6 +68,42 @@ pub async fn find_by_emiten_name(
         .try_next()
         .await
         .map_err(|e| format!("find_by_emiten_name row {KEYSPACE}.{MV_BY_EMITEN}: {e}"))?
+    {
+        out.push(row);
+    }
+    Ok(out)
+}
+
+pub async fn find_by_tahun_bulan_tanggal(
+    session: &Session,
+    tahun_bulan_tanggal: chrono::NaiveDate,
+) -> Result<Vec<PendingOrderRow>, String> {
+    let q = format!(
+        "SELECT {COLUMNS} FROM {KEYSPACE}.{MV_BY_TAHUN_BULAN_TANGGAL} WHERE tahun_bulan_tanggal = ?"
+    );
+
+    let mut rows = session
+        .query_iter(q.as_str(), (tahun_bulan_tanggal,))
+        .await
+        .map_err(|e| {
+            format!(
+                "find_by_tahun_bulan_tanggal {KEYSPACE}.{MV_BY_TAHUN_BULAN_TANGGAL} date={tahun_bulan_tanggal}: {e}"
+            )
+        })?
+        .rows_stream::<PendingOrderRow>()
+        .map_err(|e| {
+            format!(
+                "find_by_tahun_bulan_tanggal stream {KEYSPACE}.{MV_BY_TAHUN_BULAN_TANGGAL}: {e}"
+            )
+        })?;
+
+    let mut out = Vec::new();
+    while let Some(row) = rows
+        .try_next()
+        .await
+        .map_err(|e| {
+            format!("find_by_tahun_bulan_tanggal row {KEYSPACE}.{MV_BY_TAHUN_BULAN_TANGGAL}: {e}")
+        })?
     {
         out.push(row);
     }

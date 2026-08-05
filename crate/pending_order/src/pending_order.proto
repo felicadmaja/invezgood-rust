@@ -5,7 +5,8 @@ package pending_order;
 service PendingOrder {
   // Memerlukan user login (admin). Kirim metadata: authorization: Bearer <token>.
 
-  // Baca semua baris invezgood.pending_order via token-ring scan.
+  // Baca pending order by tanggal via MV pending_order_by_tahun_bulan_tanggal.
+  // Request: tahun_bulan_tanggal (YYYY-MM-DD) wajib.
   rpc GetAllPendingOrderFromScylla(GetAllPendingOrderFromScyllaRequest)
       returns (GetAllPendingOrderFromScyllaResponse);
 
@@ -32,7 +33,10 @@ enum ExpiryPendingOrder {
   EXPIRY_PENDING_ORDER_GTC = 2;
 }
 
-message GetAllPendingOrderFromScyllaRequest {}
+message GetAllPendingOrderFromScyllaRequest {
+  // Tanggal filter YYYY-MM-DD → MV pending_order_by_tahun_bulan_tanggal.
+  string tahun_bulan_tanggal = 1;
+}
 message GetAllPendingOrderFromStockbitRequest {}
 
 message GetPendingOrderFromScyllaByEmitenNameRequest {
