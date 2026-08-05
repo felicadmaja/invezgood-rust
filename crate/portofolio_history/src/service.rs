@@ -155,90 +155,98 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
-        // 0=default/error, 1=redis cache (putih), 2=stockbit scrape (hijau)
-        let mut log_kind: u8 = 0;
-        let mut log_emiten = String::new();
+        enum LogSource {
+            Cache,
+            Api,
+            Other,
+        }
 
-        let result: Result<Response<GetPortofolioHistoryByEmitenNameFromStockbitResponse>, Status> =
-            async {
-                let req = request.into_inner();
-                let kode = match parse_emiten_name(&req.emiten_name) {
-                    Ok(c) => c,
-                    Err(message) => {
-                        return Ok(Response::new(
+        let (result, log_source, log_emiten) = async {
+            let req = request.into_inner();
+            let kode = match parse_emiten_name(&req.emiten_name) {
+                Ok(c) => c,
+                Err(message) => {
+                    return (
+                        Ok(Response::new(
                             GetPortofolioHistoryByEmitenNameFromStockbitResponse {
                                 success: false,
                                 message,
                                 row: None,
                             },
-                        ));
-                    }
-                };
-                log_emiten = kode.clone();
-
-                if let Some(mut cached) = crate::redis_cache::get(&kode).await {
-                    cached.message = format!(
-                        "{} (redis cache)",
-                        cached.message.trim_end_matches(" (redis cache)")
+                        )),
+                        LogSource::Other,
+                        String::new(),
                     );
-                    log_kind = 1;
-                    return Ok(Response::new(cached));
                 }
+            };
 
-                acquire_history_scrape_slot().await?;
+            if let Some(mut cached) = crate::redis_cache::get(&kode).await {
+                cached.message = format!(
+                    "{} (redis cache)",
+                    cached.message.trim_end_matches(" (redis cache)")
+                );
+                return (Ok(Response::new(cached)), LogSource::Cache, kode);
+            }
 
-                match on_demand::scrape_portofolio_history_for_emiten(
-                    Arc::clone(&self.session),
-                    &kode,
-                )
-                .await
-                {
-                    Ok(n) => {
-                        let row = match self.repo.find_latest_by_emiten(&kode).await {
-                            Ok(Some(r)) => Some(r.into_proto()),
-                            Ok(None) => None,
-                            Err(e) => {
-                                eprintln!(
-                                    "GetPortofolioHistoryByEmitenNameFromStockbit: baca ulang gagal: {e}"
-                                );
-                                None
-                            }
-                        };
-                        let date_note = row
-                            .as_ref()
-                            .map(|r| r.tahun_bulan_tanggal.as_str())
-                            .unwrap_or("-");
-                        let resp = GetPortofolioHistoryByEmitenNameFromStockbitResponse {
-                            success: true,
-                            message: format!(
-                                "portofolio_history {kode}: scrape selesai, {n} entri di-upsert (terbaru {date_note})"
-                            ),
-                            row,
-                        };
-                        crate::redis_cache::set(&kode, &resp).await;
-                        log_kind = 2;
-                        Ok(Response::new(resp))
-                    }
-                    Err(e) => Ok(Response::new(
+            if let Err(status) = acquire_history_scrape_slot().await {
+                return (Err(status), LogSource::Other, kode);
+            }
+
+            match on_demand::scrape_portofolio_history_for_emiten(
+                Arc::clone(&self.session),
+                &kode,
+            )
+            .await
+            {
+                Ok(n) => {
+                    let row = match self.repo.find_latest_by_emiten(&kode).await {
+                        Ok(Some(r)) => Some(r.into_proto()),
+                        Ok(None) => None,
+                        Err(e) => {
+                            eprintln!(
+                                "GetPortofolioHistoryByEmitenNameFromStockbit: baca ulang gagal: {e}"
+                            );
+                            None
+                        }
+                    };
+                    let date_note = row
+                        .as_ref()
+                        .map(|r| r.tahun_bulan_tanggal.as_str())
+                        .unwrap_or("-");
+                    let resp = GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                        success: true,
+                        message: format!(
+                            "portofolio_history {kode}: scrape selesai, {n} entri di-upsert (terbaru {date_note})"
+                        ),
+                        row,
+                    };
+                    crate::redis_cache::set(&kode, &resp).await;
+                    (Ok(Response::new(resp)), LogSource::Api, kode)
+                }
+                Err(e) => (
+                    Ok(Response::new(
                         GetPortofolioHistoryByEmitenNameFromStockbitResponse {
                             success: false,
                             message: format!("scrape portofolio history gagal: {e}"),
                             row: None,
                         },
                     )),
-                }
+                    LogSource::Other,
+                    kode,
+                ),
             }
-            .await;
+        }
+        .await;
 
         let elapsed = started.elapsed().as_millis();
-        match log_kind {
-            1 => eprintln!(
+        match log_source {
+            LogSource::Cache => eprintln!(
                 "\x1b[37mGetPortofolioHistoryByEmitenNameFromStockbit {user_name} {elapsed}ms - {log_emiten}\x1b[0m"
             ),
-            2 => eprintln!(
+            LogSource::Api => eprintln!(
                 "\x1b[32mGetPortofolioHistoryByEmitenNameFromStockbit {user_name} {elapsed}ms - {log_emiten}\x1b[0m"
             ),
-            _ => Self::log_rpc_debug(
+            LogSource::Other => Self::log_rpc_debug(
                 "GetPortofolioHistoryByEmitenNameFromStockbit",
                 &user_name,
                 started,
