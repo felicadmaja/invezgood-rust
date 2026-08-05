@@ -241,7 +241,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         let elapsed = started.elapsed().as_millis();
         match log_source {
             LogSource::Cache => eprintln!(
-                "\x1b[37mGetPortofolioHistoryByEmitenNameFromStockbit {user_name} {elapsed}ms - {log_emiten}\x1b[0m"
+                "\x1b[37mGetPortofolioHistoryByEmitenNameFromStockbit {user_name} {elapsed}ms - HIT FROM CACHE - {log_emiten}\x1b[0m"
             ),
             LogSource::Api => eprintln!(
                 "\x1b[32mGetPortofolioHistoryByEmitenNameFromStockbit {user_name} {elapsed}ms - {log_emiten}\x1b[0m"

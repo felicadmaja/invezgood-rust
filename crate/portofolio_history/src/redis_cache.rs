@@ -1,7 +1,7 @@
 //! Cache Redis untuk response `GetPortofolioHistoryByEmitenNameFromStockbit`.
 //!
 //! Env: `REDIS_URL` (default `redis://localhost:6379`).
-//! Key: `invezgood:portofolio_history:stockbit:{EMITEN}` — TTL 5 menit.
+//! Key: `invezgood:portofolio_history:stockbit:{EMITEN}` — TTL 15 menit.
 //! Payload: prost bytes response. Redis down → treat sebagai cache miss.
 
 use std::sync::OnceLock;
@@ -14,7 +14,7 @@ use tokio::sync::Mutex;
 
 use crate::pb::GetPortofolioHistoryByEmitenNameFromStockbitResponse;
 
-pub const HISTORY_STOCKBIT_CACHE_TTL: Duration = Duration::from_secs(5 * 60);
+pub const HISTORY_STOCKBIT_CACHE_TTL: Duration = Duration::from_secs(15 * 60);
 
 fn redis_url() -> String {
     std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string())
