@@ -6,14 +6,19 @@ service PortofolioHistory {
   // Baca invezgood.portofolio_history dari Scylla saja (tanpa scrape Stockbit).
   // Baris = snapshot terbaru per emiten (clustering tahun_bulan_tanggal DESC, LIMIT 1).
   // emiten_name: tepat 4 huruf; dinormalisasi ke UPPERCASE. Auth: login (Bearer session).
-  rpc GetPortofolioHistoryByEmitenNameFromScylla(GetPortofolioHistoryByEmitenNameFromStockbitRequest)
-      returns (GetPortofolioHistoryByEmitenNameFromStockbitResponse);
+  rpc GetPortofolioHistoryByEmitenNameFromScylla(GetPortofolioHistoryByEmitenNameFromScyllaRequest)
+      returns (GetPortofolioHistoryByEmitenNameFromScyllaResponse);
 
   // GET carina.stockbit.com/history?stock={emiten} (paginate) → upsert invezgood.portofolio_history
   // per tanggal. Auth login. Rate limit global 1×/1s. Redis cache TTL 15 menit
   // (key invezgood:portofolio_history:stockbit:{EMITEN}). Env STOCKBIT_* + REDIS_URL.
   rpc GetPortofolioHistoryByEmitenNameFromStockbit(GetPortofolioHistoryByEmitenNameFromStockbitRequest)
       returns (GetPortofolioHistoryByEmitenNameFromStockbitResponse);
+}
+
+message GetPortofolioHistoryByEmitenNameFromScyllaRequest {
+  // Kode emiten / ticker: tepat 4 huruf alphabet; dinormalisasi ke UPPERCASE.
+  string emiten_name = 1;
 }
 
 message GetPortofolioHistoryByEmitenNameFromStockbitRequest {
@@ -35,6 +40,12 @@ message PortofolioHistoryRow {
   // Tanggal transaksi YYYY-MM-DD.
   string tahun_bulan_tanggal = 2;
   repeated PortofolioHistoryItem history = 3;
+}
+
+message GetPortofolioHistoryByEmitenNameFromScyllaResponse {
+  bool success = 1;
+  string message = 2;
+  PortofolioHistoryRow row = 3;
 }
 
 message GetPortofolioHistoryByEmitenNameFromStockbitResponse {

@@ -10,6 +10,8 @@ use worker_scrapping::on_demand;
 
 use crate::pb::portofolio_history_server::PortofolioHistory as PortofolioHistoryRpc;
 use crate::pb::{
+    GetPortofolioHistoryByEmitenNameFromScyllaRequest,
+    GetPortofolioHistoryByEmitenNameFromScyllaResponse,
     GetPortofolioHistoryByEmitenNameFromStockbitRequest,
     GetPortofolioHistoryByEmitenNameFromStockbitResponse,
 };
@@ -85,20 +87,20 @@ impl PortofolioHistoryService {
 impl PortofolioHistoryRpc for PortofolioHistoryService {
     async fn get_portofolio_history_by_emiten_name_from_scylla(
         &self,
-        request: Request<GetPortofolioHistoryByEmitenNameFromStockbitRequest>,
-    ) -> Result<Response<GetPortofolioHistoryByEmitenNameFromStockbitResponse>, Status> {
+        request: Request<GetPortofolioHistoryByEmitenNameFromScyllaRequest>,
+    ) -> Result<Response<GetPortofolioHistoryByEmitenNameFromScyllaResponse>, Status> {
         let started = Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
-        let result: Result<Response<GetPortofolioHistoryByEmitenNameFromStockbitResponse>, Status> =
+        let result: Result<Response<GetPortofolioHistoryByEmitenNameFromScyllaResponse>, Status> =
             async {
                 let req = request.into_inner();
                 let kode = match parse_emiten_name(&req.emiten_name) {
                     Ok(c) => c,
                     Err(message) => {
                         return Ok(Response::new(
-                            GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                            GetPortofolioHistoryByEmitenNameFromScyllaResponse {
                                 success: false,
                                 message,
                                 row: None,
@@ -112,7 +114,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                         let n = r.history.len();
                         let date = r.tahun_bulan_tanggal;
                         Ok(Response::new(
-                            GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                            GetPortofolioHistoryByEmitenNameFromScyllaResponse {
                                 success: true,
                                 message: format!(
                                     "portofolio_history {kode}: {n} entri dari Scylla ({date})"
@@ -122,14 +124,14 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                         ))
                     }
                     Ok(None) => Ok(Response::new(
-                        GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                        GetPortofolioHistoryByEmitenNameFromScyllaResponse {
                             success: false,
                             message: format!("portofolio_history {kode}: tidak ada di Scylla"),
                             row: None,
                         },
                     )),
                     Err(e) => Ok(Response::new(
-                        GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                        GetPortofolioHistoryByEmitenNameFromScyllaResponse {
                             success: false,
                             message: format!("baca portofolio_history gagal: {e}"),
                             row: None,
