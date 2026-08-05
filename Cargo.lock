@@ -1178,6 +1178,7 @@ dependencies = [
  "pending_order",
  "portofolio",
  "portofolio_equity",
+ "portofolio_history",
  "prost",
  "stock_list",
  "stockbit_browser",
@@ -1498,6 +1499,21 @@ dependencies = [
  "tonic",
  "tonic-build",
  "user",
+]
+
+[[package]]
+name = "portofolio_history"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "prost",
+ "redis",
+ "scylla",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
+ "worker_scrapping",
 ]
 
 [[package]]

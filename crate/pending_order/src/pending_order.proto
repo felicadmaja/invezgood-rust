@@ -71,6 +71,8 @@ message PendingOrderRow {
   double amount_match_total = 12;
   bool is_gtc = 13;
   string updated_at = 14;
+  // Tanggal dari time_open (YYYY-MM-DD); clustering key DESC.
+  string tahun_bulan_tanggal = 15;
 }
 
 message GetAllPendingOrderFromScyllaResponse {

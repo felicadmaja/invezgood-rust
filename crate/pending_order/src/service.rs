@@ -145,6 +145,7 @@ impl PendingOrderService {
                 .updated_at
                 .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
+            tahun_bulan_tanggal: row.tahun_bulan_tanggal.format("%Y-%m-%d").to_string(),
         }
     }
 }

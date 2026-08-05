@@ -1,5 +1,7 @@
-//! On-demand scrape Stockbit: portofolio, pending_order, buy limit order, emiten_trending.
+//! On-demand scrape Stockbit: portofolio, pending_order, buy limit order, emiten_trending,
+//! portofolio_history.
 
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use scylla::client::session::Session;
@@ -24,6 +26,10 @@ static INFLIGHT_EMITEN_TRENDING: OnceLock<
     Mutex<Option<watch::Receiver<Option<Result<(usize, usize), String>>>>>,
 > = OnceLock::new();
 
+static INFLIGHT_PORTO_HISTORY: OnceLock<
+    Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>>,
+> = OnceLock::new();
+
 fn inflight_porto_all(
 ) -> &'static Mutex<Option<watch::Receiver<Option<Result<(usize, Vec<String>), String>>>>> {
     INFLIGHT_PORTO_ALL.get_or_init(|| Mutex::new(None))
@@ -41,6 +47,11 @@ fn inflight_buy_limit() -> &'static Mutex<Option<watch::Receiver<Option<Result<(
 fn inflight_emiten_trending(
 ) -> &'static Mutex<Option<watch::Receiver<Option<Result<(usize, usize), String>>>>> {
     INFLIGHT_EMITEN_TRENDING.get_or_init(|| Mutex::new(None))
+}
+
+fn inflight_porto_history(
+) -> &'static Mutex<HashMap<String, watch::Receiver<Option<Result<usize, String>>>>> {
+    INFLIGHT_PORTO_HISTORY.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn keyspace() -> String {
@@ -337,6 +348,104 @@ pub fn is_stockbit_poller_scrape_hours() -> bool {
     let in_morning = mins >= MORNING_START && mins < MORNING_END;
     let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
     in_morning || in_afternoon
+}
+
+/// On-demand: login → PIN → GET carina `/history?stock=` →
+/// upsert `portofolio_history` per tanggal. Single-flight per emiten.
+/// Returns jumlah entri history yang di-upsert.
+pub async fn scrape_portofolio_history_for_emiten(
+    session: Arc<Session>,
+    emiten_name: &str,
+) -> Result<usize, String> {
+    let code = emiten_name.trim().to_ascii_uppercase();
+    if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Err("emiten_name harus tepat 4 huruf alfabet (contoh: ASBI)".into());
+    }
+
+    let mut rx = {
+        let mut map = inflight_porto_history().lock().await;
+        if let Some(existing) = map.get(&code) {
+            println!("On-demand portofolio history: {code} sudah berjalan — menunggu hasil...");
+            existing.clone()
+        } else {
+            let (tx, rx) = watch::channel::<Option<Result<usize, String>>>(None);
+            map.insert(code.clone(), rx.clone());
+            let session = Arc::clone(&session);
+            let code_spawn = code.clone();
+            tokio::spawn(async move {
+                let result = run_portofolio_history_scrape(session, &code_spawn).await;
+                match &result {
+                    Ok(n) => println!("On-demand portofolio history selesai {code_spawn}: {n} entri."),
+                    Err(e) => {
+                        eprintln!("On-demand portofolio history GAGAL {code_spawn}: {e}")
+                    }
+                }
+                let _ = tx.send(Some(result));
+                inflight_porto_history().lock().await.remove(&code_spawn);
+            });
+            rx
+        }
+    };
+
+    loop {
+        {
+            let guard = rx.borrow();
+            if let Some(result) = guard.as_ref() {
+                return result.clone();
+            }
+        }
+        if rx.changed().await.is_err() {
+            return Err(format!(
+                "on-demand portofolio history {code}: channel ditutup sebelum ada hasil"
+            ));
+        }
+    }
+}
+
+async fn run_portofolio_history_scrape(
+    session: Arc<Session>,
+    code: &str,
+) -> Result<usize, String> {
+    let email = std::env::var("STOCKBIT_EMAIL").map_err(|_| {
+        "STOCKBIT_EMAIL wajib diisi untuk scrape portofolio history".to_string()
+    })?;
+    let password = std::env::var("STOCKBIT_PASSWORD").map_err(|_| {
+        "STOCKBIT_PASSWORD wajib diisi untuk scrape portofolio history".to_string()
+    })?;
+    if email.trim().is_empty() || password.trim().is_empty() {
+        return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
+    }
+
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive).await?;
+    let ks = keyspace();
+
+    println!("On-demand portofolio history: login → PIN → /history {code}...");
+
+    let (browser, page) = launch_page()
+        .await
+        .map_err(|e| format!("launch Chrome: {e}"))?;
+
+    let result = async {
+        open_stream_or_login(&page, email.trim(), password.trim())
+            .await
+            .map_err(|e| format!("login Stockbit: {e}"))?;
+
+        let n = crate::portofolio_history_worker::scrape_and_replace_portofolio_history(
+            &page,
+            session.as_ref(),
+            &ks,
+            code,
+        )
+        .await
+        .map(|(n, _, _)| n)
+        .map_err(|e| e.to_string())?;
+
+        Ok::<usize, String>(n)
+    }
+    .await;
+
+    browser.close().await;
+    result
 }
 
 /// Dipanggil dari readiness poller setelah tiap tick: scrape portofolio, emiten_trending,

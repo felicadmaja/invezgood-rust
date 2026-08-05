@@ -1,7 +1,7 @@
 //! Pending order via API `carina.stockbit.com/order/v2/list` → upsert `pending_order`.
 //!
 //! Alur sama portofolio: START TRADING + PIN (`STOCKBUT_PIN` / `STOCKBIT_PIN`) bila perlu,
-//! lalu Bearer trading pasca-PIN → GET order list (log + jeda `rate_limit_delay`) → insert Scylla.
+//! lalu Bearer trading pasca-PIN → GET order list (log + jeda `rate_limit_delay`) → upsert Scylla.
 //!
 //! Mapping JSON → kolom (lihat `pending_order.cql` / `contoh_data.json`):
 //! - `order_id` ← `order_id`
@@ -10,6 +10,7 @@
 //! - `message` ← `message`
 //! - `side` ← `side`
 //! - `time_open` ← `time.open` (timestamp RFC3339)
+//! - `tahun_bulan_tanggal` ← tanggal dari `time_open` (YYYY-MM-DD)
 //! - `lot_open` ← `qty.lot_open`
 //! - `lot_done` ← `qty.lot_done`
 //! - `price_order` ← `price.order`
@@ -19,7 +20,7 @@
 //! - `is_gtc` ← `gtc.is_gtc`
 //! - `updated_at` ← waktu upsert (UTC now)
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use chromiumoxide::page::Page;
 use scylla::client::session::Session;
 use serde_json::Value;
@@ -37,6 +38,7 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 #[derive(Debug, Clone)]
 struct PendingOrderRow {
     order_id: String,
+    tahun_bulan_tanggal: NaiveDate,
     emiten_name: String,
     status: String,
     message: String,
@@ -132,6 +134,7 @@ fn parse_order_list_json(v: &Value) -> Vec<PendingOrderRow> {
         };
         rows.push(PendingOrderRow {
             order_id,
+            tahun_bulan_tanggal: time_open.date_naive(),
             emiten_name,
             status: json_str(&item, "status_text"),
             message: json_str(&item, "message"),
@@ -185,29 +188,29 @@ async fn upsert_pending_orders(
     keyspace: &str,
     rows: &[PendingOrderRow],
 ) -> Result<usize, Box<dyn std::error::Error>> {
-    println!("Pending order: TRUNCATE {keyspace}.pending_order...");
-    session
-        .query_unpaged(format!("TRUNCATE {keyspace}.pending_order"), &[])
-        .await?;
-
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.pending_order (\
-                order_id, emiten_name, status, message, side, time_open, \
+                order_id, tahun_bulan_tanggal, emiten_name, status, message, side, time_open, \
                 lot_open, lot_done, price_order, amount_open, amount_match, \
                 amount_match_total, is_gtc, updated_at\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
     let updated_at = Utc::now();
     let mut n = 0usize;
+    println!(
+        "Pending order: upsert {n_rows} baris ke {keyspace}.pending_order...",
+        n_rows = rows.len()
+    );
     for row in rows {
         session
             .execute_unpaged(
                 &insert,
                 (
                     row.order_id.as_str(),
+                    row.tahun_bulan_tanggal,
                     row.emiten_name.as_str(),
                     row.status.as_str(),
                     row.message.as_str(),
@@ -268,7 +271,7 @@ pub async fn scrape_and_insert_pending_order(
     }
 
     let n = upsert_pending_orders(session.as_ref(), keyspace, &rows).await?;
-    println!("OK: {n} baris diinsert ke pending_order.");
+    println!("OK: {n} baris di-upsert ke pending_order.");
     Ok(n)
 }
 
@@ -317,6 +320,7 @@ mod tests {
             r.time_open.to_rfc3339(),
             "2026-07-20T13:04:25+00:00"
         );
+        assert_eq!(r.tahun_bulan_tanggal.to_string(), "2026-07-20");
         assert_eq!(r.lot_open, 157.0);
         assert_eq!(r.lot_done, 0.0);
         assert_eq!(r.price_order, 63.0);

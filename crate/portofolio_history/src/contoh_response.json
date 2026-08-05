@@ -1,0 +1,264 @@
+{
+    "message": "History Info retrieved",
+    "data": {
+        "history": [
+            {
+                "date": "Jul 2026",
+                "history_list": [
+                    {
+                        "command": "BUY",
+                        "symbol": "UNVR",
+                        "price": 1765,
+                        "lot": 6,
+                        "shares": 600,
+                        "amount": 1059000,
+                        "fee": 1588.5,
+                        "netamount": 1060588.5,
+                        "currency": "IDR",
+                        "status": "MATCH",
+                        "status_color_code": "#00AB6B",
+                        "realized_amount": 0,
+                        "realized_percentage": 0,
+                        "realized_color_code": {
+                            "light_mode": "#333333",
+                            "dark_mode": "#CBCBCB"
+                        },
+                        "bank_account_number": "",
+                        "bank_name": "",
+                        "date": "20 Jul 2026",
+                        "label": "",
+                        "dividend_ratio": "",
+                        "dividend_per_share": 0,
+                        "dividend_type": "",
+                        "display_as": "BUY UNVR",
+                        "is_realized_gain_hidden": false,
+                        "mutual_fund": "",
+                        "partner_reference": "",
+                        "bonds": {
+                            "product_name": "",
+                            "icon": "",
+                            "stamp_duty": 0,
+                            "accrued_interest": 0,
+                            "bonds_price": "",
+                            "coupon_tax_percentage": "",
+                            "seller_coupon": 0,
+                            "total_realized_amount": 0,
+                            "total_realized_amount_percentage": 0,
+                            "capital_gain_loss": {
+                                "amount": 0,
+                                "amount_nett": 0,
+                                "amount_percentage": 0,
+                                "amount_nett_percentage": 0
+                            },
+                            "daily_accrued_interest": 0,
+                            "acquisition_price": 0,
+                            "accrued_interest_exclude_tax": 0,
+                            "accrued_interest_nett": 0
+                        },
+                        "is_hide_transfer_fee": true,
+                        "is_day_trade": false,
+                        "time": "13:30:02",
+                        "move_stock_cash": {
+                            "source": {
+                                "acc_no": "",
+                                "name": ""
+                            },
+                            "destination": {
+                                "acc_no": "",
+                                "name": ""
+                            },
+                            "advice_code": "",
+                            "is_rdn_withdrawal_cash_transfer": false,
+                            "reference_code": ""
+                        },
+                        "banner": null,
+                        "sbn": {
+                            "disbursed_amount": 0,
+                            "reference_id": "",
+                            "product_name": "",
+                            "stamp_duty": 0,
+                            "accrued_interest": 0
+                        },
+                        "additional_info": null,
+                        "id": "431842412"
+                    },
+                    {
+                        "command": "BUY",
+                        "symbol": "UNVR",
+                        "price": 1665,
+                        "lot": 3,
+                        "shares": 300,
+                        "amount": 499500,
+                        "fee": 749.25,
+                        "netamount": 500249.25,
+                        "currency": "IDR",
+                        "status": "MATCH",
+                        "status_color_code": "#00AB6B",
+                        "realized_amount": 0,
+                        "realized_percentage": 0,
+                        "realized_color_code": {
+                            "light_mode": "#333333",
+                            "dark_mode": "#CBCBCB"
+                        },
+                        "bank_account_number": "",
+                        "bank_name": "",
+                        "date": "13 Jul 2026",
+                        "label": "",
+                        "dividend_ratio": "",
+                        "dividend_per_share": 0,
+                        "dividend_type": "",
+                        "display_as": "BUY UNVR",
+                        "is_realized_gain_hidden": false,
+                        "mutual_fund": "",
+                        "partner_reference": "",
+                        "bonds": {
+                            "product_name": "",
+                            "icon": "",
+                            "stamp_duty": 0,
+                            "accrued_interest": 0,
+                            "bonds_price": "",
+                            "coupon_tax_percentage": "",
+                            "seller_coupon": 0,
+                            "total_realized_amount": 0,
+                            "total_realized_amount_percentage": 0,
+                            "capital_gain_loss": {
+                                "amount": 0,
+                                "amount_nett": 0,
+                                "amount_percentage": 0,
+                                "amount_nett_percentage": 0
+                            },
+                            "daily_accrued_interest": 0,
+                            "acquisition_price": 0,
+                            "accrued_interest_exclude_tax": 0,
+                            "accrued_interest_nett": 0
+                        },
+                        "is_hide_transfer_fee": true,
+                        "is_day_trade": false,
+                        "time": "15:35:03",
+                        "move_stock_cash": {
+                            "source": {
+                                "acc_no": "",
+                                "name": ""
+                            },
+                            "destination": {
+                                "acc_no": "",
+                                "name": ""
+                            },
+                            "advice_code": "",
+                            "is_rdn_withdrawal_cash_transfer": false,
+                            "reference_code": ""
+                        },
+                        "banner": null,
+                        "sbn": {
+                            "disbursed_amount": 0,
+                            "reference_id": "",
+                            "product_name": "",
+                            "stamp_duty": 0,
+                            "accrued_interest": 0
+                        },
+                        "additional_info": null,
+                        "id": "424602647"
+                    },
+                    {
+                        "command": "BUY",
+                        "symbol": "UNVR",
+                        "price": 1730,
+                        "lot": 3,
+                        "shares": 300,
+                        "amount": 519000,
+                        "fee": 778.5,
+                        "netamount": 519778.5,
+                        "currency": "IDR",
+                        "status": "MATCH",
+                        "status_color_code": "#00AB6B",
+                        "realized_amount": 0,
+                        "realized_percentage": 0,
+                        "realized_color_code": {
+                            "light_mode": "#333333",
+                            "dark_mode": "#CBCBCB"
+                        },
+                        "bank_account_number": "",
+                        "bank_name": "",
+                        "date": "08 Jul 2026",
+                        "label": "",
+                        "dividend_ratio": "",
+                        "dividend_per_share": 0,
+                        "dividend_type": "",
+                        "display_as": "BUY UNVR",
+                        "is_realized_gain_hidden": false,
+                        "mutual_fund": "",
+                        "partner_reference": "",
+                        "bonds": {
+                            "product_name": "",
+                            "icon": "",
+                            "stamp_duty": 0,
+                            "accrued_interest": 0,
+                            "bonds_price": "",
+                            "coupon_tax_percentage": "",
+                            "seller_coupon": 0,
+                            "total_realized_amount": 0,
+                            "total_realized_amount_percentage": 0,
+                            "capital_gain_loss": {
+                                "amount": 0,
+                                "amount_nett": 0,
+                                "amount_percentage": 0,
+                                "amount_nett_percentage": 0
+                            },
+                            "daily_accrued_interest": 0,
+                            "acquisition_price": 0,
+                            "accrued_interest_exclude_tax": 0,
+                            "accrued_interest_nett": 0
+                        },
+                        "is_hide_transfer_fee": true,
+                        "is_day_trade": false,
+                        "time": "09:47:06",
+                        "move_stock_cash": {
+                            "source": {
+                                "acc_no": "",
+                                "name": ""
+                            },
+                            "destination": {
+                                "acc_no": "",
+                                "name": ""
+                            },
+                            "advice_code": "",
+                            "is_rdn_withdrawal_cash_transfer": false,
+                            "reference_code": ""
+                        },
+                        "banner": null,
+                        "sbn": {
+                            "disbursed_amount": 0,
+                            "reference_id": "",
+                            "product_name": "",
+                            "stamp_duty": 0,
+                            "accrued_interest": 0
+                        },
+                        "additional_info": null,
+                        "id": "419570415"
+                    }
+                ],
+                "monthly_gain": 0
+            }
+        ],
+        "meta": {
+            "max_page": 1,
+            "total_realized_amount": 0,
+            "color_realized_amount": {
+                "light_mode": "#333333",
+                "dark_mode": "#CBCBCB"
+            },
+            "tooltip_header": "Realized Amount",
+            "tooltip": "Jumlah keuntungan/kerugian yang kamu dapatkan setelah penjualan saham kamu di Stockbit.",
+            "tooltips": [
+                {
+                    "header": "Capital Gain",
+                    "description": "Jumlah keuntungan/kerugian yang kamu dapatkan dari hasil penjualan saham."
+                },
+                {
+                    "header": "Dividend Income",
+                    "description": "Pembagian laba perusahaan untuk pemegang saham berdasarkan jumlah saham yang dimiliki."
+                }
+            ]
+        }
+    }
+}

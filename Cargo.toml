@@ -8,6 +8,7 @@ members = [
     "crate/broker",
     "crate/portofolio",
     "crate/portofolio_equity",
+    "crate/portofolio_history",
     "crate/pending_order",
     "crate/emiten_trending",
     "crate/chart",

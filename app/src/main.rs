@@ -7,6 +7,7 @@ use emiten_trending::{EmitenTrendingServer, EmitenTrendingService};
 use pending_order::{PendingOrderServer, PendingOrderService};
 use portofolio::{PortofolioServer, PortofolioService};
 use portofolio_equity::{PortofolioEquityServer, PortofolioEquityService};
+use portofolio_history::{PortofolioHistoryServer, PortofolioHistoryService};
 use stock_list::{connect, StockListServer, StockListService};
 use stockbit_browser::ReadinessPoller;
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
@@ -79,6 +80,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let portofolio = PortofolioService::new(session.clone(), auth_sessions.clone());
     let portofolio_equity =
         PortofolioEquityService::new(session.clone(), auth_sessions.clone());
+    let portofolio_history =
+        PortofolioHistoryService::new(session.clone(), auth_sessions.clone());
     let pending_order = PendingOrderService::new(session.clone(), auth_sessions.clone());
     let emiten_trending = EmitenTrendingService::new(session.clone(), auth_sessions.clone());
     let chart = ChartService::new(
@@ -113,6 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(broker::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(portofolio::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(portofolio_equity::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(portofolio_history::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pending_order::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(emiten_trending::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(chart::FILE_DESCRIPTOR_SET)
@@ -134,6 +138,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         maybe_compressed!(PortofolioServer::new(portofolio), enable_compression);
     let portofolio_equity_svc = maybe_compressed!(
         PortofolioEquityServer::new(portofolio_equity),
+        enable_compression
+    );
+    let portofolio_history_svc = maybe_compressed!(
+        PortofolioHistoryServer::new(portofolio_history),
         enable_compression
     );
     let pending_order_svc =
@@ -168,6 +176,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(broker_svc)
         .add_service(portofolio_svc)
         .add_service(portofolio_equity_svc)
+        .add_service(portofolio_history_svc)
         .add_service(pending_order_svc)
         .add_service(emiten_trending_svc)
         .add_service(chart_svc)

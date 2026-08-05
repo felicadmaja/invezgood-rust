@@ -6,8 +6,8 @@ use crate::model::{PendingOrderRow, KEYSPACE, MV_BY_EMITEN, TABLE};
 const TOKEN_SEGMENTS: usize = 16;
 const SCAN_CONCURRENCY: usize = 8;
 
-const COLUMNS: &str = "order_id, emiten_name, status, message, side, time_open, \
-    lot_open, lot_done, price_order, amount_open, amount_match, amount_match_total, \
+const COLUMNS: &str = "order_id, tahun_bulan_tanggal, emiten_name, status, message, side, \
+    time_open, lot_open, lot_done, price_order, amount_open, amount_match, amount_match_total, \
     is_gtc, updated_at";
 
 pub async fn find_all(session: &Session) -> Result<Vec<PendingOrderRow>, String> {

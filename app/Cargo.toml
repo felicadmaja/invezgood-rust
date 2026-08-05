@@ -16,6 +16,7 @@ bandarmology = { path = "../crate/bandarmology" }
 broker = { path = "../crate/broker" }
 portofolio = { path = "../crate/portofolio" }
 portofolio_equity = { path = "../crate/portofolio_equity" }
+portofolio_history = { path = "../crate/portofolio_history" }
 pending_order = { path = "../crate/pending_order" }
 emiten_trending = { path = "../crate/emiten_trending" }
 chart = { path = "../crate/chart" }
