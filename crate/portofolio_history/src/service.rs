@@ -14,6 +14,8 @@ use crate::pb::{
     GetPortofolioHistoryByEmitenNameFromScyllaResponse,
     GetPortofolioHistoryByEmitenNameFromStockbitRequest,
     GetPortofolioHistoryByEmitenNameFromStockbitResponse,
+    GetPortofolioHistoryByTahunBulanFromScyllaRequest,
+    GetPortofolioHistoryByTahunBulanFromScyllaResponse,
 };
 use crate::repository::PortofolioHistoryRepository;
 
@@ -46,6 +48,17 @@ fn parse_emiten_name(raw: &str) -> Result<String, String> {
         return Err("emiten_name harus tepat 4 huruf alfabet (contoh: ASBI)".into());
     }
     Ok(kode)
+}
+
+fn parse_tahun_bulan(raw: &str) -> Result<String, String> {
+    let value = raw.trim();
+    if value.is_empty() {
+        return Err("tahun_bulan wajib diisi (YYYY-MM)".into());
+    }
+    chrono::NaiveDate::parse_from_str(&format!("{value}-01"), "%Y-%m-%d").map_err(|_| {
+        format!("tahun_bulan tidak valid (harus YYYY-MM): {value}")
+    })?;
+    Ok(value.to_string())
 }
 
 pub struct PortofolioHistoryService {
@@ -143,6 +156,62 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
 
         Self::log_rpc_debug(
             "GetPortofolioHistoryByEmitenNameFromScylla",
+            &user_name,
+            started,
+        );
+        result
+    }
+
+    async fn get_portofolio_history_by_tahun_bulan_from_scylla(
+        &self,
+        request: Request<GetPortofolioHistoryByTahunBulanFromScyllaRequest>,
+    ) -> Result<Response<GetPortofolioHistoryByTahunBulanFromScyllaResponse>, Status> {
+        let started = Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<GetPortofolioHistoryByTahunBulanFromScyllaResponse>, Status> =
+            async {
+                let req = request.into_inner();
+                let tahun_bulan = match parse_tahun_bulan(&req.tahun_bulan) {
+                    Ok(v) => v,
+                    Err(message) => {
+                        return Ok(Response::new(
+                            GetPortofolioHistoryByTahunBulanFromScyllaResponse {
+                                success: false,
+                                message,
+                                rows: vec![],
+                            },
+                        ));
+                    }
+                };
+
+                match self.repo.find_by_tahun_bulan(&tahun_bulan).await {
+                    Ok(rows) => {
+                        let n = rows.len();
+                        Ok(Response::new(
+                            GetPortofolioHistoryByTahunBulanFromScyllaResponse {
+                                success: true,
+                                message: format!(
+                                    "portofolio_history {tahun_bulan}: {n} baris dari Scylla"
+                                ),
+                                rows: rows.into_iter().map(|r| r.into_proto()).collect(),
+                            },
+                        ))
+                    }
+                    Err(e) => Ok(Response::new(
+                        GetPortofolioHistoryByTahunBulanFromScyllaResponse {
+                            success: false,
+                            message: format!("baca portofolio_history gagal: {e}"),
+                            rows: vec![],
+                        },
+                    )),
+                }
+            }
+            .await;
+
+        Self::log_rpc_debug(
+            "GetPortofolioHistoryByTahunBulanFromScylla",
             &user_name,
             started,
         );

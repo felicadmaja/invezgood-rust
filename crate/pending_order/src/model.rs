@@ -7,6 +7,12 @@ pub const KEYSPACE: &str = "invezgood";
 pub const TABLE: &str = "pending_order";
 pub const MV_BY_EMITEN: &str = "pending_order_by_emiten_name";
 pub const MV_BY_TAHUN_BULAN_TANGGAL: &str = "pending_order_by_tahun_bulan_tanggal";
+pub const MV_BY_TAHUN_BULAN: &str = "pending_order_by_tahun_bulan";
+
+/// `YYYY-MM` dari tanggal order.
+pub fn tahun_bulan_from_date(date: NaiveDate) -> String {
+    date.format("%Y-%m").to_string()
+}
 
 /// Satu baris `invezgood.pending_order` (juga hasil query MV).
 /// PK: `((order_id), tahun_bulan_tanggal DESC)`.
@@ -15,6 +21,8 @@ pub struct PendingOrderRow {
     #[scylla(default_when_null)]
     pub order_id: String,
     pub tahun_bulan_tanggal: NaiveDate,
+    #[scylla(default_when_null)]
+    pub tahun_bulan: String,
     #[scylla(default_when_null)]
     pub emiten_name: String,
     #[scylla(default_when_null)]

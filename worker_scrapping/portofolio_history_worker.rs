@@ -271,14 +271,15 @@ pub async fn upsert_portofolio_history_for_date(
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.portofolio_history (\
-                emiten_name, tahun_bulan_tanggal, history\
-            ) VALUES (?, ?, ?)"
+                emiten_name, tahun_bulan_tanggal, tahun_bulan, history\
+            ) VALUES (?, ?, ?, ?)"
         ))
         .await?;
+    let tahun_bulan = tahun_bulan_tanggal.format("%Y-%m").to_string();
     session
         .execute_unpaged(
             &insert,
-            (code.as_str(), tahun_bulan_tanggal, history),
+            (code.as_str(), tahun_bulan_tanggal, tahun_bulan.as_str(), history),
         )
         .await?;
     Ok(())

@@ -7,6 +7,12 @@ use crate::pb::{PortofolioHistoryItem as ProtoHistoryItem, PortofolioHistoryRow}
 
 pub const KEYSPACE: &str = "invezgood";
 pub const TABLE: &str = "portofolio_history";
+pub const MV_BY_TAHUN_BULAN: &str = "portofolio_history_by_tahun_bulan";
+
+/// `YYYY-MM` dari tanggal transaksi.
+pub fn tahun_bulan_from_date(date: NaiveDate) -> String {
+    date.format("%Y-%m").to_string()
+}
 
 /// UDT `portofolio_history_item`.
 #[derive(Debug, Clone, DeserializeValue, SerializeValue)]
@@ -44,6 +50,8 @@ pub struct PortofolioHistory {
     #[scylla(default_when_null)]
     pub emiten_name: String,
     pub tahun_bulan_tanggal: NaiveDate,
+    #[scylla(default_when_null)]
+    pub tahun_bulan: String,
     #[scylla(default_when_null)]
     pub history: Vec<PortofolioHistoryItem>,
 }

@@ -16,6 +16,8 @@ use crate::pb::pending_order_server::PendingOrder;
 use crate::pb::{
     CreateBuyLimitOrderRequest, CreateBuyLimitOrderResponse, ExpiryPendingOrder,
     GetAllPendingOrderFromScyllaRequest, GetAllPendingOrderFromScyllaResponse,
+    GetAllPendingOrderByTahunBulanFromScyllaRequest,
+    GetAllPendingOrderByTahunBulanFromScyllaResponse,
     GetAllPendingOrderFromStockbitRequest, GetAllPendingOrderFromStockbitResponse,
     GetPendingOrderFromScyllaByEmitenNameRequest, GetPendingOrderFromScyllaByEmitenNameResponse,
     PendingOrderRow,
@@ -137,6 +139,21 @@ impl PendingOrderService {
         })
     }
 
+    fn parse_tahun_bulan(raw: &str) -> Result<String, Status> {
+        let value = raw.trim();
+        if value.is_empty() {
+            return Err(Status::invalid_argument(
+                "tahun_bulan wajib diisi (YYYY-MM)",
+            ));
+        }
+        chrono::NaiveDate::parse_from_str(&format!("{value}-01"), "%Y-%m-%d").map_err(|_| {
+            Status::invalid_argument(format!(
+                "tahun_bulan tidak valid (harus YYYY-MM): {value}"
+            ))
+        })?;
+        Ok(value.to_string())
+    }
+
     fn row_to_proto(row: DbPendingOrderRow) -> PendingOrderRow {
         PendingOrderRow {
             order_id: row.order_id,
@@ -160,6 +177,7 @@ impl PendingOrderService {
                 .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
             tahun_bulan_tanggal: row.tahun_bulan_tanggal.format("%Y-%m-%d").to_string(),
+            tahun_bulan: row.tahun_bulan,
         }
     }
 }
@@ -189,6 +207,33 @@ impl PendingOrder for PendingOrderService {
         .await;
 
         Self::log_rpc_debug("GetAllPendingOrderFromScylla", &user_name, started);
+        result
+    }
+
+    async fn get_all_pending_order_by_tahun_bulan_from_scylla(
+        &self,
+        request: Request<GetAllPendingOrderByTahunBulanFromScyllaRequest>,
+    ) -> Result<Response<GetAllPendingOrderByTahunBulanFromScyllaResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_admin(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<GetAllPendingOrderByTahunBulanFromScyllaResponse>, Status> =
+            async {
+                let tahun_bulan =
+                    Self::parse_tahun_bulan(&request.into_inner().tahun_bulan)?;
+                let rows =
+                    crate::repository::find_by_tahun_bulan(self.session.as_ref(), &tahun_bulan)
+                        .await
+                        .map_err(Status::internal)?;
+
+                Ok(Response::new(GetAllPendingOrderByTahunBulanFromScyllaResponse {
+                    rows: rows.into_iter().map(Self::row_to_proto).collect(),
+                }))
+            }
+            .await;
+
+        Self::log_rpc_debug("GetAllPendingOrderByTahunBulanFromScylla", &user_name, started);
         result
     }
 

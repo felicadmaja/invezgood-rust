@@ -8,6 +8,7 @@ WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
 CREATE TABLE IF NOT EXISTS invezgood.pending_order (
     order_id            text,
     tahun_bulan_tanggal date,
+    tahun_bulan         text,
     emiten_name         text,
     status              text,
     message             text,
@@ -47,11 +48,20 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_tahun_bulan_ta
     PRIMARY KEY (tahun_bulan_tanggal, order_id)
     WITH CLUSTERING ORDER BY (order_id ASC);
 
+CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_tahun_bulan AS
+    SELECT * FROM invezgood.pending_order
+    WHERE tahun_bulan IS NOT NULL
+      AND order_id IS NOT NULL
+      AND tahun_bulan_tanggal IS NOT NULL
+    PRIMARY KEY (tahun_bulan, tahun_bulan_tanggal, order_id)
+    WITH CLUSTERING ORDER BY (tahun_bulan_tanggal DESC, order_id ASC);
+
 -- Skema aktual:
 -- | column_name         | kind            | type      |
 -- |---------------------|-----------------|-----------|
 -- | order_id            | partition_key   | text      |
 -- | tahun_bulan_tanggal | clustering DESC | date (dari time_open YYYY-MM-DD) |
+-- | tahun_bulan         | regular         | text (YYYY-MM dari tahun_bulan_tanggal) |
 -- | emiten_name         | regular         | text      |
 -- | status              | regular         | text      |
 -- | message             | regular         | text      |
@@ -65,6 +75,15 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_tahun_bulan_ta
 -- | amount_match_total  | regular         | double    |
 -- | is_gtc              | regular         | boolean   |
 -- | updated_at          | regular         | timestamp |
+--
+-- MV pending_order_by_tahun_bulan:
+-- PK (tahun_bulan, tahun_bulan_tanggal DESC, order_id ASC)
+-- Query: WHERE tahun_bulan = 'YYYY-MM'
+--
+-- Migrasi (jalan sekali bila tabel sudah ada tanpa tahun_bulan):
+-- ALTER TABLE invezgood.pending_order ADD tahun_bulan text;
+-- UPDATE ... SET tahun_bulan = 'YYYY-MM' WHERE order_id = ? AND tahun_bulan_tanggal = ?;
+-- lalu CREATE MATERIALIZED VIEW pending_order_by_tahun_bulan di atas.
 --
 -- Migrasi PK (order_id) → ((order_id), tahun_bulan_tanggal DESC):
 -- DROP MATERIALIZED VIEW IF EXISTS invezgood.pending_order_by_emiten_name;

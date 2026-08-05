@@ -10,6 +10,11 @@ service PendingOrder {
   rpc GetAllPendingOrderFromScylla(GetAllPendingOrderFromScyllaRequest)
       returns (GetAllPendingOrderFromScyllaResponse);
 
+  // Baca pending order by bulan via MV pending_order_by_tahun_bulan.
+  // Request: tahun_bulan (YYYY-MM) wajib.
+  rpc GetAllPendingOrderByTahunBulanFromScylla(GetAllPendingOrderByTahunBulanFromScyllaRequest)
+      returns (GetAllPendingOrderByTahunBulanFromScyllaResponse);
+
   // Baca pending order per emiten via MV pending_order_by_emiten_name.
   rpc GetPendingOrderFromScyllaByEmitenName(GetPendingOrderFromScyllaByEmitenNameRequest)
       returns (GetPendingOrderFromScyllaByEmitenNameResponse);
@@ -37,6 +42,12 @@ message GetAllPendingOrderFromScyllaRequest {
   // Tanggal filter YYYY-MM-DD → MV pending_order_by_tahun_bulan_tanggal.
   string tahun_bulan_tanggal = 1;
 }
+
+message GetAllPendingOrderByTahunBulanFromScyllaRequest {
+  // Filter YYYY-MM → MV pending_order_by_tahun_bulan.
+  string tahun_bulan = 1;
+}
+
 message GetAllPendingOrderFromStockbitRequest {}
 
 message GetPendingOrderFromScyllaByEmitenNameRequest {
@@ -77,9 +88,15 @@ message PendingOrderRow {
   string updated_at = 14;
   // Tanggal dari time_open (YYYY-MM-DD); clustering key DESC.
   string tahun_bulan_tanggal = 15;
+  // YYYY-MM dari tahun_bulan_tanggal.
+  string tahun_bulan = 16;
 }
 
 message GetAllPendingOrderFromScyllaResponse {
+  repeated PendingOrderRow rows = 1;
+}
+
+message GetAllPendingOrderByTahunBulanFromScyllaResponse {
   repeated PendingOrderRow rows = 1;
 }
 

@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use futures::TryStreamExt;
 use scylla::client::session::Session;
 use scylla::statement::prepared::PreparedStatement;
 use tokio::sync::OnceCell;
 
 use crate::database::keyspace;
-use crate::model::PortofolioHistory;
+use crate::model::{PortofolioHistory, KEYSPACE, MV_BY_TAHUN_BULAN};
 
 struct Prepared {
     latest_by_emiten: PreparedStatement,
@@ -31,7 +32,7 @@ impl PortofolioHistoryRepository {
         self.prepared
             .get_or_try_init(|| async {
                 let latest = format!(
-                    "SELECT emiten_name, tahun_bulan_tanggal, history \
+                    "SELECT emiten_name, tahun_bulan_tanggal, tahun_bulan, history \
                      FROM {} WHERE emiten_name = ? LIMIT 1",
                     self.table
                 );
@@ -58,5 +59,26 @@ impl PortofolioHistoryRepository {
             .await?
             .into_rows_result()?;
         Ok(result.maybe_first_row::<PortofolioHistory>()?)
+    }
+
+    pub async fn find_by_tahun_bulan(
+        &self,
+        tahun_bulan: &str,
+    ) -> Result<Vec<PortofolioHistory>, Box<dyn std::error::Error + Send + Sync>> {
+        let q = format!(
+            "SELECT emiten_name, tahun_bulan_tanggal, tahun_bulan, history \
+             FROM {KEYSPACE}.{MV_BY_TAHUN_BULAN} WHERE tahun_bulan = ?"
+        );
+        let mut rows = self
+            .session
+            .query_iter(q.as_str(), (tahun_bulan,))
+            .await?
+            .rows_stream::<PortofolioHistory>()?;
+
+        let mut out = Vec::new();
+        while let Some(row) = rows.try_next().await? {
+            out.push(row);
+        }
+        Ok(out)
     }
 }

@@ -191,10 +191,10 @@ async fn upsert_pending_orders(
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.pending_order (\
-                order_id, tahun_bulan_tanggal, emiten_name, status, message, side, time_open, \
+                order_id, tahun_bulan_tanggal, tahun_bulan, emiten_name, status, message, side, time_open, \
                 lot_open, lot_done, price_order, amount_open, amount_match, \
                 amount_match_total, is_gtc, updated_at\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
@@ -205,12 +205,14 @@ async fn upsert_pending_orders(
         n_rows = rows.len()
     );
     for row in rows {
+        let tahun_bulan = row.tahun_bulan_tanggal.format("%Y-%m").to_string();
         session
             .execute_unpaged(
                 &insert,
                 (
                     row.order_id.as_str(),
                     row.tahun_bulan_tanggal,
+                    tahun_bulan.as_str(),
                     row.emiten_name.as_str(),
                     row.status.as_str(),
                     row.message.as_str(),
