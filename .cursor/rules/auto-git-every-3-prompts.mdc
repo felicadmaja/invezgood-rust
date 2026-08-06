@@ -18,7 +18,7 @@ Pastikan **Cursor Settings → Hooks** aktif. Agent **tidak perlu** git manual b
 - State: `.cursor/auto-git-counter` (integer, mulai 0).
 - Setiap agent selesai (event `stop`): counter +1.
 - Saat counter = **3**: reset ke 0, lalu workflow git.
-- Debug: `.cursor/auto-git.log`.
+- Debug: `.cursor/auto-git.log` (keduanya di `.gitignore` — hanya state lokal).
 
 ## Git workflow (counter = 3, hanya bila ada perubahan)
 
@@ -37,3 +37,13 @@ Jika counter = 3 dan tidak ada commit otomatis, agent **wajib** jalankan workflo
 - Jangan commit `.env`, credentials, atau file rahasia (unstage `.env` bila ter-add).
 - Jangan force push ke `main` / `master`.
 - Counter tetap naik meski respons Q&A saja; commit hanya bila ada perubahan.
+
+## Di-track Git (jangan masuk `.gitignore`)
+
+Rule + hook ini **harus** ikut repo agar tim clone dapat perilaku yang sama:
+
+- `.cursor/rules/auto-git-every-3-prompts.mdc` (file ini)
+- `.cursor/hooks.json`
+- `.cursor/hooks/auto-git-every-3-prompts.sh`
+
+Yang di-ignore hanya runtime: `.cursor/auto-git-counter`, `.cursor/auto-git.log`.

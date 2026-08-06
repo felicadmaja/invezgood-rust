@@ -1,4 +1,5 @@
 /target/
+# Runtime hook counters/logs saja — rules & hooks .cursor/ tetap di-track git
 .cursor/auto-git-counter
 .cursor/auto-build-counter
 .env
