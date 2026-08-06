@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use chrono::{Datelike, Local, Timelike};
+use chrono::Local;
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
@@ -44,33 +44,6 @@ async fn acquire_movers_scrape_slot(user_name: &str) -> Result<(), Status> {
         }
     }
     *last = Some(Instant::now());
-    Ok(())
-}
-
-/// Batasi scrape emiten trending ke Senin–Jumat, jam 08:15–12:00 dan 13:30–16:15 (server lokal).
-fn require_emiten_trending_scrape_hours() -> Result<(), Status> {
-    let now = Local::now();
-    match now.weekday() {
-        chrono::Weekday::Sat | chrono::Weekday::Sun => {
-            return Err(Status::failed_precondition(
-                "Diluar hari operasional Senin-Jumat (Sabtu/Minggu tidak scrape)",
-            ));
-        }
-        _ => {}
-    }
-
-    let mins = now.hour() * 60 + now.minute();
-    const MORNING_START: u32 = 8 * 60 + 15;
-    const MORNING_END: u32 = 12 * 60 + 1;
-    const AFTERNOON_START: u32 = 13 * 60 + 30;
-    const AFTERNOON_END: u32 = 16 * 60 + 16;
-    let in_morning = mins >= MORNING_START && mins < MORNING_END;
-    let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
-    if !in_morning && !in_afternoon {
-        return Err(Status::failed_precondition(
-            "Diluar jam 08:15-12:00 dan 13:30-16:15",
-        ));
-    }
     Ok(())
 }
 
@@ -162,7 +135,6 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         let _ = request.into_inner();
 
         let result: Result<Response<GetAllEmitenTrendingResponse>, Status> = async {
-            require_emiten_trending_scrape_hours()?;
             acquire_movers_scrape_slot(&user_name).await?;
 
             on_demand::scrape_emiten_trending_movers(Arc::clone(&self.session))

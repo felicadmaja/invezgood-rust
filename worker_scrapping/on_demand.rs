@@ -75,6 +75,7 @@ async fn wait_watch<T: Clone>(mut rx: watch::Receiver<Option<T>>, label: &str) -
 pub async fn scrape_portofolio_all(
     session: Arc<Session>,
 ) -> Result<(usize, Vec<String>), String> {
+    // On-demand RPC: tanpa cek jam operasional (batas hari/jam hanya di poller).
     let rx = {
         let mut slot = inflight_porto_all().lock().await;
         if let Some(existing) = slot.as_ref() {
@@ -267,6 +268,7 @@ async fn run_create_buy_limit_order(
 pub async fn scrape_emiten_trending_movers(
     session: Arc<Session>,
 ) -> Result<(usize, usize), String> {
+    // On-demand RPC: tanpa cek jam operasional (batas hari/jam hanya di poller).
     let rx = {
         let mut slot = inflight_emiten_trending().lock().await;
         if let Some(existing) = slot.as_ref() {
