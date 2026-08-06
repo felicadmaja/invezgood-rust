@@ -101,6 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 })
             }))
             .await;
+        readiness_poller.ensure_loop_running().await;
     }
 
     let user = UserService::new(session, auth_sessions, readiness_poller);

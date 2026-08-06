@@ -138,6 +138,7 @@ async fn run_portofolio_all_scrape(
 }
 
 pub async fn scrape_pending_order_all(session: Arc<Session>) -> Result<usize, String> {
+    // On-demand RPC: tanpa cek jam operasional (batas hari/jam hanya di poller).
     let rx = {
         let mut slot = inflight_pending_order().lock().await;
         if let Some(existing) = slot.as_ref() {
@@ -330,7 +331,7 @@ async fn run_emiten_trending_movers_scrape(
     result
 }
 
-/// Senin–Jumat, jam 09:00–12:00 dan 13:30–16:00 (waktu server lokal).
+/// Senin–Jumat, jam 09:00–12:00 dan 13:30–16:15 (waktu server lokal).
 pub fn is_stockbit_poller_scrape_hours() -> bool {
     use chrono::{Datelike, Local, Timelike};
 
@@ -344,7 +345,7 @@ pub fn is_stockbit_poller_scrape_hours() -> bool {
     const MORNING_START: u32 = 9 * 60;
     const MORNING_END: u32 = 12 * 60 + 1;
     const AFTERNOON_START: u32 = 13 * 60 + 30;
-    const AFTERNOON_END: u32 = 16 * 60 + 1;
+    const AFTERNOON_END: u32 = 16 * 60 + 15 + 1;
     let in_morning = mins >= MORNING_START && mins < MORNING_END;
     let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
     in_morning || in_afternoon
@@ -449,7 +450,7 @@ async fn run_portofolio_history_scrape(
 }
 
 /// Dipanggil dari readiness poller setelah tiap tick: scrape portofolio, emiten_trending,
-/// pending_order — hanya Senin–Jumat 09:00–12:00 & 13:30–16:00, dan hanya bila `ready`.
+/// pending_order — hanya Senin–Jumat 09:00–12:00 & 13:30–16:15, dan hanya bila `ready`.
 pub async fn run_poller_stockbit_scrapes(session: Arc<Session>, ready: bool) {
     if !ready {
         println!("Poller scrapes: Stockbit belum ready — skip");
@@ -457,7 +458,7 @@ pub async fn run_poller_stockbit_scrapes(session: Arc<Session>, ready: bool) {
     }
     if !is_stockbit_poller_scrape_hours() {
         println!(
-            "Poller scrapes: diluar jam operasional Senin–Jumat 09:00–12:00 & 13:30–16:00 — skip"
+            "Poller scrapes: diluar jam operasional Senin–Jumat 09:00–12:00 & 13:30–16:15 — skip"
         );
         return;
     }

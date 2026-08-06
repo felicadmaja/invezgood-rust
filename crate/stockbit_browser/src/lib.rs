@@ -12,7 +12,7 @@
 //! `STOCKBIT_BEARER_CACHE_SECS` (default 300 — cache JWT antar scrape),
 //! `STOCKBIT_BROWSER_DATA_DIR`,
 //! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 540–600 —
-//! interval poller saat ada subscriber `IsStockbitReady`), `REDIS_URL` (state readiness).
+//! interval poller readiness; selalu jalan sejak server start), `REDIS_URL` (state readiness).
 //!
 //! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
 
@@ -31,7 +31,6 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch, Mutex, MutexGuard};
-use tokio::task::AbortHandle;
 use tokio::time::{sleep, timeout};
 
 /// Hook setelah setiap tick poller readiness (`ready` = status terakhir).
@@ -220,36 +219,33 @@ fn next_poll_secs() -> u64 {
     rand::thread_rng().gen_range(min..=max)
 }
 
-/// Poller tunggal per proses: cek stockbit.com setiap 9–10 menit **hanya bila**
-/// minimal 1 client subscribe `IsStockbitReady`. Banyak subscriber tidak menambah frekuensi.
-/// Status terakhir di Redis (`stockbit:readiness`); stream hanya baca cache poller/Redis.
+/// Poller tunggal per proses: cek stockbit.com setiap 9–10 menit **selalu** sejak
+/// `ensure_loop_running` / start server (tidak tergantung subscriber `IsStockbitReady`).
+/// Banyak subscriber tidak menambah frekuensi. Status terakhir di Redis (`stockbit:readiness`);
+/// stream hanya baca cache poller/Redis.
 /// Opsional: `set_after_poll_hook` untuk auto-scrape (portofolio / emiten / pending) setelah tick.
 #[derive(Clone)]
 pub struct ReadinessPoller {
     notify: watch::Sender<Option<ReadinessUpdate>>,
     subscriber_count: Arc<AtomicUsize>,
-    loop_state: Arc<Mutex<Option<LoopHandle>>>,
+    /// True bila loop poller sudah di-spawn.
+    loop_started: Arc<Mutex<bool>>,
     after_poll: Arc<Mutex<Option<AfterPollHook>>>,
 }
 
-struct LoopHandle {
-    abort: AbortHandle,
-    task: tokio::task::JoinHandle<()>,
-}
-
 impl ReadinessPoller {
-    /// Buat poller tanpa loop — loop dimulai saat subscriber pertama `register_subscriber`.
+    /// Buat poller tanpa loop — panggil `ensure_loop_running` di app startup agar selalu jalan.
     pub fn new() -> Arc<Self> {
         let (notify, _) = watch::channel(None);
         Arc::new(Self {
             notify,
             subscriber_count: Arc::new(AtomicUsize::new(0)),
-            loop_state: Arc::new(Mutex::new(None)),
+            loop_started: Arc::new(Mutex::new(false)),
             after_poll: Arc::new(Mutex::new(None)),
         })
     }
 
-    /// Back-compat: sama `new()` + tidak auto-start loop.
+    /// Back-compat: sama `new()`.
     pub fn start() -> Arc<Self> {
         Self::new()
     }
@@ -259,19 +255,16 @@ impl ReadinessPoller {
         *self.after_poll.lock().await = Some(hook);
     }
 
-    /// Dipanggil saat client buka stream `IsStockbitReady`.
+    /// Dipanggil saat client buka stream `IsStockbitReady` (hanya hitung subscriber stream).
     pub async fn register_subscriber(self: &Arc<Self>) {
-        let prev = self.subscriber_count.fetch_add(1, Ordering::SeqCst);
-        if prev == 0 {
-            self.ensure_loop_running().await;
-        }
+        self.subscriber_count.fetch_add(1, Ordering::SeqCst);
     }
 
-    /// Dipanggil saat client tutup stream `IsStockbitReady`.
+    /// Dipanggil saat client tutup stream `IsStockbitReady` (tidak menghentikan poller).
     pub async fn unregister_subscriber(self: &Arc<Self>) {
-        let prev = self.subscriber_count.fetch_sub(1, Ordering::SeqCst);
-        if prev == 1 {
-            self.stop_loop().await;
+        let prev = self.subscriber_count.load(Ordering::SeqCst);
+        if prev > 0 {
+            self.subscriber_count.fetch_sub(1, Ordering::SeqCst);
         }
     }
 
@@ -289,9 +282,10 @@ impl ReadinessPoller {
         self.notify.subscribe()
     }
 
-    async fn ensure_loop_running(self: &Arc<Self>) {
-        let mut guard = self.loop_state.lock().await;
-        if guard.is_some() {
+    /// Mulai loop poller bila belum jalan (idempotent). Dipakai di app startup.
+    pub async fn ensure_loop_running(self: &Arc<Self>) {
+        let mut started = self.loop_started.lock().await;
+        if *started {
             return;
         }
 
@@ -305,21 +299,11 @@ impl ReadinessPoller {
         }
 
         let poller = Arc::clone(self);
-        let task = tokio::spawn(async move {
+        tokio::spawn(async move {
             poller.run_loop().await;
         });
-        let abort = task.abort_handle();
-        *guard = Some(LoopHandle { abort, task });
-        println!("Stockbit readiness poller: dimulai (subscriber pertama)");
-    }
-
-    async fn stop_loop(&self) {
-        let mut guard = self.loop_state.lock().await;
-        if let Some(handle) = guard.take() {
-            handle.abort.abort();
-            let _ = handle.task.await;
-            println!("Stockbit readiness poller: dihentikan (tidak ada subscriber)");
-        }
+        *started = true;
+        println!("Stockbit readiness poller: dimulai (selalu aktif)");
     }
 
     async fn publish(&self, update: ReadinessUpdate) {
@@ -330,13 +314,9 @@ impl ReadinessPoller {
     async fn run_loop(self: Arc<Self>) {
         let mut first = true;
         loop {
-            if self.subscriber_count.load(Ordering::SeqCst) == 0 {
-                break;
-            }
-
             if first {
                 first = false;
-                println!("Stockbit readiness poller: cek awal (ada subscriber)");
+                println!("Stockbit readiness poller: cek awal");
             } else {
                 let wait_secs = next_poll_secs();
                 let (min, max) = poll_interval_range();
@@ -344,9 +324,6 @@ impl ReadinessPoller {
                     "Stockbit readiness poller: cek berikutnya dalam {wait_secs}s (interval {min}–{max}s)"
                 );
                 sleep(Duration::from_secs(wait_secs)).await;
-                if self.subscriber_count.load(Ordering::SeqCst) == 0 {
-                    break;
-                }
             }
 
             let (tx, mut rx) = mpsc::channel::<ReadinessUpdate>(8);
@@ -379,9 +356,6 @@ impl ReadinessPoller {
                 hook(ready).await;
             }
         }
-
-        let mut guard = self.loop_state.lock().await;
-        *guard = None;
     }
 }
 

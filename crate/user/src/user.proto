@@ -14,9 +14,9 @@ service User {
   rpc GetUsersFromScylla(GetUsersFromScyllaRequest) returns (GetUsersFromScyllaResponse);
 
   // Status login Chrome scraper Stockbit (state di Redis stockbit:readiness).
-  // Poller global 9–10 menit hanya jalan bila minimal 1 client subscribe stream ini;
-  // banyak subscriber tidak menambah frekuensi poll.
-  // Setelah tiap tick (bila ready + Senin–Jumat 09:00–12:00 & 13:30–16:00), poller
+  // Poller global 9–10 menit selalu jalan sejak server start (tanpa perlu subscriber stream).
+  // Banyak subscriber stream tidak menambah frekuensi poll.
+  // Setelah tiap tick (bila ready + Senin–Jumat 09:00–12:00 & 13:30–16:15), poller
   // auto-invoke alur sama RPC berikut (bukan panggil gRPC client, langsung scrape worker):
   //   1. GetAllPortofolioFromStockbit
   //   2. GetLatestEmitenTrendingFromStockbit

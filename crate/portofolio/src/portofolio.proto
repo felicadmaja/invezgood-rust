@@ -14,7 +14,7 @@ service Portofolio {
       returns (GetPortofolioFromScyllaByEmitenNameResponse);
 
   // On-demand (admin) + auto dari IsStockbitReady poller (Senin–Jumat 09:00–12:00 &
-  // 13:30–16:00 bila Stockbit ready). Scrape holdings + equity Stockbit
+  // 13:30–16:15 bila Stockbit ready; poller selalu jalan tanpa perlu subscriber). Scrape holdings + equity Stockbit
   // (carina.stockbit.com/portfolio/v2/list) → setelah data siap: TRUNCATE portofolio lalu
   // insert holdings + upsert portofolio_equity. Rate limit on-demand: 1× / 3 menit global.
   rpc GetAllPortofolioFromStockbit(GetAllPortofolioFromStockbitRequest)

@@ -19,10 +19,11 @@ service PendingOrder {
   rpc GetPendingOrderFromScyllaByEmitenName(GetPendingOrderFromScyllaByEmitenNameRequest)
       returns (GetPendingOrderFromScyllaByEmitenNameResponse);
 
-  // On-demand (admin) + auto dari IsStockbitReady poller (Senin–Jumat 09:00–12:00 &
-  // 13:30–16:00 bila Stockbit ready). Scrape order Stockbit
+  // Invoke RPC langsung (admin): tanpa batas hari/jam; rate limit global 1× / 3 menit
+  // → success=false + message rate limit (bukan gRPC error).
+  // Auto dari IsStockbitReady poller: hanya Senin–Jumat 09:00–12:00 & 13:30–16:15 bila Stockbit ready
+  // (poller selalu jalan tanpa perlu subscriber). Scrape order Stockbit
   // (carina.stockbit.com/order/v2/list) via Chrome → upsert invezgood.pending_order.
-  // Rate limit on-demand: 1× / 3 menit global → success=false + message rate limit (bukan gRPC error).
   rpc GetAllPendingOrderFromStockbit(GetAllPendingOrderFromStockbitRequest)
       returns (GetAllPendingOrderFromStockbitResponse);
 
