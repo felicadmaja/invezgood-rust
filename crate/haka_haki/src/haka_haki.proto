@@ -1,0 +1,4 @@
+// buatkan rpc 'GetHakaHakiFromInvezgo' yang akan menerima request:
+// string code = 1;
+// string tahun_bulan_tanggal = 2;
+// logic akan melakukan invoke ke  'https://api.invezgo.com/analysis/momentum-chart/{code}?date={tahun_bulan_tanggal}&range=1&scope=volume'
