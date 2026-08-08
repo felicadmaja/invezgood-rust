@@ -12,6 +12,7 @@ service HakaHaki {
 
   // Baca invezgood.haka_haki via MV haka_haki_by_agg_code_tahun_bulan_tanggal.
   // Request: code + tahun_bulan_tanggal (YYYY-MM-DD) wajib.
+  // tahun_bulan_tanggal Sabtu/Minggu → FAILED_PRECONDITION "Hari sabtu/minggu market libur".
   rpc GetHakaHakiFromScylla(GetHakaHakiFromScyllaRequest)
       returns (GetHakaHakiFromScyllaResponse);
 }
@@ -26,7 +27,7 @@ message GetHakaHakiFromInvezgoRequest {
 
 message GetHakaHakiFromScyllaRequest {
   string code = 1;
-  // Tanggal YYYY-MM-DD → MV agg `{code}_{YYYY-MM-DD}`.
+  // Tanggal YYYY-MM-DD → MV agg `{code}_{YYYY-MM-DD}`. Sabtu/Minggu ditolak (market libur).
   string tahun_bulan_tanggal = 2;
 }
 

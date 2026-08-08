@@ -163,6 +163,7 @@ impl HakaHakiRpc for HakaHakiService {
                     }));
                 }
             };
+            Self::ensure_weekday_market(trade_date)?;
 
             let agg = agg_code_tahun_bulan_tanggal(&code, trade_date);
             let rows = crate::repository::find_by_agg_code_tahun_bulan_tanggal(
