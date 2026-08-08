@@ -851,6 +851,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "haka_haki"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures",
+ "prost",
+ "reqwest 0.12.28",
+ "scylla",
+ "serde",
+ "serde_json",
+ "tonic",
+ "tonic-build",
+ "user",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1175,6 +1191,7 @@ dependencies = [
  "chart",
  "dotenvy",
  "emiten_trending",
+ "haka_haki",
  "pending_order",
  "portofolio",
  "portofolio_equity",

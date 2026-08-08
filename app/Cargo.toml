@@ -20,6 +20,7 @@ portofolio_history = { path = "../crate/portofolio_history" }
 pending_order = { path = "../crate/pending_order" }
 emiten_trending = { path = "../crate/emiten_trending" }
 chart = { path = "../crate/chart" }
+haka_haki = { path = "../crate/haka_haki" }
 stockbit_browser = { path = "../crate/stockbit_browser" }
 worker_scrapping = { path = "../worker_scrapping" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

@@ -1,4 +1,52 @@
-// buatkan rpc 'GetHakaHakiFromInvezgo' yang akan menerima request:
-// string code = 1;
-// string tahun_bulan_tanggal = 2;
-// logic akan melakukan invoke ke  'https://api.invezgo.com/analysis/momentum-chart/{code}?date={tahun_bulan_tanggal}&range=1&scope=volume'
+syntax = "proto3";
+
+package haka_haki;
+
+service HakaHaki {
+  // Memerlukan user login. Kirim metadata: authorization: Bearer <token>.
+  // GET api.invezgo.com/analysis/momentum-chart/{code}?date={tahun_bulan_tanggal}&range={range}&scope=volume
+  // → upsert invezgood.haka_haki per titik waktu, lalu return items ke client.
+  // tahun_bulan_tanggal Sabtu/Minggu → FAILED_PRECONDITION "Hari sabtu/minggu market libur".
+  rpc GetHakaHakiFromInvezgo(GetHakaHakiFromInvezgoRequest)
+      returns (GetHakaHakiFromInvezgoResponse);
+
+  // Baca invezgood.haka_haki via MV haka_haki_by_agg_code_tahun_bulan_tanggal.
+  // Request: code + tahun_bulan_tanggal (YYYY-MM-DD) wajib.
+  rpc GetHakaHakiFromScylla(GetHakaHakiFromScyllaRequest)
+      returns (GetHakaHakiFromScyllaResponse);
+}
+
+message GetHakaHakiFromInvezgoRequest {
+  string code = 1;
+  // Tanggal YYYY-MM-DD. Sabtu/Minggu ditolak (market libur).
+  string tahun_bulan_tanggal = 2;
+  // Default 5 bila tidak diisi.
+  optional int32 range = 3;
+}
+
+message GetHakaHakiFromScyllaRequest {
+  string code = 1;
+  // Tanggal YYYY-MM-DD → MV agg `{code}_{YYYY-MM-DD}`.
+  string tahun_bulan_tanggal = 2;
+}
+
+message HakaHakiPoint {
+  string time = 1;
+  int64 value = 2;
+  int64 buy = 3;
+  int64 sell = 4;
+}
+
+message GetHakaHakiFromInvezgoResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  string tahun_bulan_tanggal = 4;
+  repeated HakaHakiPoint items = 5;
+}
+
+message GetHakaHakiFromScyllaResponse {
+  bool success = 1;
+  string message = 2;
+  repeated HakaHakiPoint items = 3;
+}

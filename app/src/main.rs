@@ -4,6 +4,7 @@ use bandarmology::{BandarmologyServer, BandarmologyService};
 use broker::{BrokerServer, BrokerService};
 use chart::{ChartServer, ChartService};
 use emiten_trending::{EmitenTrendingServer, EmitenTrendingService};
+use haka_haki::{HakaHakiServer, HakaHakiService};
 use pending_order::{PendingOrderServer, PendingOrderService};
 use portofolio::{PortofolioServer, PortofolioService};
 use portofolio_equity::{PortofolioEquityServer, PortofolioEquityService};
@@ -89,6 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
         auth_sessions.clone(),
     );
+    let haka_haki = HakaHakiService::new(session.clone(), auth_sessions.clone());
 
     let readiness_poller = ReadinessPoller::new();
     {
@@ -121,6 +123,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(pending_order::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(emiten_trending::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(chart::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(haka_haki::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
         enable_compression
@@ -152,6 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         enable_compression
     );
     let chart_svc = maybe_compressed!(ChartServer::new(chart), enable_compression);
+    let haka_haki_svc = maybe_compressed!(HakaHakiServer::new(haka_haki), enable_compression);
 
     let mut builder = Server::builder();
 
@@ -181,6 +185,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(pending_order_svc)
         .add_service(emiten_trending_svc)
         .add_service(chart_svc)
+        .add_service(haka_haki_svc)
         .serve(addr)
         .await?;
 

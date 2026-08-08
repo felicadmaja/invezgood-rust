@@ -12,6 +12,7 @@ members = [
     "crate/pending_order",
     "crate/emiten_trending",
     "crate/chart",
+    "crate/haka_haki",
     "crate/stockbit_browser",
     "crate/tls",
     "worker_scrapping",
