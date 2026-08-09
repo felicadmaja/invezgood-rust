@@ -7,6 +7,7 @@ pub const FILE_DESCRIPTOR_SET: &[u8] =
 
 mod invezgo;
 mod model;
+mod redis_cache;
 mod repository;
 mod service;
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::{Datelike, NaiveDate};
+use chrono::{Datelike, Local, NaiveDate};
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
@@ -89,13 +89,37 @@ impl HakaHakiRpc for HakaHakiService {
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
-        let result: Result<Response<GetHakaHakiFromInvezgoResponse>, Status> = async {
+        enum LogSource {
+            Cache,
+            Api,
+        }
+
+        let (result, log_source, log_detail) = async {
             let req = request.into_inner();
             let code = Self::normalize_code(&req.code)?;
             let trade_date = Self::parse_trade_date(&req.tahun_bulan_tanggal)?;
             Self::ensure_weekday_market(trade_date)?;
             let range = Self::resolve_range(req.range)?;
             let date_str = trade_date.format("%Y-%m-%d").to_string();
+            let today = Local::now().date_naive();
+            let use_cache = trade_date != today;
+
+            if use_cache {
+                if let Some(mut cached) =
+                    crate::redis_cache::get(&code, &date_str, range).await
+                {
+                    cached.message = format!(
+                        "{} (redis cache)",
+                        cached.message.trim_end_matches(" (redis cache)")
+                    );
+                    let detail = format!("{code} {date_str} range={range}");
+                    return Ok((
+                        Ok(Response::new(cached)),
+                        LogSource::Cache,
+                        detail,
+                    ));
+                }
+            }
 
             let api_points: Vec<ApiHakaHakiPoint> =
                 invezgo::fetch_momentum_chart(&code, trade_date, range)
@@ -116,20 +140,43 @@ impl HakaHakiRpc for HakaHakiService {
                 .await
                 .map_err(Status::internal)?;
 
-            Ok(Response::new(GetHakaHakiFromInvezgoResponse {
+            let resp = GetHakaHakiFromInvezgoResponse {
                 success: true,
                 message: format!("{saved} baris di-upsert ke haka_haki"),
-                code,
-                tahun_bulan_tanggal: date_str,
+                code: code.clone(),
+                tahun_bulan_tanggal: date_str.clone(),
                 items,
-            }))
-        }
-        .await;
+            };
 
-        eprintln!(
-            "GetHakaHakiFromInvezgo {user_name} {}ms",
-            started.elapsed().as_millis()
-        );
+            if use_cache {
+                crate::redis_cache::set(&code, &date_str, range, &resp).await;
+            }
+
+            let detail = format!("{code} {date_str} range={range}");
+            Ok((
+                Ok(Response::new(resp)),
+                LogSource::Api,
+                detail,
+            ))
+        }
+        .await
+        .unwrap_or_else(|status: Status| (Err(status), LogSource::Api, String::new()));
+
+        let elapsed = started.elapsed().as_millis();
+        match log_source {
+            LogSource::Cache => eprintln!(
+                "\x1b[37mGetHakaHakiFromInvezgo {user_name} {elapsed}ms - HIT FROM CACHE - {log_detail}\x1b[0m"
+            ),
+            LogSource::Api => {
+                if log_detail.is_empty() {
+                    eprintln!("GetHakaHakiFromInvezgo {user_name} {elapsed}ms");
+                } else {
+                    eprintln!(
+                        "\x1b[32mGetHakaHakiFromInvezgo {user_name} {elapsed}ms - {log_detail}\x1b[0m"
+                    );
+                }
+            }
+        }
         result
     }
 

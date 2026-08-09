@@ -7,6 +7,7 @@ service HakaHaki {
   // GET api.invezgo.com/analysis/momentum-chart/{code}?date={tahun_bulan_tanggal}&range={range}&scope=volume
   // → upsert invezgood.haka_haki per titik waktu, lalu return items ke client.
   // tahun_bulan_tanggal Sabtu/Minggu → FAILED_PRECONDITION "Hari sabtu/minggu market libur".
+  // Bila tahun_bulan_tanggal bukan hari ini: cache Redis key `{code}:{YYYY-MM-DD}:{range}`.
   rpc GetHakaHakiFromInvezgo(GetHakaHakiFromInvezgoRequest)
       returns (GetHakaHakiFromInvezgoResponse);
 
@@ -19,7 +20,7 @@ service HakaHaki {
 
 message GetHakaHakiFromInvezgoRequest {
   string code = 1;
-  // Tanggal YYYY-MM-DD. Sabtu/Minggu ditolak (market libur).
+  // Tanggal YYYY-MM-DD. Sabtu/Minggu ditolak (market libur). Bukan hari ini → Redis cache.
   string tahun_bulan_tanggal = 2;
   // Default 5 bila tidak diisi.
   optional int32 range = 3;
