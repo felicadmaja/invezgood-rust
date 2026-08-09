@@ -1,14 +1,20 @@
 use std::sync::Arc;
+use std::sync::OnceLock;
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use scylla::client::session::Session;
+use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
 use crate::model::{
-    BalanceStatement, CompanyInformation, CorporateAction, Keystats, ShareHolder1, ShareHolder5,
-    ShareHolderComposition, StockListKeystatsRow, StockListRow as DbStockListRow,
-    StockListSummaryRow,
+    BalanceStatement, CompanyInformation, CorporateAction, Keystats, KeyStatsFromStockbitRow,
+    ShareHolder1, ShareHolder5, ShareHolderComposition, StockListKeystatsRow, StockListRow as DbStockListRow, StockListSummaryRow,
+    StockbitClosureFinItemsGroupDb, StockbitDividendGroupDb, StockbitDividendYearValueDb,
+    StockbitFinancialYearGroupDb, StockbitFinancialYearParentDb, StockbitFinancialYearValueDb,
+    StockbitFinNameResultDb, StockbitFitemDb, StockbitMostRecentQuarterDb, StockbitPeriodValueDb,
+    StockbitStatsDb,
 };
 use crate::pb::stock_list_server::StockList;
 use crate::pb::{
@@ -17,14 +23,18 @@ use crate::pb::{
     FinancialStatementResponse, FinancialStatementRowItem, GetAllKeyStatsRequest,
     GetAllKeyStatsResponse, GetAllStocksRequest, GetAllStocksResponse,
     GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest,
-    GetHorizontalLineByCodeRequest, GetHorizontalLineByCodeResponse, GetStockByCodeRequest,
+    GetHorizontalLineByCodeRequest, GetHorizontalLineByCodeResponse,
+    GetKeyStatsFromStockbitRequest, GetStockByCodeRequest,
     GetStockByRepeatedCodeRequest, GetStockByRepeatedCodeResponse,
     GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
     GetWyckoffChartByCodeResponse,
-    KeystatsData, KeystatsResponse, KeyStatsColumn, KeyStatsRowItem,
-    KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data, ShareHolder5Entry,
-    ShareHolderAndCompanyInformationByCodeResponse, ShareHolderCompositionData,
-    ShareHolderCompositionEntry, StatementPanelData, StockByCodeResponse, StockListRow,
+    KeystatsData, KeystatsResponse, KeyStatsColumn, KeyStatsFromStockbitResponse,
+    KeyStatsRowItem, KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data,
+    ShareHolder5Entry, ShareHolderAndCompanyInformationByCodeResponse,
+    ShareHolderCompositionData, ShareHolderCompositionEntry, StatementPanelData,
+    StockbitClosureFinItemsGroup, StockbitDividendGroup, StockbitDividendYearValue,
+    StockbitFinancialYearGroup, StockbitFinancialYearParent, StockbitFinancialYearValue, StockbitFinNameResult, StockbitFitem, StockbitMostRecentQuarter,
+    StockbitPeriodValue, StockbitStats, StockByCodeResponse, StockListRow,
     UpdateHorizontalLineByCodeRequest, UpdateHorizontalLineByCodeResponse,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
     UpdateIsPlanToTradeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
@@ -33,6 +43,31 @@ use crate::pb::{
 };
 
 const CACHE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
+const KEYSTATS_FROM_STOCKBIT_COOLDOWN: Duration = Duration::from_secs(60);
+
+static LAST_KEYSTATS_FROM_STOCKBIT: OnceLock<Mutex<Option<std::time::Instant>>> = OnceLock::new();
+
+fn keystats_from_stockbit_gate() -> &'static Mutex<Option<std::time::Instant>> {
+    LAST_KEYSTATS_FROM_STOCKBIT.get_or_init(|| Mutex::new(None))
+}
+
+async fn acquire_keystats_from_stockbit_slot(user_name: &str) -> Result<(), Status> {
+    let mut last = keystats_from_stockbit_gate().lock().await;
+    if let Some(at) = *last {
+        let elapsed = at.elapsed();
+        if elapsed < KEYSTATS_FROM_STOCKBIT_COOLDOWN {
+            let remaining_secs = (KEYSTATS_FROM_STOCKBIT_COOLDOWN - elapsed).as_secs().max(1);
+            eprintln!(
+                "GetKeyStatsFromStockbit {user_name} rate-limit ditolak: sisa {remaining_secs}s"
+            );
+            return Err(Status::failed_precondition(format!(
+                "Rate limit: maksimal 1× / menit untuk semua user. Tunggu {remaining_secs} detik lagi"
+            )));
+        }
+    }
+    *last = Some(std::time::Instant::now());
+    Ok(())
+}
 
 const ALL_STATEMENT_KINDS: [StatementKind; 4] = [
     StatementKind::Keystats,
@@ -650,6 +685,186 @@ impl StockListService {
         }
         Ok(())
     }
+
+    fn stockbit_fitem_to_proto(item: StockbitFitemDb) -> StockbitFitem {
+        StockbitFitem {
+            id: item.id,
+            name: item.name,
+            value: item.value,
+        }
+    }
+
+    fn stockbit_fin_name_result_to_proto(item: StockbitFinNameResultDb) -> StockbitFinNameResult {
+        StockbitFinNameResult {
+            fitem: Some(Self::stockbit_fitem_to_proto(item.fitem)),
+            hidden_graph_ico: item.hidden_graph_ico,
+            is_new_update: item.is_new_update,
+        }
+    }
+
+    fn stockbit_closure_group_to_proto(
+        group: StockbitClosureFinItemsGroupDb,
+    ) -> StockbitClosureFinItemsGroup {
+        StockbitClosureFinItemsGroup {
+            keystats_name: group.keystats_name,
+            fin_name_results: group
+                .fin_name_results
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_fin_name_result_to_proto)
+                .collect(),
+        }
+    }
+
+    fn stockbit_period_value_to_proto(item: StockbitPeriodValueDb) -> StockbitPeriodValue {
+        StockbitPeriodValue {
+            period: item.period,
+            quarter_value: item.quarter_value,
+            year: item.year,
+            is_new_update: item.is_new_update,
+        }
+    }
+
+    fn stockbit_financial_year_value_to_proto(
+        item: StockbitFinancialYearValueDb,
+    ) -> StockbitFinancialYearValue {
+        StockbitFinancialYearValue {
+            year: item.year,
+            period_values: item
+                .period_values
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_period_value_to_proto)
+                .collect(),
+            annualised_value: item.annualised_value,
+            ttm_value: item.ttm_value,
+            is_new_update: item.is_new_update,
+            dividend: item.dividend,
+            payout_ratio: item.payout_ratio,
+            dividend_yield: item.dividend_yield,
+        }
+    }
+
+    fn stockbit_most_recent_quarter_to_proto(
+        item: StockbitMostRecentQuarterDb,
+    ) -> StockbitMostRecentQuarter {
+        StockbitMostRecentQuarter {
+            date: item.date,
+            quarter: item.quarter,
+            is_new_update: item.is_new_update,
+        }
+    }
+
+    fn stockbit_financial_year_group_to_proto(
+        group: StockbitFinancialYearGroupDb,
+    ) -> StockbitFinancialYearGroup {
+        StockbitFinancialYearGroup {
+            financial_year_values: group
+                .financial_year_values
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_financial_year_value_to_proto)
+                .collect(),
+            fitem_name: group.fitem_name,
+            most_recent_quarter: Some(Self::stockbit_most_recent_quarter_to_proto(
+                group.most_recent_quarter,
+            )),
+        }
+    }
+
+    fn stockbit_financial_year_parent_to_proto(
+        parent: Option<StockbitFinancialYearParentDb>,
+    ) -> StockbitFinancialYearParent {
+        let Some(parent) = parent else {
+            return StockbitFinancialYearParent::default();
+        };
+        StockbitFinancialYearParent {
+            financial_year_groups: parent
+                .financial_year_groups
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_financial_year_group_to_proto)
+                .collect(),
+            financial_year_groups_usd: parent
+                .financial_year_groups_usd
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_financial_year_group_to_proto)
+                .collect(),
+        }
+    }
+
+    fn stockbit_stats_to_proto(stats: Option<StockbitStatsDb>) -> StockbitStats {
+        let Some(stats) = stats else {
+            return StockbitStats::default();
+        };
+        StockbitStats {
+            current_share_outstanding: stats.current_share_outstanding,
+            market_cap: stats.market_cap,
+            enterprise_value: stats.enterprise_value,
+            free_float: stats.free_float,
+        }
+    }
+
+    fn stockbit_dividend_year_value_to_proto(
+        item: StockbitDividendYearValueDb,
+    ) -> StockbitDividendYearValue {
+        StockbitDividendYearValue {
+            period: item.period,
+            dividend: item.dividend,
+            ex_date: item.ex_date,
+            payment_date: item.payment_date,
+        }
+    }
+
+    fn stockbit_dividend_group_to_proto(group: Option<StockbitDividendGroupDb>) -> StockbitDividendGroup {
+        let Some(group) = group else {
+            return StockbitDividendGroup::default();
+        };
+        StockbitDividendGroup {
+            fitem_id: group.fitem_id.unwrap_or_default(),
+            dividend_year_values: group
+                .dividend_year_values
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_dividend_year_value_to_proto)
+                .collect(),
+        }
+    }
+
+    fn keystats_from_stockbit_row_response(
+        row: KeyStatsFromStockbitRow,
+        message: &str,
+    ) -> KeyStatsFromStockbitResponse {
+        KeyStatsFromStockbitResponse {
+            success: true,
+            message: message.to_string(),
+            code: row.code,
+            closure_fin_items_results: row
+                .closure_fin_items_results_stockbit
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_closure_group_to_proto)
+                .collect(),
+            closure_fin_items_results_updated_at: row
+                .closure_fin_items_results_stockbit_updated_at
+                .map(|dt| dt.timestamp()),
+            financial_year_parent: Some(Self::stockbit_financial_year_parent_to_proto(
+                row.financial_year_parent_stockbit,
+            )),
+            financial_year_parent_updated_at: row
+                .financial_year_parent_stockbit_updated_at
+                .map(|dt| dt.timestamp()),
+            stats: Some(Self::stockbit_stats_to_proto(row.stats_stockbit)),
+            stats_updated_at: row.stats_stockbit_updated_at.map(|dt| dt.timestamp()),
+            dividend_group: Some(Self::stockbit_dividend_group_to_proto(
+                row.dividend_group_stockbit,
+            )),
+            dividend_group_updated_at: row
+                .dividend_group_stockbit_updated_at
+                .map(|dt| dt.timestamp()),
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -765,6 +980,72 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("GetStockByRepeatedCode", &user_name, started);
+        result
+    }
+
+    async fn get_key_stats_from_stockbit(
+        &self,
+        request: Request<GetKeyStatsFromStockbitRequest>,
+    ) -> Result<Response<KeyStatsFromStockbitResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<KeyStatsFromStockbitResponse>, Status> = async {
+            acquire_keystats_from_stockbit_slot(&user_name).await?;
+
+            let code = request.into_inner().code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+            if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+                return Err(Status::invalid_argument(format!(
+                    "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
+                )));
+            }
+
+            let row = crate::repository::get_keystats_from_stockbit_by_code(
+                self.session.as_ref(),
+                &code,
+            )
+            .await
+            .map_err(Status::internal)?
+            .ok_or_else(|| {
+                Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+            })?;
+
+            if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
+                crate::stockbit::fetch_and_save_keystats_from_stockbit(
+                    Arc::clone(&self.session),
+                    &code,
+                )
+                .await
+                .map_err(Status::internal)?;
+
+                let row = crate::repository::get_keystats_from_stockbit_by_code(
+                    self.session.as_ref(),
+                    &code,
+                )
+                .await
+                .map_err(Status::internal)?
+                .ok_or_else(|| {
+                    Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                })?;
+
+                return Ok(Response::new(Self::keystats_from_stockbit_row_response(
+                    row,
+                    "Key stats Stockbit di-upsert ke stock_list",
+                )));
+            }
+
+            Ok(Response::new(Self::keystats_from_stockbit_row_response(
+                row,
+                "Key stats Stockbit dari Scylla",
+            )))
+        }
+        .await;
+
+        Self::log_rpc_debug("GetKeyStatsFromStockbit", &user_name, started);
         result
     }
 

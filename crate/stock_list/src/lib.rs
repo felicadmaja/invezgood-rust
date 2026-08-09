@@ -12,6 +12,7 @@ mod model;
 mod redis_cache;
 mod repository;
 mod service;
+mod stockbit;
 
 pub use database::connect;
 pub use model::{StockListRow, KEYSPACE, TABLE};

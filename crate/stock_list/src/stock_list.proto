@@ -17,6 +17,12 @@ service StockList {
   rpc GetStockByRepeatedCode(GetStockByRepeatedCodeRequest)
       returns (GetStockByRepeatedCodeResponse);
 
+  // GET exodus.stockbit.com/keystats/ratio/v1/{code}?year_limit=10 (Bearer sesi Stockbit) bila
+  // closure/financial_year/stats/dividend_group kosong (null/[]) atau *_updated_at >30 hari.
+  // Rate limit: 1× / menit global (semua user). Selain refresh → baca Scylla saja.
+  rpc GetKeyStatsFromStockbit(GetKeyStatsFromStockbitRequest)
+      returns (KeyStatsFromStockbitResponse);
+
   // GET Invezgo per jenis → upsert keystats, balance_statement, income_statement, cash_flow + *_updated_at.
   // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Request: code wajib. Response: FinancialStatementResponse (keystats, balance_statement, income_statement, cash_flow).
@@ -74,6 +80,95 @@ message GetStockByRepeatedCodeRequest {
 
 message GetStockByRepeatedCodeResponse {
   repeated StockByCodeResponse items = 1;
+}
+
+message GetKeyStatsFromStockbitRequest {
+  string code = 1;
+}
+
+message StockbitFitem {
+  string id = 1;
+  string name = 2;
+  string value = 3;
+}
+
+message StockbitFinNameResult {
+  StockbitFitem fitem = 1;
+  bool hidden_graph_ico = 2;
+  bool is_new_update = 3;
+}
+
+message StockbitClosureFinItemsGroup {
+  string keystats_name = 1;
+  repeated StockbitFinNameResult fin_name_results = 2;
+}
+
+message StockbitPeriodValue {
+  string period = 1;
+  string quarter_value = 2;
+  string year = 3;
+  bool is_new_update = 4;
+}
+
+message StockbitFinancialYearValue {
+  string year = 1;
+  repeated StockbitPeriodValue period_values = 2;
+  string annualised_value = 3;
+  string ttm_value = 4;
+  bool is_new_update = 5;
+  string dividend = 6;
+  string payout_ratio = 7;
+  string dividend_yield = 8;
+}
+
+message StockbitMostRecentQuarter {
+  string date = 1;
+  string quarter = 2;
+  bool is_new_update = 3;
+}
+
+message StockbitFinancialYearGroup {
+  repeated StockbitFinancialYearValue financial_year_values = 1;
+  string fitem_name = 2;
+  StockbitMostRecentQuarter most_recent_quarter = 3;
+}
+
+message StockbitFinancialYearParent {
+  repeated StockbitFinancialYearGroup financial_year_groups = 1;
+  repeated StockbitFinancialYearGroup financial_year_groups_usd = 2;
+}
+
+message StockbitStats {
+  string current_share_outstanding = 1;
+  string market_cap = 2;
+  string enterprise_value = 3;
+  string free_float = 4;
+}
+
+message StockbitDividendYearValue {
+  int32 period = 1;
+  string dividend = 2;
+  string ex_date = 3;
+  string payment_date = 4;
+}
+
+message StockbitDividendGroup {
+  repeated string fitem_id = 1;
+  repeated StockbitDividendYearValue dividend_year_values = 2;
+}
+
+message KeyStatsFromStockbitResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  repeated StockbitClosureFinItemsGroup closure_fin_items_results = 4;
+  optional int64 closure_fin_items_results_updated_at = 5;
+  StockbitFinancialYearParent financial_year_parent = 6;
+  optional int64 financial_year_parent_updated_at = 7;
+  StockbitStats stats = 8;
+  optional int64 stats_updated_at = 9;
+  StockbitDividendGroup dividend_group = 10;
+  optional int64 dividend_group_updated_at = 11;
 }
 
 message StockByCodeResponse {

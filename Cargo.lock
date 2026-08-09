@@ -2246,6 +2246,8 @@ dependencies = [
  "scylla",
  "serde",
  "serde_json",
+ "stockbit_browser",
+ "tokio",
  "tonic",
  "tonic-build",
  "user",

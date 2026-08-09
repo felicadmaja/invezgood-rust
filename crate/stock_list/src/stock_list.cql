@@ -34,6 +34,8 @@
 -- | financial_year_parent_stockbit_updated_at | regular  | timestamp                               |
 -- | stats_stockbit                      | regular        | frozen<stockbit_stats>                  |
 -- | stats_stockbit_updated_at           | regular        | timestamp                               |
+-- | dividend_group_stockbit             | regular        | frozen<stockbit_dividend_group>         |
+-- | dividend_group_stockbit_updated_at  | regular        | timestamp                               |
 -- | catatan_owner                       | regular        | text                                    |
 -- | catatan_pribadi                     | regular        | text                                    |
 -- | is_plan_to_trade                    | regular        | boolean                                 |
@@ -134,3 +136,20 @@
 -- );
 -- ALTER TABLE invezgood.stock_list ADD stats_stockbit frozen<stockbit_stats>;
 -- ALTER TABLE invezgood.stock_list ADD stats_stockbit_updated_at timestamp;
+--
+-- UDT Stockbit keystats/ratio → data.dividend_group (contoh: keystats_stockbit_contoh.json):
+--   stockbit_dividend_year_value: period int, dividend text, ex_date text, payment_date text
+--   stockbit_dividend_group: fitem_id list<text>,
+--     dividend_year_values list<frozen<stockbit_dividend_year_value>>
+--   Kolom dividend_group_stockbit: frozen<stockbit_dividend_group>
+--
+-- Migrasi UDT + kolom dividend_group (jalan sekali):
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_dividend_year_value (
+--     period int, dividend text, ex_date text, payment_date text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_dividend_group (
+--     fitem_id list<text>,
+--     dividend_year_values list<frozen<stockbit_dividend_year_value>>
+-- );
+-- ALTER TABLE invezgood.stock_list ADD dividend_group_stockbit frozen<stockbit_dividend_group>;
+-- ALTER TABLE invezgood.stock_list ADD dividend_group_stockbit_updated_at timestamp;

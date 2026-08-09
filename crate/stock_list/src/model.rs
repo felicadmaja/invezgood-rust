@@ -249,6 +249,140 @@ pub struct WyckoffChartDb {
     pub mdw: Option<Vec<String>>,
 }
 
+/// UDT `stockbit_fitem`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitFitemDb {
+    pub id: String,
+    pub name: String,
+    pub value: String,
+}
+
+/// UDT `stockbit_fin_name_result`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitFinNameResultDb {
+    pub fitem: StockbitFitemDb,
+    pub hidden_graph_ico: bool,
+    pub is_new_update: bool,
+}
+
+/// UDT `stockbit_closure_fin_items_group`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitClosureFinItemsGroupDb {
+    pub keystats_name: String,
+    #[scylla(default_when_null)]
+    pub fin_name_results: Option<Vec<StockbitFinNameResultDb>>,
+}
+
+/// Kolom `closure_fin_items_results_stockbit`.
+pub type ClosureFinItemsResultsStockbitDb = Option<Vec<StockbitClosureFinItemsGroupDb>>;
+
+/// UDT `stockbit_period_value`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitPeriodValueDb {
+    pub period: String,
+    pub quarter_value: String,
+    pub year: String,
+    pub is_new_update: bool,
+}
+
+/// UDT `stockbit_financial_year_value`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitFinancialYearValueDb {
+    pub year: String,
+    #[scylla(default_when_null)]
+    pub period_values: Option<Vec<StockbitPeriodValueDb>>,
+    pub annualised_value: String,
+    pub ttm_value: String,
+    pub is_new_update: bool,
+    pub dividend: String,
+    pub payout_ratio: String,
+    pub dividend_yield: String,
+}
+
+/// UDT `stockbit_most_recent_quarter`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitMostRecentQuarterDb {
+    pub date: String,
+    pub quarter: String,
+    pub is_new_update: bool,
+}
+
+/// UDT `stockbit_financial_year_group`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitFinancialYearGroupDb {
+    #[scylla(default_when_null)]
+    pub financial_year_values: Option<Vec<StockbitFinancialYearValueDb>>,
+    pub fitem_name: String,
+    pub most_recent_quarter: StockbitMostRecentQuarterDb,
+}
+
+/// UDT `stockbit_financial_year_parent`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitFinancialYearParentDb {
+    #[scylla(default_when_null)]
+    pub financial_year_groups: Option<Vec<StockbitFinancialYearGroupDb>>,
+    #[scylla(default_when_null)]
+    pub financial_year_groups_usd: Option<Vec<StockbitFinancialYearGroupDb>>,
+}
+
+/// UDT `stockbit_stats`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitStatsDb {
+    pub current_share_outstanding: String,
+    pub market_cap: String,
+    pub enterprise_value: String,
+    pub free_float: String,
+}
+
+/// UDT `stockbit_dividend_year_value`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitDividendYearValueDb {
+    pub period: i32,
+    pub dividend: String,
+    pub ex_date: String,
+    pub payment_date: String,
+}
+
+/// UDT `stockbit_dividend_group`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct StockbitDividendGroupDb {
+    #[scylla(default_when_null)]
+    pub fitem_id: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub dividend_year_values: Option<Vec<StockbitDividendYearValueDb>>,
+}
+
+/// Payload Stockbit keystats/ratio yang di-upsert ke Scylla.
+#[derive(Debug, Clone)]
+pub struct KeyStatsFromStockbitDb {
+    pub closure_fin_items_results: ClosureFinItemsResultsStockbitDb,
+    pub financial_year_parent: Option<StockbitFinancialYearParentDb>,
+    pub stats: Option<StockbitStatsDb>,
+    pub dividend_group: Option<StockbitDividendGroupDb>,
+}
+
+/// Subset kolom Stockbit keystats untuk `GetKeyStatsFromStockbit`.
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct KeyStatsFromStockbitRow {
+    pub code: String,
+    #[scylla(default_when_null)]
+    pub closure_fin_items_results_stockbit: ClosureFinItemsResultsStockbitDb,
+    #[scylla(default_when_null)]
+    pub closure_fin_items_results_stockbit_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[scylla(default_when_null)]
+    pub financial_year_parent_stockbit: Option<StockbitFinancialYearParentDb>,
+    #[scylla(default_when_null)]
+    pub financial_year_parent_stockbit_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[scylla(default_when_null)]
+    pub stats_stockbit: Option<StockbitStatsDb>,
+    #[scylla(default_when_null)]
+    pub stats_stockbit_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[scylla(default_when_null)]
+    pub dividend_group_stockbit: Option<StockbitDividendGroupDb>,
+    #[scylla(default_when_null)]
+    pub dividend_group_stockbit_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 /// Satu baris `invezgood.stock_list`.
 #[derive(Debug, Clone, DeserializeRow, SerializeRow)]
 pub struct StockListRow {

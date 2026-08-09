@@ -3,7 +3,8 @@ use scylla::client::session::Session;
 use scylla::DeserializeRow;
 
 use crate::model::{
-    CompanyInformationDb, CorporateActionDb, ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb,
+    CompanyInformationDb, CorporateActionDb, KeyStatsFromStockbitDb, KeyStatsFromStockbitRow,
+    ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb,
     StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
     StockListKeystatsDb, StockListKeystatsRow, StockListRow, StockListSummaryRow,
     HorizontalLineByCodeRow, WyckoffChartByCodeRow, WyckoffChartDb, KEYSPACE, TABLE,
@@ -26,6 +27,13 @@ const SELECT_WYCKOFF_CHART_BY_CODE: &str =
 
 const SELECT_HORIZONTAL_LINE_BY_CODE: &str =
     "SELECT code, horizontal_line FROM invezgood.stock_list WHERE code = ?";
+
+const SELECT_KEYSTATS_FROM_STOCKBIT_BY_CODE: &str = "SELECT code, \
+    closure_fin_items_results_stockbit, closure_fin_items_results_stockbit_updated_at, \
+    financial_year_parent_stockbit, financial_year_parent_stockbit_updated_at, \
+    stats_stockbit, stats_stockbit_updated_at, \
+    dividend_group_stockbit, dividend_group_stockbit_updated_at \
+    FROM invezgood.stock_list WHERE code = ?";
 
 const UPDATE_KEYSTATS: &str =
     "UPDATE invezgood.stock_list SET keystats = ?, keystats_updated_at = ? WHERE code = ?";
@@ -53,6 +61,12 @@ const UPDATE_COMPANY_INFORMATION: &str =
 
 const UPDATE_CORPORATE_ACTION: &str =
     "UPDATE invezgood.stock_list SET corporate_action = ?, corporate_action_updated_at = ? WHERE code = ?";
+
+const UPDATE_KEYSTATS_FROM_STOCKBIT: &str = "UPDATE invezgood.stock_list SET \
+    closure_fin_items_results_stockbit = ?, closure_fin_items_results_stockbit_updated_at = ?, \
+    financial_year_parent_stockbit = ?, financial_year_parent_stockbit_updated_at = ?, \
+    stats_stockbit = ?, stats_stockbit_updated_at = ?, \
+    dividend_group_stockbit = ?, dividend_group_stockbit_updated_at = ? WHERE code = ?";
 
 const UPDATE_IS_KONGLOMERASI: &str =
     "UPDATE invezgood.stock_list SET is_konglomerasi = ? WHERE code = ?";
@@ -167,6 +181,22 @@ pub async fn get_horizontal_line_by_code(
         .map_err(|e| format!("select horizontal_line row {KEYSPACE}.{TABLE} code={code}: {e}"))
 }
 
+pub async fn get_keystats_from_stockbit_by_code(
+    session: &Session,
+    code: &str,
+) -> Result<Option<KeyStatsFromStockbitRow>, String> {
+    let mut rows = session
+        .query_iter(SELECT_KEYSTATS_FROM_STOCKBIT_BY_CODE, (code,))
+        .await
+        .map_err(|e| format!("select keystats stockbit {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .rows_stream::<KeyStatsFromStockbitRow>()
+        .map_err(|e| format!("select keystats stockbit stream {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+
+    rows.try_next()
+        .await
+        .map_err(|e| format!("select keystats stockbit row {KEYSPACE}.{TABLE} code={code}: {e}"))
+}
+
 pub async fn update_keystats(
     session: &Session,
     code: &str,
@@ -263,6 +293,32 @@ pub async fn update_share_holder_composition(
         .map_err(|e| {
             format!("update share_holder_composition {KEYSPACE}.{TABLE} code={code}: {e}")
         })?;
+    Ok(())
+}
+
+pub async fn update_keystats_from_stockbit(
+    session: &Session,
+    code: &str,
+    payload: &KeyStatsFromStockbitDb,
+    updated_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), String> {
+    session
+        .query_unpaged(
+            UPDATE_KEYSTATS_FROM_STOCKBIT,
+            (
+                payload.closure_fin_items_results.clone(),
+                updated_at,
+                payload.financial_year_parent.clone(),
+                updated_at,
+                payload.stats.clone(),
+                updated_at,
+                payload.dividend_group.clone(),
+                updated_at,
+                code,
+            ),
+        )
+        .await
+        .map_err(|e| format!("update keystats stockbit {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 
