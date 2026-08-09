@@ -1,0 +1,2166 @@
+{
+    "data": {
+        "closure_fin_items_results": [
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "12148",
+                            "name": "Current PE Ratio (Annualised)",
+                            "value": "122.21"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2891",
+                            "name": "Current PE Ratio (TTM)",
+                            "value": "32.41"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "16577",
+                            "name": "Forward PE Ratio",
+                            "value": "-"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13427",
+                            "name": "IHSG PE Ratio TTM (Median)",
+                            "value": "7.92"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2898",
+                            "name": "Earnings Yield (TTM)",
+                            "value": "3.09%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2893",
+                            "name": "Current Price to Sales (TTM)",
+                            "value": "3.32"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2896",
+                            "name": "Current Price to Book Value",
+                            "value": "13.39"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "16533",
+                            "name": "Current Price To Cashflow (TTM)",
+                            "value": "-133.53"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "15881",
+                            "name": "Current Price To Free Cashflow (TTM)",
+                            "value": "-13.04"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2897",
+                            "name": "EV to EBIT (TTM)",
+                            "value": "23.30"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "21457",
+                            "name": "EV to EBITDA (TTM)",
+                            "value": "13.67"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13431",
+                            "name": "PEG Ratio",
+                            "value": "-0.36"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13432",
+                            "name": "PEG Ratio (3yr)",
+                            "value": "-1.05"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13430",
+                            "name": "PEG (Forward)",
+                            "value": "-"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Current Valuation"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "13200",
+                            "name": "Current EPS (TTM)",
+                            "value": "22.83"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "12988",
+                            "name": "Current EPS (Annualised)",
+                            "value": "6.06"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "15880",
+                            "name": "Revenue Per Share (TTM)",
+                            "value": "223.15"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "15879",
+                            "name": "Cash Per Share (Quarter)",
+                            "value": "35.07"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "15718",
+                            "name": "Current Book Value Per Share",
+                            "value": "55.27"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "15882",
+                            "name": "Free Cashflow Per Share (TTM)",
+                            "value": "-56.75"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Per Share"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "1498",
+                            "name": "Current Ratio (Quarter)",
+                            "value": "1.84"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1500",
+                            "name": "Quick Ratio (Quarter)",
+                            "value": "1.66"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1508",
+                            "name": "Debt to Equity Ratio (Quarter)",
+                            "value": "4.03"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1504",
+                            "name": "LT Debt/Equity (Quarter)",
+                            "value": "3.45"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1573",
+                            "name": "Total Liabilities/Equity (Quarter)",
+                            "value": "5.79"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1512",
+                            "name": "Total Debt/Total Assets (Quarter)",
+                            "value": "0.53"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1502",
+                            "name": "Financial Leverage (Quarter)",
+                            "value": "7.63"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1484",
+                            "name": "Interest Coverage (TTM)",
+                            "value": "2.44"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2536",
+                            "name": "Free cash flow (Quarter)",
+                            "value": "(572 B)"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13402",
+                            "name": "Altman Z-Score (Modified)",
+                            "value": "2.47"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Solvency"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "1460",
+                            "name": "Return on Assets (TTM)",
+                            "value": "5.41%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1461",
+                            "name": "Return on Equity (TTM)",
+                            "value": "41.30%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1462",
+                            "name": "Return on Capital Employed (TTM)",
+                            "value": "12.96%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13447",
+                            "name": "Return On Invested Capital (TTM)",
+                            "value": "12.07%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1432",
+                            "name": "Days Sales Outstanding (Quarter)",
+                            "value": "70.77"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1435",
+                            "name": "Days Inventory (Quarter)",
+                            "value": "30.26"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1439",
+                            "name": "Days Payables Outstanding (Quarter)",
+                            "value": "83.30"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1442",
+                            "name": "Cash Conversion Cycle (Quarter)",
+                            "value": "17.73"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1445",
+                            "name": "Receivables Turnover (Quarter)",
+                            "value": "1.29"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1467",
+                            "name": "Asset Turnover (TTM)",
+                            "value": "0.53"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1465",
+                            "name": "Inventory Turnover (TTM)",
+                            "value": "11.53"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Management Effectiveness"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "1561",
+                            "name": "Gross Profit Margin (Quarter)",
+                            "value": "12.44%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1562",
+                            "name": "Operating Profit Margin (Quarter)",
+                            "value": "10.98%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1563",
+                            "name": "Net Profit Margin (Quarter)",
+                            "value": "3.86%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Profitability"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "1554",
+                            "name": "Revenue (Quarter YoY Growth)",
+                            "value": "56.22%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "3008",
+                            "name": "Gross Profit (Quarter YoY Growth)",
+                            "value": "55.46%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "18214",
+                            "name": "Net Income (Quarter YoY Growth)",
+                            "value": "6,215.25%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Growth"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "2913",
+                            "name": "Dividend",
+                            "value": "0.29"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "12722",
+                            "name": "Dividend (TTM)",
+                            "value": "0.29"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2916",
+                            "name": "Payout Ratio",
+                            "value": "4.79%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2915",
+                            "name": "Dividend Yield",
+                            "value": "0.04%"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "20292",
+                            "name": "Latest Dividend Ex-Date",
+                            "value": "30 Apr 25"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Dividend"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "13366",
+                            "name": "Piotroski F-Score",
+                            "value": "5.00"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13382",
+                            "name": "EPS Rating",
+                            "value": ""
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13387",
+                            "name": "Relative Strength Rating",
+                            "value": "2.00%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13423",
+                            "name": "Rank (Market Cap)",
+                            "value": "97.00%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13426",
+                            "name": "Rank (Current PE Ratio TTM)",
+                            "value": "29.00%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13424",
+                            "name": "Rank (Earnings Yield)",
+                            "value": "37.00%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13420",
+                            "name": "Rank (P/S)",
+                            "value": "31.00%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13421",
+                            "name": "Rank (P/B)",
+                            "value": "5.00%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "13422",
+                            "name": "Rank (Near 52 Weeks High)",
+                            "value": "6.00%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Market Rank"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "2997",
+                            "name": "Revenue (TTM)",
+                            "value": "25,086 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "3007",
+                            "name": "Gross Profit (TTM)",
+                            "value": "3,598 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "21456",
+                            "name": "EBITDA (TTM)",
+                            "value": "7,965 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1555",
+                            "name": "Net Income (TTM)",
+                            "value": "2,567 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Income Statement"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "1557",
+                            "name": "Cash (Quarter)",
+                            "value": "3,942 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1559",
+                            "name": "Total Assets (Quarter)",
+                            "value": "47,398 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1560",
+                            "name": "Total Liabilities (Quarter)",
+                            "value": "35,972 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1518",
+                            "name": "Working Capital (Quarter)",
+                            "value": "9,236 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "15883",
+                            "name": "Common Equity",
+                            "value": "6,214 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1524",
+                            "name": "Long-term Debt (Quarter)",
+                            "value": "21,439 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1520",
+                            "name": "Short-term Debt (Quarter)",
+                            "value": "3,588 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1486",
+                            "name": "Total Debt (Quarter)",
+                            "value": "25,027 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1488",
+                            "name": "Net Debt (Quarter)",
+                            "value": "21,085 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "21544",
+                            "name": "Total Equity",
+                            "value": "11,426 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Balance Sheet"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "2545",
+                            "name": "Cash From Operations (TTM)",
+                            "value": "(623 B)"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2544",
+                            "name": "Cash From Investing (TTM)",
+                            "value": "(6,377 B)"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2543",
+                            "name": "Cash From Financing (TTM)",
+                            "value": "7,526 B"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2534",
+                            "name": "Capital expenditure (TTM)",
+                            "value": "(5,757 B)"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "2538",
+                            "name": "Free cash flow (TTM)",
+                            "value": "(6,380 B)"
+                        },
+                        "hidden_graph_ico": false,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Cash Flow Statement"
+            },
+            {
+                "fin_name_results": [
+                    {
+                        "fitem": {
+                            "id": "14812",
+                            "name": "1 Week Price Returns",
+                            "value": "11.28%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1564",
+                            "name": "1 Month Price Returns",
+                            "value": "16.54%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1565",
+                            "name": "3 Month Price Returns",
+                            "value": "-37.82%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1566",
+                            "name": "6 Month Price Returns",
+                            "value": "-54.60%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1567",
+                            "name": "1 Year Price Returns",
+                            "value": "-49.32%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1568",
+                            "name": "3 Year Price Returns",
+                            "value": "306.59%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "18172",
+                            "name": "5 Year Price Returns",
+                            "value": "-"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "18173",
+                            "name": "10 Year Price Returns",
+                            "value": "-"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1569",
+                            "name": "Year to Date Price Returns",
+                            "value": "-68.38%"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1570",
+                            "name": "52 Week High",
+                            "value": "2,890.00"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    },
+                    {
+                        "fitem": {
+                            "id": "1571",
+                            "name": "52 Week Low",
+                            "value": "464.00"
+                        },
+                        "hidden_graph_ico": true,
+                        "is_new_update": false
+                    }
+                ],
+                "keystats_name": "Price Performance"
+            }
+        ],
+        "financial_year_parent": {
+            "financial_year_groups": [
+                {
+                    "financial_year_values": [
+                        {
+                            "year": "2026",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "96 B",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "247 B",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "686 B",
+                            "ttm_value": "2,567 B",
+                            "is_new_update": false,
+                            "dividend": "0.29",
+                            "payout_ratio": "4.79%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2025",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "28 B",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "4 B",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "233 B",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "1,974 B",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "2,217 B",
+                            "ttm_value": "2,217 B",
+                            "is_new_update": false,
+                            "dividend": "0.29",
+                            "payout_ratio": "1.49%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2024",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "473 B",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "(10 B)",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "14 B",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "2,059 B",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "2,548 B",
+                            "ttm_value": "2,548 B",
+                            "is_new_update": false,
+                            "dividend": "0.29",
+                            "payout_ratio": "1.29%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2023",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "96 B",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "74 B",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "6 B",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "63 B",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "238 B",
+                            "ttm_value": "238 B",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2022",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "81 B",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "67 B",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "105 B",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "317 B",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "571 B",
+                            "ttm_value": "571 B",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2021",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "22 B",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "22 B",
+                            "ttm_value": "-",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        }
+                    ],
+                    "fitem_name": "Net Income",
+                    "most_recent_quarter": {
+                        "date": "30 Jun 2026",
+                        "quarter": "Q2",
+                        "is_new_update": false
+                    }
+                },
+                {
+                    "financial_year_values": [
+                        {
+                            "year": "2026",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "0.85",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "2.20",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "6.10",
+                            "ttm_value": "22.83",
+                            "is_new_update": false,
+                            "dividend": "0.29",
+                            "payout_ratio": "4.79%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2025",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "0.25",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "0.03",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "2.07",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "17.56",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "19.72",
+                            "ttm_value": "19.72",
+                            "is_new_update": false,
+                            "dividend": "0.29",
+                            "payout_ratio": "1.49%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2024",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "4.20",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "-0.09",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "0.12",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "18.32",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "22.67",
+                            "ttm_value": "22.67",
+                            "is_new_update": false,
+                            "dividend": "0.29",
+                            "payout_ratio": "1.29%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2023",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "0.85",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "0.66",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "0.05",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "0.56",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "2.12",
+                            "ttm_value": "2.12",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2022",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "0.72",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "0.60",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "0.94",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "2.82",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "5.08",
+                            "ttm_value": "5.08",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2021",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "0.20",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "0.20",
+                            "ttm_value": "-",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        }
+                    ],
+                    "fitem_name": "EPS",
+                    "most_recent_quarter": {
+                        "date": "30 Jun 2026",
+                        "quarter": "Q2",
+                        "is_new_update": false
+                    }
+                },
+                {
+                    "financial_year_values": [
+                        {
+                            "year": "2026",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "6,260 B",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "6,400 B",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "25,320 B",
+                            "ttm_value": "25,086 B",
+                            "is_new_update": false,
+                            "dividend": "0.29",
+                            "payout_ratio": "4.79%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2025",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "3,500 B",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "4,097 B",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "5,476 B",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "6,984 B",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "20,030 B",
+                            "ttm_value": "20,030 B",
+                            "is_new_update": false,
+                            "dividend": "0.29",
+                            "payout_ratio": "1.49%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2024",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "1,352 B",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "3,615 B",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "3,735 B",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "4,039 B",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "12,707 B",
+                            "ttm_value": "12,707 B",
+                            "is_new_update": false,
+                            "dividend": "0.29",
+                            "payout_ratio": "1.29%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2023",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "504 B",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "537 B",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "118 B",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "336 B",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "1,494 B",
+                            "ttm_value": "1,494 B",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2022",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "274 B",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "328 B",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "315 B",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "603 B",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "1,519 B",
+                            "ttm_value": "1,519 B",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2021",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "402 B",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "402 B",
+                            "ttm_value": "-",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        }
+                    ],
+                    "fitem_name": "Revenue",
+                    "most_recent_quarter": {
+                        "date": "30 Jun 2026",
+                        "quarter": "Q2",
+                        "is_new_update": false
+                    }
+                }
+            ],
+            "financial_year_groups_usd": [
+                {
+                    "financial_year_values": [
+                        {
+                            "year": "2026",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "5.70 M",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "14.08 M",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "39.56 M",
+                            "ttm_value": "152.40 M",
+                            "is_new_update": false,
+                            "dividend": "0.00002",
+                            "payout_ratio": "4.79%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2025",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "1.71 M",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "237.00 K",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "14.21 M",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "118.42 M",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "134.57 M",
+                            "ttm_value": "134.57 M",
+                            "is_new_update": false,
+                            "dividend": "0.00002",
+                            "payout_ratio": "1.49%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2024",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "30.17 M",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "(599.00 K)",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "868.00 K",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "130.34 M",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "160.78 M",
+                            "ttm_value": "160.78 M",
+                            "is_new_update": false,
+                            "dividend": "0.00002",
+                            "payout_ratio": "1.29%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2023",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "6.28 M",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "4.96 M",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "386.57 K",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "4.04 M",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "15.62 M",
+                            "ttm_value": "15.62 M",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2022",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "5.64 M",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "4.61 M",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "7.06 M",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "20.39 M",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "38.38 M",
+                            "ttm_value": "38.38 M",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2021",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "1.54 M",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "1.54 M",
+                            "ttm_value": "-",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        }
+                    ],
+                    "fitem_name": "Net Income",
+                    "most_recent_quarter": {
+                        "date": "30 Jun 2026",
+                        "quarter": "Q2",
+                        "is_new_update": false
+                    }
+                },
+                {
+                    "financial_year_values": [
+                        {
+                            "year": "2026",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "0.00005",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "0.00013",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "0.00035",
+                            "ttm_value": "0.00136",
+                            "is_new_update": false,
+                            "dividend": "0.00002",
+                            "payout_ratio": "4.79%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2025",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "0.00002",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "0.00000",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "0.00013",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "0.00105",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "0.00120",
+                            "ttm_value": "0.00120",
+                            "is_new_update": false,
+                            "dividend": "0.00002",
+                            "payout_ratio": "1.49%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2024",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "0.00027",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "-0.00001",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "0.00001",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "0.00116",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "0.00143",
+                            "ttm_value": "0.00143",
+                            "is_new_update": false,
+                            "dividend": "0.00002",
+                            "payout_ratio": "1.29%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2023",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "0.00006",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "0.00004",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "0.00000",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "0.00004",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "0.00014",
+                            "ttm_value": "0.00014",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2022",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "0.00005",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "0.00004",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "0.00006",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "0.00018",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "0.00034",
+                            "ttm_value": "0.00034",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2021",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "0.00001",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "0.00001",
+                            "ttm_value": "-",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        }
+                    ],
+                    "fitem_name": "EPS",
+                    "most_recent_quarter": {
+                        "date": "30 Jun 2026",
+                        "quarter": "Q2",
+                        "is_new_update": false
+                    }
+                },
+                {
+                    "financial_year_values": [
+                        {
+                            "year": "2026",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "371.33 M",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "364.77 M",
+                                    "year": "2026",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "1.47 B",
+                            "ttm_value": "1.49 B",
+                            "is_new_update": false,
+                            "dividend": "0.00002",
+                            "payout_ratio": "4.79%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2025",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "213.93 M",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "248.19 M",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "334.51 M",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "418.99 M",
+                                    "year": "2025",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "1.22 B",
+                            "ttm_value": "1.22 B",
+                            "is_new_update": false,
+                            "dividend": "0.00002",
+                            "payout_ratio": "1.49%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2024",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "86.34 M",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "223.35 M",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "236.37 M",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "255.66 M",
+                                    "year": "2024",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "801.72 M",
+                            "ttm_value": "801.72 M",
+                            "is_new_update": false,
+                            "dividend": "0.00002",
+                            "payout_ratio": "1.29%",
+                            "dividend_yield": "0.04%"
+                        },
+                        {
+                            "year": "2023",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "33.07 M",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "36.13 M",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "7.73 M",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "21.48 M",
+                                    "year": "2023",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "97.95 M",
+                            "ttm_value": "97.95 M",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2022",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "19.08 M",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "22.53 M",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "21.08 M",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "38.70 M",
+                                    "year": "2022",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "102.14 M",
+                            "ttm_value": "102.14 M",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        },
+                        {
+                            "year": "2021",
+                            "period_values": [
+                                {
+                                    "period": "Q1",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q2",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q3",
+                                    "quarter_value": "-",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                },
+                                {
+                                    "period": "Q4",
+                                    "quarter_value": "28.21 M",
+                                    "year": "2021",
+                                    "is_new_update": false
+                                }
+                            ],
+                            "annualised_value": "28.12 M",
+                            "ttm_value": "-",
+                            "is_new_update": false,
+                            "dividend": "-",
+                            "payout_ratio": "-",
+                            "dividend_yield": "-"
+                        }
+                    ],
+                    "fitem_name": "Revenue",
+                    "most_recent_quarter": {
+                        "date": "30 Jun 2026",
+                        "quarter": "Q2",
+                        "is_new_update": false
+                    }
+                }
+            ]
+        },
+        "stats": {
+            "current_share_outstanding": "112.42 B",
+            "market_cap": "83,190 B",
+            "enterprise_value": "109,487 B",
+            "free_float": "18.68%"
+        },
+        "info": "",
+        "dividend_group": {
+            "fitem_id": [
+                "21507",
+                "21509",
+                "21508"
+            ],
+            "dividend_year_values": [
+                {
+                    "period": 2024,
+                    "dividend": "2.93",
+                    "ex_date": "30 Apr 25",
+                    "payment_date": "22 May 25"
+                }
+            ]
+        },
+        "financial_report_currency": [
+            "IDR",
+            "USD"
+        ]
+    },
+    "message": "Successfully retrieved company keystats"
+}

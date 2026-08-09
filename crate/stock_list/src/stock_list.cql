@@ -28,6 +28,12 @@
 -- | company_information_updated_at      | regular        | timestamp                               |
 -- | corporate_action                    | regular        | frozen<corporate_action>                |
 -- | corporate_action_updated_at         | regular        | timestamp                               |
+-- | closure_fin_items_results_stockbit  | regular        | frozen<list<frozen<stockbit_closure_fin_items_group>>> |
+-- | closure_fin_items_results_stockbit_updated_at | regular | timestamp                        |
+-- | financial_year_parent_stockbit      | regular        | frozen<stockbit_financial_year_parent> |
+-- | financial_year_parent_stockbit_updated_at | regular  | timestamp                               |
+-- | stats_stockbit                      | regular        | frozen<stockbit_stats>                  |
+-- | stats_stockbit_updated_at           | regular        | timestamp                               |
 -- | catatan_owner                       | regular        | text                                    |
 -- | catatan_pribadi                     | regular        | text                                    |
 -- | is_plan_to_trade                    | regular        | boolean                                 |
@@ -53,3 +59,78 @@
 --   total_page int, page int, next_page int,
 --   data list<frozen<{code, type, payload map<text,text>}>>
 --   API: GET /analysis/calendar?code={code}&page={page}
+--
+-- UDT Stockbit keystats/ratio → data.closure_fin_items_results (contoh: keystats_stockbit_contoh.json):
+--   stockbit_fitem: id text, name text, value text
+--   stockbit_fin_name_result: fitem frozen<stockbit_fitem>, hidden_graph_ico boolean, is_new_update boolean
+--   stockbit_closure_fin_items_group: keystats_name text, fin_name_results list<frozen<stockbit_fin_name_result>>
+--   Kolom closure_fin_items_results_stockbit: frozen<list<frozen<stockbit_closure_fin_items_group>>>
+--   API: GET https://exodus.stockbit.com/keystats/ratio/v1/{code}?year_limit=10
+--
+-- Migrasi UDT + kolom (jalan sekali):
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_fitem (
+--     id text, name text, value text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_fin_name_result (
+--     fitem frozen<stockbit_fitem>,
+--     hidden_graph_ico boolean,
+--     is_new_update boolean
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_closure_fin_items_group (
+--     keystats_name text,
+--     fin_name_results list<frozen<stockbit_fin_name_result>>
+-- );
+-- ALTER TABLE invezgood.stock_list ADD closure_fin_items_results_stockbit frozen<list<frozen<stockbit_closure_fin_items_group>>>;
+-- ALTER TABLE invezgood.stock_list ADD closure_fin_items_results_stockbit_updated_at timestamp;
+--
+-- UDT Stockbit keystats/ratio → data.financial_year_parent (contoh: keystats_stockbit_contoh.json):
+--   stockbit_period_value: period text, quarter_value text, year text, is_new_update boolean
+--   stockbit_financial_year_value: year text, period_values list<frozen<stockbit_period_value>>,
+--     annualised_value text, ttm_value text, is_new_update boolean,
+--     dividend text, payout_ratio text, dividend_yield text
+--   stockbit_most_recent_quarter: date text, quarter text, is_new_update boolean
+--   stockbit_financial_year_group: financial_year_values list<frozen<stockbit_financial_year_value>>,
+--     fitem_name text, most_recent_quarter frozen<stockbit_most_recent_quarter>
+--   stockbit_financial_year_parent: financial_year_groups list<frozen<stockbit_financial_year_group>>,
+--     financial_year_groups_usd list<frozen<stockbit_financial_year_group>>
+--   Kolom financial_year_parent_stockbit: frozen<stockbit_financial_year_parent>
+--
+-- Migrasi UDT + kolom financial_year_parent (jalan sekali):
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_period_value (
+--     period text, quarter_value text, year text, is_new_update boolean
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_financial_year_value (
+--     year text,
+--     period_values list<frozen<stockbit_period_value>>,
+--     annualised_value text, ttm_value text, is_new_update boolean,
+--     dividend text, payout_ratio text, dividend_yield text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_most_recent_quarter (
+--     date text, quarter text, is_new_update boolean
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_financial_year_group (
+--     financial_year_values list<frozen<stockbit_financial_year_value>>,
+--     fitem_name text,
+--     most_recent_quarter frozen<stockbit_most_recent_quarter>
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_financial_year_parent (
+--     financial_year_groups list<frozen<stockbit_financial_year_group>>,
+--     financial_year_groups_usd list<frozen<stockbit_financial_year_group>>
+-- );
+-- ALTER TABLE invezgood.stock_list ADD financial_year_parent_stockbit frozen<stockbit_financial_year_parent>;
+-- ALTER TABLE invezgood.stock_list ADD financial_year_parent_stockbit_updated_at timestamp;
+--
+-- UDT Stockbit keystats/ratio → data.stats (contoh: keystats_stockbit_contoh.json):
+--   stockbit_stats: current_share_outstanding text, market_cap text,
+--     enterprise_value text, free_float text
+--   Kolom stats_stockbit: frozen<stockbit_stats>
+--
+-- Migrasi UDT + kolom stats (jalan sekali):
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_stats (
+--     current_share_outstanding text,
+--     market_cap text,
+--     enterprise_value text,
+--     free_float text
+-- );
+-- ALTER TABLE invezgood.stock_list ADD stats_stockbit frozen<stockbit_stats>;
+-- ALTER TABLE invezgood.stock_list ADD stats_stockbit_updated_at timestamp;
