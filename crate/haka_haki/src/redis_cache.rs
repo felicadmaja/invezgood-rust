@@ -1,6 +1,7 @@
 //! Cache Redis untuk `GetHakaHakiFromInvezgo` bila `tahun_bulan_tanggal` bukan hari ini.
 //!
 //! Key: `invezgood:haka_haki:invezgo:{code}:{YYYY-MM-DD}:{range}`
+//! Hanya disimpan/dibaca bila `items` tidak kosong.
 //! Env: `REDIS_URL`, `HAKA_HAKI_CACHE_TTL_SECS` (default 7 hari).
 
 use std::sync::OnceLock;
@@ -76,7 +77,8 @@ pub async fn get(
         return None;
     };
     match GetHakaHakiFromInvezgoResponse::decode(bytes.as_slice()) {
-        Ok(resp) => Some(resp),
+        Ok(resp) if !resp.items.is_empty() => Some(resp),
+        Ok(_) => None,
         Err(e) => {
             eprintln!("Redis haka_haki decode {key}: {e} — cache miss");
             None
@@ -90,7 +92,7 @@ pub async fn set(
     range: i32,
     resp: &GetHakaHakiFromInvezgoResponse,
 ) {
-    if !resp.success {
+    if !resp.success || resp.items.is_empty() {
         return;
     }
     let mut conn = match connection().await {
