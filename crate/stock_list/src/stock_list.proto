@@ -19,7 +19,7 @@ service StockList {
 
   // GET exodus.stockbit.com/keystats/ratio/v1/{code}?year_limit=10 (Bearer sesi Stockbit) bila
   // closure/financial_year/stats/dividend_group kosong (null/[]) atau *_updated_at >30 hari.
-  // Rate limit: 1× / menit global (semua user). Selain refresh → baca Scylla saja.
+  // Rate limit 1× / 5 detik global hanya saat GET API Stockbit; baca Scylla tanpa rate limit.
   rpc GetKeyStatsFromStockbit(GetKeyStatsFromStockbitRequest)
       returns (KeyStatsFromStockbitResponse);
 

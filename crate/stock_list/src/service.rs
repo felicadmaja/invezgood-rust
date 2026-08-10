@@ -43,7 +43,7 @@ use crate::pb::{
 };
 
 const CACHE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
-const KEYSTATS_FROM_STOCKBIT_COOLDOWN: Duration = Duration::from_secs(60);
+const KEYSTATS_FROM_STOCKBIT_COOLDOWN: Duration = Duration::from_secs(5);
 
 static LAST_KEYSTATS_FROM_STOCKBIT: OnceLock<Mutex<Option<std::time::Instant>>> = OnceLock::new();
 
@@ -61,7 +61,7 @@ async fn acquire_keystats_from_stockbit_slot(user_name: &str) -> Result<(), Stat
                 "GetKeyStatsFromStockbit {user_name} rate-limit ditolak: sisa {remaining_secs}s"
             );
             return Err(Status::failed_precondition(format!(
-                "Rate limit: maksimal 1× / menit untuk semua user. Tunggu {remaining_secs} detik lagi"
+                "Rate limit: maksimal 1× / 5 detik untuk semua user. Tunggu {remaining_secs} detik lagi"
             )));
         }
     }
@@ -992,8 +992,6 @@ impl StockList for StockListService {
         let user_name = auth.nama;
 
         let result: Result<Response<KeyStatsFromStockbitResponse>, Status> = async {
-            acquire_keystats_from_stockbit_slot(&user_name).await?;
-
             let code = request.into_inner().code.trim().to_ascii_uppercase();
             if code.is_empty() {
                 return Err(Status::invalid_argument("code wajib diisi"));
@@ -1015,6 +1013,8 @@ impl StockList for StockListService {
             })?;
 
             if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
+                acquire_keystats_from_stockbit_slot(&user_name).await?;
+
                 crate::stockbit::fetch_and_save_keystats_from_stockbit(
                     Arc::clone(&self.session),
                     &code,
