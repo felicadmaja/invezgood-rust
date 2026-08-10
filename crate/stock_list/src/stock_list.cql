@@ -36,6 +36,8 @@
 -- | stats_stockbit_updated_at           | regular        | timestamp                               |
 -- | dividend_group_stockbit             | regular        | frozen<stockbit_dividend_group>         |
 -- | dividend_group_stockbit_updated_at  | regular        | timestamp                               |
+-- | stockbit_reports                    | regular        | frozen<list<frozen<stockbit_report_stream>>> |
+-- | stockbit_reports_updated_at         | regular        | timestamp                               |
 -- | catatan_owner                       | regular        | text                                    |
 -- | catatan_pribadi                     | regular        | text                                    |
 -- | is_plan_to_trade                    | regular        | boolean                                 |
@@ -153,3 +155,51 @@
 -- );
 -- ALTER TABLE invezgood.stock_list ADD dividend_group_stockbit frozen<stockbit_dividend_group>;
 -- ALTER TABLE invezgood.stock_list ADD dividend_group_stockbit_updated_at timestamp;
+--
+-- UDT Stockbit reports API → data.stream[] (contoh: stockbit_reports.json):
+--   stockbit_report_user, stockbit_report_status, stockbit_report_item,
+--   stockbit_report_news_feed, stockbit_report_following_activity,
+--   stockbit_report_summary, stockbit_report_reaction_entry, stockbit_report_reaction,
+--   stockbit_report_stream
+--   Kolom stockbit_reports: frozen<list<frozen<stockbit_report_stream>>>
+--
+-- Migrasi UDT + kolom stockbit_reports (jalan sekali):
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_report_user (
+--     user_id int, is_author boolean, username text, fullname text, avatar text,
+--     is_verified boolean, user_privilege text, is_pro boolean, country text, verified_status text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_report_status (
+--     is_pinned boolean, is_trending boolean, is_reposted boolean, is_liked boolean,
+--     is_saved boolean, is_followed boolean, is_unavailable boolean, is_junk boolean,
+--     is_spam boolean, is_violation boolean, is_deleted boolean
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_report_item (type text);
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_report_news_feed (
+--     source text, label text, img text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_report_following_activity (
+--     users list<text>, info text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_report_summary (
+--     title text, summary text, key_points list<text>, key_takeaway text,
+--     model text, model_version text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_report_reaction_entry (
+--     reaction text, total int
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_report_reaction (
+--     reactions list<frozen<stockbit_report_reaction_entry>>, total int, my_reaction text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_report_stream (
+--     stream_id bigint, title_url text, title text, content text, content_original text,
+--     created_at text, created_display text, updated_at text,
+--     user frozen<stockbit_report_user>, status frozen<stockbit_report_status>,
+--     total_replies int, total_likes int, likers text, type text, images list<text>,
+--     parent_stream_id bigint, reports list<frozen<stockbit_report_item>>,
+--     news_feed frozen<stockbit_report_news_feed>, last_reply_date bigint,
+--     topics list<text>, image_frame_type text, commenter_type text,
+--     following_activity frozen<stockbit_report_following_activity>, reply_to int,
+--     summary frozen<stockbit_report_summary>, reaction frozen<stockbit_report_reaction>
+-- );
+-- ALTER TABLE invezgood.stock_list ADD stockbit_reports frozen<list<frozen<stockbit_report_stream>>>;
+-- ALTER TABLE invezgood.stock_list ADD stockbit_reports_updated_at timestamp;

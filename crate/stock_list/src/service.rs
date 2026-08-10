@@ -10,11 +10,14 @@ use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
 use crate::model::{
     BalanceStatement, CompanyInformation, CorporateAction, Keystats, KeyStatsFromStockbitRow,
-    ShareHolder1, ShareHolder5, ShareHolderComposition, StockListKeystatsRow, StockListRow as DbStockListRow, StockListSummaryRow,
+    ShareHolder1, ShareHolder5, ShareHolderComposition, StockbitReportsByCodeRow,
+    StockListKeystatsRow, StockListRow as DbStockListRow, StockListSummaryRow,
     StockbitClosureFinItemsGroupDb, StockbitDividendGroupDb, StockbitDividendYearValueDb,
     StockbitFinancialYearGroupDb, StockbitFinancialYearParentDb, StockbitFinancialYearValueDb,
     StockbitFinNameResultDb, StockbitFitemDb, StockbitMostRecentQuarterDb, StockbitPeriodValueDb,
-    StockbitStatsDb,
+    StockbitReportFollowingActivityDb, StockbitReportItemDb, StockbitReportNewsFeedDb,
+    StockbitReportReactionDb, StockbitReportReactionEntryDb, StockbitReportStatusDb,
+    StockbitReportStreamDb, StockbitReportSummaryDb, StockbitReportUserDb, StockbitStatsDb,
 };
 use crate::pb::stock_list_server::StockList;
 use crate::pb::{
@@ -24,7 +27,7 @@ use crate::pb::{
     GetAllKeyStatsResponse, GetAllStocksRequest, GetAllStocksResponse,
     GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest,
     GetHorizontalLineByCodeRequest, GetHorizontalLineByCodeResponse,
-    GetKeyStatsFromStockbitRequest, GetStockByCodeRequest,
+    GetKeyStatsFromStockbitRequest, GetStockbitReportsByCodeRequest, GetStockByCodeRequest,
     GetStockByRepeatedCodeRequest, GetStockByRepeatedCodeResponse,
     GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
     GetWyckoffChartByCodeResponse,
@@ -33,8 +36,11 @@ use crate::pb::{
     ShareHolder5Entry, ShareHolderAndCompanyInformationByCodeResponse,
     ShareHolderCompositionData, ShareHolderCompositionEntry, StatementPanelData,
     StockbitClosureFinItemsGroup, StockbitDividendGroup, StockbitDividendYearValue,
-    StockbitFinancialYearGroup, StockbitFinancialYearParent, StockbitFinancialYearValue, StockbitFinNameResult, StockbitFitem, StockbitMostRecentQuarter,
-    StockbitPeriodValue, StockbitStats, StockByCodeResponse, StockListRow,
+    StockbitFinancialYearGroup, StockbitFinancialYearParent, StockbitFinancialYearValue,
+    StockbitFinNameResult, StockbitFitem, StockbitMostRecentQuarter, StockbitPeriodValue,
+    StockbitReportFollowingActivity, StockbitReportItem, StockbitReportNewsFeed, StockbitReportReaction,
+    StockbitReportReactionEntry, StockbitReportsRow, StockbitReportStatus, StockbitReportStream,
+    StockbitReportSummary, StockbitReportUser, StockbitStats, StockByCodeResponse, StockListRow,
     UpdateHorizontalLineByCodeRequest, UpdateHorizontalLineByCodeResponse,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
     UpdateIsPlanToTradeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
@@ -865,6 +871,156 @@ impl StockListService {
                 .map(|dt| dt.timestamp()),
         }
     }
+
+    fn stockbit_report_user_to_proto(user: StockbitReportUserDb) -> StockbitReportUser {
+        StockbitReportUser {
+            user_id: user.user_id,
+            is_author: user.is_author,
+            username: user.username,
+            fullname: user.fullname,
+            avatar: user.avatar,
+            is_verified: user.is_verified,
+            user_privilege: user.user_privilege,
+            is_pro: user.is_pro,
+            country: user.country,
+            verified_status: user.verified_status,
+        }
+    }
+
+    fn stockbit_report_status_to_proto(status: StockbitReportStatusDb) -> StockbitReportStatus {
+        StockbitReportStatus {
+            is_pinned: status.is_pinned,
+            is_trending: status.is_trending,
+            is_reposted: status.is_reposted,
+            is_liked: status.is_liked,
+            is_saved: status.is_saved,
+            is_followed: status.is_followed,
+            is_unavailable: status.is_unavailable,
+            is_junk: status.is_junk,
+            is_spam: status.is_spam,
+            is_violation: status.is_violation,
+            is_deleted: status.is_deleted,
+        }
+    }
+
+    fn stockbit_report_item_to_proto(item: StockbitReportItemDb) -> StockbitReportItem {
+        StockbitReportItem {
+            r#type: item.report_type,
+        }
+    }
+
+    fn stockbit_report_news_feed_to_proto(feed: StockbitReportNewsFeedDb) -> StockbitReportNewsFeed {
+        StockbitReportNewsFeed {
+            source: feed.source,
+            label: feed.label,
+            img: feed.img,
+        }
+    }
+
+    fn stockbit_report_following_activity_to_proto(
+        activity: StockbitReportFollowingActivityDb,
+    ) -> StockbitReportFollowingActivity {
+        StockbitReportFollowingActivity {
+            users: activity.users.unwrap_or_default(),
+            info: activity.info,
+        }
+    }
+
+    fn stockbit_report_summary_to_proto(summary: StockbitReportSummaryDb) -> StockbitReportSummary {
+        StockbitReportSummary {
+            title: summary.title,
+            summary: summary.summary,
+            key_points: summary.key_points.unwrap_or_default(),
+            key_takeaway: summary.key_takeaway,
+            model: summary.model,
+            model_version: summary.model_version,
+        }
+    }
+
+    fn stockbit_report_reaction_entry_to_proto(
+        entry: StockbitReportReactionEntryDb,
+    ) -> StockbitReportReactionEntry {
+        StockbitReportReactionEntry {
+            reaction: entry.reaction,
+            total: entry.total,
+        }
+    }
+
+    fn stockbit_report_reaction_to_proto(reaction: StockbitReportReactionDb) -> StockbitReportReaction {
+        StockbitReportReaction {
+            reactions: reaction
+                .reactions
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_report_reaction_entry_to_proto)
+                .collect(),
+            total: reaction.total,
+            my_reaction: reaction.my_reaction.unwrap_or_default(),
+        }
+    }
+
+    fn stockbit_report_stream_to_proto(stream: StockbitReportStreamDb) -> StockbitReportStream {
+        StockbitReportStream {
+            stream_id: stream.stream_id,
+            title_url: stream.title_url,
+            title: stream.title,
+            content: stream.content,
+            content_original: stream.content_original,
+            created_at: stream.created_at,
+            created_display: stream.created_display,
+            updated_at: stream.updated_at,
+            user: Some(Self::stockbit_report_user_to_proto(stream.user)),
+            status: Some(Self::stockbit_report_status_to_proto(stream.status)),
+            total_replies: stream.total_replies,
+            total_likes: stream.total_likes,
+            likers: stream.likers,
+            stream_type: stream.stream_type,
+            images: stream.images.unwrap_or_default(),
+            parent_stream_id: stream.parent_stream_id,
+            reports: stream
+                .reports
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_report_item_to_proto)
+                .collect(),
+            news_feed: Some(Self::stockbit_report_news_feed_to_proto(stream.news_feed)),
+            last_reply_date: stream.last_reply_date,
+            topics: stream.topics.unwrap_or_default(),
+            image_frame_type: stream.image_frame_type,
+            commenter_type: stream.commenter_type,
+            following_activity: Some(Self::stockbit_report_following_activity_to_proto(
+                stream.following_activity,
+            )),
+            reply_to: stream.reply_to,
+            summary: stream
+                .summary
+                .map(Self::stockbit_report_summary_to_proto),
+            reaction: Some(
+                stream
+                    .reaction
+                    .map(Self::stockbit_report_reaction_to_proto)
+                    .unwrap_or_default(),
+            ),
+        }
+    }
+
+    fn stockbit_reports_row_response(
+        row: StockbitReportsByCodeRow,
+        message: &str,
+    ) -> StockbitReportsRow {
+        StockbitReportsRow {
+            success: true,
+            message: message.to_string(),
+            code: row.code,
+            stream: row
+                .stockbit_reports
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_report_stream_to_proto)
+                .collect(),
+            updated_at: row.stockbit_reports_updated_at.map(|dt| dt.timestamp()),
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -1046,6 +1202,67 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("GetKeyStatsFromStockbit", &user_name, started);
+        result
+    }
+
+    async fn get_stockbit_reports_by_code(
+        &self,
+        request: Request<GetStockbitReportsByCodeRequest>,
+    ) -> Result<Response<StockbitReportsRow>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<StockbitReportsRow>, Status> = async {
+            let code = request.into_inner().code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+            if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+                return Err(Status::invalid_argument(format!(
+                    "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
+                )));
+            }
+
+            let row = crate::repository::get_stockbit_reports_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(Status::internal)?
+                .ok_or_else(|| {
+                    Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                })?;
+
+            if crate::stockbit_reports::needs_stockbit_reports_refresh(
+                row.stockbit_reports_updated_at,
+            ) {
+                crate::stockbit_reports::fetch_and_save_stockbit_reports(
+                    Arc::clone(&self.session),
+                    &code,
+                )
+                .await
+                .map_err(Status::internal)?;
+
+                let row =
+                    crate::repository::get_stockbit_reports_by_code(self.session.as_ref(), &code)
+                        .await
+                        .map_err(Status::internal)?
+                        .ok_or_else(|| {
+                            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                        })?;
+
+                return Ok(Response::new(Self::stockbit_reports_row_response(
+                    row,
+                    "Stockbit reports di-upsert ke stock_list",
+                )));
+            }
+
+            Ok(Response::new(Self::stockbit_reports_row_response(
+                row,
+                "Stockbit reports dari Scylla",
+            )))
+        }
+        .await;
+
+        Self::log_rpc_debug("GetStockbitReportsByCode", &user_name, started);
         result
     }
 

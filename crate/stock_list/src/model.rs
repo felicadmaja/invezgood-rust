@@ -361,6 +361,150 @@ pub struct KeyStatsFromStockbitDb {
     pub dividend_group: Option<StockbitDividendGroupDb>,
 }
 
+/// UDT `stockbit_report_user`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitReportUserDb {
+    pub user_id: i32,
+    pub is_author: bool,
+    pub username: String,
+    pub fullname: String,
+    pub avatar: String,
+    pub is_verified: bool,
+    pub user_privilege: String,
+    pub is_pro: bool,
+    pub country: String,
+    pub verified_status: String,
+}
+
+/// UDT `stockbit_report_status`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitReportStatusDb {
+    pub is_pinned: bool,
+    pub is_trending: bool,
+    pub is_reposted: bool,
+    pub is_liked: bool,
+    pub is_saved: bool,
+    pub is_followed: bool,
+    pub is_unavailable: bool,
+    pub is_junk: bool,
+    pub is_spam: bool,
+    pub is_violation: bool,
+    pub is_deleted: bool,
+}
+
+/// UDT `stockbit_report_item`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitReportItemDb {
+    #[serde(rename = "type")]
+    #[scylla(rename = "type")]
+    pub report_type: String,
+}
+
+/// UDT `stockbit_report_news_feed`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitReportNewsFeedDb {
+    pub source: String,
+    pub label: String,
+    pub img: String,
+}
+
+/// UDT `stockbit_report_following_activity`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitReportFollowingActivityDb {
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub users: Option<Vec<String>>,
+    pub info: String,
+}
+
+/// UDT `stockbit_report_summary`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitReportSummaryDb {
+    pub title: String,
+    pub summary: String,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub key_points: Option<Vec<String>>,
+    pub key_takeaway: String,
+    pub model: String,
+    pub model_version: String,
+}
+
+/// UDT `stockbit_report_reaction_entry`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitReportReactionEntryDb {
+    pub reaction: String,
+    pub total: i32,
+}
+
+/// UDT `stockbit_report_reaction`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitReportReactionDb {
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub reactions: Option<Vec<StockbitReportReactionEntryDb>>,
+    pub total: i32,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub my_reaction: Option<String>,
+}
+
+/// UDT `stockbit_report_stream`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitReportStreamDb {
+    pub stream_id: i64,
+    pub title_url: String,
+    pub title: String,
+    pub content: String,
+    pub content_original: String,
+    pub created_at: String,
+    pub created_display: String,
+    pub updated_at: String,
+    pub user: StockbitReportUserDb,
+    pub status: StockbitReportStatusDb,
+    pub total_replies: i32,
+    pub total_likes: i32,
+    pub likers: String,
+    #[serde(rename = "type")]
+    #[scylla(rename = "type")]
+    pub stream_type: String,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub images: Option<Vec<String>>,
+    pub parent_stream_id: i64,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub reports: Option<Vec<StockbitReportItemDb>>,
+    pub news_feed: StockbitReportNewsFeedDb,
+    pub last_reply_date: i64,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub topics: Option<Vec<String>>,
+    pub image_frame_type: String,
+    pub commenter_type: String,
+    pub following_activity: StockbitReportFollowingActivityDb,
+    pub reply_to: i32,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub summary: Option<StockbitReportSummaryDb>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub reaction: Option<StockbitReportReactionDb>,
+}
+
+/// Kolom `stockbit_reports`.
+pub type StockbitReportsDb = Option<Vec<StockbitReportStreamDb>>;
+
+/// Subset kolom untuk `GetStockbitReportsByCode`.
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct StockbitReportsByCodeRow {
+    pub code: String,
+    #[scylla(default_when_null)]
+    pub stockbit_reports: StockbitReportsDb,
+    #[scylla(default_when_null)]
+    pub stockbit_reports_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 /// Subset kolom Stockbit keystats untuk `GetKeyStatsFromStockbit`.
 #[derive(Debug, Clone, DeserializeRow)]
 pub struct KeyStatsFromStockbitRow {

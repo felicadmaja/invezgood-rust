@@ -1,0 +1,1935 @@
+{
+    "message": "20 stream post(s) retrieved",
+    "data": {
+        "stream": [
+            {
+                "stream_id": 34692231,
+                "title_url": "streams/announcement/3d4bb8d920069a10009e732b53dab0b9",
+                "title": "Laporan Bulanan Registrasi Pemegang Efek [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-08-10 12:14:39",
+                "created_display": "10 Aug 26, 12:14",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 9,
+                "total_likes": 18,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 34692231,
+                "reports": [
+                    {
+                        "type": "Kepemilikan Saham"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1786338879,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Perubahan Struktur Kepemilikan Saham",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) melaporkan penambahan kepemilikan saham oleh tiga direksi dan komisarisnya pada laporan bulanan Juli 2026.",
+                    "key_points": [
+                        "Komisaris Erwin Ciputra menambah 1.000.000 saham.",
+                        "Direktur Michael menambah 800.000 saham.",
+                        "Direktur Kartika Hendrawan menambah 200.000 saham.",
+                        "Kepemilikan Prajogo Pangestu tidak berubah, tetap 80,37%."
+                    ],
+                    "key_takeaway": "Laporan bulanan rutin yang menunjukkan penambahan saham oleh beberapa anggota dewan, tanpa mengubah pengendali.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 18
+                        }
+                    ],
+                    "total": 18,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 34398097,
+                "title_url": "streams/announcement/9f49d87472866ce15e9d85cda37124ae",
+                "title": "Penyampaian Laporan Keuangan Interim Yang Tidak Diaudit [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-07-31 18:52:25",
+                "created_display": "31 Jul 26, 18:52",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 134,
+                "total_likes": 145,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 34398097,
+                "reports": [
+                    {
+                        "type": "Laporan Keuangan"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1785498745,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Laporan Kinerja Keuangan Interim",
+                    "summary": "CUAN (Petrindo) membukukan laba bersih semester I 2026 sebesar US$19,78 juta, melonjak 918% YoY, didorong oleh kenaikan pendapatan 59,3%.",
+                    "key_points": [
+                        "Laba bersih diatribusikan ke induk melonjak 918% menjadi US$19,78 juta.",
+                        "Pendapatan tumbuh 59,3% YoY menjadi US$736,11 juta.",
+                        "Laba kotor meningkat lebih dari dua kali lipat menjadi US$101,63 juta.",
+                        "Total aset per 30 Juni 2026 mencapai US$2,65 miliar."
+                    ],
+                    "key_takeaway": "Laporan kinerja interim rutin yang menunjukkan pertumbuhan laba signifikan, tanpa adanya aksi korporasi material baru.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 123
+                        },
+                        {
+                            "reaction": "🥳",
+                            "total": 12
+                        },
+                        {
+                            "reaction": "🔥",
+                            "total": 9
+                        },
+                        {
+                            "reaction": "❤️",
+                            "total": 1
+                        }
+                    ],
+                    "total": 145,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 33938234,
+                "title_url": "streams/announcement/1e2eb53a2741200721e6a18c4c8bb6a3",
+                "title": "Laporan Pengalihan Kembali Saham Hasil Buy Back [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-07-20 20:38:46",
+                "created_display": "20 Jul 26, 20:38",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 10,
+                "total_likes": 20,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 33938234,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1784554726,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Laporan Status Saham Treasury",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) melaporkan tidak ada penjualan saham hasil buyback per 30 Juni 2026, menyisakan 19,7 juta saham treasury.",
+                    "key_points": [
+                        "Tidak ada penjualan saham treasury pada periode yang berakhir 30 Juni 2026.",
+                        "Perusahaan masih menyimpan 19,7 juta lembar saham treasury.",
+                        "Saham berasal dari buyback yang selesai pada Juni 2025 dan Mei 2026.",
+                        "Jumlah saham telah disesuaikan pasca stock split pada 11 Juli 2025."
+                    ],
+                    "key_takeaway": "Pengumuman ini bersifat administratif dan tidak mengindikasikan perubahan material pada perusahaan.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 20
+                        }
+                    ],
+                    "total": 20,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 33781636,
+                "title_url": "streams/announcement/7bff575e1b6519cbd60c071477b7cde4",
+                "title": "Laporan Penggunaan Dana Hasil Penawaran Umum [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-07-15 16:52:18",
+                "created_display": "15 Jul 26, 16:52",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 5,
+                "total_likes": 22,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 33781636,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1784109138,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Laporan Realisasi Penggunaan Dana",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) melaporkan telah merealisasikan Rp1,97 triliun dari total dana bersih Rp1,99 triliun yang diperoleh dari penerbitan obligasi dan sukuk.",
+                    "key_points": [
+                        "Total dana bersih dari obligasi & sukuk mencapai Rp1,99 triliun.",
+                        "Realisasi penggunaan dana per 30 Juni 2026 sebesar Rp1,97 triliun.",
+                        "Dana disalurkan sebagai pinjaman modal kerja ke anak usaha.",
+                        "Sisa dana yang belum digunakan sebesar Rp10,71 miliar."
+                    ],
+                    "key_takeaway": "Laporan rutin penggunaan dana hasil penawaran umum tanpa dampak material pada struktur perusahaan.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 23
+                        },
+                        {
+                            "reaction": "👎",
+                            "total": 2
+                        }
+                    ],
+                    "total": 25,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 33621681,
+                "title_url": "streams/announcement/69e0d888b82128848a9d64894b57beb4",
+                "title": "Jatuh Tempo Obligasi / Sukuk Korporasi [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-07-10 20:47:43",
+                "created_display": "10 Jul 26, 20:47",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 8,
+                "total_likes": 17,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 33621681,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1783691263,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Pengumuman Jatuh Tempo Efek Utang",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) akan melunasi obligasi dan sukuk senilai total Rp150 miliar yang jatuh tempo pada 11 Juli 2026, yang kemudian akan dihapus dari pencatatan.",
+                    "key_points": [
+                        "Total nilai surat utang yang jatuh tempo adalah Rp150 miliar.",
+                        "Terdiri dari obligasi Rp97,5 miliar dan sukuk Rp52,5 miliar.",
+                        "Kedua instrumen akan jatuh tempo pada 11 Juli 2026.",
+                        "Efek tidak lagi diperdagangkan di bursa mulai 13 Juli 2026."
+                    ],
+                    "key_takeaway": "Pelunasan obligasi dan sukuk ini merupakan pemenuhan kewajiban rutin sesuai jadwal jatuh tempo dan tidak mengubah struktur modal saham.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 17
+                        }
+                    ],
+                    "total": 17,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 33472289,
+                "title_url": "streams/announcement/9219f937a6043e9ca5ae3cebe3b18b6a",
+                "title": "Laporan Bulanan Registrasi Pemegang Efek [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-07-08 11:32:04",
+                "created_display": "8 Jul 26, 11:32",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 22,
+                "total_likes": 22,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 33472289,
+                "reports": [
+                    {
+                        "type": "Kepemilikan Saham"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1783485124,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Laporan Komposisi Pemegang Saham Bulanan",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) melaporkan penambahan 24.203 investor baru pada Juni 2026, dengan porsi saham publik naik menjadi 18,68%.",
+                    "key_points": [
+                        "Jumlah investor bertambah 24.203 orang dalam sebulan menjadi 144.499.",
+                        "Porsi saham publik (free float) naik menjadi 18,68% dari 18,58%.",
+                        "Kepemilikan pengendali Prajogo Pangestu tetap stabil sebesar 80,37%.",
+                        "Total saham tercatat tidak berubah sebanyak 112,42 miliar lembar saham."
+                    ],
+                    "key_takeaway": "Laporan bulanan rutin yang menunjukkan peningkatan basis investor ritel tanpa perubahan struktur pengendali.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 22
+                        }
+                    ],
+                    "total": 22,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 33337644,
+                "title_url": "streams/announcement/3fc54e9645372cbeaa5bdea0917c9f9e",
+                "title": "Laporan Bulanan Aktivitas Eksplorasi [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-07-03 16:13:48",
+                "created_display": "3 Jul 26, 16:13",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 22,
+                "total_likes": 28,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 33337644,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1783070028,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Laporan Bulanan Aktivitas Eksplorasi",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) melaporkan biaya eksplorasi Juli 2026 sebesar Rp17,74 miliar oleh anak usahanya di Sumbawa.",
+                    "key_points": [
+                        "Total biaya eksplorasi yang dikeluarkan mencapai Rp17,74 miliar.",
+                        "Ditemukan urat kuarsa dengan total panjang 450 meter.",
+                        "Rencana pengeboran lanjutan sedalam 7,000 meter di area prospek utama.",
+                        "Pengeboran awal sedalam 6,000 meter akan dilakukan di area prospek lainnya."
+                    ],
+                    "key_takeaway": "Laporan bulanan rutin mengenai kemajuan aktivitas eksplorasi, tanpa perubahan material pada strategi perusahaan.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 24
+                        },
+                        {
+                            "reaction": "🔥",
+                            "total": 3
+                        },
+                        {
+                            "reaction": "🥳",
+                            "total": 1
+                        }
+                    ],
+                    "total": 28,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 33308572,
+                "title_url": "streams/announcement/87686031ae7496f11bd5e17656c2b4e6",
+                "title": "Keterbukaan Informasi sehubungan dengan Transaksi Afiliasi [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-07-02 22:34:46",
+                "created_display": "2 Jul 26, 22:34",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 8,
+                "total_likes": 17,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 33308572,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1783006486,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Keterbukaan Informasi Transaksi Afiliasi",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) menyampaikan keterbukaan informasi transaksi afiliasi di mana PT CSI akan memiliki 40% saham PT AMP.",
+                    "key_points": [
+                        "Nilai pasar saham target pada 31 Desember 2025 mencapai Rp2.180,98 juta.",
+                        "Prajogo Pangestu menguasai 90,35 miliar saham yang mewakili porsi kepemilikan 80,37%.",
+                        "Investor publik memegang 22,06 miliar saham atau setara dengan 19,62% kepemilikan.",
+                        "Modal dasar terbagi atas 112,41 miliar lembar saham dengan nilai nominal Rp20 per saham."
+                    ],
+                    "key_takeaway": "Transaksi afiliasi ini secara material mengubah struktur kepemilikan saham pada entitas anak perusahaan.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 17
+                        }
+                    ],
+                    "total": 17,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 33243754,
+                "title_url": "streams/announcement/a2ecbc3c200a3625494b143f7d071f9a",
+                "title": "Ringkasan Risalah Rapat Umum Para Pemegang Saham Tahunan dan Luar Biasa (KOREKSI) [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-07-01 09:56:06",
+                "created_display": "1 Jul 26, 09:56",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 9,
+                "total_likes": 23,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 33243754,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1782874566,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Keputusan RUPST dan RUPSLB Perseroan",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) resmi menyepakati sejumlah keputusan strategis melalui RUPST dan RUPSLB, mencakup kebijakan penggunaan laba bersih, penjaminan aset, serta pembaruan aturan internal.",
+                    "key_points": [
+                        "Sebanyak 99% laba bersih dialokasikan sebagai laba ditahan, sedangkan 1% untuk dana cadangan.",
+                        "Penjaminan sebagian besar atau seluruh aset disetujui untuk mengamankan pinjaman dari pihak ketiga.",
+                        "Anggaran dasar disesuaikan mengikuti peraturan terbaru Badan Pusat Statistik terkait klasifikasi baku lapangan usaha."
+                    ],
+                    "key_takeaway": "Fokus utama rapat adalah pengamanan pinjaman pihak ketiga lewat penjaminan aset dan penguatan modal internal dengan menahan 99% laba bersih tanpa pembagian dividen.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 22
+                        },
+                        {
+                            "reaction": "🥳",
+                            "total": 1
+                        }
+                    ],
+                    "total": 23,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 33228796,
+                "title_url": "streams/announcement/f4424e30955f3208c6d3b6c5edc41e42",
+                "title": "Ringkasan Risalah Rapat Umum Para Pemegang Saham Tahunan dan Luar Biasa [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-06-30 17:23:29",
+                "created_display": "30 Jun 26, 17:23",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 13,
+                "total_likes": 23,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 33228796,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1782815009,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Hasil Rapat Umum Pemegang Saham",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) mengumumkan persetujuan penjaminan kekayaan perseroan untuk pinjaman pihak ketiga dan penyesuaian anggaran dasar.",
+                    "key_points": [
+                        "Pasal 3 Anggaran Dasar disesuaikan mengikuti Peraturan Badan Pusat Statistik Nomor 7 Tahun 2025.",
+                        "Sebanyak 99% laba bersih ditetapkan sebagai laba ditahan guna membiayai kegiatan usaha.",
+                        "Sisa 1% dari laba bersih disisihkan untuk dana cadangan sesuai ketentuan Pasal 70."
+                    ],
+                    "key_takeaway": "Rapat menyetujui alokasi laba bersih, penyesuaian anggaran dasar, dan penjaminan kekayaan sebagai aksi korporasi material.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 23
+                        }
+                    ],
+                    "total": 23,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 32977600,
+                "title_url": "streams/announcement/9066c3d17c0db0e2f8fa6ff2e7efe3d9",
+                "title": "Informasi Pelunasan Efek [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-06-22 16:18:43",
+                "created_display": "22 Jun 26, 16:18",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 33,
+                "total_likes": 17,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 32977600,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1782119923,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Informasi Pelunasan Efek Utang",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) akan melunasi obligasi Rp97,5 miliar dan sukuk Rp52,5 miliar yang jatuh tempo pada 11 Juli 2026.",
+                    "key_points": [
+                        "Akan melunasi pokok obligasi senilai Rp97,5 miliar.",
+                        "Juga melunasi pokok sukuk senilai Rp52,5 miliar.",
+                        "Kedua efek utang memiliki imbal hasil 6,75% per tahun.",
+                        "Pembayaran akan dilakukan pada 11 Juli 2026."
+                    ],
+                    "key_takeaway": "Pelunasan efek utang ini merupakan pemenuhan kewajiban rutin dan tidak mengubah struktur permodalan atau kontrol perusahaan.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 17
+                        }
+                    ],
+                    "total": 17,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 32624122,
+                "title_url": "streams/announcement/7429f246539d026b7c0035805ee81bca",
+                "title": "Laporan Bulanan Registrasi Pemegang Efek [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-06-10 12:36:17",
+                "created_display": "10 Jun 26, 12:36",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 16,
+                "total_likes": 20,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 32624122,
+                "reports": [
+                    {
+                        "type": "Kepemilikan Saham"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1781069777,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Laporan Perubahan Kepemilikan Saham",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) melaporkan kepemilikan pengendali Prajogo Pangestu turun menjadi 80,37% setelah melepas 1,71 miliar saham per Mei 2026.",
+                    "key_points": [
+                        "Kepemilikan Prajogo Pangestu turun menjadi 80,37% dari sebelumnya 81,90%.",
+                        "Total saham yang dilepas mencapai sekitar 1,71 miliar lembar.",
+                        "Porsi saham publik (free float) meningkat dari 17,14% menjadi 18,58%.",
+                        "Jumlah investor bertambah dari 102,948 menjadi 120.296 pihak."
+                    ],
+                    "key_takeaway": "Meskipun pengendali mengurangi porsi, struktur kendali perusahaan tidak berubah karena kepemilikan masih mayoritas absolut.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 20
+                        }
+                    ],
+                    "total": 20,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 32379539,
+                "title_url": "streams/announcement/5b620d55891438b1aeb66984d3b09d22",
+                "title": "Pemanggilan Rapat Umum Pemegang Saham Tahunan dan Luar Biasa [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-06-04 10:09:55",
+                "created_display": "4 Jun 26, 10:09",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 18,
+                "total_likes": 14,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 32379539,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1780542595,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Pengumuman RUPS Tahunan dan Luar Biasa",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) mengumumkan RUPS Tahunan dan Luar Biasa pada 26 Juni 2026 dengan agenda persetujuan penjaminan aset untuk fasilitas pinjaman.",
+                    "key_points": [
+                        "RUPST dan RUPSLB akan diselenggarakan pada 26 Juni 2026.",
+                        "Agenda utama RUPSLB adalah meminta restu untuk menjaminkan aset perusahaan.",
+                        "Penjaminan aset bertujuan untuk mengamankan pinjaman dari bank atau lembaga keuangan.",
+                        "Tanggal daftar pemegang saham yang berhak hadir adalah 3 Juni 2026."
+                    ],
+                    "key_takeaway": "RUPS meminta persetujuan untuk aksi korporasi material, yaitu penjaminan aset guna memfasilitasi perolehan pinjaman di masa depan.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 14
+                        }
+                    ],
+                    "total": 14,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 32234884,
+                "title_url": "streams/announcement/c8eccf8ad45670aa550513a391a55a1b",
+                "title": "Penjelasan atas Permintaan Penjelasan Bursa [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-05-29 21:18:16",
+                "created_display": "29 May 26, 21:18",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 8,
+                "total_likes": 23,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 32234884,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1780064296,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Penjelasan atas Permintaan Bursa",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) menyatakan belum menerima informasi resmi mengenai rencana pemerintah untuk sentralisasi ekspor mineral dan belum dapat mengevaluasi dampaknya.",
+                    "key_points": [
+                        "Menanggapi permintaan penjelasan BEI soal rencana PP tata kelola ekspor SDA.",
+                        "Menyatakan belum mengetahui adanya peraturan resmi yang telah diterbitkan.",
+                        "Belum dapat memberi tanggapan konklusif mengenai potensi dampak bagi perseroan.",
+                        "Berkomitmen untuk mematuhi seluruh kebijakan dan regulasi dari pemerintah."
+                    ],
+                    "key_takeaway": "Klarifikasi ini menegaskan posisi perusahaan yang menunggu kepastian regulasi, tanpa dampak operasional atau finansial saat ini.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 23
+                        }
+                    ],
+                    "total": 23,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 31902505,
+                "title_url": "streams/announcement/9ffe125b9cd37fad5c97857e6c7898fb",
+                "title": "Penjelasan atas Volatilitas Transaksi [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-05-20 10:53:39",
+                "created_display": "20 May 26, 10:53",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 14,
+                "total_likes": 12,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 31902505,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1779249219,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Penjelasan atas Volatilitas Saham",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) menyatakan tidak memiliki informasi material yang belum diungkapkan atau rencana aksi korporasi dalam waktu dekat.",
+                    "key_points": [
+                        "Menyatakan tidak ada informasi atau fakta material baru yang belum diungkap.",
+                        "Volatilitas harga saham dikaitkan dengan sentimen pasar dan kondisi makroekonomi.",
+                        "Tidak ada rencana aksi korporasi yang akan dilakukan dalam waktu dekat.",
+                        "Pemegang saham utama belum berencana mengubah kepemilikan sahamnya."
+                    ],
+                    "key_takeaway": "Klarifikasi rutin kepada bursa yang menegaskan tidak ada perubahan fundamental atau rencana aksi korporasi material.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 13
+                        }
+                    ],
+                    "total": 13,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 31901714,
+                "title_url": "streams/announcement/c5e2a85ac3ce3377926df45ecb965e4a",
+                "title": "Pemberitahuan Rencana Rapat Umum Pemegang Saham Tahunan dan Luar Biasa [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-05-20 10:48:33",
+                "created_display": "20 May 26, 10:48",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 15,
+                "total_likes": 11,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 31901714,
+                "reports": [
+                    {
+                        "type": "RUPS"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1779248913,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Pengumuman Rapat Umum Pemegang Saham",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) akan menyelenggarakan RUPST dan RUPSLB pada 26 Juni 2026 untuk tahun buku yang berakhir 31 Desember 2025.",
+                    "key_points": [
+                        "Rapat akan diadakan pada 26 Juni 2026 pukul 14:00 WIB.",
+                        "Tanggal daftar pemegang saham (DPS) yang berhak hadir adalah 3 Juni 2026.",
+                        "Pemanggilan resmi untuk rapat akan diumumkan pada 4 Juni 2026.",
+                        "Batas akhir usulan mata acara dari pemegang saham adalah 28 Mei 2026."
+                    ],
+                    "key_takeaway": "Pengumuman ini merupakan pemberitahuan jadwal RUPST & RUPSLB rutin, tanpa rincian agenda atau aksi korporasi.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 11
+                        }
+                    ],
+                    "total": 11,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 31451862,
+                "title_url": "streams/announcement/177dc8c7876c0ae4d26939bcab78a66c",
+                "title": "Laporan Bulanan Registrasi Pemegang Efek [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-05-08 10:56:45",
+                "created_display": "8 May 26, 10:56",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 23,
+                "total_likes": 12,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 31451862,
+                "reports": [
+                    {
+                        "type": "Kepemilikan Saham"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1778212605,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Perubahan Kepemilikan Saham Pengendali",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) melaporkan kepemilikan Prajogo Pangestu turun menjadi 81,90% setelah melepas 2,47 miliar saham per akhir April 2026.",
+                    "key_points": [
+                        "Prajogo Pangestu melepas 2,47 miliar saham.",
+                        "Kepemilikan pengendali turun dari 84,10% menjadi 81,90%.",
+                        "Porsi saham publik (free float) naik dari 14,94% menjadi 17,14%.",
+                        "Jumlah pemegang saham bertambah menjadi 102.948 investor."
+                    ],
+                    "key_takeaway": "Pengendali melepas sebagian saham, meningkatkan porsi publik namun tidak mengubah status kontrol mayoritas.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 12
+                        }
+                    ],
+                    "total": 12,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 31083474,
+                "title_url": "streams/announcement/3d685feb19e09e4492c42ff8f16bb457",
+                "title": "Penyampaian Laporan Keuangan Interim Yang Tidak Diaudit [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-04-30 10:24:58",
+                "created_display": "30 Apr 26, 10:24",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 43,
+                "total_likes": 27,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 31083474,
+                "reports": [
+                    {
+                        "type": "Laporan Keuangan"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1777519498,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": {
+                    "title": "Kinerja Keuangan Kuartalan Meningkat",
+                    "summary": "CUAN (Petrindo Jaya Kreasi) membukukan laba bersih US$5,70 juta pada Q1 2026, melonjak 234% YoY, didukung oleh pendapatan yang tumbuh 73,57% menjadi US$371,33 juta.",
+                    "key_points": [
+                        "Laba bersih diatribusikan ke pemilik induk naik 234% menjadi US$5,70 juta.",
+                        "Pendapatan tumbuh 73,57% YoY menjadi US$371,33 juta.",
+                        "Mencatatkan laba bruto sebesar US$56,27 juta, naik 232,5% YoY.",
+                        "Total aset per 31 Maret 2026 mencapai US$2,76 miliar."
+                    ],
+                    "key_takeaway": "Laporan kinerja kuartalan rutin tanpa perubahan struktur kontrol atau aksi korporasi material.",
+                    "model": "SUMMARY_MODEL_AI",
+                    "model_version": "v1"
+                },
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 27
+                        }
+                    ],
+                    "total": 27,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 31076380,
+                "title_url": "streams/announcement/11551184c30ad24c7fd9f525bf5b1ce2",
+                "title": "Penyampaian Laporan Keberlanjutan dan ESG [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-04-30 09:46:24",
+                "created_display": "30 Apr 26, 09:46",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 5,
+                "total_likes": 2,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 31076380,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1777517184,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": null,
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 2
+                        }
+                    ],
+                    "total": 2,
+                    "my_reaction": null
+                }
+            },
+            {
+                "stream_id": 30614393,
+                "title_url": "streams/announcement/390b3d33539093a514bbbb297ef191bc",
+                "title": "Perubahan Internal Audit [CUAN]",
+                "content": "",
+                "content_original": "",
+                "created_at": "2026-04-21 14:39:02",
+                "created_display": "21 Apr 26, 14:39",
+                "updated_at": "0000-00-00 00:00:00",
+                "user": {
+                    "user_id": 3,
+                    "is_author": false,
+                    "username": "StockbitReports",
+                    "fullname": "Stockbit Reports",
+                    "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+                    "is_verified": true,
+                    "user_privilege": "PRIVILEGE_MEMBER",
+                    "is_pro": false,
+                    "country": "COUNTRY_ID",
+                    "verified_status": "VERIFIED_STATUS_COMMUNITY"
+                },
+                "status": {
+                    "is_pinned": false,
+                    "is_trending": false,
+                    "is_reposted": false,
+                    "is_liked": false,
+                    "is_saved": false,
+                    "is_followed": false,
+                    "is_unavailable": false,
+                    "is_junk": false,
+                    "is_spam": false,
+                    "is_violation": false,
+                    "is_deleted": false
+                },
+                "total_replies": 13,
+                "total_likes": 7,
+                "reposted_from": null,
+                "likers": "",
+                "type": "STREAM_TYPE_REPORT",
+                "images": [],
+                "polling": [],
+                "attachment": [],
+                "parent_stream_id": 30614393,
+                "reports": [
+                    {
+                        "type": "Others"
+                    }
+                ],
+                "news_feed": {
+                    "source": "",
+                    "label": "",
+                    "img": ""
+                },
+                "target_price": [],
+                "analytics": null,
+                "last_reply_date": 1776757142,
+                "topics": [
+                    "CUAN"
+                ],
+                "last_reply": null,
+                "mask_html": [],
+                "images_data": [],
+                "image_frame_type": "FRAME_TYPE_UNSPECIFIED",
+                "commenter_type": "COMMENTER_TYPE_EVERYONE",
+                "following_activity": {
+                    "users": [],
+                    "info": ""
+                },
+                "sharetrade_info": null,
+                "reply_to": 0,
+                "reply_content": null,
+                "research": null,
+                "summary": null,
+                "reaction": {
+                    "reactions": [
+                        {
+                            "reaction": "👍",
+                            "total": 7
+                        }
+                    ],
+                    "total": 7,
+                    "my_reaction": null
+                }
+            }
+        ],
+        "pagination": {
+            "is_last_page": false,
+            "next_cursor": 30614393,
+            "total": 20
+        },
+        "invalid_watchlist_ids": []
+    }
+}

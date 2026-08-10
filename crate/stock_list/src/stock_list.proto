@@ -23,6 +23,13 @@ service StockList {
   rpc GetKeyStatsFromStockbit(GetKeyStatsFromStockbitRequest)
       returns (KeyStatsFromStockbitResponse);
 
+
+  // GET exodus.stockbit.com/stream/v3/symbol/{code}?category=STREAM_CATEGORY_REPORTS&...
+  // Upsert data.stream → stockbit_reports + stockbit_reports_updated_at.
+  // Bila stockbit_reports_updated_at < 7 hari → baca Scylla tanpa API.
+  rpc GetStockbitReportsByCode(GetStockbitReportsByCodeRequest)
+      returns (StockbitReportsRow);
+
   // GET Invezgo per jenis → upsert keystats, balance_statement, income_statement, cash_flow + *_updated_at.
   // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Request: code wajib. Response: FinancialStatementResponse (keystats, balance_statement, income_statement, cash_flow).
@@ -169,6 +176,109 @@ message KeyStatsFromStockbitResponse {
   optional int64 stats_updated_at = 9;
   StockbitDividendGroup dividend_group = 10;
   optional int64 dividend_group_updated_at = 11;
+}
+
+message GetStockbitReportsByCodeRequest {
+  string code = 1;
+}
+
+message StockbitReportUser {
+  int32 user_id = 1;
+  bool is_author = 2;
+  string username = 3;
+  string fullname = 4;
+  string avatar = 5;
+  bool is_verified = 6;
+  string user_privilege = 7;
+  bool is_pro = 8;
+  string country = 9;
+  string verified_status = 10;
+}
+
+message StockbitReportStatus {
+  bool is_pinned = 1;
+  bool is_trending = 2;
+  bool is_reposted = 3;
+  bool is_liked = 4;
+  bool is_saved = 5;
+  bool is_followed = 6;
+  bool is_unavailable = 7;
+  bool is_junk = 8;
+  bool is_spam = 9;
+  bool is_violation = 10;
+  bool is_deleted = 11;
+}
+
+message StockbitReportItem {
+  string type = 1;
+}
+
+message StockbitReportNewsFeed {
+  string source = 1;
+  string label = 2;
+  string img = 3;
+}
+
+message StockbitReportFollowingActivity {
+  repeated string users = 1;
+  string info = 2;
+}
+
+message StockbitReportSummary {
+  string title = 1;
+  string summary = 2;
+  repeated string key_points = 3;
+  string key_takeaway = 4;
+  string model = 5;
+  string model_version = 6;
+}
+
+message StockbitReportReactionEntry {
+  string reaction = 1;
+  int32 total = 2;
+}
+
+message StockbitReportReaction {
+  repeated StockbitReportReactionEntry reactions = 1;
+  int32 total = 2;
+  string my_reaction = 3;
+}
+
+message StockbitReportStream {
+  int64 stream_id = 1;
+  string title_url = 2;
+  string title = 3;
+  string content = 4;
+  string content_original = 5;
+  string created_at = 6;
+  string created_display = 7;
+  string updated_at = 8;
+  StockbitReportUser user = 9;
+  StockbitReportStatus status = 10;
+  int32 total_replies = 11;
+  int32 total_likes = 12;
+  string likers = 13;
+  string stream_type = 14;
+  repeated string images = 15;
+  int64 parent_stream_id = 16;
+  repeated StockbitReportItem reports = 17;
+  StockbitReportNewsFeed news_feed = 18;
+  int64 last_reply_date = 19;
+  repeated string topics = 20;
+  string image_frame_type = 21;
+  string commenter_type = 22;
+  StockbitReportFollowingActivity following_activity = 23;
+  int32 reply_to = 24;
+  StockbitReportSummary summary = 25;
+  StockbitReportReaction reaction = 26;
+}
+
+message StockbitReportsRow {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  repeated StockbitReportStream stream = 4;
+  optional int64 updated_at = 5;
 }
 
 message StockByCodeResponse {

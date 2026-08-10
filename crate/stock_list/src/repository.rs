@@ -4,7 +4,8 @@ use scylla::DeserializeRow;
 
 use crate::model::{
     CompanyInformationDb, CorporateActionDb, KeyStatsFromStockbitDb, KeyStatsFromStockbitRow,
-    ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb,
+    ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb, StockbitReportsByCodeRow,
+    StockbitReportsDb,
     StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
     StockListKeystatsDb, StockListKeystatsRow, StockListRow, StockListSummaryRow,
     HorizontalLineByCodeRow, WyckoffChartByCodeRow, WyckoffChartDb, KEYSPACE, TABLE,
@@ -34,6 +35,9 @@ const SELECT_KEYSTATS_FROM_STOCKBIT_BY_CODE: &str = "SELECT code, \
     stats_stockbit, stats_stockbit_updated_at, \
     dividend_group_stockbit, dividend_group_stockbit_updated_at \
     FROM invezgood.stock_list WHERE code = ?";
+
+const SELECT_STOCKBIT_REPORTS_BY_CODE: &str =
+    "SELECT code, stockbit_reports, stockbit_reports_updated_at FROM invezgood.stock_list WHERE code = ?";
 
 const UPDATE_KEYSTATS: &str =
     "UPDATE invezgood.stock_list SET keystats = ?, keystats_updated_at = ? WHERE code = ?";
@@ -67,6 +71,9 @@ const UPDATE_KEYSTATS_FROM_STOCKBIT: &str = "UPDATE invezgood.stock_list SET \
     financial_year_parent_stockbit = ?, financial_year_parent_stockbit_updated_at = ?, \
     stats_stockbit = ?, stats_stockbit_updated_at = ?, \
     dividend_group_stockbit = ?, dividend_group_stockbit_updated_at = ? WHERE code = ?";
+
+const UPDATE_STOCKBIT_REPORTS: &str =
+    "UPDATE invezgood.stock_list SET stockbit_reports = ?, stockbit_reports_updated_at = ? WHERE code = ?";
 
 const UPDATE_IS_KONGLOMERASI: &str =
     "UPDATE invezgood.stock_list SET is_konglomerasi = ? WHERE code = ?";
@@ -195,6 +202,35 @@ pub async fn get_keystats_from_stockbit_by_code(
     rows.try_next()
         .await
         .map_err(|e| format!("select keystats stockbit row {KEYSPACE}.{TABLE} code={code}: {e}"))
+}
+
+pub async fn get_stockbit_reports_by_code(
+    session: &Session,
+    code: &str,
+) -> Result<Option<StockbitReportsByCodeRow>, String> {
+    let mut rows = session
+        .query_iter(SELECT_STOCKBIT_REPORTS_BY_CODE, (code,))
+        .await
+        .map_err(|e| format!("select stockbit reports {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .rows_stream::<StockbitReportsByCodeRow>()
+        .map_err(|e| format!("select stockbit reports stream {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+
+    rows.try_next()
+        .await
+        .map_err(|e| format!("select stockbit reports row {KEYSPACE}.{TABLE} code={code}: {e}"))
+}
+
+pub async fn update_stockbit_reports(
+    session: &Session,
+    code: &str,
+    reports: StockbitReportsDb,
+    updated_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), String> {
+    session
+        .query_unpaged(UPDATE_STOCKBIT_REPORTS, (reports, updated_at, code))
+        .await
+        .map_err(|e| format!("update stockbit reports {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
 }
 
 pub async fn update_keystats(
