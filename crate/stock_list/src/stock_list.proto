@@ -23,6 +23,10 @@ service StockList {
   rpc GetKeyStatsFromStockbit(GetKeyStatsFromStockbitRequest)
       returns (KeyStatsFromStockbitResponse);
 
+  // GET exodus.stockbit.com/emitten/{code}/profile (Bearer sesi Stockbit) bila stockbit_profile
+  // kosong atau stockbit_profile_updated_at ≥ 30 hari. Rate limit 1× / 5 detik saat GET API.
+  rpc GetStockbitProfileByCode(GetStockbitProfileByCodeRequest)
+      returns (StockbitProfileResponse);
 
   // GET exodus.stockbit.com/stream/v3/symbol/{code}?category=STREAM_CATEGORY_REPORTS&...
   // Upsert data.stream → stockbit_reports + stockbit_reports_updated_at.
@@ -176,6 +180,190 @@ message KeyStatsFromStockbitResponse {
   optional int64 stats_updated_at = 9;
   StockbitDividendGroup dividend_group = 10;
   optional int64 dividend_group_updated_at = 11;
+}
+
+message GetStockbitProfileByCodeRequest {
+  string code = 1;
+}
+
+message StockbitProfileAddress {
+  string id = 1;
+  repeated string email = 2;
+  string fax = 3;
+  string npwp = 4;
+  string phone = 5;
+  string website = 6;
+  string key = 7;
+  string lastupdate = 8;
+  string value = 9;
+  string office = 10;
+}
+
+message StockbitProfileHistory {
+  string amount = 1;
+  string board = 2;
+  string date = 3;
+  string price = 4;
+  string registrar = 5;
+  string shares = 6;
+  repeated string underwriters = 7;
+  string administrative_bureau = 8;
+  string free_float = 9;
+}
+
+message StockbitProfileExecutiveEntry {
+  string id = 1;
+  string key = 2;
+  string lastupdate = 3;
+  string value = 4;
+}
+
+message StockbitProfileKeyExecutive {
+  repeated StockbitProfileExecutiveEntry commissioner = 1;
+  repeated StockbitProfileExecutiveEntry director = 2;
+  repeated StockbitProfileExecutiveEntry independent_commissioner = 3;
+  repeated StockbitProfileExecutiveEntry president_commissioner = 4;
+  repeated StockbitProfileExecutiveEntry president_director = 5;
+  repeated StockbitProfileExecutiveEntry vice_president = 6;
+  repeated StockbitProfileExecutiveEntry vice_president_commissioner = 7;
+  repeated StockbitProfileExecutiveEntry independent_vice_president_commissioner = 8;
+  repeated StockbitProfileExecutiveEntry independent_president_commissioner = 9;
+}
+
+message StockbitProfileShareholderEntry {
+  string percentage = 1;
+  string name = 2;
+  string value = 3;
+  repeated string badges = 4;
+  string id = 5;
+  string type = 6;
+  string location = 7;
+  string nationality = 8;
+  string domicile = 9;
+  string scripless = 10;
+  string scrip = 11;
+  string value_formatted = 12;
+  string classification = 13;
+}
+
+message StockbitProfileValueInfo {
+  string value = 1;
+  string info = 2;
+}
+
+message StockbitProfileProspectus {
+  string name = 1;
+  string file = 2;
+  string dir = 3;
+  string url = 4;
+}
+
+message StockbitProfileFundProfile {
+  StockbitProfileValueInfo fund_type = 1;
+  string inception_date = 2;
+  string fund_manager = 3;
+  string fund_manager_ico = 4;
+  string custodian_bank = 5;
+  string custodian_ico = 6;
+  StockbitProfileValueInfo risk_level = 7;
+  StockbitProfileValueInfo aum = 8;
+  StockbitProfileValueInfo maxdrawdown = 9;
+  StockbitProfileValueInfo cagr5year = 10;
+  StockbitProfileValueInfo expense_ratio = 11;
+  StockbitProfileValueInfo average_yield = 12;
+  StockbitProfileProspectus prospectus = 13;
+  repeated StockbitProfileProspectus fund_fact_sheet = 14;
+  string redemption_bank_name = 15;
+  string min_buy = 16;
+  string buy_fee = 17;
+  string sell_fee = 18;
+}
+
+message StockbitProfileShareholderNumber {
+  string shareholder_date = 1;
+  string total_share = 2;
+  int32 change = 3;
+  string change_formatted = 4;
+  string change_value = 5;
+}
+
+message StockbitProfilePercentage {
+  int32 raw = 1;
+  string formatted = 2;
+}
+
+message StockbitProfileListingInformation {
+  string exercise_start_date = 1;
+  string exercise_end_date = 2;
+  int32 exercise_price = 3;
+  string expire_date = 4;
+  string listing_date = 5;
+  StockbitProfilePercentage foreign_percentage = 6;
+  StockbitProfilePercentage local_percentage = 7;
+  int32 number_of_securities = 8;
+  int32 total_shares = 9;
+}
+
+message StockbitProfileBeneficiary {
+  string name = 1;
+}
+
+message StockbitProfileShareholderOnePercent {
+  repeated StockbitProfileShareholderEntry shareholder = 1;
+  string last_updated = 2;
+}
+
+message StockbitProfileSubsidiary {
+  string name = 1;
+  string percentage = 2;
+}
+
+message StockbitProfileFeeEntry {
+  string name = 1;
+  string value = 2;
+}
+
+message StockbitProfileAssetAllocationEntry {
+  string name = 1;
+  string percentage = 2;
+  string value = 3;
+}
+
+message StockbitProfileTopHoldingEntry {
+  string name = 1;
+  string percentage = 2;
+  string value = 3;
+}
+
+message StockbitProfileData {
+  repeated StockbitProfileAddress address = 1;
+  string background = 2;
+  StockbitProfileHistory history = 3;
+  StockbitProfileKeyExecutive key_executive = 4;
+  repeated StockbitProfileExecutiveEntry secretary = 5;
+  repeated StockbitProfileShareholderEntry shareholder = 6;
+  repeated StockbitProfileSubsidiary subsidiary = 7;
+  StockbitProfileFundProfile profile = 8;
+  repeated StockbitProfileFeeEntry fee = 9;
+  repeated StockbitProfileAssetAllocationEntry asset_allocation = 10;
+  repeated StockbitProfileShareholderEntry shareholder_reksa = 11;
+  repeated StockbitProfileProspectus pdf = 12;
+  repeated StockbitProfileShareholderNumber shareholder_numbers = 13;
+  repeated string badges = 14;
+  repeated StockbitProfileTopHoldingEntry top_holdings = 15;
+  repeated StockbitProfileShareholderEntry shareholder_director_commissioner = 16;
+  StockbitProfileListingInformation listing_information = 17;
+  repeated StockbitProfileBeneficiary beneficiary = 18;
+  StockbitProfileShareholderOnePercent shareholder_one_percent = 19;
+  string classification = 20;
+}
+
+message StockbitProfileResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  StockbitProfileData data = 4;
+  optional int64 updated_at = 5;
 }
 
 message GetStockbitReportsByCodeRequest {

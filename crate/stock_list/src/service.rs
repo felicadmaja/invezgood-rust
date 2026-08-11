@@ -10,11 +10,19 @@ use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
 use crate::model::{
     BalanceStatement, CompanyInformation, CorporateAction, Keystats, KeyStatsFromStockbitRow,
-    ShareHolder1, ShareHolder5, ShareHolderComposition, StockbitReportsByCodeRow,
+    ShareHolder1, ShareHolder5, ShareHolderComposition,
+    StockbitReportsByCodeRow,
     StockListKeystatsRow, StockListRow as DbStockListRow, StockListSummaryRow,
     StockbitClosureFinItemsGroupDb, StockbitDividendGroupDb, StockbitDividendYearValueDb,
     StockbitFinancialYearGroupDb, StockbitFinancialYearParentDb, StockbitFinancialYearValueDb,
     StockbitFinNameResultDb, StockbitFitemDb, StockbitMostRecentQuarterDb, StockbitPeriodValueDb,
+    StockbitProfileAddressDb, StockbitProfileAssetAllocationEntryDb, StockbitProfileBeneficiaryDb,
+    StockbitProfileDb, StockbitProfileExecutiveEntryDb, StockbitProfileFeeEntryDb,
+    StockbitProfileFundProfileDb, StockbitProfileHistoryDb, StockbitProfileKeyExecutiveDb,
+    StockbitProfileListingInformationDb, StockbitProfilePercentageDb, StockbitProfileProspectusDb,
+    StockbitProfileShareholderEntryDb, StockbitProfileShareholderNumberDb,
+    StockbitProfileShareholderOnePercentDb, StockbitProfileSubsidiaryDb,
+    StockbitProfileTopHoldingEntryDb, StockbitProfileValueInfoDb,
     StockbitReportFollowingActivityDb, StockbitReportItemDb, StockbitReportNewsFeedDb,
     StockbitReportReactionDb, StockbitReportReactionEntryDb, StockbitReportStatusDb,
     StockbitReportStreamDb, StockbitReportSummaryDb, StockbitReportUserDb, StockbitStatsDb,
@@ -27,7 +35,8 @@ use crate::pb::{
     GetAllKeyStatsResponse, GetAllStocksRequest, GetAllStocksResponse,
     GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest,
     GetHorizontalLineByCodeRequest, GetHorizontalLineByCodeResponse,
-    GetKeyStatsFromStockbitRequest, GetStockbitReportsByCodeRequest, GetStockByCodeRequest,
+    GetKeyStatsFromStockbitRequest, GetStockbitProfileByCodeRequest,
+    GetStockbitReportsByCodeRequest, GetStockByCodeRequest,
     GetStockByRepeatedCodeRequest, GetStockByRepeatedCodeResponse,
     GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
     GetWyckoffChartByCodeResponse,
@@ -38,6 +47,13 @@ use crate::pb::{
     StockbitClosureFinItemsGroup, StockbitDividendGroup, StockbitDividendYearValue,
     StockbitFinancialYearGroup, StockbitFinancialYearParent, StockbitFinancialYearValue,
     StockbitFinNameResult, StockbitFitem, StockbitMostRecentQuarter, StockbitPeriodValue,
+    StockbitProfileAddress, StockbitProfileAssetAllocationEntry, StockbitProfileBeneficiary,
+    StockbitProfileData, StockbitProfileExecutiveEntry, StockbitProfileFeeEntry,
+    StockbitProfileFundProfile, StockbitProfileHistory, StockbitProfileKeyExecutive,
+    StockbitProfileListingInformation, StockbitProfilePercentage, StockbitProfileProspectus,
+    StockbitProfileResponse, StockbitProfileShareholderEntry, StockbitProfileShareholderNumber,
+    StockbitProfileShareholderOnePercent, StockbitProfileSubsidiary, StockbitProfileTopHoldingEntry,
+    StockbitProfileValueInfo,
     StockbitReportFollowingActivity, StockbitReportItem, StockbitReportNewsFeed, StockbitReportReaction,
     StockbitReportReactionEntry, StockbitReportsRow, StockbitReportStatus, StockbitReportStream,
     StockbitReportSummary, StockbitReportUser, StockbitStats, StockByCodeResponse, StockListRow,
@@ -1004,6 +1020,374 @@ impl StockListService {
         }
     }
 
+    fn stockbit_profile_address_to_proto(addr: StockbitProfileAddressDb) -> StockbitProfileAddress {
+        StockbitProfileAddress {
+            id: addr.id,
+            email: addr.email.unwrap_or_default(),
+            fax: addr.fax,
+            npwp: addr.npwp,
+            phone: addr.phone,
+            website: addr.website,
+            key: addr.key,
+            lastupdate: addr.lastupdate,
+            value: addr.value,
+            office: addr.office,
+        }
+    }
+
+    fn stockbit_profile_history_to_proto(history: StockbitProfileHistoryDb) -> StockbitProfileHistory {
+        StockbitProfileHistory {
+            amount: history.amount,
+            board: history.board,
+            date: history.date,
+            price: history.price,
+            registrar: history.registrar,
+            shares: history.shares,
+            underwriters: history.underwriters.unwrap_or_default(),
+            administrative_bureau: history.administrative_bureau,
+            free_float: history.free_float,
+        }
+    }
+
+    fn stockbit_profile_executive_entry_to_proto(
+        entry: StockbitProfileExecutiveEntryDb,
+    ) -> StockbitProfileExecutiveEntry {
+        StockbitProfileExecutiveEntry {
+            id: entry.id,
+            key: entry.key_label,
+            lastupdate: entry.lastupdate,
+            value: entry.value,
+        }
+    }
+
+    fn stockbit_profile_key_executive_to_proto(
+        exec: StockbitProfileKeyExecutiveDb,
+    ) -> StockbitProfileKeyExecutive {
+        StockbitProfileKeyExecutive {
+            commissioner: exec
+                .commissioner
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_executive_entry_to_proto)
+                .collect(),
+            director: exec
+                .director
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_executive_entry_to_proto)
+                .collect(),
+            independent_commissioner: exec
+                .independent_commissioner
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_executive_entry_to_proto)
+                .collect(),
+            president_commissioner: exec
+                .president_commissioner
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_executive_entry_to_proto)
+                .collect(),
+            president_director: exec
+                .president_director
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_executive_entry_to_proto)
+                .collect(),
+            vice_president: exec
+                .vice_president
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_executive_entry_to_proto)
+                .collect(),
+            vice_president_commissioner: exec
+                .vice_president_commissioner
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_executive_entry_to_proto)
+                .collect(),
+            independent_vice_president_commissioner: exec
+                .independent_vice_president_commissioner
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_executive_entry_to_proto)
+                .collect(),
+            independent_president_commissioner: exec
+                .independent_president_commissioner
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_executive_entry_to_proto)
+                .collect(),
+        }
+    }
+
+    fn stockbit_profile_shareholder_entry_to_proto(
+        entry: StockbitProfileShareholderEntryDb,
+    ) -> StockbitProfileShareholderEntry {
+        StockbitProfileShareholderEntry {
+            percentage: entry.percentage,
+            name: entry.name,
+            value: entry.value,
+            badges: entry.badges.unwrap_or_default(),
+            id: entry.id,
+            r#type: entry.shareholder_type,
+            location: entry.location,
+            nationality: entry.nationality,
+            domicile: entry.domicile,
+            scripless: entry.scripless,
+            scrip: entry.scrip,
+            value_formatted: entry.value_formatted,
+            classification: entry.classification,
+        }
+    }
+
+    fn stockbit_profile_value_info_to_proto(info: StockbitProfileValueInfoDb) -> StockbitProfileValueInfo {
+        StockbitProfileValueInfo {
+            value: info.value,
+            info: info.info,
+        }
+    }
+
+    fn stockbit_profile_prospectus_to_proto(
+        doc: StockbitProfileProspectusDb,
+    ) -> StockbitProfileProspectus {
+        StockbitProfileProspectus {
+            name: doc.name,
+            file: doc.file,
+            dir: doc.dir,
+            url: doc.url,
+        }
+    }
+
+    fn stockbit_profile_fund_profile_to_proto(
+        profile: StockbitProfileFundProfileDb,
+    ) -> StockbitProfileFundProfile {
+        StockbitProfileFundProfile {
+            fund_type: Some(Self::stockbit_profile_value_info_to_proto(profile.fund_type)),
+            inception_date: profile.inception_date,
+            fund_manager: profile.fund_manager,
+            fund_manager_ico: profile.fund_manager_ico,
+            custodian_bank: profile.custodian_bank,
+            custodian_ico: profile.custodian_ico,
+            risk_level: Some(Self::stockbit_profile_value_info_to_proto(profile.risk_level)),
+            aum: Some(Self::stockbit_profile_value_info_to_proto(profile.aum)),
+            maxdrawdown: Some(Self::stockbit_profile_value_info_to_proto(profile.maxdrawdown)),
+            cagr5year: Some(Self::stockbit_profile_value_info_to_proto(profile.cagr5year)),
+            expense_ratio: Some(Self::stockbit_profile_value_info_to_proto(profile.expense_ratio)),
+            average_yield: Some(Self::stockbit_profile_value_info_to_proto(profile.average_yield)),
+            prospectus: Some(Self::stockbit_profile_prospectus_to_proto(profile.prospectus)),
+            fund_fact_sheet: profile
+                .fund_fact_sheet
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_prospectus_to_proto)
+                .collect(),
+            redemption_bank_name: profile.redemption_bank_name,
+            min_buy: profile.min_buy,
+            buy_fee: profile.buy_fee,
+            sell_fee: profile.sell_fee,
+        }
+    }
+
+    fn stockbit_profile_shareholder_number_to_proto(
+        row: StockbitProfileShareholderNumberDb,
+    ) -> StockbitProfileShareholderNumber {
+        StockbitProfileShareholderNumber {
+            shareholder_date: row.shareholder_date,
+            total_share: row.total_share,
+            change: row.change,
+            change_formatted: row.change_formatted,
+            change_value: row.change_value,
+        }
+    }
+
+    fn stockbit_profile_percentage_to_proto(pct: StockbitProfilePercentageDb) -> StockbitProfilePercentage {
+        StockbitProfilePercentage {
+            raw: pct.raw,
+            formatted: pct.formatted,
+        }
+    }
+
+    fn stockbit_profile_listing_information_to_proto(
+        info: StockbitProfileListingInformationDb,
+    ) -> StockbitProfileListingInformation {
+        StockbitProfileListingInformation {
+            exercise_start_date: info.exercise_start_date,
+            exercise_end_date: info.exercise_end_date,
+            exercise_price: info.exercise_price,
+            expire_date: info.expire_date,
+            listing_date: info.listing_date,
+            foreign_percentage: Some(Self::stockbit_profile_percentage_to_proto(
+                info.foreign_percentage,
+            )),
+            local_percentage: Some(Self::stockbit_profile_percentage_to_proto(info.local_percentage)),
+            number_of_securities: info.number_of_securities,
+            total_shares: info.total_shares,
+        }
+    }
+
+    fn stockbit_profile_beneficiary_to_proto(
+        beneficiary: StockbitProfileBeneficiaryDb,
+    ) -> StockbitProfileBeneficiary {
+        StockbitProfileBeneficiary {
+            name: beneficiary.name,
+        }
+    }
+
+    fn stockbit_profile_shareholder_one_percent_to_proto(
+        data: StockbitProfileShareholderOnePercentDb,
+    ) -> StockbitProfileShareholderOnePercent {
+        StockbitProfileShareholderOnePercent {
+            shareholder: data
+                .shareholder
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_shareholder_entry_to_proto)
+                .collect(),
+            last_updated: data.last_updated,
+        }
+    }
+
+    fn stockbit_profile_subsidiary_to_proto(
+        sub: StockbitProfileSubsidiaryDb,
+    ) -> StockbitProfileSubsidiary {
+        StockbitProfileSubsidiary {
+            name: sub.name,
+            percentage: sub.percentage,
+        }
+    }
+
+    fn stockbit_profile_fee_entry_to_proto(entry: StockbitProfileFeeEntryDb) -> StockbitProfileFeeEntry {
+        StockbitProfileFeeEntry {
+            name: entry.name,
+            value: entry.value,
+        }
+    }
+
+    fn stockbit_profile_asset_allocation_entry_to_proto(
+        entry: StockbitProfileAssetAllocationEntryDb,
+    ) -> StockbitProfileAssetAllocationEntry {
+        StockbitProfileAssetAllocationEntry {
+            name: entry.name,
+            percentage: entry.percentage,
+            value: entry.value,
+        }
+    }
+
+    fn stockbit_profile_top_holding_entry_to_proto(
+        entry: StockbitProfileTopHoldingEntryDb,
+    ) -> StockbitProfileTopHoldingEntry {
+        StockbitProfileTopHoldingEntry {
+            name: entry.name,
+            percentage: entry.percentage,
+            value: entry.value,
+        }
+    }
+
+    fn stockbit_profile_to_proto(profile: StockbitProfileDb) -> StockbitProfileData {
+        StockbitProfileData {
+            address: profile
+                .address
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_address_to_proto)
+                .collect(),
+            background: profile.background,
+            history: Some(Self::stockbit_profile_history_to_proto(profile.history)),
+            key_executive: Some(Self::stockbit_profile_key_executive_to_proto(profile.key_executive)),
+            secretary: profile
+                .secretary
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_executive_entry_to_proto)
+                .collect(),
+            shareholder: profile
+                .shareholder
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_shareholder_entry_to_proto)
+                .collect(),
+            subsidiary: profile
+                .subsidiary
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_subsidiary_to_proto)
+                .collect(),
+            profile: Some(Self::stockbit_profile_fund_profile_to_proto(profile.fund_profile)),
+            fee: profile
+                .fee
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_fee_entry_to_proto)
+                .collect(),
+            asset_allocation: profile
+                .asset_allocation
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_asset_allocation_entry_to_proto)
+                .collect(),
+            shareholder_reksa: profile
+                .shareholder_reksa
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_shareholder_entry_to_proto)
+                .collect(),
+            pdf: profile
+                .pdf
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_prospectus_to_proto)
+                .collect(),
+            shareholder_numbers: profile
+                .shareholder_numbers
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_shareholder_number_to_proto)
+                .collect(),
+            badges: profile.badges.unwrap_or_default(),
+            top_holdings: profile
+                .top_holdings
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_top_holding_entry_to_proto)
+                .collect(),
+            shareholder_director_commissioner: profile
+                .shareholder_director_commissioner
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_shareholder_entry_to_proto)
+                .collect(),
+            listing_information: Some(Self::stockbit_profile_listing_information_to_proto(
+                profile.listing_information,
+            )),
+            beneficiary: profile
+                .beneficiary
+                .unwrap_or_default()
+                .into_iter()
+                .map(Self::stockbit_profile_beneficiary_to_proto)
+                .collect(),
+            shareholder_one_percent: Some(Self::stockbit_profile_shareholder_one_percent_to_proto(
+                profile.shareholder_one_percent,
+            )),
+            classification: profile.classification.unwrap_or_default(),
+        }
+    }
+
+    fn stockbit_profile_response(
+        code: String,
+        profile: StockbitProfileDb,
+        updated_at: DateTime<Utc>,
+        message: &str,
+    ) -> StockbitProfileResponse {
+        StockbitProfileResponse {
+            success: true,
+            message: message.to_string(),
+            code,
+            data: Some(Self::stockbit_profile_to_proto(profile)),
+            updated_at: Some(updated_at.timestamp()),
+        }
+    }
+
     fn stockbit_reports_row_response(
         row: StockbitReportsByCodeRow,
         message: &str,
@@ -1202,6 +1586,82 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("GetKeyStatsFromStockbit", &user_name, started);
+        result
+    }
+
+    async fn get_stockbit_profile_by_code(
+        &self,
+        request: Request<GetStockbitProfileByCodeRequest>,
+    ) -> Result<Response<StockbitProfileResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<StockbitProfileResponse>, Status> = async {
+            let code = request.into_inner().code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+            if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+                return Err(Status::invalid_argument(format!(
+                    "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
+                )));
+            }
+
+            let row = crate::repository::get_stockbit_profile_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(Status::internal)?
+                .ok_or_else(|| {
+                    Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                })?;
+
+            if crate::stockbit_profile::needs_stockbit_profile_refresh(
+                row.stockbit_profile.as_ref(),
+                row.stockbit_profile_updated_at,
+            ) {
+                acquire_keystats_from_stockbit_slot(&user_name).await?;
+                crate::stockbit_profile::fetch_and_save_stockbit_profile(
+                    Arc::clone(&self.session),
+                    &code,
+                )
+                .await
+                .map_err(Status::internal)?;
+
+                let row = crate::repository::get_stockbit_profile_by_code(self.session.as_ref(), &code)
+                    .await
+                    .map_err(Status::internal)?
+                    .ok_or_else(|| {
+                        Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                    })?;
+
+                let profile = row.stockbit_profile.ok_or_else(|| {
+                    Status::internal(format!("stockbit_profile code={code} kosong setelah upsert"))
+                })?;
+                let updated_at = row.stockbit_profile_updated_at.unwrap_or_else(Utc::now);
+
+                return Ok(Response::new(Self::stockbit_profile_response(
+                    code,
+                    profile,
+                    updated_at,
+                    "Stockbit profile di-upsert ke stock_list",
+                )));
+            }
+
+            let profile = row.stockbit_profile.ok_or_else(|| {
+                Status::internal(format!("stockbit_profile code={code} kosong"))
+            })?;
+            let updated_at = row.stockbit_profile_updated_at.unwrap_or_else(Utc::now);
+
+            Ok(Response::new(Self::stockbit_profile_response(
+                code,
+                profile,
+                updated_at,
+                "Stockbit profile dari Scylla",
+            )))
+        }
+        .await;
+
+        Self::log_rpc_debug("GetStockbitProfileByCode", &user_name, started);
         result
     }
 

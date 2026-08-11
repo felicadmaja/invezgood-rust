@@ -505,6 +505,377 @@ pub struct StockbitReportsByCodeRow {
     pub stockbit_reports_updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+/// UDT `stockbit_profile_address`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileAddressDb {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub email: Option<Vec<String>>,
+    #[serde(default)]
+    pub fax: String,
+    #[serde(default)]
+    pub npwp: String,
+    #[serde(default)]
+    pub phone: String,
+    #[serde(default)]
+    pub website: String,
+    #[serde(default)]
+    pub key: String,
+    #[serde(default)]
+    pub lastupdate: String,
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub office: String,
+}
+
+/// UDT `stockbit_profile_history`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileHistoryDb {
+    #[serde(default)]
+    pub amount: String,
+    #[serde(default)]
+    pub board: String,
+    #[serde(default)]
+    pub date: String,
+    #[serde(default)]
+    pub price: String,
+    #[serde(default)]
+    pub registrar: String,
+    #[serde(default)]
+    pub shares: String,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub underwriters: Option<Vec<String>>,
+    #[serde(default)]
+    pub administrative_bureau: String,
+    #[serde(default)]
+    pub free_float: String,
+}
+
+/// UDT `stockbit_profile_executive_entry`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileExecutiveEntryDb {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default, rename = "key")]
+    #[scylla(rename = "key")]
+    pub key_label: String,
+    #[serde(default)]
+    pub lastupdate: String,
+    #[serde(default)]
+    pub value: String,
+}
+
+/// UDT `stockbit_profile_key_executive`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileKeyExecutiveDb {
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub commissioner: Option<Vec<StockbitProfileExecutiveEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub director: Option<Vec<StockbitProfileExecutiveEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub independent_commissioner: Option<Vec<StockbitProfileExecutiveEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub president_commissioner: Option<Vec<StockbitProfileExecutiveEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub president_director: Option<Vec<StockbitProfileExecutiveEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub vice_president: Option<Vec<StockbitProfileExecutiveEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub vice_president_commissioner: Option<Vec<StockbitProfileExecutiveEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub independent_vice_president_commissioner: Option<Vec<StockbitProfileExecutiveEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub independent_president_commissioner: Option<Vec<StockbitProfileExecutiveEntryDb>>,
+}
+
+/// UDT `stockbit_profile_shareholder_entry`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileShareholderEntryDb {
+    #[serde(default)]
+    pub percentage: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub badges: Option<Vec<String>>,
+    #[serde(default)]
+    pub id: String,
+    #[serde(default, rename = "type")]
+    #[scylla(rename = "type")]
+    pub shareholder_type: String,
+    #[serde(default)]
+    pub location: String,
+    #[serde(default)]
+    pub nationality: String,
+    #[serde(default)]
+    pub domicile: String,
+    #[serde(default)]
+    pub scripless: String,
+    #[serde(default)]
+    pub scrip: String,
+    #[serde(default)]
+    pub value_formatted: String,
+    #[serde(default)]
+    pub classification: String,
+}
+
+/// UDT `stockbit_profile_value_info`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileValueInfoDb {
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub info: String,
+}
+
+/// UDT `stockbit_profile_prospectus`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileProspectusDb {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub file: String,
+    #[serde(default)]
+    pub dir: String,
+    #[serde(default)]
+    pub url: String,
+}
+
+/// UDT `stockbit_profile_fund_profile`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileFundProfileDb {
+    #[serde(default)]
+    pub fund_type: StockbitProfileValueInfoDb,
+    #[serde(default)]
+    pub inception_date: String,
+    #[serde(default)]
+    pub fund_manager: String,
+    #[serde(default)]
+    pub fund_manager_ico: String,
+    #[serde(default)]
+    pub custodian_bank: String,
+    #[serde(default)]
+    pub custodian_ico: String,
+    #[serde(default)]
+    pub risk_level: StockbitProfileValueInfoDb,
+    #[serde(default)]
+    pub aum: StockbitProfileValueInfoDb,
+    #[serde(default)]
+    pub maxdrawdown: StockbitProfileValueInfoDb,
+    #[serde(default)]
+    pub cagr5year: StockbitProfileValueInfoDb,
+    #[serde(default)]
+    pub expense_ratio: StockbitProfileValueInfoDb,
+    #[serde(default)]
+    pub average_yield: StockbitProfileValueInfoDb,
+    #[serde(default)]
+    pub prospectus: StockbitProfileProspectusDb,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub fund_fact_sheet: Option<Vec<StockbitProfileProspectusDb>>,
+    #[serde(default)]
+    pub redemption_bank_name: String,
+    #[serde(default)]
+    pub min_buy: String,
+    #[serde(default)]
+    pub buy_fee: String,
+    #[serde(default)]
+    pub sell_fee: String,
+}
+
+/// UDT `stockbit_profile_shareholder_number`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileShareholderNumberDb {
+    #[serde(default)]
+    pub shareholder_date: String,
+    #[serde(default)]
+    pub total_share: String,
+    #[serde(default, rename = "change")]
+    #[scylla(rename = "change")]
+    pub change: i32,
+    #[serde(default)]
+    pub change_formatted: String,
+    #[serde(default)]
+    pub change_value: String,
+}
+
+/// UDT `stockbit_profile_percentage`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfilePercentageDb {
+    #[serde(default)]
+    pub raw: i32,
+    #[serde(default)]
+    pub formatted: String,
+}
+
+/// UDT `stockbit_profile_listing_information`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileListingInformationDb {
+    #[serde(default)]
+    pub exercise_start_date: String,
+    #[serde(default)]
+    pub exercise_end_date: String,
+    #[serde(default)]
+    pub exercise_price: i32,
+    #[serde(default)]
+    pub expire_date: String,
+    #[serde(default)]
+    pub listing_date: String,
+    #[serde(default)]
+    pub foreign_percentage: StockbitProfilePercentageDb,
+    #[serde(default)]
+    pub local_percentage: StockbitProfilePercentageDb,
+    #[serde(default)]
+    pub number_of_securities: i32,
+    #[serde(default)]
+    pub total_shares: i32,
+}
+
+/// UDT `stockbit_profile_beneficiary`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileBeneficiaryDb {
+    #[serde(default)]
+    pub name: String,
+}
+
+/// UDT `stockbit_profile_shareholder_one_percent`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileShareholderOnePercentDb {
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub shareholder: Option<Vec<StockbitProfileShareholderEntryDb>>,
+    #[serde(default)]
+    pub last_updated: String,
+}
+
+/// UDT `stockbit_profile_subsidiary`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileSubsidiaryDb {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub percentage: String,
+}
+
+/// UDT `stockbit_profile_fee_entry`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileFeeEntryDb {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub value: String,
+}
+
+/// UDT `stockbit_profile_asset_allocation_entry`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileAssetAllocationEntryDb {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub percentage: String,
+    #[serde(default)]
+    pub value: String,
+}
+
+/// UDT `stockbit_profile_top_holding_entry`.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileTopHoldingEntryDb {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub percentage: String,
+    #[serde(default)]
+    pub value: String,
+}
+
+/// UDT `stockbit_profile` — profil emiten dari API /emitten/{code}/profile.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileDb {
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub address: Option<Vec<StockbitProfileAddressDb>>,
+    #[serde(default)]
+    pub background: String,
+    #[serde(default)]
+    pub history: StockbitProfileHistoryDb,
+    #[serde(default)]
+    pub key_executive: StockbitProfileKeyExecutiveDb,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub secretary: Option<Vec<StockbitProfileExecutiveEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub shareholder: Option<Vec<StockbitProfileShareholderEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub subsidiary: Option<Vec<StockbitProfileSubsidiaryDb>>,
+    #[serde(default, rename = "profile")]
+    #[scylla(rename = "profile")]
+    pub fund_profile: StockbitProfileFundProfileDb,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub fee: Option<Vec<StockbitProfileFeeEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub asset_allocation: Option<Vec<StockbitProfileAssetAllocationEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub shareholder_reksa: Option<Vec<StockbitProfileShareholderEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub pdf: Option<Vec<StockbitProfileProspectusDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub shareholder_numbers: Option<Vec<StockbitProfileShareholderNumberDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub badges: Option<Vec<String>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub top_holdings: Option<Vec<StockbitProfileTopHoldingEntryDb>>,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub shareholder_director_commissioner: Option<Vec<StockbitProfileShareholderEntryDb>>,
+    #[serde(default)]
+    pub listing_information: StockbitProfileListingInformationDb,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub beneficiary: Option<Vec<StockbitProfileBeneficiaryDb>>,
+    #[serde(default)]
+    pub shareholder_one_percent: StockbitProfileShareholderOnePercentDb,
+    #[serde(default)]
+    #[scylla(default_when_null)]
+    pub classification: Option<String>,
+}
+
+/// Kolom `stockbit_profile`.
+pub type StockbitProfileColDb = Option<StockbitProfileDb>;
+
+/// Subset kolom untuk `GetStockbitProfileByCode`.
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct StockbitProfileByCodeRow {
+    pub code: String,
+    #[scylla(default_when_null)]
+    pub stockbit_profile: StockbitProfileColDb,
+    #[scylla(default_when_null)]
+    pub stockbit_profile_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 /// Subset kolom Stockbit keystats untuk `GetKeyStatsFromStockbit`.
 #[derive(Debug, Clone, DeserializeRow)]
 pub struct KeyStatsFromStockbitRow {
