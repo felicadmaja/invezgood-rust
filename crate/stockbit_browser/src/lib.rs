@@ -34,8 +34,9 @@ use tokio::sync::{mpsc, watch, Mutex, MutexGuard};
 use tokio::time::{sleep, timeout};
 
 /// Hook setelah setiap tick poller readiness (`ready` = status terakhir).
+/// Return: `Some(emiten lonjakan)` setelah scrape+Yahoo; `None` = skip (jangan ubah cache).
 pub type AfterPollHook =
-    Arc<dyn Fn(bool) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
+    Arc<dyn Fn(bool) -> Pin<Box<dyn Future<Output = Option<Vec<String>>> + Send>> + Send + Sync>;
 
 /// Mutex global: satu Chrome profil — readiness poller dan on-demand scrape
 /// tidak boleh memakai browser bersamaan.
@@ -191,6 +192,8 @@ pub struct ReadinessUpdate {
     pub message: String,
     /// Naik tiap hasil cek poller background. `0` = hydrate Redis (bukan tick poll).
     pub poll_seq: u64,
+    /// Emiten portofolio dengan lonjakan (spread hari ini >= 1.5×ATR Yahoo).
+    pub portofolio: Vec<String>,
 }
 
 fn next_poll_seq() -> u64 {
@@ -341,19 +344,26 @@ impl ReadinessPoller {
                         ready: false,
                         message: format!("Error: {e}"),
                         poll_seq: next_poll_seq(),
+                        portofolio: Vec::new(),
                     })
                     .await;
                 }
             }
             let _ = forward.await;
 
-            let ready = redis_readiness::get()
-                .await
-                .map(|u| u.ready)
-                .unwrap_or(false);
+            let mut latest = redis_readiness::get().await.unwrap_or(ReadinessUpdate {
+                ready: false,
+                message: String::new(),
+                poll_seq: 0,
+                portofolio: Vec::new(),
+            });
             let hook = self.after_poll.lock().await.clone();
             if let Some(hook) = hook {
-                hook(ready).await;
+                if let Some(spikes) = hook(latest.ready).await {
+                    latest.portofolio = spikes;
+                    latest.poll_seq = next_poll_seq();
+                    self.publish(latest).await;
+                }
             }
         }
     }
@@ -1089,6 +1099,7 @@ async fn send_update(tx: &mpsc::Sender<ReadinessUpdate>, ready: bool, message: &
             ready,
             message: message.to_string(),
             poll_seq: next_poll_seq(),
+            portofolio: Vec::new(),
         })
         .await;
 }

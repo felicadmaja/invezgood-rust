@@ -16,7 +16,7 @@ use crate::pb::user_server::User;
 use crate::pb::{
     CekUsageRequest, GetUsersFromScyllaRequest, GetUsersFromScyllaResponse, IsStockbitReadyRequest,
     IsStockbitReadyResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse,
-    UsageResponse, UserRow,
+    StockbitPortofolioSingkatRow, UsageResponse, UserRow,
 };
 
 const READY_STREAM_CHECK_SECS: u64 = 2;
@@ -151,7 +151,7 @@ impl User for UserService {
         tokio::spawn(async move {
             readiness.register_subscriber().await;
 
-            let mut last: Option<(bool, String)> = None;
+            let mut last: Option<(bool, String, Vec<String>)> = None;
             let mut ticks_since_send: u64 = 0;
 
             loop {
@@ -160,9 +160,14 @@ impl User for UserService {
                     message: "Menunggu pengecekan berkala ke stockbit.com (interval 9–10 menit)"
                         .to_string(),
                     poll_seq: 0,
+                    portofolio: Vec::new(),
                 });
 
-                let key = (update.ready, update.message.clone());
+                let key = (
+                    update.ready,
+                    update.message.clone(),
+                    update.portofolio.clone(),
+                );
                 let changed = last.as_ref() != Some(&key);
                 let first = last.is_none();
                 let heartbeat = ticks_since_send >= READY_STREAM_HEARTBEAT_TICKS;
@@ -170,15 +175,22 @@ impl User for UserService {
                 if first || changed || heartbeat {
                     if first || changed {
                         eprintln!(
-                            "IsStockbitReady {user_name}: push success={} msg={:?}",
-                            update.ready, update.message
+                            "IsStockbitReady {user_name}: push success={} msg={:?} portofolio={:?}",
+                            update.ready, update.message, update.portofolio
                         );
                     }
+
+                    let portofolio = update
+                        .portofolio
+                        .into_iter()
+                        .map(|emiten_name| StockbitPortofolioSingkatRow { emiten_name })
+                        .collect();
 
                     let ok = tx
                         .send(Ok(IsStockbitReadyResponse {
                             success: update.ready,
                             message: update.message,
+                            portofolio,
                         }))
                         .await
                         .is_ok();

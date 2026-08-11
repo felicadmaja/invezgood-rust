@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .set_after_poll_hook(std::sync::Arc::new(move |ready| {
                 let session = session_hook.clone();
                 Box::pin(async move {
-                    worker_scrapping::on_demand::run_poller_stockbit_scrapes(session, ready).await;
+                    worker_scrapping::on_demand::run_poller_stockbit_scrapes(session, ready).await
                 })
             }))
             .await;

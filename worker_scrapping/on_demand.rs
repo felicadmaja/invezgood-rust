@@ -453,21 +453,24 @@ async fn run_portofolio_history_scrape(
 
 /// Dipanggil dari readiness poller setelah tiap tick: scrape portofolio, emiten_trending,
 /// pending_order — hanya Senin–Jumat 09:00–12:00 & 13:30–16:15, dan hanya bila `ready`.
-pub async fn run_poller_stockbit_scrapes(session: Arc<Session>, ready: bool) {
+/// Urutan: (1) portofolio serial; lalu paralel Yahoo ATR + trending + pending_order.
+/// `None` = skip (jangan overwrite cache portofolio); `Some` = hasil cek Yahoo (bisa kosong).
+pub async fn run_poller_stockbit_scrapes(
+    session: Arc<Session>,
+    ready: bool,
+) -> Option<Vec<String>> {
     if !ready {
         println!("Poller scrapes: Stockbit belum ready — skip");
-        return;
+        return None;
     }
     if !is_stockbit_poller_scrape_hours() {
         println!(
             "Poller scrapes: diluar jam operasional Senin–Jumat 09:00–12:00 & 13:30–16:15 — skip"
         );
-        return;
+        return None;
     }
 
-    println!(
-        "Poller scrapes: mulai GetAllPortofolioFromStockbit + GetLatestEmitenTrendingFromStockbit + GetAllPendingOrderFromStockbit"
-    );
+    println!("Poller scrapes: mulai GetAllPortofolioFromStockbit (serial)");
 
     match run_portofolio_all_scrape(Arc::clone(&session), BrowserLockClass::Background, false)
         .await
@@ -476,17 +479,98 @@ pub async fn run_poller_stockbit_scrapes(session: Arc<Session>, ready: bool) {
         Err(e) => eprintln!("Poller GetAllPortofolioFromStockbit skip/fail: {e}"),
     }
 
-    match run_emiten_trending_movers_scrape(Arc::clone(&session), BrowserLockClass::Background)
-        .await
-    {
-        Ok((g, l)) => {
-            println!("Poller GetLatestEmitenTrendingFromStockbit OK: gainer={g} loser={l}")
-        }
-        Err(e) => eprintln!("Poller GetLatestEmitenTrendingFromStockbit skip/fail: {e}"),
+    println!(
+        "Poller scrapes: paralel Yahoo ATR || (GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit)"
+    );
+
+    let session_yahoo = Arc::clone(&session);
+    let session_stockbit = Arc::clone(&session);
+
+    let (spikes, ()) = tokio::join!(
+        async move {
+            let emitens = match list_portofolio_emiten_names(session_yahoo.as_ref()).await {
+                Ok(v) => {
+                    println!(
+                        "Poller Yahoo ATR: cek {} emiten dari invezgood.portofolio",
+                        v.len()
+                    );
+                    v
+                }
+                Err(e) => {
+                    eprintln!("Poller Yahoo ATR: gagal baca portofolio: {e}");
+                    return Vec::new();
+                }
+            };
+
+            let spikes = crate::yahoo_atr::find_spike_emitens(&emitens).await;
+            if spikes.is_empty() {
+                println!("Poller Yahoo ATR: tidak ada lonjakan (>= 1.5×ATR)");
+            } else {
+                println!(
+                    "\x1b[32mPoller Yahoo ATR: lonjakan {}\x1b[0m",
+                    spikes.join(", ")
+                );
+            }
+            spikes
+        },
+        async move {
+            // Trending lalu pending serial (satu Chrome); berjalan bersamaan dengan Yahoo.
+            match run_emiten_trending_movers_scrape(
+                Arc::clone(&session_stockbit),
+                BrowserLockClass::Background,
+            )
+            .await
+            {
+                Ok((g, l)) => {
+                    println!(
+                        "Poller GetLatestEmitenTrendingFromStockbit OK: gainer={g} loser={l}"
+                    )
+                }
+                Err(e) => {
+                    eprintln!("Poller GetLatestEmitenTrendingFromStockbit skip/fail: {e}")
+                }
+            }
+
+            match run_pending_order_all_scrape(session_stockbit, BrowserLockClass::Background)
+                .await
+            {
+                Ok(n) => println!("Poller GetAllPendingOrderFromStockbit OK: {n} baris"),
+                Err(e) => eprintln!("Poller GetAllPendingOrderFromStockbit skip/fail: {e}"),
+            }
+        },
+    );
+
+    Some(spikes)
+}
+
+async fn list_portofolio_emiten_names(session: &Session) -> Result<Vec<String>, String> {
+    use futures_util::TryStreamExt;
+    use scylla::DeserializeRow;
+
+    #[derive(Debug, DeserializeRow)]
+    struct Row {
+        emiten_name: String,
     }
 
-    match run_pending_order_all_scrape(session, BrowserLockClass::Background).await {
-        Ok(n) => println!("Poller GetAllPendingOrderFromStockbit OK: {n} baris"),
-        Err(e) => eprintln!("Poller GetAllPendingOrderFromStockbit skip/fail: {e}"),
+    let mut stream = session
+        .query_iter("SELECT emiten_name FROM invezgood.portofolio", &[])
+        .await
+        .map_err(|e| format!("SELECT portofolio emiten_name: {e}"))?
+        .rows_stream::<Row>()
+        .map_err(|e| format!("portofolio stream: {e}"))?;
+
+    let mut out = Vec::new();
+    while let Some(row) = stream
+        .try_next()
+        .await
+        .map_err(|e| format!("portofolio row: {e}"))?
+    {
+        let code = row.emiten_name.trim().to_ascii_uppercase();
+        if !code.is_empty() {
+            out.push(code);
+        }
     }
+    out.sort();
+    out.dedup();
+    Ok(out)
 }

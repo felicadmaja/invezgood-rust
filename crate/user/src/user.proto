@@ -18,10 +18,14 @@ service User {
   // Banyak subscriber stream tidak menambah frekuensi poll.
   // Setelah tiap tick (bila ready + Senin–Jumat 09:00–12:00 & 13:30–16:15), poller
   // auto-invoke alur sama RPC berikut (bukan panggil gRPC client, langsung scrape worker):
-  //   1. GetAllPortofolioFromStockbit
-  //   2. GetLatestEmitenTrendingFromStockbit
-  //   3. GetAllPendingOrderFromStockbit
-  // Subscribe stream: server push saat status berubah + heartbeat ~30s.
+  //   1. GetAllPortofolioFromStockbit (serial dulu)
+  //   Lalu paralel:
+  //     • Yahoo Finance ATR (baca emiten_name dari invezgood.portofolio → chart .JK 1d,
+  //       period1≈1 bulan lalu, period2=hari ini; jeda 300ms antar emiten; lonjakan bila
+  //       spread high-low hari ini >= 1.5×ATR(14) → response.portofolio)
+  //     • 2. GetLatestEmitenTrendingFromStockbit lalu 3. GetAllPendingOrderFromStockbit
+  //       (Chrome serial; bersamaan dengan Yahoo)
+  // Subscribe stream: server push saat status/portofolio berubah + heartbeat ~30s.
   // Wajib authorization: Bearer <token>. success=true bila sesi Stockbit sudah login/ready.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
@@ -68,9 +72,15 @@ message GetUsersFromScyllaResponse {
 
 message IsStockbitReadyRequest {}
 
+message StockbitPortofolioSingkatRow {
+  string emiten_name = 1;
+}
+
 message IsStockbitReadyResponse {
   bool success = 1;
   string message = 2;
+  // Emiten portofolio dengan lonjakan harga (spread hari ini >= 1.5×ATR).
+  repeated StockbitPortofolioSingkatRow portofolio = 3;
 }
 
 message CekUsageRequest {}

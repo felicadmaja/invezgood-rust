@@ -1,7 +1,7 @@
 //! State readiness poller di Redis (bukan memory proses).
 //!
 //! Env: `REDIS_URL` (default `redis://localhost:6379`).
-//! Key hash: `stockbit:readiness` — field `ready` (`0`/`1`), `message`.
+//! Key hash: `stockbit:readiness` — field `ready` (`0`/`1`), `message`, `portofolio` (CSV emiten).
 //! Tanpa TTL agar survive restart. Bila Redis down: get → None; set → log saja.
 
 use std::collections::HashMap;
@@ -38,6 +38,14 @@ async fn connection() -> Result<ConnectionManager, String> {
     Ok(mgr)
 }
 
+fn parse_portofolio_csv(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_ascii_uppercase())
+        .collect()
+}
+
 /// Baca status readiness dari Redis. `None` = belum ada / Redis error.
 pub async fn get() -> Option<ReadinessUpdate> {
     let mut conn = match connection().await {
@@ -60,10 +68,15 @@ pub async fn get() -> Option<ReadinessUpdate> {
     let ready_raw = map.get("ready").map(String::as_str).unwrap_or("0");
     let ready = ready_raw == "1" || ready_raw.eq_ignore_ascii_case("true");
     let message = map.get("message").cloned().unwrap_or_default();
+    let portofolio = map
+        .get("portofolio")
+        .map(|s| parse_portofolio_csv(s))
+        .unwrap_or_default();
     Some(ReadinessUpdate {
         ready,
         message,
         poll_seq: 0,
+        portofolio,
     })
 }
 
@@ -77,12 +90,15 @@ pub async fn set(update: &ReadinessUpdate) {
         }
     };
     let ready = if update.ready { "1" } else { "0" };
+    let portofolio = update.portofolio.join(",");
     if let Err(e) = redis::cmd("HSET")
         .arg(KEY)
         .arg("ready")
         .arg(ready)
         .arg("message")
         .arg(update.message.as_str())
+        .arg("portofolio")
+        .arg(portofolio.as_str())
         .query_async::<()>(&mut conn)
         .await
     {
