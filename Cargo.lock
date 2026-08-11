@@ -2248,6 +2248,7 @@ dependencies = [
  "serde_json",
  "stockbit_browser",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-build",
  "user",

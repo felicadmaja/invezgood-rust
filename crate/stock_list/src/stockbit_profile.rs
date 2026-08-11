@@ -11,12 +11,45 @@ use crate::model::StockbitProfileDb;
 const PROFILE_URL: &str = "https://exodus.stockbit.com/emitten";
 const STOCKBIT_PROFILE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
 
-/// Perlu GET Stockbit API bila `stockbit_profile` kosong atau `stockbit_profile_updated_at` ≥ 30 hari.
+fn vec_has_items<T>(value: &Option<Vec<T>>) -> bool {
+    value.as_ref().is_some_and(|items| !items.is_empty())
+}
+
+fn key_executive_has_entries(key_executive: &crate::model::StockbitProfileKeyExecutiveDb) -> bool {
+    [
+        &key_executive.commissioner,
+        &key_executive.director,
+        &key_executive.independent_commissioner,
+        &key_executive.president_commissioner,
+        &key_executive.president_director,
+        &key_executive.vice_president,
+        &key_executive.vice_president_commissioner,
+        &key_executive.independent_vice_president_commissioner,
+        &key_executive.independent_president_commissioner,
+    ]
+    .into_iter()
+    .any(vec_has_items)
+}
+
+/// Profil dianggap kosong bila tidak ada konten utama (background, alamat, pemegang saham, jajaran).
+pub fn is_stockbit_profile_empty(profile: &StockbitProfileDb) -> bool {
+    profile.background.trim().is_empty()
+        && !vec_has_items(&profile.address)
+        && !vec_has_items(&profile.shareholder)
+        && !vec_has_items(&profile.shareholder_director_commissioner)
+        && !vec_has_items(&profile.beneficiary)
+        && !key_executive_has_entries(&profile.key_executive)
+}
+
+/// Perlu GET Stockbit API bila `stockbit_profile` kosong/null atau `stockbit_profile_updated_at` ≥ 30 hari.
 pub fn needs_stockbit_profile_refresh(
     profile: Option<&StockbitProfileDb>,
     updated_at: Option<DateTime<Utc>>,
 ) -> bool {
-    if profile.is_none() {
+    let Some(profile) = profile else {
+        return true;
+    };
+    if is_stockbit_profile_empty(profile) {
         return true;
     }
     let Some(updated_at) = updated_at else {

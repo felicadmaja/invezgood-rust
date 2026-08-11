@@ -1,10 +1,13 @@
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
+use futures::Stream;
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
@@ -14,7 +17,7 @@ use crate::model::{
     StockbitProfileByCodeRow, StockbitReportsByCodeRow,
     StockListKeystatsRow, StockListRow as DbStockListRow, StockListSummaryRow,
     StockbitClosureFinItemsGroupDb, StockbitDividendGroupDb, StockbitDividendYearValueDb,
-    StockbitFinancialYearGroupDb, StockbitFinancialYearParentDb, StockbitFinancialYearValueDb,
+    StockbitFinancialYearGroupDb, StockbitFinancialYearValueDb,
     StockbitFinNameResultDb, StockbitFitemDb, StockbitMostRecentQuarterDb, StockbitPeriodValueDb,
     StockbitProfileAddressDb, StockbitProfileAssetAllocationEntryDb, StockbitProfileBeneficiaryDb,
     StockbitProfileDb, StockbitProfileExecutiveEntryDb, StockbitProfileFeeEntryDb,
@@ -38,10 +41,11 @@ use crate::pb::{
     GetKeyStatsFromStockbitRequest, GetStockbitProfileByCodeRequest,
     GetStockbitReportsByCodeRequest, GetStockByCodeRequest,
     GetStockByRepeatedCodeRequest, GetStockByRepeatedCodeResponse,
-    GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
+    GetStockByRepeatedCodeStreamPart, GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
     GetWyckoffChartByCodeResponse,
     KeystatsData, KeystatsResponse, KeyStatsColumn, KeyStatsFromStockbitResponse,
-    KeyStatsRowItem, KeyStatsValue, ShareHolder1Data, ShareHolder1Entry, ShareHolder5Data,
+    KeyStatsFromStockbitStreamPart, KeyStatsRowItem, KeyStatsValue, ShareHolder1Data, ShareHolder1Entry,
+    ShareHolder5Data,
     ShareHolder5Entry, ShareHolderAndCompanyInformationByCodeResponse,
     ShareHolderCompositionData, ShareHolderCompositionEntry, StatementPanelData,
     StockbitClosureFinItemsGroup, StockbitDividendGroup, StockbitDividendYearValue,
@@ -52,10 +56,10 @@ use crate::pb::{
     StockbitProfileFundProfile, StockbitProfileHistory, StockbitProfileKeyExecutive,
     StockbitProfileListingInformation, StockbitProfilePercentage, StockbitProfileProspectus,
     StockbitProfileResponse, StockbitProfileShareholderEntry, StockbitProfileShareholderNumber,
-    StockbitProfileShareholderOnePercent, StockbitProfileSubsidiary, StockbitProfileTopHoldingEntry,
-    StockbitProfileValueInfo,
+    StockbitProfileShareholderOnePercent, StockbitProfileStreamPart, StockbitProfileSubsidiary,
+    StockbitProfileTopHoldingEntry, StockbitProfileValueInfo,
     StockbitReportFollowingActivity, StockbitReportItem, StockbitReportNewsFeed, StockbitReportReaction,
-    StockbitReportReactionEntry, StockbitReportsRow, StockbitReportStatus, StockbitReportStream,
+    StockbitReportReactionEntry, StockbitReportsRow, StockbitReportsStreamPart, StockbitReportStatus, StockbitReportStream,
     StockbitReportSummary, StockbitReportUser, StockbitStats, StockByCodeResponse, StockListRow,
     UpdateHorizontalLineByCodeRequest, UpdateHorizontalLineByCodeResponse,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
@@ -66,6 +70,18 @@ use crate::pb::{
 
 const CACHE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
 const KEYSTATS_FROM_STOCKBIT_COOLDOWN: Duration = Duration::from_secs(5);
+
+type GetStockbitProfileByCodeStream =
+    Pin<Box<dyn Stream<Item = Result<StockbitProfileResponse, Status>> + Send>>;
+
+type GetKeyStatsFromStockbitStream =
+    Pin<Box<dyn Stream<Item = Result<KeyStatsFromStockbitResponse, Status>> + Send>>;
+
+type GetStockbitReportsByCodeStream =
+    Pin<Box<dyn Stream<Item = Result<StockbitReportsRow, Status>> + Send>>;
+
+type GetStockByRepeatedCodeStream =
+    Pin<Box<dyn Stream<Item = Result<GetStockByRepeatedCodeResponse, Status>> + Send>>;
 
 static LAST_KEYSTATS_FROM_STOCKBIT: OnceLock<Mutex<Option<std::time::Instant>>> = OnceLock::new();
 
@@ -794,28 +810,6 @@ impl StockListService {
         }
     }
 
-    fn stockbit_financial_year_parent_to_proto(
-        parent: Option<StockbitFinancialYearParentDb>,
-    ) -> StockbitFinancialYearParent {
-        let Some(parent) = parent else {
-            return StockbitFinancialYearParent::default();
-        };
-        StockbitFinancialYearParent {
-            financial_year_groups: parent
-                .financial_year_groups
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::stockbit_financial_year_group_to_proto)
-                .collect(),
-            financial_year_groups_usd: parent
-                .financial_year_groups_usd
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::stockbit_financial_year_group_to_proto)
-                .collect(),
-        }
-    }
-
     fn stockbit_stats_to_proto(stats: Option<StockbitStatsDb>) -> StockbitStats {
         let Some(stats) = stats else {
             return StockbitStats::default();
@@ -854,38 +848,124 @@ impl StockListService {
         }
     }
 
-    fn keystats_from_stockbit_row_response(
+    fn keystats_from_stockbit_stream_chunk(
+        code: &str,
+        message: &str,
+        part: KeyStatsFromStockbitStreamPart,
+        mut response: KeyStatsFromStockbitResponse,
+    ) -> KeyStatsFromStockbitResponse {
+        response.success = true;
+        response.message = message.to_string();
+        response.code = code.to_string();
+        response.part = part.into();
+        response
+    }
+
+    fn keystats_from_stockbit_row_stream(
         row: KeyStatsFromStockbitRow,
         message: &str,
-    ) -> KeyStatsFromStockbitResponse {
-        KeyStatsFromStockbitResponse {
-            success: true,
-            message: message.to_string(),
-            code: row.code,
-            closure_fin_items_results: row
-                .closure_fin_items_results_stockbit
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::stockbit_closure_group_to_proto)
-                .collect(),
-            closure_fin_items_results_updated_at: row
-                .closure_fin_items_results_stockbit_updated_at
-                .map(|dt| dt.timestamp()),
-            financial_year_parent: Some(Self::stockbit_financial_year_parent_to_proto(
-                row.financial_year_parent_stockbit,
-            )),
-            financial_year_parent_updated_at: row
-                .financial_year_parent_stockbit_updated_at
-                .map(|dt| dt.timestamp()),
-            stats: Some(Self::stockbit_stats_to_proto(row.stats_stockbit)),
-            stats_updated_at: row.stats_stockbit_updated_at.map(|dt| dt.timestamp()),
-            dividend_group: Some(Self::stockbit_dividend_group_to_proto(
-                row.dividend_group_stockbit,
-            )),
-            dividend_group_updated_at: row
-                .dividend_group_stockbit_updated_at
-                .map(|dt| dt.timestamp()),
+    ) -> Vec<KeyStatsFromStockbitResponse> {
+        let msg = message.to_string();
+        let code = row.code.clone();
+        let closure_updated_at = row
+            .closure_fin_items_results_stockbit_updated_at
+            .map(|dt| dt.timestamp());
+        let financial_year_updated_at = row
+            .financial_year_parent_stockbit_updated_at
+            .map(|dt| dt.timestamp());
+        let stats_updated_at = row.stats_stockbit_updated_at.map(|dt| dt.timestamp());
+        let dividend_updated_at = row
+            .dividend_group_stockbit_updated_at
+            .map(|dt| dt.timestamp());
+
+        let mut chunks = vec![Self::keystats_from_stockbit_stream_chunk(
+            &code,
+            &msg,
+            KeyStatsFromStockbitStreamPart::Meta,
+            KeyStatsFromStockbitResponse {
+                stats: Some(Self::stockbit_stats_to_proto(row.stats_stockbit)),
+                stats_updated_at,
+                closure_fin_items_results_updated_at: closure_updated_at,
+                financial_year_parent_updated_at: financial_year_updated_at,
+                dividend_group_updated_at: dividend_updated_at,
+                ..Default::default()
+            },
+        )];
+
+        for group in row
+            .closure_fin_items_results_stockbit
+            .unwrap_or_default()
+        {
+            chunks.push(Self::keystats_from_stockbit_stream_chunk(
+                &code,
+                &msg,
+                KeyStatsFromStockbitStreamPart::ClosureFinItemsGroup,
+                KeyStatsFromStockbitResponse {
+                    closure_fin_items_results: vec![Self::stockbit_closure_group_to_proto(group)],
+                    closure_fin_items_results_updated_at: closure_updated_at,
+                    ..Default::default()
+                },
+            ));
         }
+
+        if let Some(parent) = row.financial_year_parent_stockbit {
+            for group in parent.financial_year_groups.unwrap_or_default() {
+                chunks.push(Self::keystats_from_stockbit_stream_chunk(
+                    &code,
+                    &msg,
+                    KeyStatsFromStockbitStreamPart::FinancialYearGroup,
+                    KeyStatsFromStockbitResponse {
+                        financial_year_parent: Some(StockbitFinancialYearParent {
+                            financial_year_groups: vec![
+                                Self::stockbit_financial_year_group_to_proto(group),
+                            ],
+                            financial_year_groups_usd: vec![],
+                        }),
+                        financial_year_parent_updated_at: financial_year_updated_at,
+                        ..Default::default()
+                    },
+                ));
+            }
+            for group in parent.financial_year_groups_usd.unwrap_or_default() {
+                chunks.push(Self::keystats_from_stockbit_stream_chunk(
+                    &code,
+                    &msg,
+                    KeyStatsFromStockbitStreamPart::FinancialYearGroupUsd,
+                    KeyStatsFromStockbitResponse {
+                        financial_year_parent: Some(StockbitFinancialYearParent {
+                            financial_year_groups: vec![],
+                            financial_year_groups_usd: vec![
+                                Self::stockbit_financial_year_group_to_proto(group),
+                            ],
+                        }),
+                        financial_year_parent_updated_at: financial_year_updated_at,
+                        ..Default::default()
+                    },
+                ));
+            }
+        }
+
+        chunks.push(Self::keystats_from_stockbit_stream_chunk(
+            &code,
+            &msg,
+            KeyStatsFromStockbitStreamPart::DividendGroup,
+            KeyStatsFromStockbitResponse {
+                dividend_group: Some(Self::stockbit_dividend_group_to_proto(
+                    row.dividend_group_stockbit,
+                )),
+                dividend_group_updated_at: dividend_updated_at,
+                ..Default::default()
+            },
+        ));
+
+        chunks.push(Self::keystats_from_stockbit_stream_chunk(
+            &code,
+            &msg,
+            KeyStatsFromStockbitStreamPart::Done,
+            KeyStatsFromStockbitResponse::default(),
+        ));
+
+        chunks
     }
 
     fn stockbit_report_user_to_proto(user: StockbitReportUserDb) -> StockbitReportUser {
@@ -1284,147 +1364,259 @@ impl StockListService {
         }
     }
 
-    fn stockbit_profile_to_proto(profile: StockbitProfileDb) -> StockbitProfileData {
+    fn stockbit_profile_meta_to_proto(profile: &StockbitProfileDb) -> StockbitProfileData {
         StockbitProfileData {
-            address: profile
-                .address
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::stockbit_profile_address_to_proto)
-                .collect(),
-            background: profile.background,
-            history: Some(Self::stockbit_profile_history_to_proto(profile.history)),
-            key_executive: Some(Self::stockbit_profile_key_executive_to_proto(profile.key_executive)),
+            address: vec![],
+            background: profile.background.clone(),
+            history: Some(Self::stockbit_profile_history_to_proto(profile.history.clone())),
+            key_executive: Some(Self::stockbit_profile_key_executive_to_proto(
+                profile.key_executive.clone(),
+            )),
             secretary: profile
                 .secretary
+                .clone()
                 .unwrap_or_default()
                 .into_iter()
                 .map(Self::stockbit_profile_executive_entry_to_proto)
                 .collect(),
-            shareholder: profile
-                .shareholder
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::stockbit_profile_shareholder_entry_to_proto)
-                .collect(),
+            shareholder: vec![],
             subsidiary: profile
                 .subsidiary
+                .clone()
                 .unwrap_or_default()
                 .into_iter()
                 .map(Self::stockbit_profile_subsidiary_to_proto)
                 .collect(),
-            profile: Some(Self::stockbit_profile_fund_profile_to_proto(profile.fund_profile)),
+            profile: Some(Self::stockbit_profile_fund_profile_to_proto(
+                profile.fund_profile.clone(),
+            )),
             fee: profile
                 .fee
+                .clone()
                 .unwrap_or_default()
                 .into_iter()
                 .map(Self::stockbit_profile_fee_entry_to_proto)
                 .collect(),
             asset_allocation: profile
                 .asset_allocation
+                .clone()
                 .unwrap_or_default()
                 .into_iter()
                 .map(Self::stockbit_profile_asset_allocation_entry_to_proto)
                 .collect(),
             shareholder_reksa: profile
                 .shareholder_reksa
+                .clone()
                 .unwrap_or_default()
                 .into_iter()
                 .map(Self::stockbit_profile_shareholder_entry_to_proto)
                 .collect(),
             pdf: profile
                 .pdf
+                .clone()
                 .unwrap_or_default()
                 .into_iter()
                 .map(Self::stockbit_profile_prospectus_to_proto)
                 .collect(),
-            shareholder_numbers: profile
-                .shareholder_numbers
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::stockbit_profile_shareholder_number_to_proto)
-                .collect(),
-            badges: profile.badges.unwrap_or_default(),
+            shareholder_numbers: vec![],
+            badges: profile.badges.clone().unwrap_or_default(),
             top_holdings: profile
                 .top_holdings
+                .clone()
                 .unwrap_or_default()
                 .into_iter()
                 .map(Self::stockbit_profile_top_holding_entry_to_proto)
                 .collect(),
-            shareholder_director_commissioner: profile
-                .shareholder_director_commissioner
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::stockbit_profile_shareholder_entry_to_proto)
-                .collect(),
+            shareholder_director_commissioner: vec![],
             listing_information: Some(Self::stockbit_profile_listing_information_to_proto(
-                profile.listing_information,
+                profile.listing_information.clone(),
             )),
-            beneficiary: profile
-                .beneficiary
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::stockbit_profile_beneficiary_to_proto)
-                .collect(),
+            beneficiary: vec![],
             shareholder_one_percent: Some(Self::stockbit_profile_shareholder_one_percent_to_proto(
-                profile.shareholder_one_percent,
+                profile.shareholder_one_percent.clone(),
             )),
-            classification: profile.classification.unwrap_or_default(),
+            classification: profile.classification.clone().unwrap_or_default(),
         }
     }
 
-    fn stockbit_profile_response(
-        code: String,
-        profile: StockbitProfileDb,
-        updated_at: DateTime<Utc>,
+    fn stockbit_profile_stream_chunk(
+        code: &str,
         message: &str,
+        updated_at: DateTime<Utc>,
+        part: StockbitProfileStreamPart,
+        data: StockbitProfileData,
     ) -> StockbitProfileResponse {
         StockbitProfileResponse {
             success: true,
             message: message.to_string(),
-            code,
-            data: Some(Self::stockbit_profile_to_proto(profile)),
+            code: code.to_string(),
+            data: Some(data),
             updated_at: Some(updated_at.timestamp()),
+            part: part.into(),
         }
     }
 
-    fn stockbit_profile_row_response(
+    fn stockbit_profile_row_stream(
         row: StockbitProfileByCodeRow,
         message: &str,
-    ) -> Result<StockbitProfileResponse, Status> {
+    ) -> Result<Vec<StockbitProfileResponse>, Status> {
         let profile = row.stockbit_profile.ok_or_else(|| {
             Status::internal(format!("stockbit_profile code={} kosong", row.code))
         })?;
         let updated_at = row.stockbit_profile_updated_at.unwrap_or_else(Utc::now);
-        Ok(Self::stockbit_profile_response(
-            row.code,
-            profile,
+        let code = row.code;
+        let msg = message.to_string();
+        let mut chunks = Vec::new();
+
+        chunks.push(Self::stockbit_profile_stream_chunk(
+            &code,
+            &msg,
             updated_at,
-            message,
-        ))
+            StockbitProfileStreamPart::Meta,
+            Self::stockbit_profile_meta_to_proto(&profile),
+        ));
+
+        for address in profile.address.unwrap_or_default() {
+            chunks.push(Self::stockbit_profile_stream_chunk(
+                &code,
+                &msg,
+                updated_at,
+                StockbitProfileStreamPart::Address,
+                StockbitProfileData {
+                    address: vec![Self::stockbit_profile_address_to_proto(address)],
+                    ..Default::default()
+                },
+            ));
+        }
+
+        for shareholder in profile.shareholder.unwrap_or_default() {
+            chunks.push(Self::stockbit_profile_stream_chunk(
+                &code,
+                &msg,
+                updated_at,
+                StockbitProfileStreamPart::Shareholder,
+                StockbitProfileData {
+                    shareholder: vec![Self::stockbit_profile_shareholder_entry_to_proto(shareholder)],
+                    ..Default::default()
+                },
+            ));
+        }
+
+        for entry in profile.shareholder_director_commissioner.unwrap_or_default() {
+            chunks.push(Self::stockbit_profile_stream_chunk(
+                &code,
+                &msg,
+                updated_at,
+                StockbitProfileStreamPart::ShareholderDirectorCommissioner,
+                StockbitProfileData {
+                    shareholder_director_commissioner: vec![
+                        Self::stockbit_profile_shareholder_entry_to_proto(entry),
+                    ],
+                    ..Default::default()
+                },
+            ));
+        }
+
+        for row_item in profile.shareholder_numbers.unwrap_or_default() {
+            chunks.push(Self::stockbit_profile_stream_chunk(
+                &code,
+                &msg,
+                updated_at,
+                StockbitProfileStreamPart::ShareholderNumber,
+                StockbitProfileData {
+                    shareholder_numbers: vec![Self::stockbit_profile_shareholder_number_to_proto(
+                        row_item,
+                    )],
+                    ..Default::default()
+                },
+            ));
+        }
+
+        for beneficiary in profile.beneficiary.unwrap_or_default() {
+            chunks.push(Self::stockbit_profile_stream_chunk(
+                &code,
+                &msg,
+                updated_at,
+                StockbitProfileStreamPart::Beneficiary,
+                StockbitProfileData {
+                    beneficiary: vec![Self::stockbit_profile_beneficiary_to_proto(beneficiary)],
+                    ..Default::default()
+                },
+            ));
+        }
+
+        chunks.push(Self::stockbit_profile_stream_chunk(
+            &code,
+            &msg,
+            updated_at,
+            StockbitProfileStreamPart::Done,
+            StockbitProfileData::default(),
+        ));
+
+        Ok(chunks)
     }
 
-    fn stockbit_reports_row_response(
-        row: StockbitReportsByCodeRow,
+    fn stockbit_reports_stream_chunk(
+        code: &str,
         message: &str,
+        updated_at: Option<i64>,
+        part: StockbitReportsStreamPart,
+        stream: Vec<StockbitReportStream>,
     ) -> StockbitReportsRow {
         StockbitReportsRow {
             success: true,
             message: message.to_string(),
-            code: row.code,
-            stream: row
-                .stockbit_reports
-                .unwrap_or_default()
-                .into_iter()
-                .map(Self::stockbit_report_stream_to_proto)
-                .collect(),
-            updated_at: row.stockbit_reports_updated_at.map(|dt| dt.timestamp()),
+            code: code.to_string(),
+            stream,
+            updated_at,
+            part: part.into(),
         }
+    }
+
+    fn stockbit_reports_row_stream(
+        row: StockbitReportsByCodeRow,
+        message: &str,
+    ) -> Vec<StockbitReportsRow> {
+        let updated_at = row.stockbit_reports_updated_at.map(|dt| dt.timestamp());
+        let code = row.code;
+        let msg = message.to_string();
+        let mut chunks = vec![Self::stockbit_reports_stream_chunk(
+            &code,
+            &msg,
+            updated_at,
+            StockbitReportsStreamPart::Meta,
+            vec![],
+        )];
+
+        for item in row.stockbit_reports.unwrap_or_default() {
+            chunks.push(Self::stockbit_reports_stream_chunk(
+                &code,
+                &msg,
+                updated_at,
+                StockbitReportsStreamPart::Stream,
+                vec![Self::stockbit_report_stream_to_proto(item)],
+            ));
+        }
+
+        chunks.push(Self::stockbit_reports_stream_chunk(
+            &code,
+            &msg,
+            updated_at,
+            StockbitReportsStreamPart::Done,
+            vec![],
+        ));
+
+        chunks
     }
 }
 
 #[tonic::async_trait]
 impl StockList for StockListService {
+    type GetStockbitProfileByCodeStream = GetStockbitProfileByCodeStream;
+    type GetKeyStatsFromStockbitStream = GetKeyStatsFromStockbitStream;
+    type GetStockbitReportsByCodeStream = GetStockbitReportsByCodeStream;
+    type GetStockByRepeatedCodeStream = GetStockByRepeatedCodeStream;
+
     async fn get_all_stocks(
         &self,
         request: Request<GetAllStocksRequest>,
@@ -1505,81 +1697,114 @@ impl StockList for StockListService {
     async fn get_stock_by_repeated_code(
         &self,
         request: Request<GetStockByRepeatedCodeRequest>,
-    ) -> Result<Response<GetStockByRepeatedCodeResponse>, Status> {
+    ) -> Result<Response<Self::GetStockByRepeatedCodeStream>, Status> {
         let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
-        let result: Result<Response<GetStockByRepeatedCodeResponse>, Status> = async {
-            let codes = request.into_inner().code;
-            if codes.is_empty() {
-                return Err(Status::invalid_argument("code wajib diisi (minimal 1)"));
-            }
-
-            let mut items = Vec::new();
-            let mut seen = std::collections::HashSet::new();
-            for raw in codes {
-                let code = raw.trim().to_ascii_uppercase();
-                if code.is_empty() || !seen.insert(code.clone()) {
-                    continue;
-                }
-                if let Some(row) = crate::repository::get_by_code(self.session.as_ref(), &code)
-                    .await
-                    .map_err(Status::internal)?
-                {
-                    items.push(Self::stock_by_code_from_db_row(&row));
-                }
-            }
-
-            Ok(Response::new(GetStockByRepeatedCodeResponse { items }))
+        let codes = request.into_inner().code;
+        if codes.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi (minimal 1)"));
         }
-        .await;
 
-        Self::log_rpc_debug("GetStockByRepeatedCode", &user_name, started);
-        result
+        let mut normalized = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for raw in codes {
+            let code = raw.trim().to_ascii_uppercase();
+            if code.is_empty() || !seen.insert(code.clone()) {
+                continue;
+            }
+            normalized.push(code);
+        }
+        if normalized.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi (minimal 1 valid)"));
+        }
+
+        let session = Arc::clone(&self.session);
+        let user_name_spawn = user_name.clone();
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
+
+        tokio::spawn(async move {
+            if tx
+                .send(Ok(GetStockByRepeatedCodeResponse {
+                    part: GetStockByRepeatedCodeStreamPart::Meta.into(),
+                    ..Default::default()
+                }))
+                .await
+                .is_err()
+            {
+                Self::log_rpc_debug("GetStockByRepeatedCode", &user_name_spawn, started);
+                return;
+            }
+
+            for code in normalized {
+                match crate::repository::get_by_code(session.as_ref(), &code).await {
+                    Ok(Some(row)) => {
+                        if tx
+                            .send(Ok(GetStockByRepeatedCodeResponse {
+                                item: Some(Self::stock_by_code_from_db_row(&row)),
+                                part: GetStockByRepeatedCodeStreamPart::Item.into(),
+                            }))
+                            .await
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        let _ = tx.send(Err(Status::internal(e))).await;
+                        break;
+                    }
+                }
+            }
+
+            let _ = tx
+                .send(Ok(GetStockByRepeatedCodeResponse {
+                    part: GetStockByRepeatedCodeStreamPart::Done.into(),
+                    ..Default::default()
+                }))
+                .await;
+
+            Self::log_rpc_debug("GetStockByRepeatedCode", &user_name_spawn, started);
+        });
+
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(rx)) as GetStockByRepeatedCodeStream,
+        ))
     }
 
     async fn get_key_stats_from_stockbit(
         &self,
         request: Request<GetKeyStatsFromStockbitRequest>,
-    ) -> Result<Response<KeyStatsFromStockbitResponse>, Status> {
+    ) -> Result<Response<Self::GetKeyStatsFromStockbitStream>, Status> {
         let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
-        let result: Result<Response<KeyStatsFromStockbitResponse>, Status> = async {
-            let code = request.into_inner().code.trim().to_ascii_uppercase();
-            if code.is_empty() {
-                return Err(Status::invalid_argument("code wajib diisi"));
-            }
-            if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
-                return Err(Status::invalid_argument(format!(
-                    "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
-                )));
-            }
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+        if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+            return Err(Status::invalid_argument(format!(
+                "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
+            )));
+        }
 
-            let row = crate::repository::get_keystats_from_stockbit_by_code(
-                self.session.as_ref(),
-                &code,
-            )
+        crate::repository::get_keystats_from_stockbit_by_code(self.session.as_ref(), &code)
             .await
             .map_err(Status::internal)?
-            .ok_or_else(|| {
-                Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-            })?;
+            .ok_or_else(|| Status::not_found(format!("stock_list code={code} tidak ditemukan")))?;
 
-            if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
-                acquire_keystats_from_stockbit_slot(&user_name).await?;
+        let session = Arc::clone(&self.session);
+        let user_name_spawn = user_name.clone();
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
 
-                crate::stockbit::fetch_and_save_keystats_from_stockbit(
-                    Arc::clone(&self.session),
-                    &code,
-                )
-                .await
-                .map_err(Status::internal)?;
-
-                let row = crate::repository::get_keystats_from_stockbit_by_code(
-                    self.session.as_ref(),
+        tokio::spawn(async move {
+            let stream_result: Result<Vec<KeyStatsFromStockbitResponse>, Status> = async {
+                let mut row = crate::repository::get_keystats_from_stockbit_by_code(
+                    session.as_ref(),
                     &code,
                 )
                 .await
@@ -1588,147 +1813,228 @@ impl StockList for StockListService {
                     Status::not_found(format!("stock_list code={code} tidak ditemukan"))
                 })?;
 
-                return Ok(Response::new(Self::keystats_from_stockbit_row_response(
-                    row,
-                    "Key stats Stockbit di-upsert ke stock_list",
-                )));
+                let message = if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
+                    acquire_keystats_from_stockbit_slot(&user_name_spawn).await?;
+                    eprintln!(
+                        "GetKeyStatsFromStockbit {user_name_spawn} GET Stockbit API keystats/ratio/v1/{code}"
+                    );
+                    crate::stockbit::fetch_and_save_keystats_from_stockbit(
+                        Arc::clone(&session),
+                        &code,
+                    )
+                    .await
+                    .map_err(Status::internal)?;
+                    row = crate::repository::get_keystats_from_stockbit_by_code(
+                        session.as_ref(),
+                        &code,
+                    )
+                    .await
+                    .map_err(Status::internal)?
+                    .ok_or_else(|| {
+                        Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                    })?;
+                    "Key stats Stockbit di-upsert ke stock_list"
+                } else {
+                    "Key stats Stockbit dari Scylla"
+                };
+
+                Ok(Self::keystats_from_stockbit_row_stream(row, message))
+            }
+            .await;
+
+            match stream_result {
+                Ok(chunks) => {
+                    for chunk in chunks {
+                        if tx.send(Ok(chunk)).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+                Err(status) => {
+                    let _ = tx.send(Err(status)).await;
+                }
             }
 
-            Ok(Response::new(Self::keystats_from_stockbit_row_response(
-                row,
-                "Key stats Stockbit dari Scylla",
-            )))
-        }
-        .await;
+            Self::log_rpc_debug("GetKeyStatsFromStockbit", &user_name_spawn, started);
+        });
 
-        Self::log_rpc_debug("GetKeyStatsFromStockbit", &user_name, started);
-        result
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(rx)) as GetKeyStatsFromStockbitStream,
+        ))
     }
 
     async fn get_stockbit_profile_by_code(
         &self,
         request: Request<GetStockbitProfileByCodeRequest>,
-    ) -> Result<Response<StockbitProfileResponse>, Status> {
+    ) -> Result<Response<Self::GetStockbitProfileByCodeStream>, Status> {
         let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
-        let result: Result<Response<StockbitProfileResponse>, Status> = async {
-            let code = request.into_inner().code.trim().to_ascii_uppercase();
-            if code.is_empty() {
-                return Err(Status::invalid_argument("code wajib diisi"));
-            }
-            if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
-                return Err(Status::invalid_argument(format!(
-                    "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
-                )));
-            }
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+        if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+            return Err(Status::invalid_argument(format!(
+                "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
+            )));
+        }
 
-            let row = crate::repository::get_stockbit_profile_by_code(self.session.as_ref(), &code)
-                .await
-                .map_err(Status::internal)?
-                .ok_or_else(|| {
-                    Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                })?;
+        crate::repository::get_stockbit_profile_by_code(self.session.as_ref(), &code)
+            .await
+            .map_err(Status::internal)?
+            .ok_or_else(|| Status::not_found(format!("stock_list code={code} tidak ditemukan")))?;
 
-            if crate::stockbit_profile::needs_stockbit_profile_refresh(
-                row.stockbit_profile.as_ref(),
-                row.stockbit_profile_updated_at,
-            ) {
-                acquire_keystats_from_stockbit_slot(&user_name).await?;
-                eprintln!(
-                    "GetStockbitProfileByCode {user_name} GET Stockbit API emitten/{code}/profile"
-                );
-                crate::stockbit_profile::fetch_and_save_stockbit_profile(
-                    Arc::clone(&self.session),
-                    &code,
-                )
-                .await
-                .map_err(Status::internal)?;
+        let session = Arc::clone(&self.session);
+        let user_name_spawn = user_name.clone();
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
 
-                let row = crate::repository::get_stockbit_profile_by_code(self.session.as_ref(), &code)
+        tokio::spawn(async move {
+            let stream_result: Result<Vec<StockbitProfileResponse>, Status> = async {
+                let mut row = crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
                     .await
                     .map_err(Status::internal)?
                     .ok_or_else(|| {
                         Status::not_found(format!("stock_list code={code} tidak ditemukan"))
                     })?;
 
-                return Ok(Response::new(Self::stockbit_profile_row_response(
-                    row,
-                    "Stockbit profile di-upsert ke stock_list",
-                )?));
+                let message = if crate::stockbit_profile::needs_stockbit_profile_refresh(
+                    row.stockbit_profile.as_ref(),
+                    row.stockbit_profile_updated_at,
+                ) {
+                    acquire_keystats_from_stockbit_slot(&user_name_spawn).await?;
+                    eprintln!(
+                        "\x1b[32mGetStockbitProfileByCode {user_name_spawn} GET Stockbit API emitten/{code}/profile\x1b[0m"
+                    );
+                    crate::stockbit_profile::fetch_and_save_stockbit_profile(
+                        Arc::clone(&session),
+                        &code,
+                    )
+                    .await
+                    .map_err(Status::internal)?;
+                    row = crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
+                        .await
+                        .map_err(Status::internal)?
+                        .ok_or_else(|| {
+                            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                        })?;
+                    "Stockbit profile di-upsert ke stock_list"
+                } else {
+                    eprintln!(
+                        "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<30 hari, data ada)"
+                    );
+                    "Stockbit profile dari Scylla"
+                };
+
+                Self::stockbit_profile_row_stream(row, message)
+            }
+            .await;
+
+            match stream_result {
+                Ok(chunks) => {
+                    for chunk in chunks {
+                        if tx.send(Ok(chunk)).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+                Err(status) => {
+                    let _ = tx.send(Err(status)).await;
+                }
             }
 
-            Ok(Response::new(Self::stockbit_profile_row_response(
-                row,
-                "Stockbit profile dari Scylla",
-            )?))
-        }
-        .await;
+            Self::log_rpc_debug("GetStockbitProfileByCode", &user_name_spawn, started);
+        });
 
-        Self::log_rpc_debug("GetStockbitProfileByCode", &user_name, started);
-        result
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(rx)) as GetStockbitProfileByCodeStream,
+        ))
     }
 
     async fn get_stockbit_reports_by_code(
         &self,
         request: Request<GetStockbitReportsByCodeRequest>,
-    ) -> Result<Response<StockbitReportsRow>, Status> {
+    ) -> Result<Response<Self::GetStockbitReportsByCodeStream>, Status> {
         let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
-        let result: Result<Response<StockbitReportsRow>, Status> = async {
-            let code = request.into_inner().code.trim().to_ascii_uppercase();
-            if code.is_empty() {
-                return Err(Status::invalid_argument("code wajib diisi"));
-            }
-            if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
-                return Err(Status::invalid_argument(format!(
-                    "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
-                )));
-            }
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+        if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+            return Err(Status::invalid_argument(format!(
+                "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
+            )));
+        }
 
-            let row = crate::repository::get_stockbit_reports_by_code(self.session.as_ref(), &code)
-                .await
-                .map_err(Status::internal)?
-                .ok_or_else(|| {
-                    Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                })?;
+        crate::repository::get_stockbit_reports_by_code(self.session.as_ref(), &code)
+            .await
+            .map_err(Status::internal)?
+            .ok_or_else(|| Status::not_found(format!("stock_list code={code} tidak ditemukan")))?;
 
-            if crate::stockbit_reports::needs_stockbit_reports_refresh(
-                row.stockbit_reports_updated_at,
-            ) {
-                crate::stockbit_reports::fetch_and_save_stockbit_reports(
-                    Arc::clone(&self.session),
-                    &code,
-                )
-                .await
-                .map_err(Status::internal)?;
+        let session = Arc::clone(&self.session);
+        let user_name_spawn = user_name.clone();
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
 
-                let row =
-                    crate::repository::get_stockbit_reports_by_code(self.session.as_ref(), &code)
+        tokio::spawn(async move {
+            let stream_result: Result<Vec<StockbitReportsRow>, Status> = async {
+                let mut row =
+                    crate::repository::get_stockbit_reports_by_code(session.as_ref(), &code)
                         .await
                         .map_err(Status::internal)?
                         .ok_or_else(|| {
                             Status::not_found(format!("stock_list code={code} tidak ditemukan"))
                         })?;
 
-                return Ok(Response::new(Self::stockbit_reports_row_response(
-                    row,
-                    "Stockbit reports di-upsert ke stock_list",
-                )));
+                let message = if crate::stockbit_reports::needs_stockbit_reports_refresh(
+                    row.stockbit_reports_updated_at,
+                ) {
+                    eprintln!(
+                        "GetStockbitReportsByCode {user_name_spawn} GET Stockbit API stream/v3/symbol/{code}"
+                    );
+                    crate::stockbit_reports::fetch_and_save_stockbit_reports(
+                        Arc::clone(&session),
+                        &code,
+                    )
+                    .await
+                    .map_err(Status::internal)?;
+                    row = crate::repository::get_stockbit_reports_by_code(session.as_ref(), &code)
+                        .await
+                        .map_err(Status::internal)?
+                        .ok_or_else(|| {
+                            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                        })?;
+                    "Stockbit reports di-upsert ke stock_list"
+                } else {
+                    "Stockbit reports dari Scylla"
+                };
+
+                Ok(Self::stockbit_reports_row_stream(row, message))
+            }
+            .await;
+
+            match stream_result {
+                Ok(chunks) => {
+                    for chunk in chunks {
+                        if tx.send(Ok(chunk)).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+                Err(status) => {
+                    let _ = tx.send(Err(status)).await;
+                }
             }
 
-            Ok(Response::new(Self::stockbit_reports_row_response(
-                row,
-                "Stockbit reports dari Scylla",
-            )))
-        }
-        .await;
+            Self::log_rpc_debug("GetStockbitReportsByCode", &user_name_spawn, started);
+        });
 
-        Self::log_rpc_debug("GetStockbitReportsByCode", &user_name, started);
-        result
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(rx)) as GetStockbitReportsByCodeStream,
+        ))
     }
 
     async fn get_financial_statement_by_code(

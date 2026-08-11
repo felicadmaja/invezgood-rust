@@ -12,27 +12,25 @@ service StockList {
   // Baca Scylla by PK code. Request: code wajib. Response: StockByCodeResponse.
   rpc GetStockByCode(GetStockByCodeRequest) returns (StockByCodeResponse);
 
-  // Baca Scylla by banyak PK code (tanpa GET Invezgo). Code kosong di-skip; code tidak ketemu diabaikan.
-  // Request: repeated code. Response: repeated StockByCodeResponse (urutan mengikuti request yang valid).
+  // Stream: push GetStockByRepeatedCodeResponse per code (Scylla only, tanpa GET Invezgo).
+  // Code kosong di-skip; code tidak ketemu diabaikan. Urutan mengikuti request.
   rpc GetStockByRepeatedCode(GetStockByRepeatedCodeRequest)
-      returns (GetStockByRepeatedCodeResponse);
+      returns (stream GetStockByRepeatedCodeResponse);
 
-  // GET exodus.stockbit.com/keystats/ratio/v1/{code}?year_limit=10 (Bearer sesi Stockbit) bila
-  // closure/financial_year/stats/dividend_group kosong (null/[]) atau *_updated_at >30 hari.
-  // Rate limit 1× / 5 detik global hanya saat GET API Stockbit; baca Scylla tanpa rate limit.
+  // Stream: push KeyStatsFromStockbitResponse per bagian (stats, closure group, fin year group, dividend).
+  // GET Stockbit API bila kolom kosong atau *_updated_at >30 hari. Rate limit 1× / 5 detik saat GET API.
   rpc GetKeyStatsFromStockbit(GetKeyStatsFromStockbitRequest)
-      returns (KeyStatsFromStockbitResponse);
+      returns (stream KeyStatsFromStockbitResponse);
 
-  // GET exodus.stockbit.com/emitten/{code}/profile (Bearer sesi Stockbit) bila stockbit_profile
-  // kosong atau stockbit_profile_updated_at ≥ 30 hari. Rate limit 1× / 5 detik saat GET API.
+  // Stream: push StockbitProfileResponse (meta + tiap item repeated) per code.
+  // GET Stockbit API bila stockbit_profile kosong atau stockbit_profile_updated_at ≥ 30 hari.
   rpc GetStockbitProfileByCode(GetStockbitProfileByCodeRequest)
-      returns (StockbitProfileResponse);
+      returns (stream StockbitProfileResponse);
 
-  // GET exodus.stockbit.com/stream/v3/symbol/{code}?category=STREAM_CATEGORY_REPORTS&...
-  // Upsert data.stream → stockbit_reports + stockbit_reports_updated_at.
-  // Bila stockbit_reports_updated_at < 7 hari → baca Scylla tanpa API.
+  // Stream: push StockbitReportsRow (meta + tiap stream report) per code.
+  // GET Stockbit API bila stockbit_reports_updated_at ≥ 7 hari atau kosong.
   rpc GetStockbitReportsByCode(GetStockbitReportsByCodeRequest)
-      returns (StockbitReportsRow);
+      returns (stream StockbitReportsRow);
 
   // GET Invezgo per jenis → upsert keystats, balance_statement, income_statement, cash_flow + *_updated_at.
   // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
@@ -53,6 +51,8 @@ service StockList {
   // Request: code wajib. Response: CorporateActionByCodeResponse.
   rpc GetCorporateActionByCode(GetCorporateActionByCodeRequest) returns (CorporateActionByCodeResponse);
 
+
+  
   // Update kolom is_konglomerasi di Scylla by PK code.
   rpc UpdateIsKonglomerasi(UpdateIsKonglomerasiRequest) returns (UpdateIsKonglomerasiResponse);
 
@@ -90,7 +90,15 @@ message GetStockByRepeatedCodeRequest {
 }
 
 message GetStockByRepeatedCodeResponse {
-  repeated StockByCodeResponse items = 1;
+  StockByCodeResponse item = 1;
+  GetStockByRepeatedCodeStreamPart part = 2;
+}
+
+enum GetStockByRepeatedCodeStreamPart {
+  GET_STOCK_BY_REPEATED_CODE_STREAM_PART_UNSPECIFIED = 0;
+  GET_STOCK_BY_REPEATED_CODE_STREAM_PART_META = 1;
+  GET_STOCK_BY_REPEATED_CODE_STREAM_PART_ITEM = 2;
+  GET_STOCK_BY_REPEATED_CODE_STREAM_PART_DONE = 3;
 }
 
 message GetKeyStatsFromStockbitRequest {
@@ -180,6 +188,17 @@ message KeyStatsFromStockbitResponse {
   optional int64 stats_updated_at = 9;
   StockbitDividendGroup dividend_group = 10;
   optional int64 dividend_group_updated_at = 11;
+  KeyStatsFromStockbitStreamPart part = 12;
+}
+
+enum KeyStatsFromStockbitStreamPart {
+  KEY_STATS_FROM_STOCKBIT_STREAM_PART_UNSPECIFIED = 0;
+  KEY_STATS_FROM_STOCKBIT_STREAM_PART_META = 1;
+  KEY_STATS_FROM_STOCKBIT_STREAM_PART_CLOSURE_FIN_ITEMS_GROUP = 2;
+  KEY_STATS_FROM_STOCKBIT_STREAM_PART_FINANCIAL_YEAR_GROUP = 3;
+  KEY_STATS_FROM_STOCKBIT_STREAM_PART_FINANCIAL_YEAR_GROUP_USD = 4;
+  KEY_STATS_FROM_STOCKBIT_STREAM_PART_DIVIDEND_GROUP = 5;
+  KEY_STATS_FROM_STOCKBIT_STREAM_PART_DONE = 6;
 }
 
 message GetStockbitProfileByCodeRequest {
@@ -364,6 +383,18 @@ message StockbitProfileResponse {
   string code = 3;
   StockbitProfileData data = 4;
   optional int64 updated_at = 5;
+  StockbitProfileStreamPart part = 6;
+}
+
+enum StockbitProfileStreamPart {
+  STOCKBIT_PROFILE_STREAM_PART_UNSPECIFIED = 0;
+  STOCKBIT_PROFILE_STREAM_PART_META = 1;
+  STOCKBIT_PROFILE_STREAM_PART_ADDRESS = 2;
+  STOCKBIT_PROFILE_STREAM_PART_SHAREHOLDER = 3;
+  STOCKBIT_PROFILE_STREAM_PART_SHAREHOLDER_DIRECTOR_COMMISSIONER = 4;
+  STOCKBIT_PROFILE_STREAM_PART_SHAREHOLDER_NUMBER = 5;
+  STOCKBIT_PROFILE_STREAM_PART_BENEFICIARY = 6;
+  STOCKBIT_PROFILE_STREAM_PART_DONE = 7;
 }
 
 message GetStockbitReportsByCodeRequest {
@@ -467,6 +498,14 @@ message StockbitReportsRow {
   string code = 3;
   repeated StockbitReportStream stream = 4;
   optional int64 updated_at = 5;
+  StockbitReportsStreamPart part = 6;
+}
+
+enum StockbitReportsStreamPart {
+  STOCKBIT_REPORTS_STREAM_PART_UNSPECIFIED = 0;
+  STOCKBIT_REPORTS_STREAM_PART_META = 1;
+  STOCKBIT_REPORTS_STREAM_PART_STREAM = 2;
+  STOCKBIT_REPORTS_STREAM_PART_DONE = 3;
 }
 
 message StockByCodeResponse {
