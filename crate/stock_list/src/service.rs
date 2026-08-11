@@ -11,7 +11,7 @@ use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 use crate::model::{
     BalanceStatement, CompanyInformation, CorporateAction, Keystats, KeyStatsFromStockbitRow,
     ShareHolder1, ShareHolder5, ShareHolderComposition,
-    StockbitReportsByCodeRow,
+    StockbitProfileByCodeRow, StockbitReportsByCodeRow,
     StockListKeystatsRow, StockListRow as DbStockListRow, StockListSummaryRow,
     StockbitClosureFinItemsGroupDb, StockbitDividendGroupDb, StockbitDividendYearValueDb,
     StockbitFinancialYearGroupDb, StockbitFinancialYearParentDb, StockbitFinancialYearValueDb,
@@ -1388,6 +1388,22 @@ impl StockListService {
         }
     }
 
+    fn stockbit_profile_row_response(
+        row: StockbitProfileByCodeRow,
+        message: &str,
+    ) -> Result<StockbitProfileResponse, Status> {
+        let profile = row.stockbit_profile.ok_or_else(|| {
+            Status::internal(format!("stockbit_profile code={} kosong", row.code))
+        })?;
+        let updated_at = row.stockbit_profile_updated_at.unwrap_or_else(Utc::now);
+        Ok(Self::stockbit_profile_response(
+            row.code,
+            profile,
+            updated_at,
+            message,
+        ))
+    }
+
     fn stockbit_reports_row_response(
         row: StockbitReportsByCodeRow,
         message: &str,
@@ -1634,30 +1650,16 @@ impl StockList for StockListService {
                         Status::not_found(format!("stock_list code={code} tidak ditemukan"))
                     })?;
 
-                let profile = row.stockbit_profile.ok_or_else(|| {
-                    Status::internal(format!("stockbit_profile code={code} kosong setelah upsert"))
-                })?;
-                let updated_at = row.stockbit_profile_updated_at.unwrap_or_else(Utc::now);
-
-                return Ok(Response::new(Self::stockbit_profile_response(
-                    code,
-                    profile,
-                    updated_at,
+                return Ok(Response::new(Self::stockbit_profile_row_response(
+                    row,
                     "Stockbit profile di-upsert ke stock_list",
-                )));
+                )?));
             }
 
-            let profile = row.stockbit_profile.ok_or_else(|| {
-                Status::internal(format!("stockbit_profile code={code} kosong"))
-            })?;
-            let updated_at = row.stockbit_profile_updated_at.unwrap_or_else(Utc::now);
-
-            Ok(Response::new(Self::stockbit_profile_response(
-                code,
-                profile,
-                updated_at,
+            Ok(Response::new(Self::stockbit_profile_row_response(
+                row,
                 "Stockbit profile dari Scylla",
-            )))
+            )?))
         }
         .await;
 
