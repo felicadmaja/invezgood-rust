@@ -1,7 +1,8 @@
 //! State readiness poller di Redis (bukan memory proses).
 //!
 //! Env: `REDIS_URL` (default `redis://localhost:6379`).
-//! Key hash: `stockbit:readiness` — field `ready` (`0`/`1`), `message`, `portofolio` (CSV emiten).
+//! Key hash: `stockbit:readiness` — field `ready` (`0`/`1`), `message`,
+//! `portofolio` (CSV `EMITEN:jenis`, mis. `BBCA:up,BMRI:down`).
 //! Tanpa TTL agar survive restart. Bila Redis down: get → None; set → log saja.
 
 use std::collections::HashMap;
@@ -11,7 +12,7 @@ use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use tokio::sync::Mutex;
 
-use crate::ReadinessUpdate;
+use crate::{PortofolioSpike, ReadinessUpdate};
 
 const KEY: &str = "stockbit:readiness";
 
@@ -38,12 +39,37 @@ async fn connection() -> Result<ConnectionManager, String> {
     Ok(mgr)
 }
 
-fn parse_portofolio_csv(raw: &str) -> Vec<String> {
+/// Format: `BBCA:up,BMRI:down` — legacy `BBCA` (tanpa jenis) → jenis kosong.
+fn parse_portofolio_csv(raw: &str) -> Vec<PortofolioSpike> {
     raw.split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .map(|s| s.to_ascii_uppercase())
+        .map(|s| {
+            let (emiten, jenis) = match s.split_once(':') {
+                Some((e, j)) => (e, j),
+                None => (s, ""),
+            };
+            PortofolioSpike {
+                emiten_name: emiten.trim().to_ascii_uppercase(),
+                jenis_spike: jenis.trim().to_ascii_lowercase(),
+            }
+        })
+        .filter(|p| !p.emiten_name.is_empty())
         .collect()
+}
+
+fn format_portofolio_csv(items: &[PortofolioSpike]) -> String {
+    items
+        .iter()
+        .map(|p| {
+            if p.jenis_spike.is_empty() {
+                p.emiten_name.clone()
+            } else {
+                format!("{}:{}", p.emiten_name, p.jenis_spike)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 /// Baca status readiness dari Redis. `None` = belum ada / Redis error.
@@ -90,7 +116,7 @@ pub async fn set(update: &ReadinessUpdate) {
         }
     };
     let ready = if update.ready { "1" } else { "0" };
-    let portofolio = update.portofolio.join(",");
+    let portofolio = format_portofolio_csv(&update.portofolio);
     if let Err(e) = redis::cmd("HSET")
         .arg(KEY)
         .arg("ready")

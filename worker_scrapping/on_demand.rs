@@ -458,7 +458,7 @@ async fn run_portofolio_history_scrape(
 pub async fn run_poller_stockbit_scrapes(
     session: Arc<Session>,
     ready: bool,
-) -> Option<Vec<String>> {
+) -> Option<Vec<stockbit_browser::PortofolioSpike>> {
     if !ready {
         println!("Poller scrapes: Stockbit belum ready — skip");
         return None;
@@ -489,29 +489,48 @@ pub async fn run_poller_stockbit_scrapes(
     let (spikes, ()) = tokio::join!(
         async move {
             let emitens = match list_portofolio_emiten_names(session_yahoo.as_ref()).await {
-                Ok(v) => {
-                    println!(
-                        "Poller Yahoo ATR: cek {} emiten dari invezgood.portofolio",
-                        v.len()
-                    );
-                    v
-                }
+                Ok(v) => v,
                 Err(e) => {
                     eprintln!("Poller Yahoo ATR: gagal baca portofolio: {e}");
                     return Vec::new();
                 }
             };
 
-            let spikes = crate::yahoo_atr::find_spike_emitens(&emitens).await;
+            let reported = crate::yahoo_spike_cache::already_reported().await;
+            let to_check: Vec<String> = emitens
+                .into_iter()
+                .filter(|e| !reported.contains(e))
+                .collect();
+            let skipped = reported.len();
+            println!(
+                "Poller Yahoo ATR: cek {} emiten (skip {} sudah di-output hari ini)",
+                to_check.len(),
+                skipped
+            );
+
+            let spikes = crate::yahoo_atr::find_spike_emitens(&to_check).await;
             if spikes.is_empty() {
-                println!("Poller Yahoo ATR: tidak ada lonjakan (>= 1.5×ATR)");
+                println!("Poller Yahoo ATR: tidak ada lonjakan baru (>= 1.5×ATR)");
             } else {
+                let summary: Vec<String> = spikes
+                    .iter()
+                    .map(|s| format!("{}:{}", s.emiten_name, s.jenis_spike))
+                    .collect();
                 println!(
-                    "\x1b[32mPoller Yahoo ATR: lonjakan {}\x1b[0m",
-                    spikes.join(", ")
+                    "\x1b[32mPoller Yahoo ATR: lonjakan baru {}\x1b[0m",
+                    summary.join(", ")
                 );
+                let names: Vec<String> =
+                    spikes.iter().map(|s| s.emiten_name.clone()).collect();
+                crate::yahoo_spike_cache::mark_reported(&names).await;
             }
             spikes
+                .into_iter()
+                .map(|s| stockbit_browser::PortofolioSpike {
+                    emiten_name: s.emiten_name,
+                    jenis_spike: s.jenis_spike,
+                })
+                .collect()
         },
         async move {
             // Trending lalu pending serial (satu Chrome); berjalan bersamaan dengan Yahoo.

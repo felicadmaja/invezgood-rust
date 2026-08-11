@@ -38,6 +38,8 @@
 -- | dividend_group_stockbit_updated_at  | regular        | timestamp                               |
 -- | stockbit_reports                    | regular        | frozen<list<frozen<stockbit_report_stream>>> |
 -- | stockbit_reports_updated_at         | regular        | timestamp                               |
+-- | stockbit_profile                    | regular        | frozen<stockbit_profile>                |
+-- | stockbit_profile_updated_at         | regular        | timestamp                               |
 -- | catatan_owner                       | regular        | text                                    |
 -- | catatan_pribadi                     | regular        | text                                    |
 -- | is_plan_to_trade                    | regular        | boolean                                 |
@@ -203,3 +205,120 @@
 -- );
 -- ALTER TABLE invezgood.stock_list ADD stockbit_reports frozen<list<frozen<stockbit_report_stream>>>;
 -- ALTER TABLE invezgood.stock_list ADD stockbit_reports_updated_at timestamp;
+--
+-- UDT Stockbit profile API (contoh: stockbit_profile_contoh.json):
+--   stockbit_profile_address, stockbit_profile_history, stockbit_profile_executive_entry,
+--   stockbit_profile_key_executive, stockbit_profile_shareholder_entry,
+--   stockbit_profile_value_info, stockbit_profile_prospectus, stockbit_profile_fund_profile,
+--   stockbit_profile_shareholder_number, stockbit_profile_percentage,
+--   stockbit_profile_listing_information, stockbit_profile_beneficiary,
+--   stockbit_profile_shareholder_one_percent, stockbit_profile_subsidiary,
+--   stockbit_profile_fee_entry, stockbit_profile_asset_allocation_entry,
+--   stockbit_profile_top_holding_entry, stockbit_profile
+--   Kolom stockbit_profile: frozen<stockbit_profile>
+--
+-- Migrasi UDT + kolom stockbit_profile (jalan sekali):
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_address (
+--     id text, email list<text>, fax text, npwp text, phone text, website text,
+--     key text, lastupdate text, value text, office text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_history (
+--     amount text, board text, date text, price text, registrar text, shares text,
+--     underwriters list<text>, administrative_bureau text, free_float text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_executive_entry (
+--     id text, key text, lastupdate text, value text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_key_executive (
+--     commissioner list<frozen<stockbit_profile_executive_entry>>,
+--     director list<frozen<stockbit_profile_executive_entry>>,
+--     independent_commissioner list<frozen<stockbit_profile_executive_entry>>,
+--     president_commissioner list<frozen<stockbit_profile_executive_entry>>,
+--     president_director list<frozen<stockbit_profile_executive_entry>>,
+--     vice_president list<frozen<stockbit_profile_executive_entry>>,
+--     vice_president_commissioner list<frozen<stockbit_profile_executive_entry>>,
+--     independent_vice_president_commissioner list<frozen<stockbit_profile_executive_entry>>,
+--     independent_president_commissioner list<frozen<stockbit_profile_executive_entry>>
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_shareholder_entry (
+--     percentage text, name text, value text, badges list<text>, id text, type text,
+--     location text, nationality text, domicile text, scripless text, scrip text,
+--     value_formatted text, classification text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_value_info (
+--     value text, info text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_prospectus (
+--     name text, file text, dir text, url text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_fund_profile (
+--     fund_type frozen<stockbit_profile_value_info>,
+--     inception_date text, fund_manager text, fund_manager_ico text,
+--     custodian_bank text, custodian_ico text,
+--     risk_level frozen<stockbit_profile_value_info>,
+--     aum frozen<stockbit_profile_value_info>,
+--     maxdrawdown frozen<stockbit_profile_value_info>,
+--     cagr5year frozen<stockbit_profile_value_info>,
+--     expense_ratio frozen<stockbit_profile_value_info>,
+--     average_yield frozen<stockbit_profile_value_info>,
+--     prospectus frozen<stockbit_profile_prospectus>,
+--     fund_fact_sheet list<frozen<stockbit_profile_prospectus>>,
+--     redemption_bank_name text, min_buy text, buy_fee text, sell_fee text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_shareholder_number (
+--     shareholder_date text, total_share text, change int,
+--     change_formatted text, change_value text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_percentage (
+--     raw int, formatted text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_listing_information (
+--     exercise_start_date text, exercise_end_date text, exercise_price int,
+--     expire_date text, listing_date text,
+--     foreign_percentage frozen<stockbit_profile_percentage>,
+--     local_percentage frozen<stockbit_profile_percentage>,
+--     number_of_securities int, total_shares int
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_beneficiary (
+--     name text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_shareholder_one_percent (
+--     shareholder list<frozen<stockbit_profile_shareholder_entry>>,
+--     last_updated text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_subsidiary (
+--     name text, percentage text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_fee_entry (
+--     name text, value text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_asset_allocation_entry (
+--     name text, percentage text, value text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_top_holding_entry (
+--     name text, percentage text, value text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile (
+--     address list<frozen<stockbit_profile_address>>,
+--     background text,
+--     history frozen<stockbit_profile_history>,
+--     key_executive frozen<stockbit_profile_key_executive>,
+--     secretary list<frozen<stockbit_profile_executive_entry>>,
+--     shareholder list<frozen<stockbit_profile_shareholder_entry>>,
+--     subsidiary list<frozen<stockbit_profile_subsidiary>>,
+--     profile frozen<stockbit_profile_fund_profile>,
+--     fee list<frozen<stockbit_profile_fee_entry>>,
+--     asset_allocation list<frozen<stockbit_profile_asset_allocation_entry>>,
+--     shareholder_reksa list<frozen<stockbit_profile_shareholder_entry>>,
+--     pdf list<frozen<stockbit_profile_prospectus>>,
+--     shareholder_numbers list<frozen<stockbit_profile_shareholder_number>>,
+--     badges list<text>,
+--     top_holdings list<frozen<stockbit_profile_top_holding_entry>>,
+--     shareholder_director_commissioner list<frozen<stockbit_profile_shareholder_entry>>,
+--     listing_information frozen<stockbit_profile_listing_information>,
+--     beneficiary list<frozen<stockbit_profile_beneficiary>>,
+--     shareholder_one_percent frozen<stockbit_profile_shareholder_one_percent>,
+--     classification text
+-- );
+-- ALTER TABLE invezgood.stock_list ADD stockbit_profile frozen<stockbit_profile>;
+-- ALTER TABLE invezgood.stock_list ADD stockbit_profile_updated_at timestamp;

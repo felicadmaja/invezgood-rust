@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use scylla::client::session::Session;
-use stockbit_browser::{ReadinessPoller, ReadinessUpdate};
+use stockbit_browser::{PortofolioSpike, ReadinessPoller, ReadinessUpdate};
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tokio_stream::wrappers::ReceiverStream;
@@ -151,7 +151,7 @@ impl User for UserService {
         tokio::spawn(async move {
             readiness.register_subscriber().await;
 
-            let mut last: Option<(bool, String, Vec<String>)> = None;
+            let mut last: Option<(bool, String, Vec<PortofolioSpike>)> = None;
             let mut ticks_since_send: u64 = 0;
 
             loop {
@@ -183,7 +183,10 @@ impl User for UserService {
                     let portofolio = update
                         .portofolio
                         .into_iter()
-                        .map(|emiten_name| StockbitPortofolioSingkatRow { emiten_name })
+                        .map(|p| StockbitPortofolioSingkatRow {
+                            emiten_name: p.emiten_name,
+                            jenis_spike: p.jenis_spike,
+                        })
                         .collect();
 
                     let ok = tx

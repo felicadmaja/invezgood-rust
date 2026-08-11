@@ -22,7 +22,9 @@ service User {
   //   Lalu paralel:
   //     • Yahoo Finance ATR (baca emiten_name dari invezgood.portofolio → chart .JK 1d,
   //       period1≈1 bulan lalu, period2=hari ini; jeda 300ms antar emiten; lonjakan bila
-  //       spread high-low hari ini >= 1.5×ATR(14) → response.portofolio)
+  //       spread high-low hari ini >= 1.5×ATR(14) → response.portofolio). Emiten yang
+  //       sudah pernah di-output hari ini di-cache Redis (TTL s/d 23:59:59 lokal) —
+  //       tidak dicek Yahoo lagi & tidak di-output ulang sampai ganti hari.
   //     • 2. GetLatestEmitenTrendingFromStockbit lalu 3. GetAllPendingOrderFromStockbit
   //       (Chrome serial; bersamaan dengan Yahoo)
   // Subscribe stream: server push saat status/portofolio berubah + heartbeat ~30s.
@@ -74,12 +76,15 @@ message IsStockbitReadyRequest {}
 
 message StockbitPortofolioSingkatRow {
   string emiten_name = 1;
+  // "up" bila close > open candle hari ini; "down" bila close < open; "flat" bila sama.
+  string jenis_spike = 2;
 }
 
 message IsStockbitReadyResponse {
   bool success = 1;
   string message = 2;
-  // Emiten portofolio dengan lonjakan harga (spread hari ini >= 1.5×ATR).
+  // Emiten portofolio dengan lonjakan harga baru hari ini (spread >= 1.5×ATR);
+  // yang sudah di-output hari ini tidak diulang (Redis cache s/d akhir hari).
   repeated StockbitPortofolioSingkatRow portofolio = 3;
 }
 

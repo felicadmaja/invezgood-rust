@@ -35,8 +35,19 @@ use tokio::time::{sleep, timeout};
 
 /// Hook setelah setiap tick poller readiness (`ready` = status terakhir).
 /// Return: `Some(emiten lonjakan)` setelah scrape+Yahoo; `None` = skip (jangan ubah cache).
-pub type AfterPollHook =
-    Arc<dyn Fn(bool) -> Pin<Box<dyn Future<Output = Option<Vec<String>>> + Send>> + Send + Sync>;
+pub type AfterPollHook = Arc<
+    dyn Fn(bool) -> Pin<Box<dyn Future<Output = Option<Vec<PortofolioSpike>>> + Send>>
+        + Send
+        + Sync,
+>;
+
+/// Emiten portofolio dengan lonjakan Yahoo ATR (untuk stream IsStockbitReady).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PortofolioSpike {
+    pub emiten_name: String,
+    /// `up` | `down` | `flat` (close vs open candle hari ini).
+    pub jenis_spike: String,
+}
 
 /// Mutex global: satu Chrome profil — readiness poller dan on-demand scrape
 /// tidak boleh memakai browser bersamaan.
@@ -193,7 +204,7 @@ pub struct ReadinessUpdate {
     /// Naik tiap hasil cek poller background. `0` = hydrate Redis (bukan tick poll).
     pub poll_seq: u64,
     /// Emiten portofolio dengan lonjakan (spread hari ini >= 1.5×ATR Yahoo).
-    pub portofolio: Vec<String>,
+    pub portofolio: Vec<PortofolioSpike>,
 }
 
 fn next_poll_seq() -> u64 {

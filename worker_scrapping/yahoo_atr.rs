@@ -14,9 +14,28 @@ const INTER_EMITEN_DELAY: Duration = Duration::from_millis(300);
 
 #[derive(Debug, Clone)]
 struct Candle {
+    open: f64,
     high: f64,
     low: f64,
     close: f64,
+}
+
+/// Hasil deteksi lonjakan: emiten + arah candle hari ini.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpikeEmiten {
+    pub emiten_name: String,
+    /// `up` | `down` | `flat` dari open vs close candle terakhir.
+    pub jenis_spike: String,
+}
+
+fn jenis_spike_from_candle(c: &Candle) -> &'static str {
+    if c.close > c.open {
+        "up"
+    } else if c.close < c.open {
+        "down"
+    } else {
+        "flat"
+    }
 }
 
 /// True bila spread (high-low) candle terakhir >= 1.5 × ATR(14).
@@ -68,6 +87,10 @@ fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
     let quote = result
         .pointer("/indicators/quote/0")
         .ok_or_else(|| "yahoo: indicators.quote kosong".to_string())?;
+    let opens = quote
+        .get("open")
+        .and_then(|x| x.as_array())
+        .ok_or_else(|| "yahoo: open missing".to_string())?;
     let highs = quote
         .get("high")
         .and_then(|x| x.as_array())
@@ -81,10 +104,15 @@ fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
         .and_then(|x| x.as_array())
         .ok_or_else(|| "yahoo: close missing".to_string())?;
 
-    let n = highs.len().min(lows.len()).min(closes.len());
+    let n = opens
+        .len()
+        .min(highs.len())
+        .min(lows.len())
+        .min(closes.len());
     let mut out = Vec::with_capacity(n);
     for i in 0..n {
-        let (Some(h), Some(l), Some(c)) = (
+        let (Some(o), Some(h), Some(l), Some(c)) = (
+            opens[i].as_f64(),
             highs[i].as_f64(),
             lows[i].as_f64(),
             closes[i].as_f64(),
@@ -92,6 +120,7 @@ fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
             continue;
         };
         out.push(Candle {
+            open: o,
             high: h,
             low: l,
             close: c,
@@ -135,7 +164,7 @@ async fn fetch_candles(
 }
 
 /// Untuk setiap emiten: GET Yahoo chart (jeda 300ms), hitung ATR, kembalikan yang lonjakan.
-pub async fn find_spike_emitens(emitens: &[String]) -> Vec<String> {
+pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
         return Vec::new();
     }
@@ -164,12 +193,16 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<String> {
             Ok(candles) => {
                 if is_price_spike(&candles) {
                     let last = candles.last().unwrap();
+                    let jenis = jenis_spike_from_candle(last);
                     let spread = last.high - last.low;
                     println!(
-                        "\x1b[32myahoo ATR spike {code}: spread={spread:.2} (high={:.2} low={:.2})\x1b[0m",
-                        last.high, last.low
+                        "\x1b[32myahoo ATR spike {code} {jenis}: spread={spread:.2} (o={:.2} h={:.2} l={:.2} c={:.2})\x1b[0m",
+                        last.open, last.high, last.low, last.close
                     );
-                    spikes.push(code);
+                    spikes.push(SpikeEmiten {
+                        emiten_name: code,
+                        jenis_spike: jenis.to_string(),
+                    });
                 }
             }
             Err(e) => eprintln!("yahoo ATR {code}: {e}"),

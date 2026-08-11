@@ -10,3 +10,4 @@ pub mod portofolio_history_worker;
 pub mod portofolio_worker;
 pub mod rate_limit_delay;
 pub mod yahoo_atr;
+pub mod yahoo_spike_cache;
