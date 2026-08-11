@@ -333,7 +333,7 @@ async fn run_emiten_trending_movers_scrape(
     result
 }
 
-/// Senin–Jumat, jam 09:00–12:00 dan 13:30–16:15 (waktu server lokal).
+/// Senin–Jumat, jam 09:00–12:15 dan 13:30–16:15 (waktu server lokal).
 pub fn is_stockbit_poller_scrape_hours() -> bool {
     use chrono::{Datelike, Local, Timelike};
 
@@ -345,7 +345,7 @@ pub fn is_stockbit_poller_scrape_hours() -> bool {
 
     let mins = now.hour() * 60 + now.minute();
     const MORNING_START: u32 = 9 * 60;
-    const MORNING_END: u32 = 12 * 60 + 1;
+    const MORNING_END: u32 = 12 * 60 + 15 + 1;
     const AFTERNOON_START: u32 = 13 * 60 + 30;
     const AFTERNOON_END: u32 = 16 * 60 + 15 + 1;
     let in_morning = mins >= MORNING_START && mins < MORNING_END;
@@ -452,7 +452,7 @@ async fn run_portofolio_history_scrape(
 }
 
 /// Dipanggil dari readiness poller setelah tiap tick: scrape portofolio, emiten_trending,
-/// pending_order — hanya Senin–Jumat 09:00–12:00 & 13:30–16:15, dan hanya bila `ready`.
+/// pending_order — hanya Senin–Jumat 09:00–12:15 & 13:30–16:15, dan hanya bila `ready`.
 /// Urutan: (1) portofolio serial; lalu paralel Yahoo ATR + trending + pending_order.
 /// `None` = skip (jangan overwrite cache portofolio); `Some` = hasil cek Yahoo (bisa kosong).
 pub async fn run_poller_stockbit_scrapes(
@@ -465,7 +465,7 @@ pub async fn run_poller_stockbit_scrapes(
     }
     if !is_stockbit_poller_scrape_hours() {
         println!(
-            "Poller scrapes: diluar jam operasional Senin–Jumat 09:00–12:00 & 13:30–16:15 — skip"
+            "Poller scrapes: diluar jam operasional Senin–Jumat 09:00–12:15 & 13:30–16:15 — skip"
         );
         return None;
     }

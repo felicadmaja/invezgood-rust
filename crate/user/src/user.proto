@@ -16,7 +16,7 @@ service User {
   // Status login Chrome scraper Stockbit (state di Redis stockbit:readiness).
   // Poller global 9–10 menit selalu jalan sejak server start (tanpa perlu subscriber stream).
   // Banyak subscriber stream tidak menambah frekuensi poll.
-  // Setelah tiap tick (bila ready + Senin–Jumat 09:00–12:00 & 13:30–16:15), poller
+  // Setelah tiap tick (bila ready + Senin–Jumat 09:00–12:15 & 13:30–16:15), poller
   // auto-invoke alur sama RPC berikut (bukan panggil gRPC client, langsung scrape worker):
   //   1. GetAllPortofolioFromStockbit (serial dulu)
   //   Lalu paralel:
