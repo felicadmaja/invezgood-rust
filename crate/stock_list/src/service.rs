@@ -1636,6 +1636,9 @@ impl StockList for StockListService {
                 row.stockbit_profile_updated_at,
             ) {
                 acquire_keystats_from_stockbit_slot(&user_name).await?;
+                eprintln!(
+                    "GetStockbitProfileByCode {user_name} GET Stockbit API emitten/{code}/profile"
+                );
                 crate::stockbit_profile::fetch_and_save_stockbit_profile(
                     Arc::clone(&self.session),
                     &code,
