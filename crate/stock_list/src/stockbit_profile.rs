@@ -4,12 +4,61 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use scylla::client::session::Session;
+use serde::Deserialize;
 use stockbit_browser::ensure_stockbit_bearer;
 
 use crate::model::StockbitProfileDb;
 
 const PROFILE_URL: &str = "https://exodus.stockbit.com/emitten";
 const STOCKBIT_PROFILE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
+const API_BODY_LOG_MAX_CHARS: usize = 2000;
+
+#[derive(Debug, Deserialize)]
+struct ApiProfileResponse {
+    data: StockbitProfileDb,
+}
+
+fn parse_stockbit_profile_response(body: &str, code: &str) -> Result<StockbitProfileDb, String> {
+    serde_json::from_str::<ApiProfileResponse>(body)
+        .map(|parsed| parsed.data)
+        .map_err(|e| {
+            let preview: String = body.chars().take(500).collect();
+            eprintln!(
+                "\x1b[33mstockbit profile API {code} JSON parse error: {e}\nbody preview: {preview}\x1b[0m"
+            );
+            format!("stockbit profile {code} JSON: {e}")
+        })
+}
+
+fn log_stockbit_profile_api(code: &str, body: &str, profile: &StockbitProfileDb) {
+    let char_count = body.chars().count();
+    let preview: String = body.chars().take(API_BODY_LOG_MAX_CHARS).collect();
+    let truncated = char_count > API_BODY_LOG_MAX_CHARS;
+    eprintln!(
+        "\x1b[36mstockbit profile API {code} response ({} bytes{}):\n{preview}{}\x1b[0m",
+        body.len(),
+        if truncated { ", preview truncated" } else { "" },
+        if truncated { "\n..." } else { "" },
+    );
+    eprintln!(
+        "\x1b[36mstockbit profile API {code} parsed: background_chars={} address={} shareholder={} sdc={} shareholder_numbers={} beneficiary={} key_executive_nonempty={}\x1b[0m",
+        profile.background.chars().count(),
+        profile.address.as_ref().map(|v| v.len()).unwrap_or(0),
+        profile.shareholder.as_ref().map(|v| v.len()).unwrap_or(0),
+        profile
+            .shareholder_director_commissioner
+            .as_ref()
+            .map(|v| v.len())
+            .unwrap_or(0),
+        profile
+            .shareholder_numbers
+            .as_ref()
+            .map(|v| v.len())
+            .unwrap_or(0),
+        profile.beneficiary.as_ref().map(|v| v.len()).unwrap_or(0),
+        key_executive_has_entries(&profile.key_executive),
+    );
+}
 
 fn vec_has_items<T>(value: &Option<Vec<T>>) -> bool {
     value.as_ref().is_some_and(|items| !items.is_empty())
@@ -90,7 +139,9 @@ pub async fn fetch_stockbit_profile(code: &str) -> Result<StockbitProfileDb, Str
         return Err(format!("stockbit profile {code} HTTP {status}: {preview}"));
     }
 
-    serde_json::from_str(&body).map_err(|e| format!("stockbit profile {code} JSON: {e}"))
+    let profile = parse_stockbit_profile_response(&body, &code)?;
+    log_stockbit_profile_api(&code, &body, &profile);
+    Ok(profile)
 }
 
 pub async fn fetch_and_save_stockbit_profile(
