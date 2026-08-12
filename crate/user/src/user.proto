@@ -26,19 +26,15 @@ service User {
   //     2. GetLatestEmitenTrendingFromStockbit
   //     3. GetAllPendingOrderFromStockbit
   //     4. Yahoo Finance spike (emiten dari invezgood.portofolio)
-  //   Hasil cek di-cache Redis key `invezgood:yahoo:market_holiday:{YYYY-MM-DD}`
-  //   (value `1`=libur, `0`=buka; TTL s/d 23:59:59 lokal).
-  //   Bila market buka (volume > 0), urutan scrape:
-  //   1. GetAllPortofolioFromStockbit (serial dulu)
-  //   Lalu paralel:
-  //     • Yahoo Finance (baca emiten_name dari invezgood.portofolio → chart .JK 1d,
-  //       hanya hari ini period1=00:00 lokal period2=sekarang; jeda 50ms antar emiten). Spike:
-  //       UP bila close hari ini naik >= 16% vs open; DOWN bila close turun >= 8% vs open
-  //       → response.portofolio. HTTP 409 Too Many Request: log merah, jeda 300ms, retry GET.
-  //       Emiten yang sudah pernah di-output hari ini di-cache Redis (TTL s/d 23:59:59
-  //       lokal) — tidak dicek Yahoo lagi & tidak di-output ulang sampai ganti hari.
-  //     • 2. GetLatestEmitenTrendingFromStockbit lalu 3. GetAllPendingOrderFromStockbit
-  //       (Chrome serial; bersamaan dengan Yahoo)
+  //   Hasil cek di-cache Redis key `invezgood:yahoo:market_holiday:{YYYY-MM-DD}` (value `1`=libur, `0`=buka; TTL s/d 23:59:59 lokal).
+  //   Bila market buka (volume > 0), paralel:
+  //     • Yahoo Finance spike (baca emiten_name dari invezgood.portofolio → chart .JK 1d,
+  //       hanya hari ini period1=00:00 lokal period2=sekarang; jeda 50ms antar emiten).
+  //       UP bila close naik >= 16% vs open; DOWN bila close turun >= 8% vs open
+  //       → response.portofolio. HTTP 409: log merah, jeda 300ms, retry GET.
+  //       Emiten sudah di-output hari ini di-cache Redis key `invezgood:yahoo_atr:spike_reported`
+  //       (TTL s/d 23:59:59 lokal) — tidak dicek Yahoo lagi sampai ganti hari.
+  //     • Serial (satu Chrome): GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit
   // Subscribe stream: server push saat status/portofolio berubah + heartbeat ~30s.
   // Wajib authorization: Bearer <token>. success=true bila sesi Stockbit sudah login/ready.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);

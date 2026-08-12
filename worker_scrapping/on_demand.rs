@@ -463,7 +463,7 @@ async fn run_portofolio_history_scrape(
 
 /// Dipanggil dari readiness poller setelah tiap tick: scrape portofolio, emiten_trending,
 /// pending_order — Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00, bila `ready`.
-/// Urutan: (1) portofolio serial; lalu paralel Yahoo ATR + trending + pending_order.
+/// Paralel: Yahoo spike || (portofolio → emiten_trending → pending_order serial).
 /// `None` = skip (jangan overwrite cache portofolio); `Some` = hasil cek Yahoo (bisa kosong).
 pub async fn run_poller_stockbit_scrapes(
     session: Arc<Session>,
@@ -486,17 +486,8 @@ pub async fn run_poller_stockbit_scrapes(
         return None;
     }
 
-    println!("Poller scrapes: mulai GetAllPortofolioFromStockbit (serial)");
-
-    match run_portofolio_all_scrape(Arc::clone(&session), BrowserLockClass::Background, false)
-        .await
-    {
-        Ok((n, _)) => println!("Poller GetAllPortofolioFromStockbit OK: {n} holdings"),
-        Err(e) => eprintln!("Poller GetAllPortofolioFromStockbit skip/fail: {e}"),
-    }
-
     println!(
-        "Poller scrapes: paralel Yahoo ATR || (GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit)"
+        "Poller scrapes: paralel Yahoo spike || (GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit)"
     );
 
     let session_yahoo = Arc::clone(&session);
@@ -555,7 +546,17 @@ pub async fn run_poller_stockbit_scrapes(
                 .collect()
         },
         async move {
-            // Trending lalu pending serial (satu Chrome); berjalan bersamaan dengan Yahoo.
+            match run_portofolio_all_scrape(
+                Arc::clone(&session_stockbit),
+                BrowserLockClass::Background,
+                false,
+            )
+            .await
+            {
+                Ok((n, _)) => println!("Poller GetAllPortofolioFromStockbit OK: {n} holdings"),
+                Err(e) => eprintln!("Poller GetAllPortofolioFromStockbit skip/fail: {e}"),
+            }
+
             match run_emiten_trending_movers_scrape(
                 Arc::clone(&session_stockbit),
                 BrowserLockClass::Background,
@@ -572,8 +573,7 @@ pub async fn run_poller_stockbit_scrapes(
                 }
             }
 
-            match run_pending_order_all_scrape(session_stockbit, BrowserLockClass::Background)
-                .await
+            match run_pending_order_all_scrape(session_stockbit, BrowserLockClass::Background).await
             {
                 Ok(n) => println!("Poller GetAllPendingOrderFromStockbit OK: {n} baris"),
                 Err(e) => eprintln!("Poller GetAllPendingOrderFromStockbit skip/fail: {e}"),
