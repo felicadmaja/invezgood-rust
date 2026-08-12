@@ -22,7 +22,7 @@ service User {
   //   Lalu paralel:
   //     • Yahoo Finance (baca emiten_name dari invezgood.portofolio → chart .JK 1d,
   //       period1≈1 bulan lalu, period2=hari ini; jeda 100ms antar emiten). Spike:
-  //       UP bila close hari ini naik >= 8% vs open; DOWN bila close turun >= 8% vs open
+  //       UP bila close hari ini naik >= 16% vs open; DOWN bila close turun >= 8% vs open
   //       → response.portofolio. HTTP 409 Too Many Request: log merah, jeda 300ms, retry GET.
   //       Emiten yang sudah pernah di-output hari ini di-cache Redis (TTL s/d 23:59:59
   //       lokal) — tidak dicek Yahoo lagi & tidak di-output ulang sampai ganti hari.
@@ -77,14 +77,16 @@ message IsStockbitReadyRequest {}
 
 message StockbitPortofolioSingkatRow {
   string emiten_name = 1;
-  // "up" bila close naik >= 8% vs open hari ini; "down" bila close turun >= 8% vs open.
+  // "up" bila close naik >= 16% vs open hari ini; "down" bila close turun >= 8% vs open.
   string jenis_spike = 2;
+  // Persentase perubahan close vs open (mis. 8.5% -> naik, -12.3% -> turun).
+  double value_spike_percentage = 3;
 }
 
 message IsStockbitReadyResponse {
   bool success = 1;
   string message = 2;
-  // Emiten portofolio dengan spike baru hari ini (close ±>= 8% vs open);
+  // Emiten portofolio dengan spike baru hari ini (close naik >= 16% atau turun >= 8% vs open);
   // yang sudah di-output hari ini tidak diulang (Redis cache s/d akhir hari).
   repeated StockbitPortofolioSingkatRow portofolio = 3;
 }

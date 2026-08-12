@@ -186,6 +186,7 @@ impl User for UserService {
                         .map(|p| StockbitPortofolioSingkatRow {
                             emiten_name: p.emiten_name,
                             jenis_spike: p.jenis_spike,
+                            value_spike_percentage: p.value_spike_percentage,
                         })
                         .collect();
 

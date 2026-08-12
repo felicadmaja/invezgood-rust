@@ -510,11 +510,16 @@ pub async fn run_poller_stockbit_scrapes(
 
             let spikes = crate::yahoo_atr::find_spike_emitens(&to_check).await;
             if spikes.is_empty() {
-                println!("Poller Yahoo spike: tidak ada lonjakan baru (>= 8% vs open)");
+                println!("Poller Yahoo spike: tidak ada lonjakan baru (UP >= 16% / DOWN >= 8% vs open)");
             } else {
                 let summary: Vec<String> = spikes
                     .iter()
-                    .map(|s| format!("{}:{}", s.emiten_name, s.jenis_spike))
+                    .map(|s| {
+                        format!(
+                            "{}:{}:{:+.2}%",
+                            s.emiten_name, s.jenis_spike, s.value_spike_percentage
+                        )
+                    })
                     .collect();
                 println!(
                     "\x1b[32mPoller Yahoo ATR: lonjakan baru {}\x1b[0m",
@@ -529,6 +534,7 @@ pub async fn run_poller_stockbit_scrapes(
                 .map(|s| stockbit_browser::PortofolioSpike {
                     emiten_name: s.emiten_name,
                     jenis_spike: s.jenis_spike,
+                    value_spike_percentage: s.value_spike_percentage,
                 })
                 .collect()
         },

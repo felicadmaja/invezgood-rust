@@ -2,7 +2,7 @@
 //!
 //! Env: `REDIS_URL` (default `redis://localhost:6379`).
 //! Key hash: `stockbit:readiness` — field `ready` (`0`/`1`), `message`,
-//! `portofolio` (CSV `EMITEN:jenis`, mis. `BBCA:up,BMRI:down`).
+//! `portofolio` (CSV `EMITEN:jenis:pct`, mis. `BBCA:up:8.5,BMRI:down:-10.2`).
 //! Tanpa TTL agar survive restart. Bila Redis down: get → None; set → log saja.
 
 use std::collections::HashMap;
@@ -39,19 +39,23 @@ async fn connection() -> Result<ConnectionManager, String> {
     Ok(mgr)
 }
 
-/// Format: `BBCA:up,BMRI:down` — legacy `BBCA` (tanpa jenis) → jenis kosong.
+/// Format: `BBCA:up:8.52` — legacy `BBCA:up` / `BBCA` tetap didukung.
 fn parse_portofolio_csv(raw: &str) -> Vec<PortofolioSpike> {
     raw.split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(|s| {
-            let (emiten, jenis) = match s.split_once(':') {
-                Some((e, j)) => (e, j),
-                None => (s, ""),
-            };
+            let parts: Vec<&str> = s.splitn(3, ':').collect();
+            let emiten = parts.first().copied().unwrap_or("").trim();
+            let jenis = parts.get(1).copied().unwrap_or("").trim();
+            let pct = parts
+                .get(2)
+                .and_then(|p| p.trim().parse::<f64>().ok())
+                .unwrap_or(0.0);
             PortofolioSpike {
-                emiten_name: emiten.trim().to_ascii_uppercase(),
-                jenis_spike: jenis.trim().to_ascii_lowercase(),
+                emiten_name: emiten.to_ascii_uppercase(),
+                jenis_spike: jenis.to_ascii_lowercase(),
+                value_spike_percentage: pct,
             }
         })
         .filter(|p| !p.emiten_name.is_empty())
@@ -65,7 +69,10 @@ fn format_portofolio_csv(items: &[PortofolioSpike]) -> String {
             if p.jenis_spike.is_empty() {
                 p.emiten_name.clone()
             } else {
-                format!("{}:{}", p.emiten_name, p.jenis_spike)
+                format!(
+                    "{}:{}:{:.4}",
+                    p.emiten_name, p.jenis_spike, p.value_spike_percentage
+                )
             }
         })
         .collect::<Vec<_>>()

@@ -77,8 +77,6 @@ pub async fn fetch_momentum_chart(
         "{INVEZGO_MOMENTUM_CHART_URL}/{code}?date={date}&range={range}&scope=volume"
     );
 
-    eprintln!("\x1b[32mhaka_haki Invezgo GET {url}\x1b[0m");
-
     let response = reqwest::Client::new()
         .get(&url)
         .bearer_auth(token)
