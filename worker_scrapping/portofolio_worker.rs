@@ -15,7 +15,7 @@ use scylla::client::session::Session;
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use stockbit_browser::goto_stockbit;
+use stockbit_browser::{evaluate_resilient, goto_stockbit};
 use tokio::time::sleep;
 
 use crate::portofolio_equity_worker;
@@ -367,32 +367,43 @@ async fn probe_trading_bearer(http: &reqwest::Client, token: &str) -> Result<u16
 pub async fn extract_trading_bearer_after_pin(
     page: &Page,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+    let _ = evaluate_resilient(page, ensure_auth_capture_js())
+        .await
+        .map_err(|e| e.to_string())?;
     // Buang capture login web lama; nanti diisi ulang oleh SPA trading.
-    let _ = page
-        .evaluate(r#"(() => { window.__sbCapturedBearer = ''; return 0; })()"#)
-        .await;
+    let _ = evaluate_resilient(
+        page,
+        r#"(() => { window.__sbCapturedBearer = ''; return 0; })()"#,
+    )
+    .await;
 
     goto_stockbit(page, STOCKBIT_PORTFOLIO_URL)
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+    // SPA sering ganti execution context setelah navigasi — tunggu settle.
+    sleep(Duration::from_millis(1500)).await;
+    let _ = evaluate_resilient(page, ensure_auth_capture_js())
+        .await
+        .map_err(|e| e.to_string())?;
 
     for _ in 0..25 {
         sleep(Duration::from_millis(400)).await;
-        let n = page
-            .evaluate(r#"(() => (window.__sbCapturedBearer || '').length)()"#)
-            .await?
-            .into_value::<u64>()
-            .unwrap_or(0);
+        let n = evaluate_resilient(
+            page,
+            r#"(() => (window.__sbCapturedBearer || '').length)()"#,
+        )
+        .await
+        .map_err(|e| e.to_string())?
+        .into_value::<u64>()
+        .unwrap_or(0);
         if n > 0 {
             break;
         }
     }
 
-    let scanned = page
-        .evaluate(
-            r#"(() => {
+    let scanned = evaluate_resilient(
+        page,
+        r#"(() => {
                 const hits = [];
                 const push = (token, source) => {
                     if (!token || typeof token !== 'string') return;
@@ -415,10 +426,11 @@ pub async fn extract_trading_bearer_after_pin(
                 }
                 return JSON.stringify(out);
             })()"#,
-        )
-        .await?
-        .into_value::<String>()
-        .unwrap_or_else(|_| "[]".to_string());
+    )
+    .await
+    .map_err(|e| e.to_string())?
+    .into_value::<String>()
+    .unwrap_or_else(|_| "[]".to_string());
 
     let candidates: Vec<Value> = serde_json::from_str(&scanned).unwrap_or_default();
 

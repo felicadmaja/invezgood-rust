@@ -240,6 +240,33 @@ pub async fn scrape_and_insert_pending_order(
     session: &Arc<Session>,
     keyspace: &str,
 ) -> Result<usize, Box<dyn std::error::Error>> {
+    // Satu retry penuh bila CDP context hilang di tengah extract bearer / navigasi SPA.
+    let first = scrape_and_insert_pending_order_once(page, session, keyspace)
+        .await
+        .map_err(|e| e.to_string());
+    match first {
+        Ok(n) => Ok(n),
+        Err(msg)
+            if msg.contains("Cannot find context")
+                || msg.contains("-32000")
+                || msg.contains("Execution context was destroyed")
+                || msg.contains("stale context") =>
+        {
+            eprintln!(
+                "\x1b[33mPending order: stale Chrome context — jeda 2s lalu retry sekali\x1b[0m"
+            );
+            sleep(Duration::from_secs(2)).await;
+            scrape_and_insert_pending_order_once(page, session, keyspace).await
+        }
+        Err(msg) => Err(msg.into()),
+    }
+}
+
+async fn scrape_and_insert_pending_order_once(
+    page: &Page,
+    session: &Arc<Session>,
+    keyspace: &str,
+) -> Result<usize, Box<dyn std::error::Error>> {
     let pin_entered = portofolio_worker::ensure_trading_session(page).await?;
     if pin_entered {
         println!("Pending order: jeda 1 detik setelah input PIN...");

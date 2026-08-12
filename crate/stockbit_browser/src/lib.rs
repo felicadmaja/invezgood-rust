@@ -41,11 +41,11 @@ pub type AfterPollHook = Arc<
         + Sync,
 >;
 
-/// Emiten portofolio dengan spike Yahoo (close ±≥ 5% vs open) untuk stream IsStockbitReady.
+/// Emiten portofolio dengan spike Yahoo (close ±≥ 8% vs open) untuk stream IsStockbitReady.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PortofolioSpike {
     pub emiten_name: String,
-    /// `up` | `down` (close vs open hari ini, ambang 5%).
+    /// `up` | `down` (close vs open hari ini, ambang 8%).
     pub jenis_spike: String,
 }
 
@@ -203,7 +203,7 @@ pub struct ReadinessUpdate {
     pub message: String,
     /// Naik tiap hasil cek poller background. `0` = hydrate Redis (bukan tick poll).
     pub poll_seq: u64,
-    /// Emiten portofolio dengan spike (close ±≥ 5% vs open Yahoo).
+    /// Emiten portofolio dengan spike (close ±≥ 8% vs open Yahoo).
     pub portofolio: Vec<PortofolioSpike>,
 }
 
@@ -524,6 +524,42 @@ async fn page_is_alive(page: &Page) -> bool {
         Ok(Ok(eval)) => eval.into_value::<i64>().ok() == Some(2),
         _ => false,
     }
+}
+
+fn is_stale_execution_context(err: &str) -> bool {
+    err.contains("Cannot find context")
+        || err.contains("-32000")
+        || err.contains("Execution context was destroyed")
+}
+
+/// `page.evaluate` dengan retry bila CDP context hilang (navigasi SPA / reload).
+pub async fn evaluate_resilient(
+    page: &Page,
+    expression: impl Into<String>,
+) -> Result<chromiumoxide::js::EvaluationResult, StockbitError> {
+    let expression = expression.into();
+    let mut last_err = String::new();
+    for attempt in 1..=10 {
+        match page.evaluate(expression.as_str()).await {
+            Ok(v) => return Ok(v),
+            Err(e) => {
+                let msg = e.to_string();
+                if is_stale_execution_context(&msg) {
+                    eprintln!(
+                        "\x1b[33mChrome evaluate: stale context (attempt {attempt}/10) — jeda lalu retry\x1b[0m"
+                    );
+                    last_err = msg;
+                    sleep(Duration::from_millis(500)).await;
+                    continue;
+                }
+                return Err(msg.into());
+            }
+        }
+    }
+    Err(format!(
+        "Chrome evaluate gagal setelah retry stale context: {last_err}"
+    )
+    .into())
 }
 
 async fn launch_fresh_browser() -> Result<(Browser, Page), StockbitError> {

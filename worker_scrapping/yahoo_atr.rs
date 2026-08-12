@@ -1,4 +1,4 @@
-//! Fetch Yahoo Finance daily chart; deteksi spike close vs open hari ini (≥ 5%).
+//! Fetch Yahoo Finance daily chart; deteksi spike close vs open hari ini (≥ 8%).
 
 use chrono::{Duration as ChronoDuration, Local};
 use serde_json::Value;
@@ -8,7 +8,7 @@ use tokio::time::sleep;
 const YAHOO_CHART_URL: &str = "https://query2.finance.yahoo.com/v8/finance/chart";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const SPIKE_PCT: f64 = 0.05;
+const SPIKE_PCT: f64 = 0.08;
 const INTER_EMITEN_DELAY: Duration = Duration::from_millis(150);
 const RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_millis(300);
 const RATE_LIMIT_MAX_RETRIES: u32 = 20;
@@ -25,11 +25,11 @@ struct Candle {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpikeEmiten {
     pub emiten_name: String,
-    /// `up` | `down` dari close vs open (≥ 5%).
+    /// `up` | `down` dari close vs open (≥ 8%).
     pub jenis_spike: String,
 }
 
-/// `up` bila close naik ≥ 5% vs open; `down` bila close turun ≥ 5% vs open.
+/// `up` bila close naik ≥ 8% vs open; `down` bila close turun ≥ 8% vs open.
 fn jenis_spike_from_candle(c: &Candle) -> Option<&'static str> {
     if c.open <= 0.0 {
         return None;
@@ -150,7 +150,7 @@ async fn fetch_candles(
     }
 }
 
-/// Untuk setiap emiten: GET Yahoo chart (jeda 150ms), kembalikan yang close ±≥ 5% vs open.
+/// Untuk setiap emiten: GET Yahoo chart (jeda 150ms), kembalikan yang close ±≥ 8% vs open.
 pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
         return Vec::new();
