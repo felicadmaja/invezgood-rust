@@ -9,7 +9,7 @@ const YAHOO_CHART_URL: &str = "https://query2.finance.yahoo.com/v8/finance/chart
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const SPIKE_PCT: f64 = 0.08;
-const INTER_EMITEN_DELAY: Duration = Duration::from_millis(150);
+const INTER_EMITEN_DELAY: Duration = Duration::from_millis(100);
 const RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_millis(300);
 const RATE_LIMIT_MAX_RETRIES: u32 = 20;
 
@@ -150,7 +150,7 @@ async fn fetch_candles(
     }
 }
 
-/// Untuk setiap emiten: GET Yahoo chart (jeda 150ms), kembalikan yang close ±≥ 8% vs open.
+/// Untuk setiap emiten: GET Yahoo chart (jeda 100ms), kembalikan yang close ±≥ 8% vs open.
 pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
         return Vec::new();

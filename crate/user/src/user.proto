@@ -21,7 +21,7 @@ service User {
   //   1. GetAllPortofolioFromStockbit (serial dulu)
   //   Lalu paralel:
   //     • Yahoo Finance (baca emiten_name dari invezgood.portofolio → chart .JK 1d,
-  //       period1≈1 bulan lalu, period2=hari ini; jeda 150ms antar emiten). Spike:
+  //       period1≈1 bulan lalu, period2=hari ini; jeda 100ms antar emiten). Spike:
   //       UP bila close hari ini naik >= 8% vs open; DOWN bila close turun >= 8% vs open
   //       → response.portofolio. HTTP 409 Too Many Request: log merah, jeda 300ms, retry GET.
   //       Emiten yang sudah pernah di-output hari ini di-cache Redis (TTL s/d 23:59:59
