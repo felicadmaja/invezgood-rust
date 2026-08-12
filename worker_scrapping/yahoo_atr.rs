@@ -1,4 +1,4 @@
-//! Fetch Yahoo Finance daily chart + hitung ATR; deteksi lonjakan (high-low) hari ini.
+//! Fetch Yahoo Finance daily chart; deteksi spike close vs open hari ini (≥ 5%).
 
 use chrono::{Duration as ChronoDuration, Local};
 use serde_json::Value;
@@ -8,9 +8,10 @@ use tokio::time::sleep;
 const YAHOO_CHART_URL: &str = "https://query2.finance.yahoo.com/v8/finance/chart";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const ATR_PERIOD: usize = 14;
-const SPREAD_ATR_MULTIPLIER: f64 = 1.5;
-const INTER_EMITEN_DELAY: Duration = Duration::from_millis(300);
+const SPIKE_PCT: f64 = 0.05;
+const INTER_EMITEN_DELAY: Duration = Duration::from_millis(150);
+const RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_millis(300);
+const RATE_LIMIT_MAX_RETRIES: u32 = 20;
 
 #[derive(Debug, Clone)]
 struct Candle {
@@ -24,58 +25,23 @@ struct Candle {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpikeEmiten {
     pub emiten_name: String,
-    /// `up` | `down` | `flat` dari open vs close candle terakhir.
+    /// `up` | `down` dari close vs open (≥ 5%).
     pub jenis_spike: String,
 }
 
-fn jenis_spike_from_candle(c: &Candle) -> &'static str {
-    if c.close > c.open {
-        "up"
-    } else if c.close < c.open {
-        "down"
+/// `up` bila close naik ≥ 5% vs open; `down` bila close turun ≥ 5% vs open.
+fn jenis_spike_from_candle(c: &Candle) -> Option<&'static str> {
+    if c.open <= 0.0 {
+        return None;
+    }
+    let change = (c.close - c.open) / c.open;
+    if change >= SPIKE_PCT {
+        Some("up")
+    } else if change <= -SPIKE_PCT {
+        Some("down")
     } else {
-        "flat"
+        None
     }
-}
-
-/// True bila spread (high-low) candle terakhir >= 1.5 × ATR(14).
-fn is_price_spike(candles: &[Candle]) -> bool {
-    if candles.len() < ATR_PERIOD + 1 {
-        return false;
-    }
-    let Some(atr) = wilder_atr(candles, ATR_PERIOD) else {
-        return false;
-    };
-    if atr <= 0.0 {
-        return false;
-    }
-    let last = &candles[candles.len() - 1];
-    let spread = last.high - last.low;
-    spread >= SPREAD_ATR_MULTIPLIER * atr
-}
-
-fn wilder_atr(candles: &[Candle], period: usize) -> Option<f64> {
-    if candles.len() < period + 1 {
-        return None;
-    }
-    let mut trs = Vec::with_capacity(candles.len() - 1);
-    for i in 1..candles.len() {
-        let h = candles[i].high;
-        let l = candles[i].low;
-        let prev_c = candles[i - 1].close;
-        let tr = (h - l)
-            .max((h - prev_c).abs())
-            .max((l - prev_c).abs());
-        trs.push(tr);
-    }
-    if trs.len() < period {
-        return None;
-    }
-    let mut atr: f64 = trs[..period].iter().sum::<f64>() / period as f64;
-    for &tr in &trs[period..] {
-        atr = (atr * (period as f64 - 1.0) + tr) / period as f64;
-    }
-    Some(atr)
 }
 
 fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
@@ -136,6 +102,11 @@ fn unix_range_one_month() -> (i64, i64) {
     (period1, period2)
 }
 
+fn is_too_many_requests(status: reqwest::StatusCode) -> bool {
+    // Yahoo kadang 409 Conflict / 429 Too Many Requests.
+    status.as_u16() == 409 || status.as_u16() == 429
+}
+
 async fn fetch_candles(
     http: &reqwest::Client,
     emiten: &str,
@@ -144,26 +115,42 @@ async fn fetch_candles(
     let url = format!(
         "{YAHOO_CHART_URL}/{emiten}.JK?period1={period1}&period2={period2}&interval=1d"
     );
-    let resp = http
-        .get(&url)
-        .header("User-Agent", USER_AGENT)
-        .header("Accept", "application/json")
-        .send()
-        .await
-        .map_err(|e| format!("yahoo request {emiten}: {e}"))?;
-    let status = resp.status();
-    let body = resp
-        .text()
-        .await
-        .map_err(|e| format!("yahoo body {emiten}: {e}"))?;
-    if !status.is_success() {
-        let preview: String = body.chars().take(160).collect();
-        return Err(format!("yahoo HTTP {status} {emiten}: {preview}"));
+    let mut attempt = 0u32;
+    loop {
+        let resp = http
+            .get(&url)
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .map_err(|e| format!("yahoo request {emiten}: {e}"))?;
+        let status = resp.status();
+        let body = resp
+            .text()
+            .await
+            .map_err(|e| format!("yahoo body {emiten}: {e}"))?;
+        if is_too_many_requests(status) {
+            attempt += 1;
+            eprintln!(
+                "\x1b[31myahoo HTTP {status} Too Many Request {emiten} — jeda 300ms lalu retry ({attempt})\x1b[0m"
+            );
+            if attempt > RATE_LIMIT_MAX_RETRIES {
+                return Err(format!(
+                    "yahoo HTTP {status} Too Many Request {emiten}: gagal setelah {RATE_LIMIT_MAX_RETRIES} retry"
+                ));
+            }
+            sleep(RATE_LIMIT_RETRY_DELAY).await;
+            continue;
+        }
+        if !status.is_success() {
+            let preview: String = body.chars().take(160).collect();
+            return Err(format!("yahoo HTTP {status} {emiten}: {preview}"));
+        }
+        return parse_candles(&body);
     }
-    parse_candles(&body)
 }
 
-/// Untuk setiap emiten: GET Yahoo chart (jeda 300ms), hitung ATR, kembalikan yang lonjakan.
+/// Untuk setiap emiten: GET Yahoo chart (jeda 150ms), kembalikan yang close ±≥ 5% vs open.
 pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
         return Vec::new();
@@ -175,7 +162,7 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("yahoo ATR: gagal buat HTTP client: {e}");
+            eprintln!("yahoo spike: gagal buat HTTP client: {e}");
             return Vec::new();
         }
     };
@@ -191,12 +178,13 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
         }
         match fetch_candles(&http, &code).await {
             Ok(candles) => {
-                if is_price_spike(&candles) {
-                    let last = candles.last().unwrap();
-                    let jenis = jenis_spike_from_candle(last);
-                    let spread = last.high - last.low;
+                let Some(last) = candles.last() else {
+                    continue;
+                };
+                if let Some(jenis) = jenis_spike_from_candle(last) {
+                    let pct = ((last.close - last.open) / last.open) * 100.0;
                     println!(
-                        "\x1b[32myahoo ATR spike {code} {jenis}: spread={spread:.2} (o={:.2} h={:.2} l={:.2} c={:.2})\x1b[0m",
+                        "\x1b[32myahoo spike {code} {jenis}: {pct:+.2}% (o={:.2} h={:.2} l={:.2} c={:.2})\x1b[0m",
                         last.open, last.high, last.low, last.close
                     );
                     spikes.push(SpikeEmiten {
@@ -205,7 +193,7 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
                     });
                 }
             }
-            Err(e) => eprintln!("yahoo ATR {code}: {e}"),
+            Err(e) => eprintln!("yahoo spike {code}: {e}"),
         }
     }
     spikes

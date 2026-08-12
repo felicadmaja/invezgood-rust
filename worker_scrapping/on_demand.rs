@@ -510,7 +510,7 @@ pub async fn run_poller_stockbit_scrapes(
 
             let spikes = crate::yahoo_atr::find_spike_emitens(&to_check).await;
             if spikes.is_empty() {
-                println!("Poller Yahoo ATR: tidak ada lonjakan baru (>= 1.5×ATR)");
+                println!("Poller Yahoo spike: tidak ada lonjakan baru (>= 5% vs open)");
             } else {
                 let summary: Vec<String> = spikes
                     .iter()

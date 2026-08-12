@@ -41,11 +41,11 @@ pub type AfterPollHook = Arc<
         + Sync,
 >;
 
-/// Emiten portofolio dengan lonjakan Yahoo ATR (untuk stream IsStockbitReady).
+/// Emiten portofolio dengan spike Yahoo (close ±≥ 5% vs open) untuk stream IsStockbitReady.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PortofolioSpike {
     pub emiten_name: String,
-    /// `up` | `down` | `flat` (close vs open candle hari ini).
+    /// `up` | `down` (close vs open hari ini, ambang 5%).
     pub jenis_spike: String,
 }
 
@@ -203,7 +203,7 @@ pub struct ReadinessUpdate {
     pub message: String,
     /// Naik tiap hasil cek poller background. `0` = hydrate Redis (bukan tick poll).
     pub poll_seq: u64,
-    /// Emiten portofolio dengan lonjakan (spread hari ini >= 1.5×ATR Yahoo).
+    /// Emiten portofolio dengan spike (close ±≥ 5% vs open Yahoo).
     pub portofolio: Vec<PortofolioSpike>,
 }
 
