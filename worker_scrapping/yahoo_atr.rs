@@ -1,6 +1,6 @@
 //! Fetch Yahoo Finance daily chart; deteksi spike close vs open hari ini (UP ≥ 16%, DOWN ≥ 8%).
 
-use chrono::{Duration as ChronoDuration, Local};
+use chrono::{Local, TimeZone};
 use serde_json::Value;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -99,10 +99,15 @@ fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
     Ok(out)
 }
 
-fn unix_range_one_month() -> (i64, i64) {
+fn unix_range_today() -> (i64, i64) {
     let now = Local::now();
     let period2 = now.timestamp();
-    let period1 = (now - ChronoDuration::days(31)).timestamp();
+    let start_naive = now.date_naive().and_hms_opt(0, 0, 0).expect("00:00 valid");
+    let period1 = Local
+        .from_local_datetime(&start_naive)
+        .single()
+        .unwrap_or(now)
+        .timestamp();
     (period1, period2)
 }
 
@@ -112,7 +117,7 @@ fn is_too_many_requests(status: reqwest::StatusCode) -> bool {
 }
 
 async fn fetch_chart_body(http: &reqwest::Client, emiten: &str) -> Result<String, String> {
-    let (period1, period2) = unix_range_one_month();
+    let (period1, period2) = unix_range_today();
     let url = format!(
         "{YAHOO_CHART_URL}/{emiten}.JK?period1={period1}&period2={period2}&interval=1d"
     );
