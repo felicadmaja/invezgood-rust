@@ -18,10 +18,12 @@ enum CurrentDayMode {
     EodCache,
 }
 
-/// Senin–Jumat: jam operasional live, atau setelah 16:00 via cache EOD.
+/// Senin–Kamis: jam operasional live 09:00–12:00 & 13:30–16:00.
+/// Jumat: 09:00–11:30 & 14:00–16:00. Setelah 16:00: cache EOD.
 fn require_current_day_chart_access() -> Result<CurrentDayMode, Status> {
     let now = Local::now();
-    match now.weekday() {
+    let weekday = now.weekday();
+    match weekday {
         chrono::Weekday::Sat | chrono::Weekday::Sun => {
             return Err(Status::failed_precondition(
                 "Diluar hari operasional Senin-Jumat",
@@ -32,12 +34,23 @@ fn require_current_day_chart_access() -> Result<CurrentDayMode, Status> {
 
     let mins = now.hour() * 60 + now.minute();
     const MORNING_START: u32 = 9 * 60;
-    const MORNING_END: u32 = 12 * 60 + 1;
-    const AFTERNOON_START: u32 = 13 * 60 + 30;
-    const AFTERNOON_END: u32 = 16 * 60 + 1;
-    let in_morning = mins >= MORNING_START && mins < MORNING_END;
-    let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
-    if in_morning || in_afternoon {
+    let in_session = match weekday {
+        chrono::Weekday::Fri => {
+            const MORNING_END: u32 = 11 * 60 + 30 + 1;
+            const AFTERNOON_START: u32 = 14 * 60;
+            const AFTERNOON_END: u32 = 16 * 60 + 1;
+            (mins >= MORNING_START && mins < MORNING_END)
+                || (mins >= AFTERNOON_START && mins < AFTERNOON_END)
+        }
+        _ => {
+            const MORNING_END: u32 = 12 * 60 + 1;
+            const AFTERNOON_START: u32 = 13 * 60 + 30;
+            const AFTERNOON_END: u32 = 16 * 60 + 1;
+            (mins >= MORNING_START && mins < MORNING_END)
+                || (mins >= AFTERNOON_START && mins < AFTERNOON_END)
+        }
+    };
+    if in_session {
         return Ok(CurrentDayMode::Live);
     }
     // > 16:00 (setelah jam operasional sore)
@@ -45,7 +58,7 @@ fn require_current_day_chart_access() -> Result<CurrentDayMode, Status> {
         return Ok(CurrentDayMode::EodCache);
     }
     Err(Status::failed_precondition(
-        "Diluar jam 09:00-12:00 dan 13:30-16:00",
+        "Diluar jam operasional (Senin-Kamis 09:00-12:00 & 13:30-16:00; Jumat 09:00-11:30 & 14:00-16:00)",
     ))
 }
 

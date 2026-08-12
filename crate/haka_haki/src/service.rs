@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::{Datelike, Local, NaiveDate, Timelike};
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
 use crate::invezgo::{self, ApiHakaHakiPoint};
+use crate::intraday_cache::IntradayCache;
 use crate::model::agg_code_tahun_bulan_tanggal;
 use crate::pb::haka_haki_server::HakaHaki as HakaHakiRpc;
 use crate::pb::{
@@ -15,16 +16,33 @@ use crate::pb::{
 
 const DEFAULT_RANGE: i32 = 5;
 
+enum CurrentDayMode {
+    Live,
+    EodCache,
+}
+
+enum LogSource {
+    Cache,
+    EodCache,
+    Api,
+}
+
 pub struct HakaHakiService {
     session: Arc<Session>,
     auth_sessions: SessionStore,
+    intraday_cache: Arc<IntradayCache>,
 }
 
 impl HakaHakiService {
-    pub fn new(session: Arc<Session>, auth_sessions: SessionStore) -> Self {
+    pub fn new(
+        session: Arc<Session>,
+        auth_sessions: SessionStore,
+        intraday_cache: Arc<IntradayCache>,
+    ) -> Self {
         Self {
             session,
             auth_sessions,
+            intraday_cache,
         }
     }
 
@@ -77,6 +95,112 @@ impl HakaHakiService {
             _ => Ok(()),
         }
     }
+
+    fn holiday_response(code: &str, date_str: &str) -> GetHakaHakiFromInvezgoResponse {
+        GetHakaHakiFromInvezgoResponse {
+            success: false,
+            message: "hari libur".to_string(),
+            code: code.to_string(),
+            tahun_bulan_tanggal: date_str.to_string(),
+            items: vec![],
+        }
+    }
+
+    fn minutes_now() -> u32 {
+        let now = Local::now();
+        now.hour() * 60 + now.minute()
+    }
+
+    fn can_detect_intraday_holiday() -> bool {
+        Self::minutes_now() >= 9 * 60 + 15
+    }
+
+    fn is_market_holiday_volume(points: &[ApiHakaHakiPoint]) -> bool {
+        invezgo::is_market_holiday_volume(points)
+    }
+
+    /// Senin–Kamis: live 09:00–12:00 & 13:30–16:00. Jumat: 09:00–11:30 & 14:00–16:00.
+    fn require_current_day_access() -> Result<CurrentDayMode, Status> {
+        let now = Local::now();
+        let weekday = now.weekday();
+        match weekday {
+            chrono::Weekday::Sat | chrono::Weekday::Sun => {
+                return Err(Status::failed_precondition(
+                    "Diluar hari operasional Senin-Jumat",
+                ));
+            }
+            _ => {}
+        }
+
+        let mins = Self::minutes_now();
+        const MORNING_START: u32 = 9 * 60;
+        let in_session = match weekday {
+            chrono::Weekday::Fri => {
+                const MORNING_END: u32 = 11 * 60 + 30 + 1;
+                const AFTERNOON_START: u32 = 14 * 60;
+                const AFTERNOON_END: u32 = 16 * 60 + 1;
+                (mins >= MORNING_START && mins < MORNING_END)
+                    || (mins >= AFTERNOON_START && mins < AFTERNOON_END)
+            }
+            _ => {
+                const MORNING_END: u32 = 12 * 60 + 1;
+                const AFTERNOON_START: u32 = 13 * 60 + 30;
+                const AFTERNOON_END: u32 = 16 * 60 + 1;
+                (mins >= MORNING_START && mins < MORNING_END)
+                    || (mins >= AFTERNOON_START && mins < AFTERNOON_END)
+            }
+        };
+        if in_session {
+            return Ok(CurrentDayMode::Live);
+        }
+        if mins > 16 * 60 {
+            return Ok(CurrentDayMode::EodCache);
+        }
+        Err(Status::failed_precondition(
+            "Diluar jam operasional (Senin-Kamis 09:00-12:00 & 13:30-16:00; Jumat 09:00-11:30 & 14:00-16:00)",
+        ))
+    }
+
+    async fn process_invezgo_fetch(
+        session: &Session,
+        code: &str,
+        trade_date: NaiveDate,
+        range: i32,
+        check_holiday: bool,
+    ) -> Result<GetHakaHakiFromInvezgoResponse, Status> {
+        let date_str = trade_date.format("%Y-%m-%d").to_string();
+        let api_points = invezgo::fetch_momentum_chart(code, trade_date, range)
+            .await
+            .map_err(Status::internal)?;
+
+        if check_holiday
+            && Self::can_detect_intraday_holiday()
+            && Self::is_market_holiday_volume(&api_points)
+        {
+            return Ok(Self::holiday_response(code, &date_str));
+        }
+
+        let mut db_rows = Vec::with_capacity(api_points.len());
+        let mut items = Vec::with_capacity(api_points.len());
+        for point in &api_points {
+            db_rows.push(
+                invezgo::api_point_to_row(code, trade_date, point).map_err(Status::internal)?,
+            );
+            items.push(invezgo::api_point_to_proto(point));
+        }
+
+        let saved = crate::repository::upsert_many(session, &db_rows)
+            .await
+            .map_err(Status::internal)?;
+
+        Ok(GetHakaHakiFromInvezgoResponse {
+            success: true,
+            message: format!("{saved} baris di-upsert ke haka_haki"),
+            code: code.to_string(),
+            tahun_bulan_tanggal: date_str,
+            items,
+        })
+    }
 }
 
 #[tonic::async_trait]
@@ -89,11 +213,6 @@ impl HakaHakiRpc for HakaHakiService {
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
-        enum LogSource {
-            Cache,
-            Api,
-        }
-
         let (result, log_source, log_detail) = async {
             let req = request.into_inner();
             let code = Self::normalize_code(&req.code)?;
@@ -102,9 +221,9 @@ impl HakaHakiRpc for HakaHakiService {
             let range = Self::resolve_range(req.range)?;
             let date_str = trade_date.format("%Y-%m-%d").to_string();
             let today = Local::now().date_naive();
-            let use_cache = trade_date != today;
+            let is_today = trade_date == today;
 
-            if use_cache {
+            if !is_today {
                 if let Some(mut cached) =
                     crate::redis_cache::get(&code, &date_str, range).await
                 {
@@ -119,52 +238,106 @@ impl HakaHakiRpc for HakaHakiService {
                         detail,
                     ));
                 }
-            }
 
-            let api_points: Vec<ApiHakaHakiPoint> =
-                invezgo::fetch_momentum_chart(&code, trade_date, range)
-                    .await
-                    .map_err(Status::internal)?;
-
-            let mut db_rows = Vec::with_capacity(api_points.len());
-            let mut items = Vec::with_capacity(api_points.len());
-            for point in &api_points {
-                db_rows.push(
-                    invezgo::api_point_to_row(&code, trade_date, point)
-                        .map_err(Status::internal)?,
-                );
-                items.push(invezgo::api_point_to_proto(point));
-            }
-
-            let saved = crate::repository::upsert_many(self.session.as_ref(), &db_rows)
-                .await
-                .map_err(Status::internal)?;
-
-            let resp = GetHakaHakiFromInvezgoResponse {
-                success: true,
-                message: format!("{saved} baris di-upsert ke haka_haki"),
-                code: code.clone(),
-                tahun_bulan_tanggal: date_str.clone(),
-                items,
-            };
-
-            if use_cache {
+                let resp = Self::process_invezgo_fetch(
+                    self.session.as_ref(),
+                    &code,
+                    trade_date,
+                    range,
+                    false,
+                )
+                .await?;
                 crate::redis_cache::set(&code, &date_str, range, &resp).await;
+                let detail = format!("{code} {date_str} range={range}");
+                return Ok((
+                    Ok(Response::new(resp)),
+                    LogSource::Api,
+                    detail,
+                ));
             }
 
+            if self.intraday_cache.is_intraday_holiday(&code).await.map_err(
+                |e| Status::internal(e),
+            )? {
+                return Ok((
+                    Ok(Response::new(Self::holiday_response(&code, &date_str))),
+                    LogSource::Api,
+                    format!("{code} {date_str} range={range} holiday cache"),
+                ));
+            }
+
+            let mode = Self::require_current_day_access()?;
+
+            if matches!(mode, CurrentDayMode::EodCache) {
+                if let Some((mut cached, detail)) = self
+                    .intraday_cache
+                    .get_intraday_eod(&code, range)
+                    .await
+                    .map_err(Status::internal)?
+                {
+                    cached.message = format!(
+                        "{} ({detail})",
+                        cached.message.trim_end_matches(" (redis cache)")
+                    );
+                    return Ok((
+                        Ok(Response::new(cached)),
+                        LogSource::EodCache,
+                        detail,
+                    ));
+                }
+
+                let resp = Self::process_invezgo_fetch(
+                    self.session.as_ref(),
+                    &code,
+                    trade_date,
+                    range,
+                    true,
+                )
+                .await?;
+                if !resp.success {
+                    let _ = self.intraday_cache.mark_intraday_holiday(&code).await;
+                    return Ok((
+                        Ok(Response::new(resp)),
+                        LogSource::Api,
+                        format!("{code} {date_str} range={range} eod holiday"),
+                    ));
+                }
+                if let Err(e) = self
+                    .intraday_cache
+                    .set_intraday_eod(&code, range, &resp)
+                    .await
+                {
+                    eprintln!("GetHakaHakiFromInvezgo set eod {code} gagal: {e}");
+                }
+                let detail = format!("{code} {date_str} range={range} eod MISS — GET Invezgo");
+                return Ok((Ok(Response::new(resp)), LogSource::Api, detail));
+            }
+
+            let resp = Self::process_invezgo_fetch(
+                self.session.as_ref(),
+                &code,
+                trade_date,
+                range,
+                true,
+            )
+            .await?;
+            if !resp.success {
+                let _ = self.intraday_cache.mark_intraday_holiday(&code).await;
+                return Ok((
+                    Ok(Response::new(resp)),
+                    LogSource::Api,
+                    format!("{code} {date_str} range={range} holiday"),
+                ));
+            }
             let detail = format!("{code} {date_str} range={range}");
-            Ok((
-                Ok(Response::new(resp)),
-                LogSource::Api,
-                detail,
-            ))
+            Ok((Ok(Response::new(resp)), LogSource::Api, detail))
         }
         .await
         .unwrap_or_else(|status: Status| (Err(status), LogSource::Api, String::new()));
 
         let elapsed = started.elapsed().as_millis();
         match log_source {
-            LogSource::Cache => eprintln!(
+            LogSource::Cache | LogSource::EodCache => eprintln!(
                 "\x1b[37mGetHakaHakiFromInvezgo {user_name} {elapsed}ms - HIT FROM CACHE - {log_detail}\x1b[0m"
             ),
             LogSource::Api => {

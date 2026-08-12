@@ -64,6 +64,10 @@ pub fn api_point_to_row(
     })
 }
 
+pub fn is_market_holiday_volume(points: &[ApiHakaHakiPoint]) -> bool {
+    points.is_empty() || points.iter().all(|p| p.value == 0)
+}
+
 pub async fn fetch_momentum_chart(
     code: &str,
     trade_date: NaiveDate,

@@ -10,7 +10,7 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const SPIKE_UP_PCT: f64 = 0.16;
 const SPIKE_DOWN_PCT: f64 = 0.08;
-const INTER_EMITEN_DELAY: Duration = Duration::from_millis(100);
+const INTER_EMITEN_DELAY: Duration = Duration::from_millis(50);
 const RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_millis(300);
 const RATE_LIMIT_MAX_RETRIES: u32 = 20;
 
@@ -154,7 +154,7 @@ async fn fetch_candles(
     }
 }
 
-/// Untuk setiap emiten: GET Yahoo chart (jeda 100ms), kembalikan yang close naik ≥ 16% atau turun ≥ 8% vs open.
+/// Untuk setiap emiten: GET Yahoo chart (jeda 50ms), kembalikan yang close naik ≥ 16% atau turun ≥ 8% vs open.
 pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
         return Vec::new();

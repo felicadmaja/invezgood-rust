@@ -90,7 +90,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
         auth_sessions.clone(),
     );
-    let haka_haki = HakaHakiService::new(session.clone(), auth_sessions.clone());
+    let haka_haki = HakaHakiService::new(
+        session.clone(),
+        auth_sessions.clone(),
+        haka_haki::new_shared_intraday_cache()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
+    );
 
     let readiness_poller = ReadinessPoller::new();
     {
