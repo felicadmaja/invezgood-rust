@@ -333,24 +333,34 @@ async fn run_emiten_trending_movers_scrape(
     result
 }
 
-/// Senin–Jumat, jam 09:00–12:15 dan 13:30–16:15 (waktu server lokal).
+/// Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00 (waktu server lokal).
 pub fn is_stockbit_poller_scrape_hours() -> bool {
     use chrono::{Datelike, Local, Timelike};
 
     let now = Local::now();
-    match now.weekday() {
+    let weekday = now.weekday();
+    match weekday {
         chrono::Weekday::Sat | chrono::Weekday::Sun => return false,
         _ => {}
     }
 
     let mins = now.hour() * 60 + now.minute();
     const MORNING_START: u32 = 9 * 60;
-    const MORNING_END: u32 = 12 * 60 + 15 + 1;
-    const AFTERNOON_START: u32 = 13 * 60 + 30;
-    const AFTERNOON_END: u32 = 16 * 60 + 15 + 1;
-    let in_morning = mins >= MORNING_START && mins < MORNING_END;
-    let in_afternoon = mins >= AFTERNOON_START && mins < AFTERNOON_END;
-    in_morning || in_afternoon
+    const AFTERNOON_END: u32 = 16 * 60 + 1;
+    match weekday {
+        chrono::Weekday::Fri => {
+            const MORNING_END: u32 = 11 * 60 + 30 + 1;
+            const AFTERNOON_START: u32 = 14 * 60;
+            (mins >= MORNING_START && mins < MORNING_END)
+                || (mins >= AFTERNOON_START && mins < AFTERNOON_END)
+        }
+        _ => {
+            const MORNING_END: u32 = 12 * 60 + 1;
+            const AFTERNOON_START: u32 = 13 * 60 + 30;
+            (mins >= MORNING_START && mins < MORNING_END)
+                || (mins >= AFTERNOON_START && mins < AFTERNOON_END)
+        }
+    }
 }
 
 /// On-demand: login → PIN → GET carina `/history?stock=` →
@@ -452,7 +462,7 @@ async fn run_portofolio_history_scrape(
 }
 
 /// Dipanggil dari readiness poller setelah tiap tick: scrape portofolio, emiten_trending,
-/// pending_order — hanya Senin–Jumat 09:00–12:15 & 13:30–16:15, dan hanya bila `ready`.
+/// pending_order — Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00, bila `ready`.
 /// Urutan: (1) portofolio serial; lalu paralel Yahoo ATR + trending + pending_order.
 /// `None` = skip (jangan overwrite cache portofolio); `Some` = hasil cek Yahoo (bisa kosong).
 pub async fn run_poller_stockbit_scrapes(
@@ -465,7 +475,13 @@ pub async fn run_poller_stockbit_scrapes(
     }
     if !is_stockbit_poller_scrape_hours() {
         println!(
-            "Poller scrapes: diluar jam operasional Senin–Jumat 09:00–12:15 & 13:30–16:15 — skip"
+            "Poller scrapes: diluar jam operasional (Senin-Kamis 09:00-12:00 & 13:30-16:00; Jumat 09:00-11:30 & 14:00-16:00) — skip"
+        );
+        return None;
+    }
+    if crate::yahoo_market_holiday::is_poller_market_holiday().await {
+        println!(
+            "Poller scrapes: market libur (Yahoo BBCA volume=0) — skip GetAllPortofolioFromStockbit, emiten_trending, pending_order, Yahoo spike"
         );
         return None;
     }

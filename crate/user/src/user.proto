@@ -16,8 +16,17 @@ service User {
   // Status login Chrome scraper Stockbit (state di Redis stockbit:readiness).
   // Poller global 9–10 menit selalu jalan sejak server start (tanpa perlu subscriber stream).
   // Banyak subscriber stream tidak menambah frekuensi poll.
-  // Setelah tiap tick (bila ready + Senin–Jumat 09:00–12:15 & 13:30–16:15), poller
-  // auto-invoke alur sama RPC berikut (bukan panggil gRPC client, langsung scrape worker):
+  // Setelah tiap tick (bila ready + jam operasional Senin–Kamis 09:00–12:00 & 13:30–16:00;
+  // Jumat 09:00–11:30 & 14:00–16:00), poller auto-invoke alur scrape berikut
+  // (bukan panggil gRPC client, langsung scrape worker):
+  //   Mulai 09:15: GET Yahoo Finance v8 chart BBCA.JK — bila volume titik terakhir = 0,
+  //   hari itu dianggap market libur; poller TIDAK menjalankan:
+  //     1. GetAllPortofolioFromStockbit
+  //     2. GetLatestEmitenTrendingFromStockbit
+  //     3. GetAllPendingOrderFromStockbit
+  //     4. Yahoo Finance spike (emiten dari invezgood.portofolio)
+  //   Hasil cek di-cache Redis s/d 23:59:59 lokal.
+  //   Bila market buka (volume > 0), urutan scrape:
   //   1. GetAllPortofolioFromStockbit (serial dulu)
   //   Lalu paralel:
   //     • Yahoo Finance (baca emiten_name dari invezgood.portofolio → chart .JK 1d,

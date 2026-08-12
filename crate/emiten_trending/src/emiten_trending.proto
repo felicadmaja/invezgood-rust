@@ -10,9 +10,11 @@ service EmitenTrending {
       returns (GetAllEmitenTrendingResponse);
 
   // Invoke RPC langsung (admin): tanpa batas hari/jam; rate limit global 1× / 5 menit.
-  // Auto dari IsStockbitReady poller: hanya Senin–Jumat 09:00–12:15 & 13:30–16:15 bila Stockbit ready
-  // (poller selalu jalan tanpa perlu subscriber). Scrape Stockbit market-mover (TOP_GAINER + TOP_LOSER)
-  // → upsert invezgood.emiten_trending. Setelah upsert, baca ulang dari Scylla (hari ini) lalu return rows.
+  // Auto dari IsStockbitReady poller (poller selalu jalan tanpa perlu subscriber) bila Stockbit ready,
+  // hanya pada jam operasional (waktu server lokal):
+  // Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
+  // Scrape Stockbit market-mover (TOP_GAINER + TOP_LOSER) → upsert invezgood.emiten_trending.
+  // Setelah upsert, baca ulang dari Scylla (hari ini) lalu return rows.
   rpc GetLatestEmitenTrendingFromStockbit(GetLatestEmitenTrendingFromStockbitRequest)
       returns (GetAllEmitenTrendingResponse);
 }

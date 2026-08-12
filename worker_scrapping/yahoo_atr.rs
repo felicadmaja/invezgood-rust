@@ -111,10 +111,7 @@ fn is_too_many_requests(status: reqwest::StatusCode) -> bool {
     status.as_u16() == 409 || status.as_u16() == 429
 }
 
-async fn fetch_candles(
-    http: &reqwest::Client,
-    emiten: &str,
-) -> Result<Vec<Candle>, String> {
+async fn fetch_chart_body(http: &reqwest::Client, emiten: &str) -> Result<String, String> {
     let (period1, period2) = unix_range_one_month();
     let url = format!(
         "{YAHOO_CHART_URL}/{emiten}.JK?period1={period1}&period2={period2}&interval=1d"
@@ -150,8 +147,50 @@ async fn fetch_candles(
             let preview: String = body.chars().take(160).collect();
             return Err(format!("yahoo HTTP {status} {emiten}: {preview}"));
         }
-        return parse_candles(&body);
+        return Ok(body);
     }
+}
+
+fn parse_last_volume(body: &str) -> Result<i64, String> {
+    let v: Value = serde_json::from_str(body).map_err(|e| format!("yahoo JSON: {e}"))?;
+    let volumes = v
+        .pointer("/chart/result/0/indicators/quote/0/volume")
+        .and_then(|x| x.as_array())
+        .ok_or_else(|| "yahoo: volume missing".to_string())?;
+    for item in volumes.iter().rev() {
+        match item {
+            Value::Null => continue,
+            Value::Number(n) => {
+                if let Some(v) = n.as_i64() {
+                    return Ok(v);
+                }
+                if let Some(v) = n.as_f64() {
+                    return Ok(v as i64);
+                }
+            }
+            _ => continue,
+        }
+    }
+    Ok(0)
+}
+
+/// Volume hari terakhir dari chart daily Yahoo v8 (titik terakhir array `volume`).
+pub async fn fetch_today_volume(emiten: &str) -> Result<i64, String> {
+    let emiten = emiten.trim().to_ascii_uppercase();
+    let http = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("yahoo HTTP client: {e}"))?;
+    let body = fetch_chart_body(&http, &emiten).await?;
+    parse_last_volume(&body)
+}
+
+async fn fetch_candles(
+    http: &reqwest::Client,
+    emiten: &str,
+) -> Result<Vec<Candle>, String> {
+    parse_candles(&fetch_chart_body(http, emiten).await?)
 }
 
 /// Untuk setiap emiten: GET Yahoo chart (jeda 50ms), kembalikan yang close naik ≥ 16% atau turun ≥ 8% vs open.

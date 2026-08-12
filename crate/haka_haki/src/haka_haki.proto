@@ -8,6 +8,12 @@ service HakaHaki {
   // → upsert invezgood.haka_haki per titik waktu, lalu return items ke client.
   // tahun_bulan_tanggal Sabtu/Minggu → FAILED_PRECONDITION "Hari sabtu/minggu market libur".
   // Bila tahun_bulan_tanggal bukan hari ini: cache Redis key `{code}:{YYYY-MM-DD}:{range}` (hanya bila items tidak kosong).
+  // Jam operasional (waktu server lokal): 
+  // - Senin–Kamis 09:00–12:00 & 13:30–16:00;
+  // - Jumat 09:00–11:30 & 14:00–16:00 — hit API live.
+  // Setelah 16:00 (Senin–Jumat): baca cache EOD (Moka→Redis); bila miss hit API 1x lalu simpan.
+  // Setelah 09:15: bila value titik menit terakhir API = 0, code dianggap market libur hari ini —
+  // di-cache; request berikutnya tidak hit API lagi; success=false message "hari libur".
   rpc GetHakaHakiFromInvezgo(GetHakaHakiFromInvezgoRequest)
       returns (GetHakaHakiFromInvezgoResponse);
 

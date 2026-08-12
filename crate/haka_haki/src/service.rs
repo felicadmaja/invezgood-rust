@@ -115,8 +115,8 @@ impl HakaHakiService {
         Self::minutes_now() >= 9 * 60 + 15
     }
 
-    fn is_market_holiday_volume(points: &[ApiHakaHakiPoint]) -> bool {
-        invezgo::is_market_holiday_volume(points)
+    fn is_market_holiday_last_value(points: &[ApiHakaHakiPoint]) -> bool {
+        invezgo::is_market_holiday_last_value(points)
     }
 
     /// Senin–Kamis: live 09:00–12:00 & 13:30–16:00. Jumat: 09:00–11:30 & 14:00–16:00.
@@ -175,7 +175,7 @@ impl HakaHakiService {
 
         if check_holiday
             && Self::can_detect_intraday_holiday()
-            && Self::is_market_holiday_volume(&api_points)
+            && Self::is_market_holiday_last_value(&api_points)
         {
             return Ok(Self::holiday_response(code, &date_str));
         }
