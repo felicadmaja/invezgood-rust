@@ -1,7 +1,8 @@
 //! Deteksi market libur via Yahoo Finance v8 chart BBCA (1d, hanya hari ini;
 //! volume titik terakhir = 0 → market libur).
 //!
-//! Dipakai poller IsStockbitReady: mulai 09:15, bila libur skip semua auto-scrape.
+//! Dipakai poller IsStockbitReady (scrape Chrome) dan GetPriceSpikeFromYahooFinance:
+//! mulai 09:15, bila libur skip scrape / poller spike.
 //! Cache Redis + in-memory per hari (TTL s/d 23:59:59 lokal).
 
 use std::sync::OnceLock;

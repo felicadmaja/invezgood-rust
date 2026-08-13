@@ -14,7 +14,8 @@ service User {
   rpc GetUsersFromScylla(GetUsersFromScyllaRequest) returns (GetUsersFromScyllaResponse);
 
   // Status login Chrome scraper Stockbit (state di Redis stockbit:readiness).
-  // Poller global 9–10 menit selalu jalan sejak server start (tanpa perlu subscriber stream).
+  // Poller global selalu jalan sejak server start (tanpa perlu subscriber stream).
+  // Cek pertama: Senin–Jumat 09:00:00–09:00:59 waktu server; seterusnya interval 9–10 menit.
   // Banyak subscriber stream tidak menambah frekuensi poll.
   // Setelah tiap tick (bila ready + jam operasional Senin–Kamis 09:00–12:00 & 13:30–16:00;
   // Jumat 09:00–11:30 & 14:00–16:00), poller auto-invoke alur scrape berikut
@@ -25,26 +26,31 @@ service User {
   //     1. GetAllPortofolioFromStockbit
   //     2. GetLatestEmitenTrendingFromStockbit
   //     3. GetAllPendingOrderFromStockbit
-  //     4. GetPriceSpikeFromYahooFinance (function yang sama: fetch_yahoo_price_spikes)
   //   Hasil cek di-cache Redis key `invezgood:yahoo:market_holiday:{YYYY-MM-DD}` (value `1`=libur, `0`=buka; TTL s/d 23:59:59 lokal).
-  //   Bila market buka (volume > 0), paralel:
-  //     • Yahoo spike: panggil fetch_yahoo_price_spikes — function yang sama dengan
-  //       rpc GetPriceSpikeFromYahooFinance → response.portofolio.
-  //     • Serial (satu Chrome): GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit
-  // Subscribe stream: server push saat status/portofolio berubah + heartbeat ~30s.
+  //   Bila market buka (volume > 0):
+  //     Serial (satu Chrome): GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit
+  // Subscribe stream: server push saat status berubah + heartbeat ~30s.
   // Wajib authorization: Bearer <token>. success=true bila sesi Stockbit sudah login/ready.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
-  // Satu-satunya blok spike: worker_scrapping::on_demand::fetch_yahoo_price_spikes
-  // (dipakai juga poller IsStockbitReady → response.portofolio).
-  // GET Yahoo Finance v8 chart .JK 1d (period1=00:00 lokal, period2=sekarang) untuk code
-  // di invezgood.stock_list_by_is_plan_to_trade WHERE is_plan_to_trade = true.
-  // Jeda JEDA_MS_ANTAR_EMITEN (.env, ms) antar emiten. UP/DOWN dari UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env, %).
-  // HTTP 409: log merah, jeda 300ms, retry. Emiten sudah di-output hari ini di-skip
-  // (Redis invezgood:yahoo_atr:spike_reported, TTL s/d 23:59:59 lokal) lalu di-mark bila spike baru.
-  // Wajib Bearer login. Request kosong. Response: success, message, data (emiten_name, jenis_spike, value_spike_percentage).
-  // Status::internal bila Scylla gagal.
-  rpc GetPriceSpikeFromYahooFinance(GetPriceSpikeFromYahooFinanceRequest) returns (PriceSpikeResponse);
+  // Stream spike Yahoo. Poller hanya jalan bila ada ≥1 client subscribe (0 subscriber → idle, tidak hit Yahoo).
+  // Cek pertama tiap hari Senin–Jumat 09:00:00–09:00:59 waktu server;
+  // seterusnya interval 2 menit (YAHOO_SPIKE_POLL_SECS, default 120) di jam kerja
+  // Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
+  // Mulai 09:15: GET Yahoo Finance v8 chart BBCA.JK (1d, hanya hari ini
+  // period1=00:00 lokal period2=sekarang) — bila volume titik terakhir = 0,
+  // hari itu dianggap market libur; poller TIDAK dijalankan.
+  // Hasil cek di-cache Redis key `invezgood:yahoo:market_holiday:{YYYY-MM-DD}`
+  // (value `1`=libur, `0`=buka; TTL s/d 23:59:59 lokal).
+  // Tiap tick (bila market buka): fetch_yahoo_price_spikes — GET chart .JK 1d
+  // (period1=00:00 lokal, period2=sekarang) untuk code
+  // invezgood.stock_list_by_is_plan_to_trade WHERE is_plan_to_trade = true.
+  // Jeda JEDA_MS_ANTAR_EMITEN (.env, ms). UP/DOWN dari UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env, %).
+  // HTTP 409: log merah, jeda 300ms, retry. Skip emiten sudah di-output hari ini
+  // (Redis invezgood:yahoo_atr:spike_reported, TTL s/d 23:59:59 lokal).
+  // Wajib Bearer login. Request kosong. Push: success, message, data (akumulasi spike hari ini).
+  // Subscribe: push saat data berubah + heartbeat ~30s. Banyak subscriber tidak menambah frekuensi poll.
+  rpc GetPriceSpikeFromYahooFinance(GetPriceSpikeFromYahooFinanceRequest) returns (stream PriceSpikeResponse);
 
   // GET api.invezgo.com/usage/api → jatah pemakaian API Invezgo (Bearer INVEZGO_BEARER_TOKEN).
   // Wajib authorization: Bearer <token> login. Request kosong. Response: UsageResponse.
@@ -99,8 +105,7 @@ message StockbitPortofolioSingkatRow {
 message IsStockbitReadyResponse {
   bool success = 1;
   string message = 2;
-  // Emiten is_plan_to_trade=true dengan spike baru hari ini (ambang UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE);
-  // yang sudah di-output hari ini tidak diulang (Redis cache s/d akhir hari).
+  // Tidak diisi (spike Yahoo hanya di stream GetPriceSpikeFromYahooFinance).
   repeated StockbitPortofolioSingkatRow portofolio = 3;
 }
 

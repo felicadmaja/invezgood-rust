@@ -3,12 +3,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use scylla::client::session::Session;
-use stockbit_browser::{PortofolioSpike, ReadinessPoller, ReadinessUpdate};
+use stockbit_browser::{ReadinessPoller, ReadinessUpdate};
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
+use worker_scrapping::yahoo_spike_poller::{YahooSpikePoller, YahooSpikeSnapshot};
 
 use crate::auth::{extract_bearer_token, validate_session, SessionStore};
 use crate::model::UserRow as DbUserRow;
@@ -17,7 +18,7 @@ use crate::pb::{
     CekUsageRequest, GetPriceSpikeFromYahooFinanceRequest, GetUsersFromScyllaRequest,
     GetUsersFromScyllaResponse, IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest,
     LoginResponse, LogoutRequest, LogoutResponse, PriceSpikeResponse, PriceSpikeRow,
-    StockbitPortofolioSingkatRow, UsageResponse, UserRow,
+    UsageResponse, UserRow,
 };
 
 const READY_STREAM_CHECK_SECS: u64 = 2;
@@ -27,6 +28,7 @@ pub struct UserService {
     session: Arc<Session>,
     auth_sessions: SessionStore,
     readiness: Arc<ReadinessPoller>,
+    yahoo_spike: Arc<YahooSpikePoller>,
 }
 
 impl UserService {
@@ -34,11 +36,13 @@ impl UserService {
         session: Arc<Session>,
         auth_sessions: SessionStore,
         readiness: Arc<ReadinessPoller>,
+        yahoo_spike: Arc<YahooSpikePoller>,
     ) -> Self {
         Self {
             session,
             auth_sessions,
             readiness,
+            yahoo_spike,
         }
     }
 
@@ -152,7 +156,7 @@ impl User for UserService {
         tokio::spawn(async move {
             readiness.register_subscriber().await;
 
-            let mut last: Option<(bool, String, Vec<PortofolioSpike>)> = None;
+            let mut last: Option<(bool, String)> = None;
             let mut ticks_since_send: u64 = 0;
 
             loop {
@@ -164,11 +168,7 @@ impl User for UserService {
                     portofolio: Vec::new(),
                 });
 
-                let key = (
-                    update.ready,
-                    update.message.clone(),
-                    update.portofolio.clone(),
-                );
+                let key = (update.ready, update.message.clone());
                 let changed = last.as_ref() != Some(&key);
                 let first = last.is_none();
                 let heartbeat = ticks_since_send >= READY_STREAM_HEARTBEAT_TICKS;
@@ -176,26 +176,16 @@ impl User for UserService {
                 if first || changed || heartbeat {
                     if first || changed {
                         eprintln!(
-                            "IsStockbitReady {user_name}: push success={} msg={:?} portofolio={:?}",
-                            update.ready, update.message, update.portofolio
+                            "IsStockbitReady {user_name}: push success={} msg={:?}",
+                            update.ready, update.message
                         );
                     }
-
-                    let portofolio = update
-                        .portofolio
-                        .into_iter()
-                        .map(|p| StockbitPortofolioSingkatRow {
-                            emiten_name: p.emiten_name,
-                            jenis_spike: p.jenis_spike,
-                            value_spike_percentage: p.value_spike_percentage,
-                        })
-                        .collect();
 
                     let ok = tx
                         .send(Ok(IsStockbitReadyResponse {
                             success: update.ready,
                             message: update.message,
-                            portofolio,
+                            portofolio: Vec::new(),
                         }))
                         .await
                         .is_ok();
@@ -220,10 +210,13 @@ impl User for UserService {
         Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 
+    type GetPriceSpikeFromYahooFinanceStream =
+        Pin<Box<dyn Stream<Item = Result<PriceSpikeResponse, Status>> + Send>>;
+
     async fn get_price_spike_from_yahoo_finance(
         &self,
         request: Request<GetPriceSpikeFromYahooFinanceRequest>,
-    ) -> Result<Response<PriceSpikeResponse>, Status> {
+    ) -> Result<Response<Self::GetPriceSpikeFromYahooFinanceStream>, Status> {
         let started = std::time::Instant::now();
         let rpc_name = "GetPriceSpikeFromYahooFinance";
         let user_name = match self.require_auth(&request).await {
@@ -238,42 +231,69 @@ impl User for UserService {
         };
         let _ = request.into_inner();
 
-        let result: Result<Response<PriceSpikeResponse>, Status> = async {
-            let data: Vec<PriceSpikeRow> =
-                worker_scrapping::on_demand::fetch_yahoo_price_spikes(self.session.as_ref())
-                    .await
-                    .map_err(Status::internal)?
-                    .into_iter()
-                    .map(|s| PriceSpikeRow {
-                        emiten_name: s.emiten_name,
-                        jenis_spike: s.jenis_spike,
-                        value_spike_percentage: s.value_spike_percentage,
-                    })
-                    .collect();
-            let n = data.len();
-            let message = if n == 0 {
-                format!(
-                    "tidak ada lonjakan baru (UP >= {}% / DOWN >= {}% vs open)",
-                    worker_scrapping::yahoo_atr::spike_up_pct(),
-                    worker_scrapping::yahoo_atr::spike_down_pct()
-                )
-            } else {
-                format!("{n} emiten spike")
-            };
+        let poller = Arc::clone(&self.yahoo_spike);
+        let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(8);
 
-            Ok(Response::new(PriceSpikeResponse {
-                success: true,
-                message,
-                data,
-            }))
-        }
-        .await;
-
+        eprintln!("\x1b[32m{rpc_name} {user_name}: client connect — stream dibuka\x1b[0m");
         eprintln!(
             "{rpc_name} {user_name} {}ms",
             started.elapsed().as_millis()
         );
-        result
+
+        let user_name = user_name.clone();
+        tokio::spawn(async move {
+            poller.register_subscriber();
+            let mut last: Option<YahooSpikeSnapshot> = None;
+            let mut ticks_since_send: u64 = 0;
+
+            loop {
+                let snap = poller.latest();
+                let changed = last.as_ref() != Some(&snap);
+                let first = last.is_none();
+                let heartbeat = ticks_since_send >= READY_STREAM_HEARTBEAT_TICKS;
+
+                if first || changed || heartbeat {
+                    if first || changed {
+                        eprintln!(
+                            "{rpc_name} {user_name}: push success={} msg={:?} data={:?}",
+                            snap.success, snap.message, snap.data
+                        );
+                    }
+                    let data = snap
+                        .data
+                        .iter()
+                        .map(|s| PriceSpikeRow {
+                            emiten_name: s.emiten_name.clone(),
+                            jenis_spike: s.jenis_spike.clone(),
+                            value_spike_percentage: s.value_spike_percentage,
+                        })
+                        .collect();
+                    let ok = tx
+                        .send(Ok(PriceSpikeResponse {
+                            success: snap.success,
+                            message: snap.message.clone(),
+                            data,
+                        }))
+                        .await
+                        .is_ok();
+                    if !ok {
+                        eprintln!(
+                            "\x1b[31m{rpc_name} {user_name}: client disconnect — stream ditutup\x1b[0m"
+                        );
+                        break;
+                    }
+                    last = Some(snap);
+                    ticks_since_send = 0;
+                } else {
+                    ticks_since_send += 1;
+                }
+
+                sleep(Duration::from_secs(READY_STREAM_CHECK_SECS)).await;
+            }
+            poller.unregister_subscriber();
+        });
+
+        Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 
     async fn cek_usage(

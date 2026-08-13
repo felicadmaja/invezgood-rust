@@ -335,9 +335,12 @@ async fn run_emiten_trending_movers_scrape(
 
 /// Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00 (waktu server lokal).
 pub fn is_stockbit_poller_scrape_hours() -> bool {
-    use chrono::{Datelike, Local, Timelike};
+    is_scrape_hours_at(chrono::Local::now())
+}
 
-    let now = Local::now();
+pub fn is_scrape_hours_at(now: chrono::DateTime<chrono::Local>) -> bool {
+    use chrono::{Datelike, Timelike};
+
     let weekday = now.weekday();
     match weekday {
         chrono::Weekday::Sat | chrono::Weekday::Sun => return false,
@@ -361,6 +364,57 @@ pub fn is_stockbit_poller_scrape_hours() -> bool {
                 || (mins >= AFTERNOON_START && mins < AFTERNOON_END)
         }
     }
+}
+
+fn local_hms(date: chrono::NaiveDate, hour: u32, min: u32) -> chrono::DateTime<chrono::Local> {
+    use chrono::{Local, TimeZone};
+    let naive = date.and_hms_opt(hour, min, 0).expect("hms");
+    Local
+        .from_local_datetime(&naive)
+        .earliest()
+        .expect("zona waktu lokal")
+}
+
+/// Detik sampai jendela jam kerja berikutnya (0 bila sedang di dalam jam).
+pub fn secs_until_next_yahoo_spike_window() -> u64 {
+    use chrono::{Datelike, Duration as ChronoDuration, Local, Timelike};
+
+    if is_stockbit_poller_scrape_hours() {
+        return 0;
+    }
+    let now = Local::now();
+    let today = now.date_naive();
+    let mins = now.hour() * 60 + now.minute();
+    let weekday = now.weekday();
+
+    let target = match weekday {
+        chrono::Weekday::Sat => local_hms(today + ChronoDuration::days(2), 9, 0),
+        chrono::Weekday::Sun => local_hms(today + ChronoDuration::days(1), 9, 0),
+        chrono::Weekday::Fri => {
+            if mins < 9 * 60 {
+                local_hms(today, 9, 0)
+            } else if mins < 14 * 60 {
+                local_hms(today, 14, 0)
+            } else {
+                local_hms(today + ChronoDuration::days(3), 9, 0)
+            }
+        }
+        _ => {
+            if mins < 9 * 60 {
+                local_hms(today, 9, 0)
+            } else if mins < 13 * 60 + 30 {
+                local_hms(today, 13, 30)
+            } else {
+                let tomorrow = today + ChronoDuration::days(1);
+                match tomorrow.weekday() {
+                    chrono::Weekday::Sat => local_hms(tomorrow + ChronoDuration::days(2), 9, 0),
+                    chrono::Weekday::Sun => local_hms(tomorrow + ChronoDuration::days(1), 9, 0),
+                    _ => local_hms(tomorrow, 9, 0),
+                }
+            }
+        }
+    };
+    (target - now).num_seconds().max(1) as u64
 }
 
 /// On-demand: login → PIN → GET carina `/history?stock=` →
@@ -463,8 +517,7 @@ async fn run_portofolio_history_scrape(
 
 /// Dipanggil dari readiness poller setelah tiap tick: scrape portofolio, emiten_trending,
 /// pending_order — Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00, bila `ready`.
-/// Paralel: Yahoo spike || (portofolio → emiten_trending → pending_order serial).
-/// `None` = skip (jangan overwrite cache portofolio); `Some` = hasil cek Yahoo (bisa kosong).
+/// `None` = selesai scrape Chrome (Yahoo spike tidak di sini).
 pub async fn run_poller_stockbit_scrapes(
     session: Arc<Session>,
     ready: bool,
@@ -481,70 +534,46 @@ pub async fn run_poller_stockbit_scrapes(
     }
     if crate::yahoo_market_holiday::is_poller_market_holiday().await {
         println!(
-            "Poller scrapes: market libur (Yahoo BBCA volume=0) — skip GetAllPortofolioFromStockbit, emiten_trending, pending_order, Yahoo spike"
+            "Poller scrapes: market libur (Yahoo BBCA volume=0) — skip GetAllPortofolioFromStockbit, emiten_trending, pending_order"
         );
         return None;
     }
 
     println!(
-        "Poller scrapes: paralel Yahoo spike || (GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit)"
+        "Poller scrapes: GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit"
     );
 
-    let session_yahoo = Arc::clone(&session);
-    let session_stockbit = Arc::clone(&session);
+    match run_portofolio_all_scrape(
+        Arc::clone(&session),
+        BrowserLockClass::Background,
+        false,
+    )
+    .await
+    {
+        Ok((n, _)) => println!("Poller GetAllPortofolioFromStockbit OK: {n} holdings"),
+        Err(e) => eprintln!("Poller GetAllPortofolioFromStockbit skip/fail: {e}"),
+    }
 
-    let (spikes, ()) = tokio::join!(
-        async move {
-            fetch_yahoo_price_spikes(session_yahoo.as_ref())
-                .await
-                .unwrap_or_else(|e| {
-                    eprintln!("Poller GetPriceSpikeFromYahooFinance: {e}");
-                    Vec::new()
-                })
-                .into_iter()
-                .map(stockbit_browser::PortofolioSpike::from)
-                .collect()
-        },
-        async move {
-            match run_portofolio_all_scrape(
-                Arc::clone(&session_stockbit),
-                BrowserLockClass::Background,
-                false,
-            )
-            .await
-            {
-                Ok((n, _)) => println!("Poller GetAllPortofolioFromStockbit OK: {n} holdings"),
-                Err(e) => eprintln!("Poller GetAllPortofolioFromStockbit skip/fail: {e}"),
-            }
+    match run_emiten_trending_movers_scrape(Arc::clone(&session), BrowserLockClass::Background)
+        .await
+    {
+        Ok((g, l)) => {
+            println!("Poller GetLatestEmitenTrendingFromStockbit OK: gainer={g} loser={l}")
+        }
+        Err(e) => {
+            eprintln!("Poller GetLatestEmitenTrendingFromStockbit skip/fail: {e}")
+        }
+    }
 
-            match run_emiten_trending_movers_scrape(
-                Arc::clone(&session_stockbit),
-                BrowserLockClass::Background,
-            )
-            .await
-            {
-                Ok((g, l)) => {
-                    println!(
-                        "Poller GetLatestEmitenTrendingFromStockbit OK: gainer={g} loser={l}"
-                    )
-                }
-                Err(e) => {
-                    eprintln!("Poller GetLatestEmitenTrendingFromStockbit skip/fail: {e}")
-                }
-            }
+    match run_pending_order_all_scrape(session, BrowserLockClass::Background).await {
+        Ok(n) => println!("Poller GetAllPendingOrderFromStockbit OK: {n} baris"),
+        Err(e) => eprintln!("Poller GetAllPendingOrderFromStockbit skip/fail: {e}"),
+    }
 
-            match run_pending_order_all_scrape(session_stockbit, BrowserLockClass::Background).await
-            {
-                Ok(n) => println!("Poller GetAllPendingOrderFromStockbit OK: {n} baris"),
-                Err(e) => eprintln!("Poller GetAllPendingOrderFromStockbit skip/fail: {e}"),
-            }
-        },
-    );
-
-    Some(spikes)
+    None
 }
 
-/// Satu-satunya blok Yahoo spike (RPC `GetPriceSpikeFromYahooFinance` + poller `IsStockbitReady`).
+/// Satu-satunya blok Yahoo spike (poller + stream `GetPriceSpikeFromYahooFinance`).
 /// MV `stock_list_by_is_plan_to_trade = true` → chart .JK 1d → Redis skip/mark hari ini.
 pub async fn fetch_yahoo_price_spikes(
     session: &Session,

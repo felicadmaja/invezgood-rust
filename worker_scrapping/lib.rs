@@ -12,3 +12,4 @@ pub mod rate_limit_delay;
 pub mod yahoo_atr;
 pub mod yahoo_market_holiday;
 pub mod yahoo_spike_cache;
+pub mod yahoo_spike_poller;

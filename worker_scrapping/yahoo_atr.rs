@@ -86,23 +86,13 @@ struct Candle {
 }
 
 /// Hasil deteksi lonjakan: emiten + arah + % close vs open.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SpikeEmiten {
     pub emiten_name: String,
     /// `up` | `down` dari close vs open (ambang `UP_SPIKE_PERCENTAGE` / `DOWN_SPIKE_PERCENTAGE`).
     pub jenis_spike: String,
     /// Persentase (positif naik, negatif turun), mis. `8.52` / `-10.1`.
     pub value_spike_percentage: f64,
-}
-
-impl From<SpikeEmiten> for stockbit_browser::PortofolioSpike {
-    fn from(s: SpikeEmiten) -> Self {
-        Self {
-            emiten_name: s.emiten_name,
-            jenis_spike: s.jenis_spike,
-            value_spike_percentage: s.value_spike_percentage,
-        }
-    }
 }
 
 /// `up`/`down` + persen bila change vs open memenuhi ambang `.env`.

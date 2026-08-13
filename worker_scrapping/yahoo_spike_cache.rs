@@ -14,6 +14,7 @@ use redis::AsyncCommands;
 use tokio::sync::Mutex;
 
 const KEY: &str = "invezgood:yahoo_atr:spike_reported";
+const KEY_TODAY: &str = "invezgood:yahoo_atr:spike_today";
 
 fn redis_url() -> String {
     std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string())
@@ -102,5 +103,55 @@ pub async fn mark_reported(emitens: &[String]) {
     let secs = ttl_until_end_of_day_secs();
     if let Err(e) = conn.expire::<_, ()>(KEY, secs as i64).await {
         eprintln!("Redis yahoo_atr spike EXPIRE: {e}");
+    }
+}
+
+/// Detail spike yang sudah di-output hari ini (untuk stream reconnect).
+pub async fn today_details() -> Vec<crate::yahoo_atr::SpikeEmiten> {
+    let mut conn = match connection().await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Redis yahoo_atr spike_today get: koneksi gagal ({e})");
+            return Vec::new();
+        }
+    };
+    let raw: Option<String> = match conn.get(KEY_TODAY).await {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Redis yahoo_atr spike_today GET: {e}");
+            return Vec::new();
+        }
+    };
+    let Some(raw) = raw else {
+        return Vec::new();
+    };
+    serde_json::from_str(&raw).unwrap_or_else(|e| {
+        eprintln!("Redis yahoo_atr spike_today JSON: {e}");
+        Vec::new()
+    })
+}
+
+pub async fn set_today_details(items: &[crate::yahoo_atr::SpikeEmiten]) {
+    let mut conn = match connection().await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Redis yahoo_atr spike_today set: koneksi gagal ({e})");
+            return;
+        }
+    };
+    let raw = match serde_json::to_string(items) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Redis yahoo_atr spike_today encode: {e}");
+            return;
+        }
+    };
+    if let Err(e) = conn.set::<_, _, ()>(KEY_TODAY, raw).await {
+        eprintln!("Redis yahoo_atr spike_today SET: {e}");
+        return;
+    }
+    let secs = ttl_until_end_of_day_secs();
+    if let Err(e) = conn.expire::<_, ()>(KEY_TODAY, secs as i64).await {
+        eprintln!("Redis yahoo_atr spike_today EXPIRE: {e}");
     }
 }

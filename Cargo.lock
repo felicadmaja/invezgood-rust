@@ -2274,6 +2274,7 @@ name = "stockbit_browser"
 version = "0.1.0"
 dependencies = [
  "chromiumoxide",
+ "chrono",
  "futures",
  "rand 0.8.7",
  "redis",

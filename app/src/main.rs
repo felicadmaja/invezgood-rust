@@ -12,6 +12,7 @@ use portofolio_equity::{PortofolioEquityServer, PortofolioEquityService};
 use portofolio_history::{PortofolioHistoryServer, PortofolioHistoryService};
 use stock_list::{connect, StockListServer, StockListService};
 use stockbit_browser::ReadinessPoller;
+use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{new_session_store, UserServer, UserService};
 use tonic::codec::CompressionEncoding;
@@ -113,7 +114,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         readiness_poller.ensure_loop_running().await;
     }
 
-    let user = UserService::new(session, auth_sessions, readiness_poller);
+    let yahoo_spike = YahooSpikePoller::new();
+    yahoo_spike
+        .ensure_loop_running(session.clone())
+        .await;
+
+    let user = UserService::new(session, auth_sessions, readiness_poller, yahoo_spike);
 
     let enable_compression = enable_compression_from_env();
 

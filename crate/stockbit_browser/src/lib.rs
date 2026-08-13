@@ -12,12 +12,14 @@
 //! `STOCKBIT_BEARER_CACHE_SECS` (default 300 — cache JWT antar scrape),
 //! `STOCKBIT_BROWSER_DATA_DIR`,
 //! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 540–600 —
-//! interval poller readiness; selalu jalan sejak server start), `REDIS_URL` (state readiness).
+//! interval poller readiness setelah cek pertama Senin–Jumat 09:00:00–09:00:59),
+//! `REDIS_URL` (state readiness).
 //!
 //! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
 
 mod redis_readiness;
 
+use chrono::{DateTime, Datelike, Duration as ChronoDuration, Local, NaiveDate, TimeZone, Timelike};
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::handler::viewport::Viewport;
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
@@ -34,14 +36,14 @@ use tokio::sync::{mpsc, watch, Mutex, MutexGuard};
 use tokio::time::{sleep, timeout};
 
 /// Hook setelah setiap tick poller readiness (`ready` = status terakhir).
-/// Return: `Some(emiten lonjakan)` setelah scrape+Yahoo; `None` = skip (jangan ubah cache).
+/// Return diabaikan (Yahoo spike tidak lewat IsStockbitReady).
 pub type AfterPollHook = Arc<
     dyn Fn(bool) -> Pin<Box<dyn Future<Output = Option<Vec<PortofolioSpike>>> + Send>>
         + Send
         + Sync,
 >;
 
-/// Emiten is_plan_to_trade=true dengan spike Yahoo (ambang UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE) untuk stream IsStockbitReady.
+/// Emiten spike Yahoo (disimpan di Redis readiness; stream spike di GetPriceSpikeFromYahooFinance).
 #[derive(Clone, Debug, PartialEq)]
 pub struct PortofolioSpike {
     pub emiten_name: String,
@@ -235,8 +237,117 @@ fn next_poll_secs() -> u64 {
     rand::thread_rng().gen_range(min..=max)
 }
 
-/// Poller tunggal per proses: cek stockbit.com setiap 9–10 menit **selalu** sejak
-/// `ensure_loop_running` / start server (tidak tergantung subscriber `IsStockbitReady`).
+fn is_weekday(date: NaiveDate) -> bool {
+    !matches!(
+        date.weekday(),
+        chrono::Weekday::Sat | chrono::Weekday::Sun
+    )
+}
+
+fn local_at(date: NaiveDate, hour: u32, min: u32, sec: u32) -> DateTime<Local> {
+    let naive = date
+        .and_hms_opt(hour, min, sec)
+        .expect("jam 09:00:ss valid");
+    Local
+        .from_local_datetime(&naive)
+        .earliest()
+        .expect("zona waktu lokal")
+}
+
+/// Target cek pertama: Senin–Jumat 09:00:00 + jitter detik (0–59).
+fn next_mon_fri_0900(now: DateTime<Local>, jitter_secs: u32) -> DateTime<Local> {
+    let jitter = jitter_secs.min(59);
+    let date = now.date_naive();
+    if is_weekday(date) {
+        let target = local_at(date, 9, 0, jitter);
+        if now < target {
+            return target;
+        }
+    }
+    next_mon_fri_0900_after_date(date, jitter)
+}
+
+fn next_mon_fri_0900_after_date(after: NaiveDate, jitter_secs: u32) -> DateTime<Local> {
+    let mut date = after.succ_opt().expect("tanggal");
+    while !is_weekday(date) {
+        date = date.succ_opt().expect("tanggal");
+    }
+    local_at(date, 9, 0, jitter_secs.min(59))
+}
+
+fn in_first_check_window(now: DateTime<Local>) -> bool {
+    is_weekday(now.date_naive()) && now.hour() == 9 && now.minute() == 0
+}
+
+fn after_first_check_window(now: DateTime<Local>) -> bool {
+    is_weekday(now.date_naive()) && (now.hour() > 9 || (now.hour() == 9 && now.minute() > 0))
+}
+
+fn sleep_secs_until(target: DateTime<Local>, now: DateTime<Local>) -> u64 {
+    (target - now).num_seconds().max(0) as u64
+}
+
+/// Cek pertama hari kerja di 09:00:00–09:00:59; seterusnya interval 9–10 menit
+/// sampai melewati jendela 09:00 hari kerja berikutnya.
+async fn wait_before_next_poll(last_first_check_date: &mut Option<NaiveDate>) {
+    let now = Local::now();
+    let today = now.date_naive();
+    let first_done_today = *last_first_check_date == Some(today);
+
+    if !first_done_today {
+        if in_first_check_window(now) {
+            println!(
+                "Stockbit readiness poller: cek pertama hari ini (09:00:{:02})",
+                now.second()
+            );
+            *last_first_check_date = Some(today);
+            return;
+        }
+        if after_first_check_window(now) {
+            println!(
+                "Stockbit readiness poller: cek pertama hari ini (terlewat 09:00, langsung cek)"
+            );
+            *last_first_check_date = Some(today);
+            return;
+        }
+        let jitter = rand::thread_rng().gen_range(0u32..=59);
+        let target = next_mon_fri_0900(now, jitter);
+        let wait_secs = sleep_secs_until(target, now);
+        println!(
+            "Stockbit readiness poller: cek pertama Senin-Jumat 09:00:{:02} pada {} (tunggu {wait_secs}s)",
+            jitter,
+            target.format("%Y-%m-%d %H:%M:%S")
+        );
+        sleep(Duration::from_secs(wait_secs)).await;
+        *last_first_check_date = Some(Local::now().date_naive());
+        return;
+    }
+
+    let wait_secs = next_poll_secs();
+    let (min, max) = poll_interval_range();
+    let jitter = rand::thread_rng().gen_range(0u32..=59);
+    let next_first = next_mon_fri_0900_after_date(today, jitter);
+    let wake = now + ChronoDuration::seconds(wait_secs as i64);
+    if wake >= next_first {
+        let wait_first = sleep_secs_until(next_first, now);
+        println!(
+            "Stockbit readiness poller: cek pertama berikutnya {} (tunggu {wait_first}s, bukan interval {min}–{max}s)",
+            next_first.format("%Y-%m-%d %H:%M:%S")
+        );
+        sleep(Duration::from_secs(wait_first)).await;
+        *last_first_check_date = Some(Local::now().date_naive());
+        return;
+    }
+
+    println!(
+        "Stockbit readiness poller: cek berikutnya dalam {wait_secs}s (interval {min}–{max}s)"
+    );
+    sleep(Duration::from_secs(wait_secs)).await;
+}
+
+/// Poller tunggal per proses: cek pertama Senin–Jumat 09:00:00–09:00:59 waktu server,
+/// seterusnya 9–10 menit, sejak `ensure_loop_running` / start server
+/// (tidak tergantung subscriber `IsStockbitReady`).
 /// Banyak subscriber tidak menambah frekuensi. Status terakhir di Redis (`stockbit:readiness`);
 /// stream hanya baca cache poller/Redis.
 /// Opsional: `set_after_poll_hook` untuk auto-scrape (portofolio / emiten / pending) setelah tick.
@@ -328,19 +439,9 @@ impl ReadinessPoller {
     }
 
     async fn run_loop(self: Arc<Self>) {
-        let mut first = true;
+        let mut last_first_check_date: Option<NaiveDate> = None;
         loop {
-            if first {
-                first = false;
-                println!("Stockbit readiness poller: cek awal");
-            } else {
-                let wait_secs = next_poll_secs();
-                let (min, max) = poll_interval_range();
-                println!(
-                    "Stockbit readiness poller: cek berikutnya dalam {wait_secs}s (interval {min}–{max}s)"
-                );
-                sleep(Duration::from_secs(wait_secs)).await;
-            }
+            wait_before_next_poll(&mut last_first_check_date).await;
 
             let (tx, mut rx) = mpsc::channel::<ReadinessUpdate>(8);
             let poller = Arc::clone(&self);
@@ -364,7 +465,7 @@ impl ReadinessPoller {
             }
             let _ = forward.await;
 
-            let mut latest = redis_readiness::get().await.unwrap_or(ReadinessUpdate {
+            let latest = redis_readiness::get().await.unwrap_or(ReadinessUpdate {
                 ready: false,
                 message: String::new(),
                 poll_seq: 0,
@@ -372,11 +473,7 @@ impl ReadinessPoller {
             });
             let hook = self.after_poll.lock().await.clone();
             if let Some(hook) = hook {
-                if let Some(spikes) = hook(latest.ready).await {
-                    latest.portofolio = spikes;
-                    latest.poll_seq = next_poll_seq();
-                    self.publish(latest).await;
-                }
+                let _ = hook(latest.ready).await;
             }
         }
     }
