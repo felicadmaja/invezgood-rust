@@ -517,7 +517,7 @@ pub async fn run_poller_stockbit_scrapes(
 
             let spikes = crate::yahoo_atr::find_spike_emitens(&to_check).await;
             if spikes.is_empty() {
-                println!("Poller Yahoo spike: tidak ada lonjakan baru (UP >= 16% / DOWN >= 8% vs open)");
+                println!("Poller Yahoo spike: tidak ada lonjakan baru (UP >= 12% / DOWN >= 12% vs open)");
             } else {
                 let summary: Vec<String> = spikes
                     .iter()
