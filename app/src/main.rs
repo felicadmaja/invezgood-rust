@@ -5,6 +5,7 @@ use broker::{BrokerServer, BrokerService};
 use chart::{ChartServer, ChartService};
 use emiten_trending::{EmitenTrendingServer, EmitenTrendingService};
 use haka_haki::{HakaHakiServer, HakaHakiService};
+use msci::{MsciServer, MsciService};
 use pending_order::{PendingOrderServer, PendingOrderService};
 use portofolio::{PortofolioServer, PortofolioService};
 use portofolio_equity::{PortofolioEquityServer, PortofolioEquityService};
@@ -96,6 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         haka_haki::new_shared_intraday_cache()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
     );
+    let msci = MsciService::new(session.clone(), auth_sessions.clone());
 
     let readiness_poller = ReadinessPoller::new();
     {
@@ -129,6 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(emiten_trending::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(chart::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(haka_haki::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(msci::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
         enable_compression
@@ -161,6 +164,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
     let chart_svc = maybe_compressed!(ChartServer::new(chart), enable_compression);
     let haka_haki_svc = maybe_compressed!(HakaHakiServer::new(haka_haki), enable_compression);
+    let msci_svc = maybe_compressed!(MsciServer::new(msci), enable_compression);
 
     let mut builder = Server::builder();
 
@@ -191,6 +195,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(emiten_trending_svc)
         .add_service(chart_svc)
         .add_service(haka_haki_svc)
+        .add_service(msci_svc)
         .serve(addr)
         .await?;
 

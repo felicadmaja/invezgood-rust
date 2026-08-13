@@ -1195,6 +1195,7 @@ dependencies = [
  "dotenvy",
  "emiten_trending",
  "haka_haki",
+ "msci",
  "pending_order",
  "portofolio",
  "portofolio_equity",
@@ -1358,6 +1359,19 @@ dependencies = [
  "smallvec",
  "tagptr",
  "uuid",
+]
+
+[[package]]
+name = "msci"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures",
+ "prost",
+ "scylla",
+ "tonic",
+ "tonic-build",
+ "user",
 ]
 
 [[package]]

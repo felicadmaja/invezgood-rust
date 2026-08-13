@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package msci;
+
+service Msci {
+  // Scan semua baris invezgood.msci (read-only). Wajib Bearer login.
+  // Response: success + message + data (repeated MsciRow). success=false bila query Scylla gagal.
+  rpc GetAllMsci(GetAllMsciRequest) returns (GetAllMsciResponse);
+
+  // INSERT/upsert baris ke invezgood.msci (PK code). Set updated_at = now (UTC).
+  // Wajib authorization: Bearer <token> login. success=false + message bila validasi/DB gagal.
+  rpc InsertMsci(InsertMsciRequest) returns (InsertMsciResponse);
+
+  // UPDATE grade+status di invezgood.msci WHERE code = ?; set updated_at = now (UTC).
+  // Gagal bila code belum ada (bukan insert). Wajib Bearer login.
+  // success=false + message bila validasi / not found / DB gagal.
+  rpc UpdateMsci(UpdateMsciRequest) returns (UpdateMsciResponse);
+
+  // DELETE FROM invezgood.msci WHERE code = ?. Gagal bila code belum ada.
+  // Wajib Bearer login. success=false + message bila validasi / not found / DB gagal.
+  rpc DeleteMsci(DeleteMsciRequest) returns (DeleteMsciResponse);
+}
+
+message GetAllMsciRequest {}
+
+message GetAllMsciResponse {
+  bool success = 1;
+  string message = 2;
+  repeated MsciRow data = 3;
+}
+
+message InsertMsciRequest {
+  string code = 1;
+  string grade = 2;
+  string status = 3;
+}
+
+message InsertMsciResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateMsciRequest {
+  string code = 1;
+  string grade = 2;
+  string status = 3;
+}
+
+message UpdateMsciResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteMsciRequest {
+  string code = 1;
+}
+
+message DeleteMsciResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Baris invezgood.msci (PK code).
+message MsciRow {
+  string code = 1;
+  string grade = 2;
+  string status = 3;
+  string updated_at = 4;
+}

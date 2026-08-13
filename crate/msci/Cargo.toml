@@ -1,0 +1,15 @@
+[package]
+name = "msci"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+futures = "0.3"
+scylla = { version = "1.5", features = ["chrono-04"] }
+tonic = "0.12"
+prost = "0.13"
+user = { path = "../user" }
+
+[build-dependencies]
+tonic-build = "0.12"
