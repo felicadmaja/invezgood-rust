@@ -1,18 +1,55 @@
-//! Fetch Yahoo Finance daily chart; deteksi spike close vs open hari ini (UP ≥ 12%, DOWN ≥ 6%).
+//! Fetch Yahoo Finance daily chart; deteksi spike close vs open hari ini.
+//! Ambang dari `.env`: `UP_SPIKE_PERCENTAGE`, `DOWN_SPIKE_PERCENTAGE` (angka persen, mis. 8 = 8%).
 
 use chrono::{Local, TimeZone};
 use serde_json::Value;
+use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::time::sleep;
 
 const YAHOO_CHART_URL: &str = "https://query2.finance.yahoo.com/v8/finance/chart";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const SPIKE_UP_PCT: f64 = 0.12;
-const SPIKE_DOWN_PCT: f64 = 0.06;
+const DEFAULT_UP_SPIKE_PERCENTAGE: f64 = 8.0;
+const DEFAULT_DOWN_SPIKE_PERCENTAGE: f64 = 6.0;
 const INTER_EMITEN_DELAY: Duration = Duration::from_millis(25);
 const RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_millis(300);
 const RATE_LIMIT_MAX_RETRIES: u32 = 20;
+
+fn env_percentage(name: &str, default: f64) -> f64 {
+    match std::env::var(name) {
+        Ok(raw) => match raw.trim().parse::<f64>() {
+            Ok(v) if v > 0.0 => v,
+            _ => {
+                eprintln!(
+                    "yahoo spike: {name}={raw:?} tidak valid — pakai default {default}"
+                );
+                default
+            }
+        },
+        Err(_) => default,
+    }
+}
+
+fn spike_thresholds() -> (f64, f64) {
+    static CACHED: OnceLock<(f64, f64)> = OnceLock::new();
+    *CACHED.get_or_init(|| {
+        (
+            env_percentage("UP_SPIKE_PERCENTAGE", DEFAULT_UP_SPIKE_PERCENTAGE),
+            env_percentage("DOWN_SPIKE_PERCENTAGE", DEFAULT_DOWN_SPIKE_PERCENTAGE),
+        )
+    })
+}
+
+/// Ambang UP dari `UP_SPIKE_PERCENTAGE` (persen, mis. 8.0).
+pub fn spike_up_pct() -> f64 {
+    spike_thresholds().0
+}
+
+/// Ambang DOWN dari `DOWN_SPIKE_PERCENTAGE` (persen, mis. 6.0).
+pub fn spike_down_pct() -> f64 {
+    spike_thresholds().1
+}
 
 #[derive(Debug, Clone)]
 struct Candle {
@@ -26,22 +63,23 @@ struct Candle {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpikeEmiten {
     pub emiten_name: String,
-    /// `up` | `down` dari close vs open (UP ≥ 12%, DOWN ≥ 6%).
+    /// `up` | `down` dari close vs open (ambang `UP_SPIKE_PERCENTAGE` / `DOWN_SPIKE_PERCENTAGE`).
     pub jenis_spike: String,
     /// Persentase (positif naik, negatif turun), mis. `8.52` / `-10.1`.
     pub value_spike_percentage: f64,
 }
 
-/// `up`/`down` + persen bila change vs open memenuhi ambang (UP ≥ 12%, DOWN ≥ 6%).
+/// `up`/`down` + persen bila change vs open memenuhi ambang `.env`.
 fn spike_from_candle(c: &Candle) -> Option<(&'static str, f64)> {
     if c.open <= 0.0 {
         return None;
     }
     let change = (c.close - c.open) / c.open;
     let pct = change * 100.0;
-    if change >= SPIKE_UP_PCT {
+    let (up_pct, down_pct) = spike_thresholds();
+    if change >= up_pct / 100.0 {
         Some(("up", pct))
-    } else if change <= -SPIKE_DOWN_PCT {
+    } else if change <= -(down_pct / 100.0) {
         Some(("down", pct))
     } else {
         None
@@ -198,7 +236,7 @@ async fn fetch_candles(
     parse_candles(&fetch_chart_body(http, emiten).await?)
 }
 
-/// Untuk setiap emiten: GET Yahoo chart (jeda 25ms), kembalikan yang close naik ≥ 12% atau turun ≥ 6% vs open.
+/// Untuk setiap emiten: GET Yahoo chart (jeda 25ms), kembalikan yang memenuhi ambang `.env`.
 pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
         return Vec::new();
