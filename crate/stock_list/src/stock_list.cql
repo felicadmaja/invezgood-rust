@@ -43,6 +43,15 @@
 -- | catatan_owner                       | regular        | text                                    |
 -- | catatan_pribadi                     | regular        | text                                    |
 -- | is_plan_to_trade                    | regular        | boolean                                 |
+--
+-- MV stock_list_by_is_plan_to_trade:
+-- PK (is_plan_to_trade, code ASC)
+-- Query: WHERE is_plan_to_trade = true
+-- CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.stock_list_by_is_plan_to_trade AS
+--     SELECT * FROM invezgood.stock_list
+--     WHERE is_plan_to_trade IS NOT NULL AND code IS NOT NULL
+--     PRIMARY KEY (is_plan_to_trade, code)
+--     WITH CLUSTERING ORDER BY (code ASC);
 -- | is_konglomerasi                     | regular        | boolean                                 |
 -- | wyckoff_chart                       | regular        | frozen<wyckoff_chart>                   |
 -- | horizontal_line                     | regular        | list<int>                               |

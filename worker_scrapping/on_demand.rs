@@ -495,10 +495,10 @@ pub async fn run_poller_stockbit_scrapes(
 
     let (spikes, ()) = tokio::join!(
         async move {
-            let emitens = match list_portofolio_emiten_names(session_yahoo.as_ref()).await {
+            let emitens = match list_plan_to_trade_emiten_codes(session_yahoo.as_ref()).await {
                 Ok(v) => v,
                 Err(e) => {
-                    eprintln!("Poller Yahoo ATR: gagal baca portofolio: {e}");
+                    eprintln!("Poller Yahoo ATR: gagal baca stock_list_by_is_plan_to_trade: {e}");
                     return Vec::new();
                 }
             };
@@ -517,7 +517,7 @@ pub async fn run_poller_stockbit_scrapes(
 
             let spikes = crate::yahoo_atr::find_spike_emitens(&to_check).await;
             if spikes.is_empty() {
-                println!("Poller Yahoo spike: tidak ada lonjakan baru (UP >= 12% / DOWN >= 12% vs open)");
+                println!("Poller Yahoo spike: tidak ada lonjakan baru (UP >= 12% / DOWN >= 6% vs open)");
             } else {
                 let summary: Vec<String> = spikes
                     .iter()
@@ -584,29 +584,32 @@ pub async fn run_poller_stockbit_scrapes(
     Some(spikes)
 }
 
-async fn list_portofolio_emiten_names(session: &Session) -> Result<Vec<String>, String> {
+async fn list_plan_to_trade_emiten_codes(session: &Session) -> Result<Vec<String>, String> {
     use futures_util::TryStreamExt;
     use scylla::DeserializeRow;
 
     #[derive(Debug, DeserializeRow)]
     struct Row {
-        emiten_name: String,
+        code: String,
     }
 
     let mut stream = session
-        .query_iter("SELECT emiten_name FROM invezgood.portofolio", &[])
+        .query_iter(
+            "SELECT code FROM invezgood.stock_list_by_is_plan_to_trade WHERE is_plan_to_trade = true",
+            &[],
+        )
         .await
-        .map_err(|e| format!("SELECT portofolio emiten_name: {e}"))?
+        .map_err(|e| format!("SELECT stock_list_by_is_plan_to_trade code: {e}"))?
         .rows_stream::<Row>()
-        .map_err(|e| format!("portofolio stream: {e}"))?;
+        .map_err(|e| format!("stock_list_by_is_plan_to_trade stream: {e}"))?;
 
     let mut out = Vec::new();
     while let Some(row) = stream
         .try_next()
         .await
-        .map_err(|e| format!("portofolio row: {e}"))?
+        .map_err(|e| format!("stock_list_by_is_plan_to_trade row: {e}"))?
     {
-        let code = row.emiten_name.trim().to_ascii_uppercase();
+        let code = row.code.trim().to_ascii_uppercase();
         if !code.is_empty() {
             out.push(code);
         }

@@ -9,6 +9,7 @@ use scylla::SerializeValue;
 
 pub const KEYSPACE: &str = "invezgood";
 pub const TABLE: &str = "stock_list";
+pub const MV_BY_IS_PLAN_TO_TRADE: &str = "stock_list_by_is_plan_to_trade";
 
 /// UDT `keystats_value`.
 #[derive(Debug, Clone, SerializeValue, DeserializeValue)]
