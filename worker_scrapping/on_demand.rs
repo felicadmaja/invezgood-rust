@@ -574,19 +574,21 @@ pub async fn run_poller_stockbit_scrapes(
 }
 
 /// Satu-satunya blok Yahoo spike (poller + stream `GetPriceSpikeFromYahooFinance`).
-/// MV `stock_list_by_is_plan_to_trade = true` → chart .JK 1d → Redis skip/mark hari ini.
+/// MV `stock_list_by_is_plan_to_trade = true` → chart .JK 1d.
+/// Skip emiten yang sudah di-cache Redis hari ini. Setelah GET Yahoo: upsert cache;
+/// return **isi Redis lengkap** (yang dikirim ke client).
 pub async fn fetch_yahoo_price_spikes(
     session: &Session,
 ) -> Result<Vec<crate::yahoo_atr::SpikeEmiten>, String> {
     let emitens = list_plan_to_trade_emiten_codes(session).await?;
-    let reported = crate::yahoo_spike_cache::already_reported().await;
+    let reported = crate::yahoo_spike_cache::cached_emiten_names().await;
+    let skipped = emitens.iter().filter(|e| reported.contains(*e)).count();
     let to_check: Vec<String> = emitens
         .into_iter()
         .filter(|e| !reported.contains(e))
         .collect();
-    let skipped = reported.len();
     println!(
-        "\x1b[32mYahoo spike: cek {} emiten UP>={}% DOWN>={}% (skip {} sudah di-output hari ini)\x1b[0m",
+        "\x1b[32mYahoo spike: cek {} emiten UP>={}% DOWN>={}% (skip {} sudah di-cache hari ini)\x1b[0m",
         to_check.len(),
         crate::yahoo_atr::spike_up_pct(),
         crate::yahoo_atr::spike_down_pct(),
@@ -605,8 +607,8 @@ pub async fn fetch_yahoo_price_spikes(
             .iter()
             .map(|s| {
                 format!(
-                    "{}:{}:{:+.2}%",
-                    s.emiten_name, s.jenis_spike, s.value_spike_percentage
+                    "{}:{}:{:+.2}% @{}",
+                    s.emiten_name, s.jenis_spike, s.value_spike_percentage, s.spike_at
                 )
             })
             .collect();
@@ -614,10 +616,8 @@ pub async fn fetch_yahoo_price_spikes(
             "\x1b[32mYahoo spike: lonjakan baru {}\x1b[0m",
             summary.join(", ")
         );
-        let names: Vec<String> = spikes.iter().map(|s| s.emiten_name.clone()).collect();
-        crate::yahoo_spike_cache::mark_reported(&names).await;
     }
-    Ok(spikes)
+    Ok(crate::yahoo_spike_cache::upsert_spikes(&spikes).await)
 }
 
 async fn list_plan_to_trade_emiten_codes(session: &Session) -> Result<Vec<String>, String> {

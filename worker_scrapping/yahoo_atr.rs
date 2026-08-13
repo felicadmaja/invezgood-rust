@@ -85,14 +85,21 @@ struct Candle {
     close: f64,
 }
 
-/// Hasil deteksi lonjakan: emiten + arah + % close vs open.
+/// Hasil deteksi lonjakan: waktu + emiten + arah + % close vs open.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SpikeEmiten {
+    /// Waktu lokal deteksi spike (`YYYY-MM-DD HH:MM:SS`).
+    #[serde(default)]
+    pub spike_at: String,
     pub emiten_name: String,
     /// `up` | `down` dari close vs open (ambang `UP_SPIKE_PERCENTAGE` / `DOWN_SPIKE_PERCENTAGE`).
     pub jenis_spike: String,
     /// Persentase (positif naik, negatif turun), mis. `8.52` / `-10.1`.
     pub value_spike_percentage: f64,
+}
+
+fn spike_at_now() -> String {
+    Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
 /// `up`/`down` + persen bila change vs open memenuhi ambang `.env`.
@@ -299,6 +306,7 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
                         last.open, last.high, last.low, last.close
                     );
                     spikes.push(SpikeEmiten {
+                        spike_at: spike_at_now(),
                         emiten_name: code,
                         jenis_spike: jenis.to_string(),
                         value_spike_percentage: pct,

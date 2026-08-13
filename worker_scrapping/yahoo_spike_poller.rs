@@ -1,6 +1,6 @@
-//! Poller Yahoo spike: cek pertama Senin–Jumat 09:00:00–09:00:59, lalu setiap 2 menit di jam kerja.
+//! Poller Yahoo spike: cek pertama Senin–Jumat 09:00:00–09:00:59,
+//! lalu setiap `INTERVAL_YAHOO_SPIKE_POLL_SECS` (.env, default 120) di jam kerja.
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -28,31 +28,21 @@ impl Default for YahooSpikeSnapshot {
     fn default() -> Self {
         Self {
             success: true,
-            message: "Menunggu poller Yahoo spike (cek pertama 09:00, lalu 2 menit)".to_string(),
+            message: format!(
+                "Menunggu poller Yahoo spike (cek pertama 09:00, lalu {}s)",
+                poll_interval_secs()
+            ),
             data: Vec::new(),
         }
     }
 }
 
 fn poll_interval_secs() -> u64 {
-    std::env::var("YAHOO_SPIKE_POLL_SECS")
+    std::env::var("INTERVAL_YAHOO_SPIKE_POLL_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(DEFAULT_POLL_SECS)
         .max(1)
-}
-
-fn merge_spikes(existing: Vec<SpikeEmiten>, incoming: Vec<SpikeEmiten>) -> Vec<SpikeEmiten> {
-    let mut by_code: HashMap<String, SpikeEmiten> = existing
-        .into_iter()
-        .map(|p| (p.emiten_name.clone(), p))
-        .collect();
-    for p in incoming {
-        by_code.insert(p.emiten_name.clone(), p);
-    }
-    let mut out: Vec<SpikeEmiten> = by_code.into_values().collect();
-    out.sort_by(|a, b| a.emiten_name.cmp(&b.emiten_name));
-    out
 }
 
 fn is_weekday(date: NaiveDate) -> bool {
@@ -127,7 +117,7 @@ fn next_resume_after_session(now: DateTime<Local>, jitter_secs: u32) -> DateTime
     }
 }
 
-/// Cek pertama hari kerja 09:00:00–09:00:59; seterusnya 2 menit di jam kerja.
+/// Cek pertama hari kerja 09:00:00–09:00:59; seterusnya `INTERVAL_YAHOO_SPIKE_POLL_SECS` di jam kerja.
 /// `false` = dibatalkan karena subscriber habis.
 async fn wait_before_next_poll(
     poller: &YahooSpikePoller,
@@ -351,10 +341,7 @@ impl YahooSpikePoller {
                 self.subscriber_count()
             );
             match fetch_yahoo_price_spikes(session.as_ref()).await {
-                Ok(fresh) => {
-                    let mut acc = crate::yahoo_spike_cache::today_details().await;
-                    acc = merge_spikes(acc, fresh);
-                    crate::yahoo_spike_cache::set_today_details(&acc).await;
+                Ok(acc) => {
                     let message = format!("{} emiten spike hari ini", acc.len());
                     self.publish(YahooSpikeSnapshot {
                         success: true,

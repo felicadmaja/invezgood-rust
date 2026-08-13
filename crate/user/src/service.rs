@@ -253,19 +253,20 @@ impl User for UserService {
                 let heartbeat = ticks_since_send >= READY_STREAM_HEARTBEAT_TICKS;
 
                 if first || changed || heartbeat {
+                    let cached = worker_scrapping::yahoo_spike_cache::today_details().await;
                     if first || changed {
                         eprintln!(
                             "{rpc_name} {user_name}: push success={} msg={:?} data={:?}",
-                            snap.success, snap.message, snap.data
+                            snap.success, snap.message, cached
                         );
                     }
-                    let data = snap
-                        .data
+                    let data = cached
                         .iter()
                         .map(|s| PriceSpikeRow {
                             emiten_name: s.emiten_name.clone(),
                             jenis_spike: s.jenis_spike.clone(),
                             value_spike_percentage: s.value_spike_percentage,
+                            spike_at: s.spike_at.clone(),
                         })
                         .collect();
                     let ok = tx

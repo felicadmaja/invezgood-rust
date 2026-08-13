@@ -35,7 +35,7 @@ service User {
 
   // Stream spike Yahoo. Poller hanya jalan bila ada ≥1 client subscribe (0 subscriber → idle, tidak hit Yahoo).
   // Cek pertama tiap hari Senin–Jumat 09:00:00–09:00:59 waktu server;
-  // seterusnya interval 2 menit (YAHOO_SPIKE_POLL_SECS, default 120) di jam kerja
+  // seterusnya interval INTERVAL_YAHOO_SPIKE_POLL_SECS (.env, detik; default 120) di jam kerja
   // Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
   // Mulai 09:15: GET Yahoo Finance v8 chart BBCA.JK (1d, hanya hari ini
   // period1=00:00 lokal period2=sekarang) — bila volume titik terakhir = 0,
@@ -46,9 +46,14 @@ service User {
   // (period1=00:00 lokal, period2=sekarang) untuk code
   // invezgood.stock_list_by_is_plan_to_trade WHERE is_plan_to_trade = true.
   // Jeda JEDA_MS_ANTAR_EMITEN (.env, ms). UP/DOWN dari UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env, %).
-  // HTTP 409: log merah, jeda 300ms, retry. Skip emiten sudah di-output hari ini
-  // (Redis invezgood:yahoo_atr:spike_reported, TTL s/d 23:59:59 lokal).
-  // Wajib Bearer login. Request kosong. Push: success, message, data (akumulasi spike hari ini).
+  // HTTP 409: log merah, jeda 300ms, retry.
+  // Setelah GET Yahoo: spike baru di-upsert Redis JSON
+  // `invezgood:yahoo_atr:spike_today:{YYYY-MM-DD}` — tiap item: spike_at, emiten_name,
+  // jenis_spike (up/down), value_spike_percentage. TTL s/d 23:59:59 lokal;
+  // ganti hari → key baru (cache lama invalid). SET `...spike_reported:{YYYY-MM-DD}`
+  // untuk skip GET Yahoo emiten yang sudah di-cache hari itu.
+  // Stream ke client selalu isi cache Redis (bukan hanya hasil tick Yahoo terbaru).
+  // Wajib Bearer login. Request kosong. Push: success, message, data.
   // Subscribe: push saat data berubah + heartbeat ~30s. Banyak subscriber tidak menambah frekuensi poll.
   rpc GetPriceSpikeFromYahooFinance(GetPriceSpikeFromYahooFinanceRequest) returns (stream PriceSpikeResponse);
 
@@ -117,6 +122,8 @@ message PriceSpikeRow {
   string jenis_spike = 2;
   // Persentase perubahan close vs open (naik positif, turun negatif).
   double value_spike_percentage = 3;
+  // Waktu lokal deteksi spike (YYYY-MM-DD HH:MM:SS), dari Redis cache.
+  string spike_at = 4;
 }
 
 message PriceSpikeResponse {
