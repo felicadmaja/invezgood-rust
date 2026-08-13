@@ -14,8 +14,9 @@ use crate::auth::{extract_bearer_token, validate_session, SessionStore};
 use crate::model::UserRow as DbUserRow;
 use crate::pb::user_server::User;
 use crate::pb::{
-    CekUsageRequest, GetUsersFromScyllaRequest, GetUsersFromScyllaResponse, IsStockbitReadyRequest,
-    IsStockbitReadyResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse,
+    CekUsageRequest, GetPriceSpikeFromYahooFinanceRequest, GetUsersFromScyllaRequest,
+    GetUsersFromScyllaResponse, IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest,
+    LoginResponse, LogoutRequest, LogoutResponse, PriceSpikeResponse, PriceSpikeRow,
     StockbitPortofolioSingkatRow, UsageResponse, UserRow,
 };
 
@@ -217,6 +218,62 @@ impl User for UserService {
         });
 
         Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
+    }
+
+    async fn get_price_spike_from_yahoo_finance(
+        &self,
+        request: Request<GetPriceSpikeFromYahooFinanceRequest>,
+    ) -> Result<Response<PriceSpikeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let rpc_name = "GetPriceSpikeFromYahooFinance";
+        let user_name = match self.require_auth(&request).await {
+            Ok(nama) => nama,
+            Err(status) => {
+                eprintln!(
+                    "{rpc_name} anonymous {}ms",
+                    started.elapsed().as_millis()
+                );
+                return Err(status);
+            }
+        };
+        let _ = request.into_inner();
+
+        let result: Result<Response<PriceSpikeResponse>, Status> = async {
+            let data: Vec<PriceSpikeRow> =
+                worker_scrapping::on_demand::fetch_yahoo_price_spikes(self.session.as_ref())
+                    .await
+                    .map_err(Status::internal)?
+                    .into_iter()
+                    .map(|s| PriceSpikeRow {
+                        emiten_name: s.emiten_name,
+                        jenis_spike: s.jenis_spike,
+                        value_spike_percentage: s.value_spike_percentage,
+                    })
+                    .collect();
+            let n = data.len();
+            let message = if n == 0 {
+                format!(
+                    "tidak ada lonjakan baru (UP >= {}% / DOWN >= {}% vs open)",
+                    worker_scrapping::yahoo_atr::spike_up_pct(),
+                    worker_scrapping::yahoo_atr::spike_down_pct()
+                )
+            } else {
+                format!("{n} emiten spike")
+            };
+
+            Ok(Response::new(PriceSpikeResponse {
+                success: true,
+                message,
+                data,
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "{rpc_name} {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
+        result
     }
 
     async fn cek_usage(

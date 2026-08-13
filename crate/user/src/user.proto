@@ -25,25 +25,26 @@ service User {
   //     1. GetAllPortofolioFromStockbit
   //     2. GetLatestEmitenTrendingFromStockbit
   //     3. GetAllPendingOrderFromStockbit
-  //     4. Yahoo Finance spike (emiten dari invezgood.stock_list_by_is_plan_to_trade = true)
+  //     4. GetPriceSpikeFromYahooFinance (function yang sama: fetch_yahoo_price_spikes)
   //   Hasil cek di-cache Redis key `invezgood:yahoo:market_holiday:{YYYY-MM-DD}` (value `1`=libur, `0`=buka; TTL s/d 23:59:59 lokal).
   //   Bila market buka (volume > 0), paralel:
-  //     • Yahoo Finance spike (baca code dari invezgood.stock_list_by_is_plan_to_trade
-  //       WHERE is_plan_to_trade = true → chart .JK 1d,
-  //       hanya hari ini period1=00:00 lokal period2=sekarang; jeda 25ms antar emiten).
-  //       UP bila close naik >= UP_SPIKE_PERCENTAGE (.env, %) vs open;
-  //       DOWN bila close turun >= DOWN_SPIKE_PERCENTAGE (.env, %) vs open.
-  //       → response.portofolio. HTTP 409: log merah, jeda 300ms, retry GET.
-  //       Emiten sudah di-output hari ini di-cache Redis key `invezgood:yahoo_atr:spike_reported`
-  //       (TTL s/d 23:59:59 lokal) — tidak dicek Yahoo lagi sampai ganti hari.
+  //     • Yahoo spike: panggil fetch_yahoo_price_spikes — function yang sama dengan
+  //       rpc GetPriceSpikeFromYahooFinance → response.portofolio.
   //     • Serial (satu Chrome): GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit
   // Subscribe stream: server push saat status/portofolio berubah + heartbeat ~30s.
   // Wajib authorization: Bearer <token>. success=true bila sesi Stockbit sudah login/ready.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
-  
-  
 
-// 
+  // Satu-satunya blok spike: worker_scrapping::on_demand::fetch_yahoo_price_spikes
+  // (dipakai juga poller IsStockbitReady → response.portofolio).
+  // GET Yahoo Finance v8 chart .JK 1d (period1=00:00 lokal, period2=sekarang) untuk code
+  // di invezgood.stock_list_by_is_plan_to_trade WHERE is_plan_to_trade = true.
+  // Jeda JEDA_MS_ANTAR_EMITEN (.env, ms) antar emiten. UP/DOWN dari UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env, %).
+  // HTTP 409: log merah, jeda 300ms, retry. Emiten sudah di-output hari ini di-skip
+  // (Redis invezgood:yahoo_atr:spike_reported, TTL s/d 23:59:59 lokal) lalu di-mark bila spike baru.
+  // Wajib Bearer login. Request kosong. Response: success, message, data (emiten_name, jenis_spike, value_spike_percentage).
+  // Status::internal bila Scylla gagal.
+  rpc GetPriceSpikeFromYahooFinance(GetPriceSpikeFromYahooFinanceRequest) returns (PriceSpikeResponse);
 
   // GET api.invezgo.com/usage/api → jatah pemakaian API Invezgo (Bearer INVEZGO_BEARER_TOKEN).
   // Wajib authorization: Bearer <token> login. Request kosong. Response: UsageResponse.
@@ -101,6 +102,22 @@ message IsStockbitReadyResponse {
   // Emiten is_plan_to_trade=true dengan spike baru hari ini (ambang UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE);
   // yang sudah di-output hari ini tidak diulang (Redis cache s/d akhir hari).
   repeated StockbitPortofolioSingkatRow portofolio = 3;
+}
+
+message GetPriceSpikeFromYahooFinanceRequest {}
+
+message PriceSpikeRow {
+  string emiten_name = 1;
+  // "up" bila close naik >= UP_SPIKE_PERCENTAGE (.env) vs open; "down" bila turun >= DOWN_SPIKE_PERCENTAGE (.env).
+  string jenis_spike = 2;
+  // Persentase perubahan close vs open (naik positif, turun negatif).
+  double value_spike_percentage = 3;
+}
+
+message PriceSpikeResponse {
+  bool success = 1;
+  string message = 2;
+  repeated PriceSpikeRow data = 3;
 }
 
 message CekUsageRequest {}

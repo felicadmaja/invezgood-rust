@@ -1,5 +1,6 @@
 //! Fetch Yahoo Finance daily chart; deteksi spike close vs open hari ini.
 //! Ambang dari `.env`: `UP_SPIKE_PERCENTAGE`, `DOWN_SPIKE_PERCENTAGE` (angka persen, mis. 8 = 8%).
+//! Jeda antar emiten: `JEDA_MS_ANTAR_EMITEN` (ms).
 
 use chrono::{Local, TimeZone};
 use serde_json::Value;
@@ -12,7 +13,7 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const DEFAULT_UP_SPIKE_PERCENTAGE: f64 = 8.0;
 const DEFAULT_DOWN_SPIKE_PERCENTAGE: f64 = 6.0;
-const INTER_EMITEN_DELAY: Duration = Duration::from_millis(25);
+const DEFAULT_JEDA_MS_ANTAR_EMITEN: u64 = 25;
 const RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_millis(300);
 const RATE_LIMIT_MAX_RETRIES: u32 = 20;
 
@@ -51,6 +52,31 @@ pub fn spike_down_pct() -> f64 {
     spike_thresholds().1
 }
 
+fn env_millis(name: &str, default: u64) -> u64 {
+    match std::env::var(name) {
+        Ok(raw) => match raw.trim().parse::<u64>() {
+            Ok(v) => v,
+            Err(_) => {
+                eprintln!(
+                    "yahoo spike: {name}={raw:?} tidak valid — pakai default {default}"
+                );
+                default
+            }
+        },
+        Err(_) => default,
+    }
+}
+
+/// Jeda antar emiten dari `JEDA_MS_ANTAR_EMITEN` (ms).
+pub fn jeda_ms_antar_emiten() -> u64 {
+    static CACHED: OnceLock<u64> = OnceLock::new();
+    *CACHED.get_or_init(|| env_millis("JEDA_MS_ANTAR_EMITEN", DEFAULT_JEDA_MS_ANTAR_EMITEN))
+}
+
+fn inter_emiten_delay() -> Duration {
+    Duration::from_millis(jeda_ms_antar_emiten())
+}
+
 #[derive(Debug, Clone)]
 struct Candle {
     open: f64,
@@ -67,6 +93,16 @@ pub struct SpikeEmiten {
     pub jenis_spike: String,
     /// Persentase (positif naik, negatif turun), mis. `8.52` / `-10.1`.
     pub value_spike_percentage: f64,
+}
+
+impl From<SpikeEmiten> for stockbit_browser::PortofolioSpike {
+    fn from(s: SpikeEmiten) -> Self {
+        Self {
+            emiten_name: s.emiten_name,
+            jenis_spike: s.jenis_spike,
+            value_spike_percentage: s.value_spike_percentage,
+        }
+    }
 }
 
 /// `up`/`down` + persen bila change vs open memenuhi ambang `.env`.
@@ -236,7 +272,7 @@ async fn fetch_candles(
     parse_candles(&fetch_chart_body(http, emiten).await?)
 }
 
-/// Untuk setiap emiten: GET Yahoo chart (jeda 25ms), kembalikan yang memenuhi ambang `.env`.
+/// Untuk setiap emiten: GET Yahoo chart (jeda `JEDA_MS_ANTAR_EMITEN`), kembalikan yang memenuhi ambang `.env`.
 pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
         return Vec::new();
@@ -256,7 +292,7 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     let mut spikes = Vec::new();
     for (i, raw) in emitens.iter().enumerate() {
         if i > 0 {
-            sleep(INTER_EMITEN_DELAY).await;
+            sleep(inter_emiten_delay()).await;
         }
         let code = raw.trim().to_ascii_uppercase();
         if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {

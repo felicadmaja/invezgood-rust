@@ -495,60 +495,14 @@ pub async fn run_poller_stockbit_scrapes(
 
     let (spikes, ()) = tokio::join!(
         async move {
-            let emitens = match list_plan_to_trade_emiten_codes(session_yahoo.as_ref()).await {
-                Ok(v) => v,
-                Err(e) => {
-                    eprintln!("Poller Yahoo ATR: gagal baca stock_list_by_is_plan_to_trade: {e}");
-                    return Vec::new();
-                }
-            };
-
-            let reported = crate::yahoo_spike_cache::already_reported().await;
-            let to_check: Vec<String> = emitens
-                .into_iter()
-                .filter(|e| !reported.contains(e))
-                .collect();
-            let skipped = reported.len();
-            println!(
-                "\x1b[32mPoller Yahoo ATR: cek {} emiten UP>={}% DOWN>={}% (skip {} sudah di-output hari ini)\x1b[0m",
-                to_check.len(),
-                crate::yahoo_atr::spike_up_pct(),
-                crate::yahoo_atr::spike_down_pct(),
-                skipped
-            );
-
-            let spikes = crate::yahoo_atr::find_spike_emitens(&to_check).await;
-            if spikes.is_empty() {
-                println!(
-                    "Poller Yahoo spike: tidak ada lonjakan baru (UP >= {}% / DOWN >= {}% vs open)",
-                    crate::yahoo_atr::spike_up_pct(),
-                    crate::yahoo_atr::spike_down_pct()
-                );
-            } else {
-                let summary: Vec<String> = spikes
-                    .iter()
-                    .map(|s| {
-                        format!(
-                            "{}:{}:{:+.2}%",
-                            s.emiten_name, s.jenis_spike, s.value_spike_percentage
-                        )
-                    })
-                    .collect();
-                println!(
-                    "\x1b[32mPoller Yahoo ATR: lonjakan baru {}\x1b[0m",
-                    summary.join(", ")
-                );
-                let names: Vec<String> =
-                    spikes.iter().map(|s| s.emiten_name.clone()).collect();
-                crate::yahoo_spike_cache::mark_reported(&names).await;
-            }
-            spikes
-                .into_iter()
-                .map(|s| stockbit_browser::PortofolioSpike {
-                    emiten_name: s.emiten_name,
-                    jenis_spike: s.jenis_spike,
-                    value_spike_percentage: s.value_spike_percentage,
+            fetch_yahoo_price_spikes(session_yahoo.as_ref())
+                .await
+                .unwrap_or_else(|e| {
+                    eprintln!("Poller GetPriceSpikeFromYahooFinance: {e}");
+                    Vec::new()
                 })
+                .into_iter()
+                .map(stockbit_browser::PortofolioSpike::from)
                 .collect()
         },
         async move {
@@ -588,6 +542,53 @@ pub async fn run_poller_stockbit_scrapes(
     );
 
     Some(spikes)
+}
+
+/// Satu-satunya blok Yahoo spike (RPC `GetPriceSpikeFromYahooFinance` + poller `IsStockbitReady`).
+/// MV `stock_list_by_is_plan_to_trade = true` → chart .JK 1d → Redis skip/mark hari ini.
+pub async fn fetch_yahoo_price_spikes(
+    session: &Session,
+) -> Result<Vec<crate::yahoo_atr::SpikeEmiten>, String> {
+    let emitens = list_plan_to_trade_emiten_codes(session).await?;
+    let reported = crate::yahoo_spike_cache::already_reported().await;
+    let to_check: Vec<String> = emitens
+        .into_iter()
+        .filter(|e| !reported.contains(e))
+        .collect();
+    let skipped = reported.len();
+    println!(
+        "\x1b[32mYahoo spike: cek {} emiten UP>={}% DOWN>={}% (skip {} sudah di-output hari ini)\x1b[0m",
+        to_check.len(),
+        crate::yahoo_atr::spike_up_pct(),
+        crate::yahoo_atr::spike_down_pct(),
+        skipped
+    );
+
+    let spikes = crate::yahoo_atr::find_spike_emitens(&to_check).await;
+    if spikes.is_empty() {
+        println!(
+            "Yahoo spike: tidak ada lonjakan baru (UP >= {}% / DOWN >= {}% vs open)",
+            crate::yahoo_atr::spike_up_pct(),
+            crate::yahoo_atr::spike_down_pct()
+        );
+    } else {
+        let summary: Vec<String> = spikes
+            .iter()
+            .map(|s| {
+                format!(
+                    "{}:{}:{:+.2}%",
+                    s.emiten_name, s.jenis_spike, s.value_spike_percentage
+                )
+            })
+            .collect();
+        println!(
+            "\x1b[32mYahoo spike: lonjakan baru {}\x1b[0m",
+            summary.join(", ")
+        );
+        let names: Vec<String> = spikes.iter().map(|s| s.emiten_name.clone()).collect();
+        crate::yahoo_spike_cache::mark_reported(&names).await;
+    }
+    Ok(spikes)
 }
 
 async fn list_plan_to_trade_emiten_codes(session: &Session) -> Result<Vec<String>, String> {
