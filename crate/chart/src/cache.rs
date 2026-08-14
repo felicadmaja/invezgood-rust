@@ -10,11 +10,9 @@ use crate::invezgo;
 use crate::pb::{ChartBar, GetCurrentDayChartFromInvezgoResponse};
 
 const REDIS_KEY_PREFIX: &str = "chart:";
-const REDIS_HOLIDAY_PREFIX: &str = "chart:intraday-holiday:";
 const REDIS_INTRADAY_EOD_PREFIX: &str = "chart:intraday-eod:";
 const DEFAULT_MOKA_MAX_ENTRIES: u64 = 10_000;
 const DEFAULT_CACHE_TTL_SECS: u64 = 24 * 60 * 60;
-const HOLIDAY_TTL_SECS: u64 = 24 * 60 * 60;
 const INTRADAY_EOD_TTL_SECS: u64 = 24 * 60 * 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,7 +128,6 @@ impl From<CachedIntradayData> for GetCurrentDayChartFromInvezgoResponse {
 #[derive(Clone)]
 pub struct ChartCache {
     moka: Cache<String, Vec<CachedChartBar>>,
-    holiday_moka: Cache<String, bool>,
     intraday_eod_moka: Cache<String, CachedIntradayData>,
     redis: redis::Client,
     ttl: Duration,
@@ -154,11 +151,6 @@ impl ChartCache {
             .time_to_live(ttl)
             .build();
 
-        let holiday_moka = Cache::builder()
-            .max_capacity(max_entries)
-            .time_to_live(Duration::from_secs(HOLIDAY_TTL_SECS))
-            .build();
-
         let intraday_eod_moka = Cache::builder()
             .max_capacity(max_entries)
             .time_to_live(Duration::from_secs(INTRADAY_EOD_TTL_SECS))
@@ -170,59 +162,10 @@ impl ChartCache {
 
         Ok(Self {
             moka,
-            holiday_moka,
             intraday_eod_moka,
             redis,
             ttl,
         })
-    }
-
-    fn holiday_key(code: &str) -> String {
-        let today = Local::now().format("%Y-%m-%d");
-        format!("{REDIS_HOLIDAY_PREFIX}{today}:{code}")
-    }
-
-    /// True bila code sudah ditandai market libur untuk hari ini.
-    pub async fn is_intraday_holiday(&self, code: &str) -> Result<bool, String> {
-        let key = Self::holiday_key(code);
-
-        if self.holiday_moka.get(&key).await.unwrap_or(false) {
-            return Ok(true);
-        }
-
-        let mut conn = self
-            .redis
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| format!("redis connect GET holiday {key}: {e}"))?;
-
-        let raw: Option<String> = conn
-            .get(&key)
-            .await
-            .map_err(|e| format!("redis GET holiday {key}: {e}"))?;
-
-        if raw.as_deref() == Some("1") {
-            self.holiday_moka.insert(key, true).await;
-            return Ok(true);
-        }
-        Ok(false)
-    }
-
-    /// Tandai code sebagai market libur hari ini (skip API berikutnya).
-    pub async fn mark_intraday_holiday(&self, code: &str) -> Result<(), String> {
-        let key = Self::holiday_key(code);
-        self.holiday_moka.insert(key.clone(), true).await;
-
-        let mut conn = self
-            .redis
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| format!("redis connect SET holiday {key}: {e}"))?;
-
-        conn.set_ex::<_, _, ()>(&key, "1", HOLIDAY_TTL_SECS)
-            .await
-            .map_err(|e| format!("redis SETEX holiday {key}: {e}"))?;
-        Ok(())
     }
 
     fn intraday_eod_key(code: &str) -> String {

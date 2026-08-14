@@ -12,8 +12,9 @@ service HakaHaki {
   // - Senin–Kamis 09:00–12:00 & 13:30–16:00;
   // - Jumat 09:00–11:30 & 14:00–16:00 — hit API live.
   // Setelah 16:00 (Senin–Jumat): baca cache EOD (Moka→Redis); bila miss hit API 1x lalu simpan.
-  // Setelah 09:15: bila value titik menit terakhir API = 0, code dianggap market libur hari ini —
-  // di-cache; request berikutnya tidak hit API lagi; success=false message "hari libur".
+  // Setelah 10:00: cek Yahoo BBCA.JK volume hari ini. Volume=0 → market libur
+  // (cache Redis `invezgood:market_holiday:{YYYY-MM-DD}`). Bila libur dan tanggal=hari ini:
+  // success=false message "hari libur", tidak GET Invezgo.
   rpc GetHakaHakiFromInvezgo(GetHakaHakiFromInvezgoRequest)
       returns (GetHakaHakiFromInvezgoResponse);
 

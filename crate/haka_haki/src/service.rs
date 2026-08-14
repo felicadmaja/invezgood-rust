@@ -5,7 +5,7 @@ use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
-use crate::invezgo::{self, ApiHakaHakiPoint};
+use crate::invezgo;
 use crate::intraday_cache::IntradayCache;
 use crate::model::agg_code_tahun_bulan_tanggal;
 use crate::pb::haka_haki_server::HakaHaki as HakaHakiRpc;
@@ -111,14 +111,6 @@ impl HakaHakiService {
         now.hour() * 60 + now.minute()
     }
 
-    fn can_detect_intraday_holiday() -> bool {
-        Self::minutes_now() >= 9 * 60 + 15
-    }
-
-    fn is_market_holiday_last_value(points: &[ApiHakaHakiPoint]) -> bool {
-        invezgo::is_market_holiday_last_value(points)
-    }
-
     /// Senin–Kamis: live 09:00–12:00 & 13:30–16:00. Jumat: 09:00–11:30 & 14:00–16:00.
     fn require_current_day_access() -> Result<CurrentDayMode, Status> {
         let now = Local::now();
@@ -166,19 +158,11 @@ impl HakaHakiService {
         code: &str,
         trade_date: NaiveDate,
         range: i32,
-        check_holiday: bool,
     ) -> Result<GetHakaHakiFromInvezgoResponse, Status> {
         let date_str = trade_date.format("%Y-%m-%d").to_string();
         let api_points = invezgo::fetch_momentum_chart(code, trade_date, range)
             .await
             .map_err(Status::internal)?;
-
-        if check_holiday
-            && Self::can_detect_intraday_holiday()
-            && Self::is_market_holiday_last_value(&api_points)
-        {
-            return Ok(Self::holiday_response(code, &date_str));
-        }
 
         let mut db_rows = Vec::with_capacity(api_points.len());
         let mut items = Vec::with_capacity(api_points.len());
@@ -244,7 +228,6 @@ impl HakaHakiRpc for HakaHakiService {
                     &code,
                     trade_date,
                     range,
-                    false,
                 )
                 .await?;
                 crate::redis_cache::set(&code, &date_str, range, &resp).await;
@@ -256,13 +239,11 @@ impl HakaHakiRpc for HakaHakiService {
                 ));
             }
 
-            if self.intraday_cache.is_intraday_holiday(&code).await.map_err(
-                |e| Status::internal(e),
-            )? {
+            if is_today && market_holiday::is_market_holiday().await {
                 return Ok((
                     Ok(Response::new(Self::holiday_response(&code, &date_str))),
                     LogSource::Api,
-                    format!("{code} {date_str} range={range} holiday cache"),
+                    format!("{code} {date_str} range={range} holiday BBCA"),
                 ));
             }
 
@@ -291,17 +272,8 @@ impl HakaHakiRpc for HakaHakiService {
                     &code,
                     trade_date,
                     range,
-                    true,
                 )
                 .await?;
-                if !resp.success {
-                    let _ = self.intraday_cache.mark_intraday_holiday(&code).await;
-                    return Ok((
-                        Ok(Response::new(resp)),
-                        LogSource::Api,
-                        format!("{code} {date_str} range={range} eod holiday"),
-                    ));
-                }
                 if let Err(e) = self
                     .intraday_cache
                     .set_intraday_eod(&code, range, &resp)
@@ -318,17 +290,8 @@ impl HakaHakiRpc for HakaHakiService {
                 &code,
                 trade_date,
                 range,
-                true,
             )
             .await?;
-            if !resp.success {
-                let _ = self.intraday_cache.mark_intraday_holiday(&code).await;
-                return Ok((
-                    Ok(Response::new(resp)),
-                    LogSource::Api,
-                    format!("{code} {date_str} range={range} holiday"),
-                ));
-            }
             let detail = format!("{code} {date_str} range={range}");
             Ok((Ok(Response::new(resp)), LogSource::Api, detail))
         }

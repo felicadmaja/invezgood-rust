@@ -170,6 +170,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
+        let mut emiten_log = String::new();
         let result: Result<Response<GetPortofolioHistoryByTahunBulanFromScyllaResponse>, Status> =
             async {
                 let req = request.into_inner();
@@ -188,6 +189,13 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
 
                 match self.repo.find_by_tahun_bulan(&tahun_bulan).await {
                     Ok(rows) => {
+                        let mut seen = std::collections::HashSet::new();
+                        let names: Vec<String> = rows
+                            .iter()
+                            .map(|r| r.emiten_name.trim().to_ascii_uppercase())
+                            .filter(|n| !n.is_empty() && seen.insert(n.clone()))
+                            .collect();
+                        emiten_log = names.join(",");
                         let n = rows.len();
                         Ok(Response::new(
                             GetPortofolioHistoryByTahunBulanFromScyllaResponse {
@@ -210,11 +218,16 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
             }
             .await;
 
-        Self::log_rpc_debug(
-            "GetPortofolioHistoryByTahunBulanFromScylla",
-            &user_name,
-            started,
-        );
+        let elapsed = started.elapsed().as_millis();
+        if emiten_log.is_empty() {
+            eprintln!(
+                "GetPortofolioHistoryByTahunBulanFromScylla {user_name} {elapsed}ms"
+            );
+        } else {
+            eprintln!(
+                "GetPortofolioHistoryByTahunBulanFromScylla {user_name} {elapsed}ms - {emiten_log}"
+            );
+        }
         result
     }
 

@@ -11,6 +11,7 @@ service PortofolioHistory {
 
   // Baca invezgood.portofolio_history by bulan via MV portofolio_history_by_tahun_bulan.
   // Request: tahun_bulan (YYYY-MM) wajib. Auth: login (Bearer session).
+  // Debug log: GetPortofolioHistoryByTahunBulanFromScylla {user} {ms}ms - {emiten,...}
   rpc GetPortofolioHistoryByTahunBulanFromScylla(GetPortofolioHistoryByTahunBulanFromScyllaRequest)
       returns (GetPortofolioHistoryByTahunBulanFromScyllaResponse);
 

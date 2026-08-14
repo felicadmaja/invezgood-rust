@@ -72,9 +72,17 @@ async fn wait_watch<T: Clone>(mut rx: watch::Receiver<Option<T>>, label: &str) -
     }
 }
 
+async fn ensure_market_open() -> Result<(), String> {
+    if crate::yahoo_market_holiday::is_poller_market_holiday().await {
+        return Err("hari libur (Yahoo BBCA volume=0)".into());
+    }
+    Ok(())
+}
+
 pub async fn scrape_portofolio_all(
     session: Arc<Session>,
 ) -> Result<(usize, Vec<String>), String> {
+    ensure_market_open().await?;
     // On-demand RPC: tanpa cek jam operasional (batas hari/jam hanya di poller).
     let rx = {
         let mut slot = inflight_porto_all().lock().await;
@@ -139,6 +147,7 @@ async fn run_portofolio_all_scrape(
 }
 
 pub async fn scrape_pending_order_all(session: Arc<Session>) -> Result<usize, String> {
+    ensure_market_open().await?;
     // On-demand RPC: tanpa cek jam operasional (batas hari/jam hanya di poller).
     let rx = {
         let mut slot = inflight_pending_order().lock().await;
@@ -203,6 +212,7 @@ pub async fn create_buy_limit_order(
     lot: i32,
     expiry_dom_value: String,
 ) -> Result<(), String> {
+    ensure_market_open().await?;
     let rx = {
         let mut slot = inflight_buy_limit().lock().await;
         if let Some(existing) = slot.as_ref() {
@@ -268,6 +278,7 @@ async fn run_create_buy_limit_order(
 pub async fn scrape_emiten_trending_movers(
     session: Arc<Session>,
 ) -> Result<(usize, usize), String> {
+    ensure_market_open().await?;
     // On-demand RPC: tanpa cek jam operasional (batas hari/jam hanya di poller).
     let rx = {
         let mut slot = inflight_emiten_trending().lock().await;
@@ -424,6 +435,7 @@ pub async fn scrape_portofolio_history_for_emiten(
     session: Arc<Session>,
     emiten_name: &str,
 ) -> Result<usize, String> {
+    ensure_market_open().await?;
     let code = emiten_name.trim().to_ascii_uppercase();
     if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
         return Err("emiten_name harus tepat 4 huruf alfabet (contoh: ASBI)".into());

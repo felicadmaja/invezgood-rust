@@ -299,6 +299,7 @@ fn parse_last_volume(body: &str) -> Result<i64, String> {
 }
 
 /// Volume hari terakhir dari chart daily Yahoo v8 (titik terakhir array `volume`).
+#[allow(dead_code)]
 pub async fn fetch_today_volume(emiten: &str) -> Result<i64, String> {
     let emiten = emiten.trim().to_ascii_uppercase();
     let http = reqwest::Client::builder()

@@ -14,6 +14,7 @@ members = [
     "crate/chart",
     "crate/haka_haki",
     "crate/msci",
+    "crate/market_holiday",
     "crate/stockbit_browser",
     "crate/tls",
     "worker_scrapping",

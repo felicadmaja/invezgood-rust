@@ -313,6 +313,7 @@ name = "chart"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "market_holiday",
  "moka",
  "prost",
  "redis",
@@ -856,6 +857,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "market_holiday",
  "moka",
  "prost",
  "redis",
@@ -1300,6 +1302,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "373f5eceeeab7925e0c1098212f2fbc4d416adec9d35051a6ab251e824c1854a"
 dependencies = [
  "twox-hash",
+]
+
+[[package]]
+name = "market_holiday"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "redis",
+ "reqwest 0.12.28",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -3035,6 +3048,7 @@ dependencies = [
  "chromiumoxide",
  "chrono",
  "futures-util",
+ "market_holiday",
  "rand 0.8.7",
  "redis",
  "reqwest 0.12.28",

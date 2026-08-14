@@ -64,11 +64,6 @@ pub fn api_point_to_row(
     })
 }
 
-/// Bila titik menit terakhir ada dan `value` = 0 → market libur.
-pub fn is_market_holiday_last_value(points: &[ApiHakaHakiPoint]) -> bool {
-    points.last().is_some_and(|p| p.value == 0)
-}
-
 pub async fn fetch_momentum_chart(
     code: &str,
     trade_date: NaiveDate,

@@ -16,6 +16,7 @@ prost = "0.13"
 redis = { version = "0.27", default-features = false, features = ["tokio-comp", "connection-manager"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 user = { path = "../user" }
+market_holiday = { path = "../market_holiday" }
 
 [build-dependencies]
 tonic-build = "0.12"
