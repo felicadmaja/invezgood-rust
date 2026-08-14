@@ -24,6 +24,15 @@ use crate::pb::{
 const READY_STREAM_CHECK_SECS: u64 = 2;
 const READY_STREAM_HEARTBEAT_TICKS: u64 = 15;
 
+fn anonymous_is_stockbit_ready_response() -> IsStockbitReadyResponse {
+    IsStockbitReadyResponse {
+        success: false,
+        message: "Login diperlukan".to_string(),
+        portofolio: Vec::new(),
+        is_need_login: true,
+    }
+}
+
 pub struct UserService {
     session: Arc<Session>,
     auth_sessions: SessionStore,
@@ -153,21 +162,21 @@ impl User for UserService {
                 Ok(auth) => auth.nama,
                 Err(_) => {
                     eprintln!(
-                        "{rpc_name} anonymous {}ms — abaikan (session invalid, stream ditutup)",
+                        "{rpc_name} anonymous {}ms — abaikan (session invalid, is_need_login=true)",
                         started.elapsed().as_millis()
                     );
                     let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(1);
-                    drop(tx);
+                    let _ = tx.send(Ok(anonymous_is_stockbit_ready_response())).await;
                     return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
                 }
             },
             Err(_) => {
                 eprintln!(
-                    "{rpc_name} anonymous {}ms — abaikan (tanpa auth, stream ditutup)",
+                    "{rpc_name} anonymous {}ms — abaikan (tanpa auth, is_need_login=true)",
                     started.elapsed().as_millis()
                 );
                 let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(1);
-                drop(tx);
+                let _ = tx.send(Ok(anonymous_is_stockbit_ready_response())).await;
                 return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
             }
         };
@@ -211,6 +220,7 @@ impl User for UserService {
                             success: update.ready,
                             message: update.message,
                             portofolio: Vec::new(),
+                            is_need_login: false,
                         }))
                         .await
                         .is_ok();

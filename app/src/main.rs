@@ -15,6 +15,7 @@ use stockbit_browser::ReadinessPoller;
 use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{new_session_store, UserServer, UserService};
+use wyckoff_glossary::{WyckoffGlossaryServer, WyckoffGlossaryService};
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder as ReflectionBuilder;
@@ -99,6 +100,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
     );
     let msci = MsciService::new(session.clone(), auth_sessions.clone());
+    let wyckoff_glossary =
+        WyckoffGlossaryService::new(session.clone(), auth_sessions.clone());
 
     let readiness_poller = ReadinessPoller::new();
     {
@@ -138,6 +141,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(chart::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(haka_haki::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(msci::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(wyckoff_glossary::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
         enable_compression
@@ -171,6 +175,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let chart_svc = maybe_compressed!(ChartServer::new(chart), enable_compression);
     let haka_haki_svc = maybe_compressed!(HakaHakiServer::new(haka_haki), enable_compression);
     let msci_svc = maybe_compressed!(MsciServer::new(msci), enable_compression);
+    let wyckoff_glossary_svc =
+        maybe_compressed!(WyckoffGlossaryServer::new(wyckoff_glossary), enable_compression);
 
     let mut builder = Server::builder();
 
@@ -202,6 +208,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(chart_svc)
         .add_service(haka_haki_svc)
         .add_service(msci_svc)
+        .add_service(wyckoff_glossary_svc)
         .serve(addr)
         .await?;
 

@@ -30,7 +30,7 @@ service User {
   //   Bila market buka (volume > 0):
   //     Serial (satu Chrome): GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit
   // Subscribe stream: server push saat status berubah + heartbeat ~30s.
-  // Wajib Bearer login valid. Tanpa auth / session invalid: stream langsung ditutup (tidak subscribe).
+  // Wajib Bearer login valid. Tanpa auth / session invalid: push 1x is_need_login=true lalu stream ditutup.
   // success=true bila sesi Stockbit sudah login/ready.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
@@ -116,6 +116,8 @@ message IsStockbitReadyResponse {
   string message = 2;
   // Tidak diisi (spike Yahoo hanya di stream GetPriceSpikeFromYahooFinance).
   repeated StockbitPortofolioSingkatRow portofolio = 3;
+  // true bila request anonymous (tanpa auth / session invalid).
+  bool is_need_login = 4;
 }
 
 message GetPriceSpikeFromYahooFinanceRequest {}

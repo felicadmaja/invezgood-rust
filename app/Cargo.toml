@@ -23,6 +23,7 @@ chart = { path = "../crate/chart" }
 haka_haki = { path = "../crate/haka_haki" }
 msci = { path = "../crate/msci" }
 stockbit_browser = { path = "../crate/stockbit_browser" }
+wyckoff_glossary = { path = "../crate/wyckoff_glosary" }
 worker_scrapping = { path = "../worker_scrapping" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tls = { path = "../crate/tls" }

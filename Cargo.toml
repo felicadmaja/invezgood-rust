@@ -16,6 +16,7 @@ members = [
     "crate/msci",
     "crate/market_holiday",
     "crate/stockbit_browser",
+    "crate/wyckoff_glosary",
     "crate/tls",
     "worker_scrapping",
 ]
