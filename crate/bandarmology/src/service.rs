@@ -1,7 +1,7 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
-use chrono::{Local, NaiveDate, Timelike};
+use chrono::{Local, NaiveDate};
 use futures::Stream;
 use scylla::client::session::Session;
 use tokio_stream::wrappers::ReceiverStream;
@@ -46,16 +46,6 @@ impl BandarmologyService {
         })
     }
 
-    fn ensure_today_data_available(trade_date: NaiveDate) -> Result<(), Status> {
-        let now = Local::now();
-        if trade_date == now.date_naive() && now.hour() < 18 {
-            return Err(Status::failed_precondition(
-                "Belum ada data bandarmology market berjalan",
-            ));
-        }
-        Ok(())
-    }
-
     fn entry_to_proto(row: BandarmologyEntryDb) -> BandarmologyEntry {
         BandarmologyEntry {
             code: row.code,
@@ -96,14 +86,18 @@ impl BandarmologyService {
         code: &str,
         trade_date: NaiveDate,
     ) -> Result<(DbBandarmologyRow, bool), Status> {
+        if trade_date == Local::now().date_naive() {
+            return Err(Status::failed_precondition(
+                "Tidak mengambil bandarmology Invezgo untuk hari ini",
+            ));
+        }
+
         if let Some(row) =
             crate::repository::find_by_code_and_date(session.as_ref(), code, trade_date)
                 .await
                 .map_err(Status::internal)?
         {
-            if crate::repository::has_bandarmology_data(&row) {
-                return Ok((row, false));
-            }
+            return Ok((row, false));
         }
 
         let row = crate::invezgo::fetch_and_save(session, code, trade_date)
@@ -136,10 +130,15 @@ impl Bandarmology for BandarmologyService {
             ));
         }
 
+        let today = Local::now().date_naive();
         let mut trade_dates = Vec::with_capacity(inner.tahun_bulan_tanggal.len());
+        let mut skipped_today = 0usize;
         for date_str in inner.tahun_bulan_tanggal {
             let trade_date = Self::parse_trade_date(&date_str)?;
-            Self::ensure_today_data_available(trade_date)?;
+            if trade_date == today {
+                skipped_today += 1;
+                continue;
+            }
             trade_dates.push(trade_date);
         }
 
@@ -147,6 +146,7 @@ impl Bandarmology for BandarmologyService {
         let (tx, rx) = tokio::sync::mpsc::channel(8);
         let user_name_spawn = user_name.clone();
         let dates_n = trade_dates.len();
+        let skipped_today_spawn = skipped_today;
 
         tokio::spawn(async move {
             let started = std::time::Instant::now();
@@ -191,11 +191,11 @@ impl Bandarmology for BandarmologyService {
                 let elapsed = started.elapsed().as_millis();
                 if api_gets > 0 {
                     eprintln!(
-                        "\x1b[32mGetBandarmologyByCode {user_name_spawn} {elapsed}ms - {code} {dates_n} tanggal (cache={cache_hits} GET Invezgo={api_gets})\x1b[0m"
+                        "\x1b[32mGetBandarmologyByCode {user_name_spawn} {elapsed}ms - {code} {dates_n} tanggal (cache={cache_hits} GET Invezgo={api_gets} skip_hari_ini={skipped_today_spawn})\x1b[0m"
                     );
                 } else {
                     eprintln!(
-                        "GetBandarmologyByCode {user_name_spawn} {elapsed}ms - {code} {dates_n} tanggal (cache={cache_hits} api=0)"
+                        "GetBandarmologyByCode {user_name_spawn} {elapsed}ms - {code} {dates_n} tanggal (cache={cache_hits} api=0 skip_hari_ini={skipped_today_spawn})"
                     );
                 }
             }

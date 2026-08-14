@@ -9,12 +9,6 @@ const FIND_BY_CODE_DATE: &str = "SELECT code, tahun_bulan_tanggal, bandarmology,
 const UPSERT: &str = "INSERT INTO invezgood.bandarmology \
     (code, tahun_bulan_tanggal, bandarmology, updated_at) VALUES (?, ?, ?, ?)";
 
-pub fn has_bandarmology_data(row: &BandarmologyRow) -> bool {
-    row.bandarmology
-        .as_ref()
-        .is_some_and(|entries| !entries.is_empty())
-}
-
 pub async fn find_by_code_and_date(
     session: &Session,
     code: &str,
