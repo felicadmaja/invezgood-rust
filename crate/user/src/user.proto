@@ -42,8 +42,10 @@ service User {
   // hari itu dianggap market libur; poller TIDAK dijalankan.
   // Hasil cek di-cache Redis key `invezgood:yahoo:market_holiday:{YYYY-MM-DD}`
   // (value `1`=libur, `0`=buka; TTL s/d 23:59:59 lokal).
-  // Tiap tick (bila market buka): fetch_yahoo_price_spikes — GET chart .JK 1d
-  // (period1=00:00 lokal, period2=sekarang) untuk code
+  // 09:00:00–09:05:59 waktu lokal: spike = open hari ini vs close sesi sebelumnya
+  // (kemarin / Jumat bila Senin; chart 1d lookback 7 hari).
+  // Di luar jam itu: spike = close vs open candle hari ini.
+  // Tiap tick (bila market buka): fetch_yahoo_price_spikes untuk code
   // invezgood.stock_list_by_is_plan_to_trade WHERE is_plan_to_trade = true.
   // Jeda JEDA_MS_ANTAR_EMITEN (.env, ms). UP/DOWN dari UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env, %).
   // HTTP 409: log merah, jeda 300ms, retry.
@@ -118,9 +120,10 @@ message GetPriceSpikeFromYahooFinanceRequest {}
 
 message PriceSpikeRow {
   string emiten_name = 1;
-  // "up" bila close naik >= UP_SPIKE_PERCENTAGE (.env) vs open; "down" bila turun >= DOWN_SPIKE_PERCENTAGE (.env).
+  // "up" bila perubahan >= UP_SPIKE_PERCENTAGE; "down" bila <= -DOWN_SPIKE_PERCENTAGE.
+  // 09:00–09:05: open hari ini vs close kemarin; selain itu close vs open hari ini.
   string jenis_spike = 2;
-  // Persentase perubahan close vs open (naik positif, turun negatif).
+  // Persentase (naik positif, turun negatif). 09:00–09:05: vs close kemarin; selain itu vs open hari ini.
   double value_spike_percentage = 3;
   // Waktu lokal deteksi spike (YYYY-MM-DD HH:MM:SS), dari Redis cache.
   string spike_at = 4;

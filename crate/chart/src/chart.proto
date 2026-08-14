@@ -9,8 +9,9 @@ service Chart {
   // - Senin–Kamis 09:00–12:00 & 13:30–16:00;
   // - Jumat 09:00–11:30 & 14:00–16:00 — hit API live.
   // Setelah 16:00 (Senin–Jumat): baca cache EOD (Moka→Redis); bila miss hit API 1x lalu simpan.
-  // Setelah 09:15: bila volume API = 0, code itu dianggap market libur hari ini — di-cache, request berikutnya tidak hit API lagi; success=false message "hari libur".
-  // Response: field intraday hari ini dari API/cache + success/message.
+  // Setelah 09:15: bila volume API = 0, code di-cache sebagai libur (untuk EOD setelah 16:00).
+  // Jam live tetap GET Invezgo (tidak di-skip cache libur) agar OHLC ter-log.
+  // Debug log: GetCurrentDayChartFromInvezgo {user} {ms}ms - {code} O= H= L= C=
   rpc GetCurrentDayChartFromInvezgo(GetCurrentDayChartFromInvezgoRequest)
       returns (GetCurrentDayChartFromInvezgoResponse);
 

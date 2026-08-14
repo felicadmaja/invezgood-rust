@@ -72,6 +72,13 @@ fn can_detect_intraday_holiday() -> bool {
     minutes_now() >= 9 * 60 + 15
 }
 
+fn format_ohlc(d: &GetCurrentDayChartFromInvezgoResponse) -> String {
+    format!(
+        " O={:.2} H={:.2} L={:.2} C={:.2}",
+        d.open, d.high, d.low, d.close
+    )
+}
+
 fn holiday_response(code: &str) -> GetCurrentDayChartFromInvezgoResponse {
     GetCurrentDayChartFromInvezgoResponse {
         code: code.to_string(),
@@ -141,10 +148,10 @@ impl Chart for ChartService {
             code_log = code.clone();
 
             match self.cache.is_intraday_holiday(&code).await {
-                Ok(true) => {
+                Ok(true) if matches!(mode, CurrentDayMode::EodCache) => {
                     return Ok(Response::new(holiday_response(&code)));
                 }
-                Ok(false) => {}
+                Ok(_) => {}
                 Err(error) => {
                     return Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
                         code: code.clone(),
@@ -227,11 +234,17 @@ impl Chart for ChartService {
         }
 
         let elapsed = started.elapsed().as_millis();
+        let ohlc_log = match &result {
+            Ok(resp) => format_ohlc(resp.get_ref()),
+            Err(_) => String::new(),
+        };
         if cache_hit {
-            eprintln!("GetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}");
+            eprintln!(
+                "GetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}"
+            );
         } else {
             eprintln!(
-                "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}\x1b[0m"
+                "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}\x1b[0m"
             );
         }
         result

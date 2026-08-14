@@ -1,8 +1,10 @@
-//! Fetch Yahoo Finance daily chart; deteksi spike close vs open hari ini.
+//! Fetch Yahoo Finance daily chart; deteksi spike.
+//! 09:00:00–09:05:59 lokal: open hari ini vs close sesi sebelumnya.
+//! Di luar jam itu: close vs open hari ini.
 //! Ambang dari `.env`: `UP_SPIKE_PERCENTAGE`, `DOWN_SPIKE_PERCENTAGE` (angka persen, mis. 8 = 8%).
 //! Jeda antar emiten: `JEDA_MS_ANTAR_EMITEN` (ms).
 
-use chrono::{Local, TimeZone};
+use chrono::{Duration as ChronoDuration, Local, TimeZone, Timelike};
 use serde_json::Value;
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -79,10 +81,24 @@ fn inter_emiten_delay() -> Duration {
 
 #[derive(Debug, Clone)]
 struct Candle {
+    ts: i64,
     open: f64,
     high: f64,
     low: f64,
     close: f64,
+}
+
+/// 09:00:00–09:05:59 waktu lokal: bandingkan open hari ini vs close kemarin.
+pub fn in_open_vs_prev_close_window() -> bool {
+    let now = Local::now();
+    now.hour() == 9 && now.minute() <= 5
+}
+
+fn candle_date(c: &Candle) -> Option<chrono::NaiveDate> {
+    Local
+        .timestamp_opt(c.ts, 0)
+        .single()
+        .map(|dt| dt.date_naive())
 }
 
 /// Hasil deteksi lonjakan: waktu + emiten + arah + % close vs open.
@@ -102,12 +118,11 @@ fn spike_at_now() -> String {
     Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-/// `up`/`down` + persen bila change vs open memenuhi ambang `.env`.
-fn spike_from_candle(c: &Candle) -> Option<(&'static str, f64)> {
-    if c.open <= 0.0 {
+fn spike_from_change(base: f64, value: f64) -> Option<(&'static str, f64)> {
+    if base <= 0.0 {
         return None;
     }
-    let change = (c.close - c.open) / c.open;
+    let change = (value - base) / base;
     let pct = change * 100.0;
     let (up_pct, down_pct) = spike_thresholds();
     if change >= up_pct / 100.0 {
@@ -117,6 +132,16 @@ fn spike_from_candle(c: &Candle) -> Option<(&'static str, f64)> {
     } else {
         None
     }
+}
+
+/// `up`/`down` + persen bila close vs open hari ini memenuhi ambang `.env`.
+fn spike_from_candle(c: &Candle) -> Option<(&'static str, f64)> {
+    spike_from_change(c.open, c.close)
+}
+
+/// `up`/`down` + persen bila open hari ini vs close sesi sebelumnya memenuhi ambang `.env`.
+fn spike_from_open_vs_prev_close(today: &Candle, prev: &Candle) -> Option<(&'static str, f64)> {
+    spike_from_change(prev.close, today.open)
 }
 
 fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
@@ -145,6 +170,9 @@ fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
         .and_then(|x| x.as_array())
         .ok_or_else(|| "yahoo: close missing".to_string())?;
 
+    let timestamps = result
+        .get("timestamp")
+        .and_then(|x| x.as_array());
     let n = opens
         .len()
         .min(highs.len())
@@ -160,7 +188,12 @@ fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
         ) else {
             continue;
         };
+        let ts = timestamps
+            .and_then(|t| t.get(i))
+            .and_then(|x| x.as_i64())
+            .unwrap_or(0);
         out.push(Candle {
+            ts,
             open: o,
             high: h,
             low: l,
@@ -171,9 +204,15 @@ fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
 }
 
 fn unix_range_today() -> (i64, i64) {
+    unix_range_lookback_days(0)
+}
+
+/// `days` hari kalender ke belakang dari 00:00 lokal hari ini (0 = hanya hari ini).
+fn unix_range_lookback_days(days: i64) -> (i64, i64) {
     let now = Local::now();
     let period2 = now.timestamp();
-    let start_naive = now.date_naive().and_hms_opt(0, 0, 0).expect("00:00 valid");
+    let start_date = now.date_naive() - ChronoDuration::days(days.max(0));
+    let start_naive = start_date.and_hms_opt(0, 0, 0).expect("00:00 valid");
     let period1 = Local
         .from_local_datetime(&start_naive)
         .single()
@@ -189,6 +228,15 @@ fn is_too_many_requests(status: reqwest::StatusCode) -> bool {
 
 async fn fetch_chart_body(http: &reqwest::Client, emiten: &str) -> Result<String, String> {
     let (period1, period2) = unix_range_today();
+    fetch_chart_body_range(http, emiten, period1, period2).await
+}
+
+async fn fetch_chart_body_range(
+    http: &reqwest::Client,
+    emiten: &str,
+    period1: i64,
+    period2: i64,
+) -> Result<String, String> {
     let url = format!(
         "{YAHOO_CHART_URL}/{emiten}.JK?period1={period1}&period2={period2}&interval=1d"
     );
@@ -265,11 +313,28 @@ pub async fn fetch_today_volume(emiten: &str) -> Result<i64, String> {
 async fn fetch_candles(
     http: &reqwest::Client,
     emiten: &str,
+    lookback_days: i64,
 ) -> Result<Vec<Candle>, String> {
-    parse_candles(&fetch_chart_body(http, emiten).await?)
+    let (period1, period2) = unix_range_lookback_days(lookback_days);
+    parse_candles(&fetch_chart_body_range(http, emiten, period1, period2).await?)
+}
+
+fn today_and_prev_candles(candles: &[Candle]) -> Option<(&Candle, &Candle)> {
+    let today = Local::now().date_naive();
+    if let Some(today_idx) = candles.iter().rposition(|c| candle_date(c) == Some(today)) {
+        if today_idx == 0 {
+            return None;
+        }
+        return Some((&candles[today_idx], &candles[today_idx - 1]));
+    }
+    if candles.len() < 2 {
+        return None;
+    }
+    Some((candles.last()?, &candles[candles.len() - 2]))
 }
 
 /// Untuk setiap emiten: GET Yahoo chart (jeda `JEDA_MS_ANTAR_EMITEN`), kembalikan yang memenuhi ambang `.env`.
+/// 09:00–09:05: open hari ini vs close sesi sebelumnya; selain itu close vs open hari ini.
 pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
         return Vec::new();
@@ -286,6 +351,14 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
         }
     };
 
+    let gap = in_open_vs_prev_close_window();
+    let lookback_days = if gap { 7 } else { 0 };
+    if gap {
+        println!(
+            "Yahoo spike: mode 09:00-09:05 — open hari ini vs close sesi sebelumnya"
+        );
+    }
+
     let mut spikes = Vec::new();
     for (i, raw) in emitens.iter().enumerate() {
         if i > 0 {
@@ -295,23 +368,39 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
         if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
             continue;
         }
-        match fetch_candles(&http, &code).await {
+        match fetch_candles(&http, &code, lookback_days).await {
             Ok(candles) => {
-                let Some(last) = candles.last() else {
+                let detected = if gap {
+                    let Some((today, prev)) = today_and_prev_candles(&candles) else {
+                        continue;
+                    };
+                    spike_from_open_vs_prev_close(today, prev).map(|hit| (hit, today, Some(prev)))
+                } else {
+                    let Some(last) = candles.last() else {
+                        continue;
+                    };
+                    spike_from_candle(last).map(|hit| (hit, last, None))
+                };
+                let Some(((jenis, pct), last, prev)) = detected else {
                     continue;
                 };
-                if let Some((jenis, pct)) = spike_from_candle(last) {
+                if let Some(prev) = prev {
+                    println!(
+                        "\x1b[32myahoo spike {code} {jenis}: {pct:+.2}% (open hari ini={:.2} vs close kemarin={:.2})\x1b[0m",
+                        last.open, prev.close
+                    );
+                } else {
                     println!(
                         "\x1b[32myahoo spike {code} {jenis}: {pct:+.2}% (o={:.2} h={:.2} l={:.2} c={:.2})\x1b[0m",
                         last.open, last.high, last.low, last.close
                     );
-                    spikes.push(SpikeEmiten {
-                        spike_at: spike_at_now(),
-                        emiten_name: code,
-                        jenis_spike: jenis.to_string(),
-                        value_spike_percentage: pct,
-                    });
                 }
+                spikes.push(SpikeEmiten {
+                    spike_at: spike_at_now(),
+                    emiten_name: code,
+                    jenis_spike: jenis.to_string(),
+                    value_spike_percentage: pct,
+                });
             }
             Err(e) => eprintln!("yahoo spike {code}: {e}"),
         }
