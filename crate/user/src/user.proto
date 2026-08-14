@@ -30,7 +30,8 @@ service User {
   //   Bila market buka (volume > 0):
   //     Serial (satu Chrome): GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit
   // Subscribe stream: server push saat status berubah + heartbeat ~30s.
-  // Wajib authorization: Bearer <token>. success=true bila sesi Stockbit sudah login/ready.
+  // Wajib Bearer login valid. Tanpa auth / session invalid: stream langsung ditutup (tidak subscribe).
+  // success=true bila sesi Stockbit sudah login/ready.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
   // Stream spike Yahoo. Poller hanya jalan bila ada ≥1 client subscribe (0 subscriber → idle, tidak hit Yahoo).
@@ -55,7 +56,8 @@ service User {
   // ganti hari → key baru (cache lama invalid). SET `...spike_reported:{YYYY-MM-DD}`
   // untuk skip GET Yahoo emiten yang sudah di-cache hari itu.
   // Stream ke client selalu isi cache Redis (bukan hanya hasil tick Yahoo terbaru).
-  // Wajib Bearer login. Request kosong. Push: success, message, data.
+  // Wajib Bearer login valid. Tanpa auth / session invalid: stream langsung ditutup (tidak
+  // subscribe poller Yahoo, tidak hit API). Request kosong. Push: success, message, data.
   // Subscribe: push saat data berubah + heartbeat ~30s. Banyak subscriber tidak menambah frekuensi poll.
   rpc GetPriceSpikeFromYahooFinance(GetPriceSpikeFromYahooFinanceRequest) returns (stream PriceSpikeResponse);
 

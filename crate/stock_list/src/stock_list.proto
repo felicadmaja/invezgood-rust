@@ -37,9 +37,9 @@ service StockList {
   // Request: code wajib. Response: FinancialStatementResponse (keystats, balance_statement, income_statement, cash_flow).
   rpc GetFinancialStatementByCode(GetFinancialStatementByCodeRequest) returns (FinancialStatementResponse);
 
-  // Baca Scylla token-ring scan kolom keystats — tanpa GET Invezgo.
-  // Request kosong. Response: repeated KeystatsResponse per code.
-  rpc GetAllKeyStats(GetAllKeyStatsRequest) returns (GetAllKeyStatsResponse);
+  // Stream: push GetAllKeyStatsResponse per code (Scylla only, tanpa GET Invezgo).
+  // Urutan code ASC. Request kosong.
+  rpc GetAllKeyStats(GetAllKeyStatsRequest) returns (stream GetAllKeyStatsResponse);
 
   // GET Invezgo → upsert share_holder_5/1/composition + company_information + *_updated_at.
   // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
@@ -558,7 +558,15 @@ message GetFinancialStatementByCodeRequest {
 message GetAllKeyStatsRequest {}
 
 message GetAllKeyStatsResponse {
-  repeated KeystatsResponse items = 1;
+  KeystatsResponse item = 1;
+  GetAllKeyStatsStreamPart part = 2;
+}
+
+enum GetAllKeyStatsStreamPart {
+  GET_ALL_KEY_STATS_STREAM_PART_UNSPECIFIED = 0;
+  GET_ALL_KEY_STATS_STREAM_PART_META = 1;
+  GET_ALL_KEY_STATS_STREAM_PART_ITEM = 2;
+  GET_ALL_KEY_STATS_STREAM_PART_DONE = 3;
 }
 
 message GetShareHolderAndCompanyInformationByCodeRequest {

@@ -34,8 +34,7 @@ use crate::pb::stock_list_server::StockList;
 use crate::pb::{
     CompanyInformationData, CompanyPersonEntry, CompanySubsidiaryEntry,
     CorporateActionByCodeResponse, CorporateActionData, CorporateActionEntry,
-    FinancialStatementResponse, FinancialStatementRowItem, GetAllKeyStatsRequest,
-    GetAllKeyStatsResponse, GetAllStocksRequest, GetAllStocksResponse,
+    FinancialStatementResponse, FinancialStatementRowItem,     GetAllKeyStatsRequest, GetAllKeyStatsResponse, GetAllKeyStatsStreamPart, GetAllStocksRequest, GetAllStocksResponse,
     GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest,
     GetHorizontalLineByCodeRequest, GetHorizontalLineByCodeResponse,
     GetKeyStatsFromStockbitRequest, GetStockbitProfileByCodeRequest,
@@ -82,6 +81,9 @@ type GetStockbitReportsByCodeStream =
 
 type GetStockByRepeatedCodeStream =
     Pin<Box<dyn Stream<Item = Result<GetStockByRepeatedCodeResponse, Status>> + Send>>;
+
+type GetAllKeyStatsStream =
+    Pin<Box<dyn Stream<Item = Result<GetAllKeyStatsResponse, Status>> + Send>>;
 
 static LAST_KEYSTATS_FROM_STOCKBIT: OnceLock<Mutex<Option<std::time::Instant>>> = OnceLock::new();
 
@@ -1616,6 +1618,7 @@ impl StockList for StockListService {
     type GetKeyStatsFromStockbitStream = GetKeyStatsFromStockbitStream;
     type GetStockbitReportsByCodeStream = GetStockbitReportsByCodeStream;
     type GetStockByRepeatedCodeStream = GetStockByRepeatedCodeStream;
+    type GetAllKeyStatsStream = GetAllKeyStatsStream;
 
     async fn get_all_stocks(
         &self,
@@ -2084,28 +2087,64 @@ impl StockList for StockListService {
     async fn get_all_key_stats(
         &self,
         request: Request<GetAllKeyStatsRequest>,
-    ) -> Result<Response<GetAllKeyStatsResponse>, Status> {
+    ) -> Result<Response<Self::GetAllKeyStatsStream>, Status> {
         let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
+        let _ = request.into_inner();
 
-        let result: Result<Response<GetAllKeyStatsResponse>, Status> = async {
-            let _inner = request.into_inner();
-            let rows = crate::repository::list_all_keystats(self.session.as_ref())
+        let session = Arc::clone(&self.session);
+        let user_name_spawn = user_name.clone();
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
+
+        tokio::spawn(async move {
+            if tx
+                .send(Ok(GetAllKeyStatsResponse {
+                    part: GetAllKeyStatsStreamPart::Meta.into(),
+                    ..Default::default()
+                }))
                 .await
-                .map_err(Status::internal)?;
+                .is_err()
+            {
+                Self::log_rpc_debug("GetAllKeyStats", &user_name_spawn, started);
+                return;
+            }
 
-            let items = rows
-                .into_iter()
-                .map(Self::keystats_response_from_row)
-                .collect();
+            match crate::repository::list_all_keystats(session.as_ref()).await {
+                Ok(rows) => {
+                    for row in rows {
+                        if tx
+                            .send(Ok(GetAllKeyStatsResponse {
+                                item: Some(Self::keystats_response_from_row(row)),
+                                part: GetAllKeyStatsStreamPart::Item.into(),
+                            }))
+                            .await
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(Err(Status::internal(e))).await;
+                    Self::log_rpc_debug("GetAllKeyStats", &user_name_spawn, started);
+                    return;
+                }
+            }
 
-            Ok(Response::new(GetAllKeyStatsResponse { items }))
-        }
-        .await;
+            let _ = tx
+                .send(Ok(GetAllKeyStatsResponse {
+                    part: GetAllKeyStatsStreamPart::Done.into(),
+                    ..Default::default()
+                }))
+                .await;
 
-        Self::log_rpc_debug("GetAllKeyStats", &user_name, started);
-        result
+            Self::log_rpc_debug("GetAllKeyStats", &user_name_spawn, started);
+        });
+
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(rx)) as GetAllKeyStatsStream,
+        ))
     }
 
     async fn get_share_holder_and_company_information_by_code(

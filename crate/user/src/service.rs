@@ -145,7 +145,32 @@ impl User for UserService {
         &self,
         request: Request<IsStockbitReadyRequest>,
     ) -> Result<Response<Self::IsStockbitReadyStream>, Status> {
-        let user_name = self.require_auth(&request).await?;
+        let started = std::time::Instant::now();
+        let rpc_name = "IsStockbitReady";
+
+        let user_name = match extract_bearer_token(&request) {
+            Ok(token) => match validate_session(&self.auth_sessions, &token).await {
+                Ok(auth) => auth.nama,
+                Err(_) => {
+                    eprintln!(
+                        "{rpc_name} anonymous {}ms — abaikan (session invalid, stream ditutup)",
+                        started.elapsed().as_millis()
+                    );
+                    let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(1);
+                    drop(tx);
+                    return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
+                }
+            },
+            Err(_) => {
+                eprintln!(
+                    "{rpc_name} anonymous {}ms — abaikan (tanpa auth, stream ditutup)",
+                    started.elapsed().as_millis()
+                );
+                let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(1);
+                drop(tx);
+                return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
+            }
+        };
         let _ = request.into_inner();
 
         let readiness = Arc::clone(&self.readiness);
@@ -219,14 +244,28 @@ impl User for UserService {
     ) -> Result<Response<Self::GetPriceSpikeFromYahooFinanceStream>, Status> {
         let started = std::time::Instant::now();
         let rpc_name = "GetPriceSpikeFromYahooFinance";
-        let user_name = match self.require_auth(&request).await {
-            Ok(nama) => nama,
-            Err(status) => {
+
+        let user_name = match extract_bearer_token(&request) {
+            Ok(token) => match validate_session(&self.auth_sessions, &token).await {
+                Ok(auth) => auth.nama,
+                Err(_) => {
+                    eprintln!(
+                        "{rpc_name} anonymous {}ms — abaikan (session invalid, tidak subscribe Yahoo poller)",
+                        started.elapsed().as_millis()
+                    );
+                    let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(1);
+                    drop(tx);
+                    return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
+                }
+            },
+            Err(_) => {
                 eprintln!(
-                    "{rpc_name} anonymous {}ms",
+                    "{rpc_name} anonymous {}ms — abaikan (tanpa auth, tidak subscribe Yahoo poller)",
                     started.elapsed().as_millis()
                 );
-                return Err(status);
+                let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(1);
+                drop(tx);
+                return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
             }
         };
         let _ = request.into_inner();

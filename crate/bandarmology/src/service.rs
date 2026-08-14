@@ -6,7 +6,7 @@ use futures::Stream;
 use scylla::client::session::Session;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
-use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
+use user::{extract_bearer_token, validate_session, SessionStore};
 
 use crate::model::{BandarmologyEntryDb, BandarmologyRow as DbBandarmologyRow};
 use crate::pb::bandarmology_server::Bandarmology;
@@ -29,13 +29,6 @@ impl BandarmologyService {
             session,
             auth_sessions,
         }
-    }
-
-    async fn require_auth<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
-        let token = extract_bearer_token(request)?;
-        validate_session(&self.auth_sessions, &token)
-            .await
-            .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
 
     fn parse_trade_date(value: &str) -> Result<NaiveDate, Status> {
@@ -115,7 +108,36 @@ impl Bandarmology for BandarmologyService {
         &self,
         request: Request<GetBandarmologyByCodeRequest>,
     ) -> Result<Response<ResponseStream>, Status> {
-        let auth = self.require_auth(&request).await?;
+        let started = std::time::Instant::now();
+        let rpc_name = "GetBandarmologyByCode";
+
+        let auth = match extract_bearer_token(&request) {
+            Ok(token) => match validate_session(&self.auth_sessions, &token).await {
+                Ok(auth) => auth,
+                Err(_) => {
+                    eprintln!(
+                        "{rpc_name} anonymous {}ms — abaikan (session invalid)",
+                        started.elapsed().as_millis()
+                    );
+                    let (tx, rx) = tokio::sync::mpsc::channel(1);
+                    drop(tx);
+                    return Ok(Response::new(
+                        Box::pin(ReceiverStream::new(rx)) as ResponseStream,
+                    ));
+                }
+            },
+            Err(_) => {
+                eprintln!(
+                    "{rpc_name} anonymous {}ms — abaikan (tanpa auth)",
+                    started.elapsed().as_millis()
+                );
+                let (tx, rx) = tokio::sync::mpsc::channel(1);
+                drop(tx);
+                return Ok(Response::new(
+                    Box::pin(ReceiverStream::new(rx)) as ResponseStream,
+                ));
+            }
+        };
         let user_name = auth.nama;
 
         let inner = request.into_inner();

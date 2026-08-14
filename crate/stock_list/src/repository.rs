@@ -554,5 +554,7 @@ pub async fn list_all_keystats(session: &Session) -> Result<Vec<StockListKeystat
         items.push(row);
     }
 
+    items.sort_by(|a, b| a.code.cmp(&b.code));
+
     Ok(items)
 }

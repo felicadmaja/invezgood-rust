@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use chrono::{Datelike, Local, Timelike};
 use tonic::{Request, Response, Status};
-use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
+use user::{extract_bearer_token, validate_session, SessionStore};
 
 use crate::cache::ChartCache;
 use crate::pb::chart_server::Chart;
@@ -91,11 +91,31 @@ impl ChartService {
         }
     }
 
-    async fn require_auth<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
-        let token = extract_bearer_token(request)?;
-        validate_session(&self.auth_sessions, &token)
-            .await
-            .map_err(|_| Status::unauthenticated("login diperlukan"))
+    async fn resolve_user_name<T>(
+        &self,
+        rpc_name: &str,
+        started: std::time::Instant,
+        request: &Request<T>,
+    ) -> Option<String> {
+        match extract_bearer_token(request) {
+            Ok(token) => match validate_session(&self.auth_sessions, &token).await {
+                Ok(auth) => Some(auth.nama),
+                Err(_) => {
+                    eprintln!(
+                        "{rpc_name} anonymous {}ms — abaikan (session invalid)",
+                        started.elapsed().as_millis()
+                    );
+                    None
+                }
+            },
+            Err(_) => {
+                eprintln!(
+                    "{rpc_name} anonymous {}ms — abaikan (tanpa auth)",
+                    started.elapsed().as_millis()
+                );
+                None
+            }
+        }
     }
 
     fn normalize_code(raw: &str) -> Result<String, Status> {
@@ -126,8 +146,16 @@ impl Chart for ChartService {
         request: Request<GetCurrentDayChartFromInvezgoRequest>,
     ) -> Result<Response<GetCurrentDayChartFromInvezgoResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
-        let user_name = auth.nama;
+        let Some(user_name) = self
+            .resolve_user_name(
+                "GetCurrentDayChartFromInvezgo",
+                started,
+                &request,
+            )
+            .await
+        else {
+            return Ok(Response::new(GetCurrentDayChartFromInvezgoResponse::default()));
+        };
 
         let mut code_log = String::new();
         let mut cache_hit = false;
@@ -216,8 +244,12 @@ impl Chart for ChartService {
         request: Request<GetHistoryChartFromInvezgoRequest>,
     ) -> Result<Response<GetHistoryChartFromInvezgoResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
-        let user_name = auth.nama;
+        let Some(user_name) = self
+            .resolve_user_name("GetHistoryChartFromInvezgo", started, &request)
+            .await
+        else {
+            return Ok(Response::new(GetHistoryChartFromInvezgoResponse::default()));
+        };
 
         let mut cache_detail = String::new();
 

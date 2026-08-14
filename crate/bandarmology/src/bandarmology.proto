@@ -4,7 +4,7 @@ package bandarmology;
 
 service Bandarmology {
   // Memerlukan user login. Kirim metadata: authorization: Bearer <token> (token dari user.Login).
-  // Tanpa token valid → unauthenticated.
+  // Tanpa auth / session invalid: stream langsung ditutup (tidak GET Invezgo).
   // Tanggal hari ini (waktu lokal) di-skip: tidak GET Invezgo, tidak di-stream.
   // Tanggal lain: cek Scylla — baris sudah ada (termasuk bandarmology kosong dari GET Invezgo []) → cache.
   // Bila belum ada baris: GET api.invezgo.com/analysis/summary/stock/{code}?from={date}&to={date}&investor=all&market=RG
