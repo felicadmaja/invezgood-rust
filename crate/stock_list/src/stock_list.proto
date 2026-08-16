@@ -52,7 +52,10 @@ service StockList {
   rpc GetCorporateActionByCode(GetCorporateActionByCodeRequest) returns (CorporateActionByCodeResponse);
 
 
-  
+  // Update kolom sub_sector di Scylla by PK code. Request: code + sub_sector.
+  // Side effect: tulis invezgood.stock_list. Response: success + message; not_found bila code tidak ada.
+  rpc UpdateSubSector(UpdateSubSectorRequest) returns (UpdateSubSectorResponse);
+
   // Update kolom is_konglomerasi di Scylla by PK code.
   rpc UpdateIsKonglomerasi(UpdateIsKonglomerasiRequest) returns (UpdateIsKonglomerasiResponse);
 
@@ -612,6 +615,16 @@ message UpdateHorizontalLineByCodeRequest {
 }
 
 message UpdateHorizontalLineByCodeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateSubSectorRequest {
+  string code = 1;
+  string sub_sector = 2;
+}
+
+message UpdateSubSectorResponse {
   bool success = 1;
   string message = 2;
 }

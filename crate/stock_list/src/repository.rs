@@ -99,6 +99,9 @@ const UPDATE_WYCKOFF_CHART: &str =
 const UPDATE_HORIZONTAL_LINE: &str =
     "UPDATE invezgood.stock_list SET horizontal_line = ? WHERE code = ?";
 
+const UPDATE_SUB_SECTOR: &str =
+    "UPDATE invezgood.stock_list SET sub_sector = ? WHERE code = ?";
+
 const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?";
 
 const LIST_ALL: &str = "SELECT code, name, sector, sub_sector, logo, keystats_updated_at, \
@@ -480,6 +483,22 @@ pub async fn update_catatan_pribadi(
         .query_unpaged(UPDATE_CATATAN_PRIBADI, (catatan_pribadi, code))
         .await
         .map_err(|e| format!("update catatan_pribadi {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_sub_sector(
+    session: &Session,
+    code: &str,
+    sub_sector: &str,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_SUB_SECTOR, (sub_sector, code))
+        .await
+        .map_err(|e| format!("update sub_sector {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 

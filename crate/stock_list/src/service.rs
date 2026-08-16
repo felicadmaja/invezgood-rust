@@ -63,7 +63,8 @@ use crate::pb::{
     UpdateHorizontalLineByCodeRequest, UpdateHorizontalLineByCodeResponse,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
     UpdateIsPlanToTradeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
-    UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, UpdateWyckoffChartByCodeRequest,
+    UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, UpdateSubSectorRequest,
+    UpdateSubSectorResponse, UpdateWyckoffChartByCodeRequest,
     UpdateWyckoffChartByCodeResponse, WyckoffChartData,
 };
 
@@ -2291,6 +2292,46 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("GetWyckoffChartByCode", &user_name, started);
+        result
+    }
+
+    async fn update_sub_sector(
+        &self,
+        request: Request<UpdateSubSectorRequest>,
+    ) -> Result<Response<UpdateSubSectorResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+        let inner = request.into_inner();
+        let code = inner.code.trim().to_ascii_uppercase();
+        let sub_sector = inner.sub_sector.trim().to_string();
+
+        let result: Result<Response<UpdateSubSectorResponse>, Status> = async {
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            crate::repository::update_sub_sector(self.session.as_ref(), &code, &sub_sector)
+                .await
+                .map_err(|e| {
+                    if e.contains("tidak ditemukan") {
+                        Status::not_found(e)
+                    } else {
+                        Status::internal(e)
+                    }
+                })?;
+
+            Ok(Response::new(UpdateSubSectorResponse {
+                success: true,
+                message: format!("sub_sector code={code} berhasil diupdate"),
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "UpdateSubSector {user_name} {code} {}ms",
+            started.elapsed().as_millis()
+        );
         result
     }
 
