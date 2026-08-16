@@ -1,14 +1,17 @@
 //! Deteksi market libur untuk semua RPC.
 //!
-//! Setelah jam **10:00** waktu lokal: GET Yahoo Finance v8 chart **BBCA**.JK (1d, hari ini).
+//! Sabtu/Minggu selalu hari libur (tanpa cek Yahoo).
+//! Tanggal di `ARRAY_HOLIDAY` (.env, JSON `["YYYY-MM-DD", ...]`) = libur nasional (tanpa cek Yahoo).
+//! Senin–Jumat setelah jam **10:00** waktu lokal: GET Yahoo Finance v8 chart **BBCA**.JK (1d, hari ini).
 //! Volume titik terakhir = 0 → hari libur.
 //! Cache Redis `invezgood:market_holiday:{YYYY-MM-DD}` (`1`=libur, `0`=buka; TTL s/d 23:59:59).
-//! Sebelum 10:00 selalu `false`. Error fetch → `false` (jangan blokir RPC).
+//! Senin–Jumat sebelum 10:00 (bukan tanggal ARRAY_HOLIDAY) selalu `false`. Error fetch → `false`.
 
+use std::collections::HashSet;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use chrono::{Local, TimeZone, Timelike};
+use chrono::{Datelike, Local, NaiveDate, TimeZone, Timelike, Weekday};
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use serde_json::Value;
@@ -109,6 +112,55 @@ async fn redis_set(today: &str, holiday: bool) {
     {
         eprintln!("Redis market_holiday set {key} gagal");
     }
+}
+
+/// True bila `date` Sabtu atau Minggu.
+pub fn is_weekend_date(date: NaiveDate) -> bool {
+    matches!(date.weekday(), Weekday::Sat | Weekday::Sun)
+}
+
+/// True bila hari ini Sabtu atau Minggu (waktu server lokal).
+pub fn is_weekend() -> bool {
+    is_weekend_date(Local::now().date_naive())
+}
+
+fn parse_array_holiday(raw: &str) -> HashSet<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return HashSet::new();
+    }
+
+    let items: Vec<String> = serde_json::from_str(trimmed).unwrap_or_else(|_| {
+        trimmed
+            .trim_matches(|c| c == '[' || c == ']')
+            .split(',')
+            .map(|s| s.trim().trim_matches('"').to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    });
+
+    items
+        .into_iter()
+        .map(|s| s.trim().to_string())
+        .filter(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok())
+        .collect()
+}
+
+fn national_holiday_dates() -> &'static HashSet<String> {
+    static DATES: OnceLock<HashSet<String>> = OnceLock::new();
+    DATES.get_or_init(|| {
+        parse_array_holiday(&std::env::var("ARRAY_HOLIDAY").unwrap_or_default())
+    })
+}
+
+/// True bila `date` (YYYY-MM-DD) ada di `ARRAY_HOLIDAY`.
+pub fn is_national_holiday_date(date: NaiveDate) -> bool {
+    national_holiday_dates().contains(&date.format("%Y-%m-%d").to_string())
+}
+
+/// True bila hari ini ada di `ARRAY_HOLIDAY` (.env, libur nasional Indonesia).
+pub fn is_national_holiday() -> bool {
+    is_national_holiday_date(Local::now().date_naive())
 }
 
 /// True bila sudah >= 10:00 waktu server lokal.
@@ -215,8 +267,14 @@ async fn fetch_bbca_volume() -> Result<i64, String> {
     }
 }
 
-/// `true` bila market libur hari ini (BBCA volume=0, cek mulai 10:00).
-pub async fn is_market_holiday() -> bool {
+/// `true` bila `date` hari libur: Sabtu/Minggu, ARRAY_HOLIDAY, atau (bila hari ini) BBCA volume=0 mulai 10:00.
+pub async fn is_market_holiday_on(date: NaiveDate) -> bool {
+    if is_weekend_date(date) || is_national_holiday_date(date) {
+        return true;
+    }
+    if date != Local::now().date_naive() {
+        return false;
+    }
     if !can_check_market_holiday() {
         return false;
     }
@@ -246,4 +304,9 @@ pub async fn is_market_holiday() -> bool {
             false
         }
     }
+}
+
+/// `true` bila market libur hari ini (Sabtu/Minggu, ARRAY_HOLIDAY, atau BBCA volume=0 mulai 10:00).
+pub async fn is_market_holiday() -> bool {
+    is_market_holiday_on(Local::now().date_naive()).await
 }

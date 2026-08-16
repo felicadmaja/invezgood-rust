@@ -1,4 +1,4 @@
-//! Re-export deteksi market libur (BBCA volume=0 setelah 10:00).
+//! Re-export deteksi market libur (Sabtu/Minggu, ARRAY_HOLIDAY, atau BBCA volume=0 setelah 10:00).
 
 pub use market_holiday::{can_check_market_holiday, is_market_holiday};
 

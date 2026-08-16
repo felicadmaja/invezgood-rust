@@ -6,28 +6,28 @@ service HakaHaki {
   // Memerlukan user login. Kirim metadata: authorization: Bearer <token>.
   // GET api.invezgo.com/analysis/momentum-chart/{code}?date={tahun_bulan_tanggal}&range={range}&scope=volume
   // → upsert invezgood.haka_haki per titik waktu, lalu return items ke client.
-  // tahun_bulan_tanggal Sabtu/Minggu → FAILED_PRECONDITION "Hari sabtu/minggu market libur".
+  // tahun_bulan_tanggal libur via market_holiday::is_market_holiday_on (Sabtu/Minggu, ARRAY_HOLIDAY,
+  // atau hari ini Yahoo BBCA volume=0 setelah 10:00) → success=false message "hari libur", tidak GET Invezgo.
   // Bila tahun_bulan_tanggal bukan hari ini: cache Redis key `{code}:{YYYY-MM-DD}:{range}` (hanya bila items tidak kosong).
   // Jam operasional (waktu server lokal): 
   // - Senin–Kamis 09:00–12:00 & 13:30–16:00;
   // - Jumat 09:00–11:30 & 14:00–16:00 — hit API live.
   // Setelah 16:00 (Senin–Jumat): baca cache EOD (Moka→Redis); bila miss hit API 1x lalu simpan.
-  // Setelah 10:00: cek Yahoo BBCA.JK volume hari ini. Volume=0 → market libur
-  // (cache Redis `invezgood:market_holiday:{YYYY-MM-DD}`). Bila libur dan tanggal=hari ini:
-  // success=false message "hari libur", tidak GET Invezgo.
   rpc GetHakaHakiFromInvezgo(GetHakaHakiFromInvezgoRequest)
       returns (GetHakaHakiFromInvezgoResponse);
 
   // Baca invezgood.haka_haki via MV haka_haki_by_agg_code_tahun_bulan_tanggal.
   // Request: code + tahun_bulan_tanggal (YYYY-MM-DD) wajib.
-  // tahun_bulan_tanggal Sabtu/Minggu → FAILED_PRECONDITION "Hari sabtu/minggu market libur".
+  // tahun_bulan_tanggal libur via market_holiday::is_market_holiday_on (Sabtu/Minggu, ARRAY_HOLIDAY,
+  // atau hari ini Yahoo BBCA volume=0) → success=false message "hari libur".
   rpc GetHakaHakiFromScylla(GetHakaHakiFromScyllaRequest)
       returns (GetHakaHakiFromScyllaResponse);
 }
 
 message GetHakaHakiFromInvezgoRequest {
   string code = 1;
-  // Tanggal YYYY-MM-DD. Sabtu/Minggu ditolak (market libur). Bukan hari ini → Redis cache.
+  // Tanggal YYYY-MM-DD. Libur (Sabtu/Minggu, ARRAY_HOLIDAY, Yahoo BBCA bila hari ini) → "hari libur".
+  // Bukan hari ini → Redis cache.
   string tahun_bulan_tanggal = 2;
   // Default 5 bila tidak diisi.
   optional int32 range = 3;
@@ -35,7 +35,7 @@ message GetHakaHakiFromInvezgoRequest {
 
 message GetHakaHakiFromScyllaRequest {
   string code = 1;
-  // Tanggal YYYY-MM-DD → MV agg `{code}_{YYYY-MM-DD}`. Sabtu/Minggu ditolak (market libur).
+  // Tanggal YYYY-MM-DD → MV agg `{code}_{YYYY-MM-DD}`. Libur ditolak via market_holiday.
   string tahun_bulan_tanggal = 2;
 }
 

@@ -87,21 +87,20 @@ impl HakaHakiService {
         }
     }
 
-    fn ensure_weekday_market(trade_date: NaiveDate) -> Result<(), Status> {
-        match trade_date.weekday() {
-            chrono::Weekday::Sat | chrono::Weekday::Sun => {
-                Err(Status::failed_precondition("Hari sabtu/minggu market libur"))
-            }
-            _ => Ok(()),
-        }
-    }
-
     fn holiday_response(code: &str, date_str: &str) -> GetHakaHakiFromInvezgoResponse {
         GetHakaHakiFromInvezgoResponse {
             success: false,
             message: "hari libur".to_string(),
             code: code.to_string(),
             tahun_bulan_tanggal: date_str.to_string(),
+            items: vec![],
+        }
+    }
+
+    fn holiday_response_scylla() -> GetHakaHakiFromScyllaResponse {
+        GetHakaHakiFromScyllaResponse {
+            success: false,
+            message: "hari libur".to_string(),
             items: vec![],
         }
     }
@@ -201,11 +200,18 @@ impl HakaHakiRpc for HakaHakiService {
             let req = request.into_inner();
             let code = Self::normalize_code(&req.code)?;
             let trade_date = Self::parse_trade_date(&req.tahun_bulan_tanggal)?;
-            Self::ensure_weekday_market(trade_date)?;
             let range = Self::resolve_range(req.range)?;
             let date_str = trade_date.format("%Y-%m-%d").to_string();
             let today = Local::now().date_naive();
             let is_today = trade_date == today;
+
+            if market_holiday::is_market_holiday_on(trade_date).await {
+                return Ok((
+                    Ok(Response::new(Self::holiday_response(&code, &date_str))),
+                    LogSource::Api,
+                    format!("{code} {date_str} range={range} holiday"),
+                ));
+            }
 
             if !is_today {
                 if let Some(mut cached) =
@@ -236,14 +242,6 @@ impl HakaHakiRpc for HakaHakiService {
                     Ok(Response::new(resp)),
                     LogSource::Api,
                     detail,
-                ));
-            }
-
-            if is_today && market_holiday::is_market_holiday().await {
-                return Ok((
-                    Ok(Response::new(Self::holiday_response(&code, &date_str))),
-                    LogSource::Api,
-                    format!("{code} {date_str} range={range} holiday BBCA"),
                 ));
             }
 
@@ -346,7 +344,9 @@ impl HakaHakiRpc for HakaHakiService {
                     }));
                 }
             };
-            Self::ensure_weekday_market(trade_date)?;
+            if market_holiday::is_market_holiday_on(trade_date).await {
+                return Ok(Response::new(Self::holiday_response_scylla()));
+            }
 
             let agg = agg_code_tahun_bulan_tanggal(&code, trade_date);
             let rows = crate::repository::find_by_agg_code_tahun_bulan_tanggal(
