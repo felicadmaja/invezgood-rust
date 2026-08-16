@@ -908,6 +908,8 @@ pub struct StockListRow {
     #[scylla(default_when_null)]
     pub sector: Option<String>,
     #[scylla(default_when_null)]
+    pub sub_sector: Option<String>,
+    #[scylla(default_when_null)]
     pub logo: Option<String>,
     #[scylla(default_when_null)]
     pub keystats: Option<StockListKeystatsDb>,
@@ -993,6 +995,8 @@ pub struct StockListSummaryRow {
     pub name: Option<String>,
     #[scylla(default_when_null)]
     pub sector: Option<String>,
+    #[scylla(default_when_null)]
+    pub sub_sector: Option<String>,
     #[scylla(default_when_null)]
     pub logo: Option<String>,
     #[scylla(default_when_null)]

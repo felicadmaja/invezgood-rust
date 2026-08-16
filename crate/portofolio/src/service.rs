@@ -155,9 +155,11 @@ impl Portofolio for PortofolioService {
         let started = std::time::Instant::now();
         let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
+        let raw_emiten = request.into_inner().emiten_name;
+        let emiten_log = raw_emiten.trim().to_ascii_uppercase();
 
         let result: Result<Response<GetPortofolioFromScyllaByEmitenNameResponse>, Status> = async {
-            let emiten_name = Self::normalize_emiten_name(&request.into_inner().emiten_name)?;
+            let emiten_name = Self::normalize_emiten_name(&raw_emiten)?;
             let row = crate::repository::find_by_emiten_name(self.session.as_ref(), &emiten_name)
                 .await
                 .map_err(Status::internal)?;
@@ -168,7 +170,10 @@ impl Portofolio for PortofolioService {
         }
         .await;
 
-        Self::log_rpc_debug("GetPortofolioFromScyllaByEmitenName", &user_name, started);
+        eprintln!(
+            "GetPortofolioFromScyllaByEmitenName {user_name} {emiten_log} {}ms",
+            started.elapsed().as_millis()
+        );
         result
     }
 

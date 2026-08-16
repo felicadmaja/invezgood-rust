@@ -202,6 +202,7 @@ impl StockListService {
             code: row.code.clone(),
             name: row.name.clone().unwrap_or_default(),
             sector: row.sector.clone().unwrap_or_default(),
+            sub_sector: row.sub_sector.clone().unwrap_or_default(),
             logo: row.logo.clone().unwrap_or_default(),
             keystats: row.keystats.clone().map(|db| {
                 Self::keystats_data_from_model(Keystats::from(db), row.keystats_updated_at)
@@ -334,6 +335,7 @@ impl StockListService {
             code: row.code,
             name: row.name.unwrap_or_default(),
             sector: row.sector.unwrap_or_default(),
+            sub_sector: row.sub_sector.unwrap_or_default(),
             logo: row.logo.unwrap_or_default(),
             keystats_updated_at: row.keystats_updated_at.map(|dt| dt.timestamp()),
             catatan_owner: row.catatan_owner.unwrap_or_default(),
@@ -2032,7 +2034,10 @@ impl StockList for StockListService {
                 }
             }
 
-            Self::log_rpc_debug("GetStockbitReportsByCode", &user_name_spawn, started);
+            eprintln!(
+                "GetStockbitReportsByCode {user_name_spawn} {code} {}ms",
+                started.elapsed().as_millis()
+            );
         });
 
         Ok(Response::new(
@@ -2216,9 +2221,9 @@ impl StockList for StockListService {
         let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
 
         let result: Result<Response<CorporateActionByCodeResponse>, Status> = async {
-            let code = request.into_inner().code.trim().to_ascii_uppercase();
             if code.is_empty() {
                 return Err(Status::invalid_argument("code wajib diisi"));
             }
@@ -2249,7 +2254,10 @@ impl StockList for StockListService {
         }
         .await;
 
-        Self::log_rpc_debug("GetCorporateActionByCode", &user_name, started);
+        eprintln!(
+            "GetCorporateActionByCode {user_name} {code} {}ms",
+            started.elapsed().as_millis()
+        );
         result
     }
 

@@ -528,6 +528,7 @@ message StockByCodeResponse {
   bool is_konglomerasi = 17;
   WyckoffChartData wyckoff_chart = 18;
   repeated int32 horizontal_line = 19;
+  string sub_sector = 20;
 }
 
 message WyckoffChartData {
@@ -830,6 +831,7 @@ message StockListRow {
   string catatan_pribadi = 7;
   bool is_plan_to_trade = 8;
   bool is_konglomerasi = 9;
+  string sub_sector = 10;
 }
 
 message GetAllStocksResponse {

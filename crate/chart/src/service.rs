@@ -69,6 +69,12 @@ fn format_ohlc(d: &GetCurrentDayChartFromInvezgoResponse) -> String {
     )
 }
 
+fn is_outside_operational(status: &Status) -> bool {
+    status.code() == tonic::Code::FailedPrecondition
+        && (status.message().starts_with("Diluar hari operasional")
+            || status.message().starts_with("Diluar jam operasional"))
+}
+
 fn holiday_response(code: &str) -> GetCurrentDayChartFromInvezgoResponse {
     GetCurrentDayChartFromInvezgoResponse {
         code: code.to_string(),
@@ -223,18 +229,21 @@ impl Chart for ChartService {
         }
 
         let elapsed = started.elapsed().as_millis();
-        let ohlc_log = match &result {
-            Ok(resp) => format_ohlc(resp.get_ref()),
-            Err(_) => String::new(),
-        };
-        if cache_hit {
-            eprintln!(
-                "GetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}"
-            );
-        } else {
-            eprintln!(
-                "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}\x1b[0m"
-            );
+        let skip_log = matches!(&result, Err(status) if is_outside_operational(status));
+        if !skip_log {
+            let ohlc_log = match &result {
+                Ok(resp) => format_ohlc(resp.get_ref()),
+                Err(_) => String::new(),
+            };
+            if cache_hit {
+                eprintln!(
+                    "GetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}"
+                );
+            } else {
+                eprintln!(
+                    "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}\x1b[0m"
+                );
+            }
         }
         result
     }

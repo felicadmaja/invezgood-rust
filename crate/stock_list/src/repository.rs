@@ -11,7 +11,7 @@ use crate::model::{
     HorizontalLineByCodeRow, WyckoffChartByCodeRow, WyckoffChartDb, KEYSPACE, TABLE,
 };
 
-const ROW_SELECT: &str = "code, name, sector, logo, keystats, keystats_updated_at, \
+const ROW_SELECT: &str = "code, name, sector, sub_sector, logo, keystats, keystats_updated_at, \
     balance_statement, balance_statement_updated_at, income_statement, income_statement_updated_at, \
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
@@ -101,7 +101,7 @@ const UPDATE_HORIZONTAL_LINE: &str =
 
 const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?";
 
-const LIST_ALL: &str = "SELECT code, name, sector, logo, keystats_updated_at, \
+const LIST_ALL: &str = "SELECT code, name, sector, sub_sector, logo, keystats_updated_at, \
     catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi FROM invezgood.stock_list";
 
 const LIST_ALL_KEYSTATS: &str =

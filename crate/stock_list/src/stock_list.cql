@@ -9,6 +9,7 @@
 -- | code                                | partition_key  | text                                    |
 -- | name                                | regular        | text                                    |
 -- | sector                              | regular        | text                                    |
+-- | sub_sector                          | regular        | text                                    |
 -- | logo                                | regular        | text                                    |
 -- | keystats                            | regular        | frozen<stock_list_keystats>             |
 -- | keystats_updated_at                 | regular        | timestamp                               |
@@ -331,3 +332,5 @@
 -- );
 -- ALTER TABLE invezgood.stock_list ADD stockbit_profile frozen<stockbit_profile>;
 -- ALTER TABLE invezgood.stock_list ADD stockbit_profile_updated_at timestamp;
+
+-- ALTER TABLE invezgood.stock_list ADD sub_sector text; -- MCP 2026-08-17
