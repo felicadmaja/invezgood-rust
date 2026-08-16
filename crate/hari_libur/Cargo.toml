@@ -1,0 +1,17 @@
+[package]
+name = "hari_libur"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+futures = "0.3"
+prost = "0.13"
+scylla = { version = "1.5", features = ["chrono-04"] }
+tokio = { version = "1", features = ["sync", "macros", "rt"] }
+tokio-stream = "0.1"
+tonic = "0.12"
+user = { path = "../user" }
+
+[build-dependencies]
+tonic-build = "0.12"

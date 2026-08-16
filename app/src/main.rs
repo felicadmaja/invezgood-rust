@@ -5,6 +5,7 @@ use broker::{BrokerServer, BrokerService};
 use chart::{ChartServer, ChartService};
 use emiten_trending::{EmitenTrendingServer, EmitenTrendingService};
 use haka_haki::{HakaHakiServer, HakaHakiService};
+use hari_libur::{HariLiburServer, HariLiburService};
 use msci::{MsciServer, MsciService};
 use pending_order::{PendingOrderServer, PendingOrderService};
 use portofolio::{PortofolioServer, PortofolioService};
@@ -68,7 +69,11 @@ impl Invezgood for InvezgoodService {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    dotenvy::dotenv().ok();
+    // Parse error di satu baris .env membuat dotenvy berhenti: variabel setelahnya
+    // (SCYLLA_*, TLS_*, token) tidak ter-load. Jangan sampai gagal senyap.
+    if let Err(e) = dotenvy::dotenv() {
+        eprintln!("\x1b[31m.env gagal di-load: {e} — variabel setelah baris itu TIDAK ter-load\x1b[0m");
+    }
 
     let host = std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.into());
     let port = std::env::var("GRPC_PORT").unwrap_or_else(|_| DEFAULT_PORT.into());
@@ -100,6 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
     );
     let msci = MsciService::new(session.clone(), auth_sessions.clone());
+    let hari_libur = HariLiburService::new(session.clone(), auth_sessions.clone());
     let wyckoff_glossary =
         WyckoffGlossaryService::new(session.clone(), auth_sessions.clone());
 
@@ -141,6 +147,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(chart::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(haka_haki::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(msci::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(hari_libur::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(wyckoff_glossary::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
@@ -175,6 +182,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let chart_svc = maybe_compressed!(ChartServer::new(chart), enable_compression);
     let haka_haki_svc = maybe_compressed!(HakaHakiServer::new(haka_haki), enable_compression);
     let msci_svc = maybe_compressed!(MsciServer::new(msci), enable_compression);
+    let hari_libur_svc =
+        maybe_compressed!(HariLiburServer::new(hari_libur), enable_compression);
     let wyckoff_glossary_svc =
         maybe_compressed!(WyckoffGlossaryServer::new(wyckoff_glossary), enable_compression);
 
@@ -208,6 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(chart_svc)
         .add_service(haka_haki_svc)
         .add_service(msci_svc)
+        .add_service(hari_libur_svc)
         .add_service(wyckoff_glossary_svc)
         .serve(addr)
         .await?;

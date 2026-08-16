@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package hari_libur;
+
+service HariLibur {
+  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
+  // Read-only dari MV invezgood.hari_libur_by_tahun (PK tahun, date) — 1 partisi, urut tanggal ASC.
+  // request.tahun format "YYYY"; kosong → tahun berjalan (waktu lokal server). Tidak GET API eksternal.
+  // Stream 1 GetAllHariLiburResponse per baris libur; tahun tanpa data → stream kosong tanpa error.
+  rpc GetAllHariLibur(GetAllHariLiburRequest) returns (stream GetAllHariLiburResponse);
+}
+
+message GetAllHariLiburRequest {
+  optional string tahun = 1;
+}
+
+message GetAllHariLiburResponse {
+  HariLiburRow item = 1;
+}
+
+message HariLiburRow {
+  string date = 1;
+  string tahun = 2;
+  string name = 3;
+  bool is_civic = 4;
+  bool is_religious = 5;
+  bool is_cuti_bersama = 6;
+  string updated_at = 7;
+}

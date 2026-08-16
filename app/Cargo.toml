@@ -21,6 +21,7 @@ pending_order = { path = "../crate/pending_order" }
 emiten_trending = { path = "../crate/emiten_trending" }
 chart = { path = "../crate/chart" }
 haka_haki = { path = "../crate/haka_haki" }
+hari_libur = { path = "../crate/hari_libur" }
 msci = { path = "../crate/msci" }
 stockbit_browser = { path = "../crate/stockbit_browser" }
 wyckoff_glossary = { path = "../crate/wyckoff_glosary" }

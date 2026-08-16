@@ -872,6 +872,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hari_libur"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures",
+ "prost",
+ "scylla",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+ "user",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1197,6 +1212,7 @@ dependencies = [
  "dotenvy",
  "emiten_trending",
  "haka_haki",
+ "hari_libur",
  "msci",
  "pending_order",
  "portofolio",
