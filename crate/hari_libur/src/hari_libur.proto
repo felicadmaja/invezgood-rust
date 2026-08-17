@@ -8,6 +8,65 @@ service HariLibur {
   // request.tahun format "YYYY"; kosong → tahun berjalan (waktu lokal server). Tidak GET API eksternal.
   // Stream 1 GetAllHariLiburResponse per baris libur; tahun tanpa data → stream kosong tanpa error.
   rpc GetAllHariLibur(GetAllHariLiburRequest) returns (stream GetAllHariLiburResponse);
+
+  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
+  // Upsert 1 baris ke invezgood.hari_libur (PK date, jadi tanggal sama = overwrite).
+  // request.date wajib "YYYY-MM-DD"; kolom tahun (YYYY dari date) dan updated_at diisi server,
+  // bukan dari client. MV hari_libur_by_tahun ikut ter-update otomatis.
+  // Response: success + pesan tanggal yang disimpan; date invalid / name kosong → invalid_argument.
+  rpc InsertHariLibur(InsertHariLiburRequest) returns (InsertHariLiburResponse);
+
+  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
+  // Update name/is_civic/is_religious/is_cuti_bersama pada invezgood.hari_libur WHERE date = ?.
+  // Beda dengan InsertHariLibur: baris wajib sudah ada (dicek dulu) — kalau tidak → not_found,
+  // jadi update tidak diam-diam membuat baris baru. updated_at diisi waktu server.
+  // request.date wajib "YYYY-MM-DD" (PK, tidak bisa diubah); tahun tetap turunan date.
+  // Response: success + pesan tanggal yang diupdate; date invalid / name kosong → invalid_argument.
+  rpc UpdateHariLibur(UpdateHariLiburRequest) returns (UpdateHariLiburResponse);
+
+  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
+  // Hapus 1 baris invezgood.hari_libur berdasarkan PK date (MV hari_libur_by_tahun ikut terhapus).
+  // Cek dulu barisnya ada (DELETE Scylla idempotent, tidak melapor baris hilang).
+  // request.date wajib "YYYY-MM-DD"; date tidak ada di tabel → not_found.
+  // Response: success + pesan tanggal yang dihapus; date invalid → invalid_argument.
+  rpc DeleteHariLibur(DeleteHariLiburRequest) returns (DeleteHariLiburResponse);
+}
+
+// date = PK baris yang diupdate. tahun & updated_at tetap diisi server.
+message UpdateHariLiburRequest {
+  string date = 1;
+  string name = 2;
+  bool is_civic = 3;
+  bool is_religious = 4;
+  bool is_cuti_bersama = 5;
+}
+
+message UpdateHariLiburResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteHariLiburRequest {
+  string date = 1;
+}
+
+message DeleteHariLiburResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// tahun & updated_at tidak diminta dari client: keduanya diturunkan server dari date / waktu upsert.
+message InsertHariLiburRequest {
+  string date = 1;
+  string name = 2;
+  bool is_civic = 3;
+  bool is_religious = 4;
+  bool is_cuti_bersama = 5;
+}
+
+message InsertHariLiburResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 message GetAllHariLiburRequest {
