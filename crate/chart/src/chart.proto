@@ -10,7 +10,7 @@ service Chart {
   // - Senin–Kamis 09:00–12:00 & 13:30–16:00;
   // - Jumat 09:00–11:30 & 14:00–16:00 — hit API live.
   // Setelah 16:00 (Senin–Jumat): baca cache EOD (Moka→Redis); bila miss hit API 1x lalu simpan.
-  // Sabtu/Minggu dan tanggal ARRAY_HOLIDAY (.env) selalu libur.
+  // Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur (query by PK date) selalu libur.
   // Senin–Jumat setelah 10:00: cek Yahoo BBCA.JK volume hari ini.
   // Volume=0 → market libur (cache Redis `invezgood:market_holiday:{YYYY-MM-DD}`, TTL s/d 23:59:59).
   // Bila libur: success=false message "hari libur", tidak GET Invezgo untuk code request.

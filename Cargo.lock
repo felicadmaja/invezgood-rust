@@ -877,6 +877,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "market_holiday",
  "prost",
  "scylla",
  "tokio",
@@ -1213,6 +1214,7 @@ dependencies = [
  "emiten_trending",
  "haka_haki",
  "hari_libur",
+ "market_holiday",
  "msci",
  "pending_order",
  "portofolio",
@@ -1328,6 +1330,7 @@ dependencies = [
  "chrono",
  "redis",
  "reqwest 0.12.28",
+ "scylla",
  "serde_json",
  "tokio",
 ]

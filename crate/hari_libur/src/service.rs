@@ -174,6 +174,7 @@ impl HariLibur for HariLiburService {
             crate::repository::upsert(self.session.as_ref(), &row)
                 .await
                 .map_err(Status::internal)?;
+            market_holiday::invalidate_national_holiday(date).await;
 
             Ok(Response::new(InsertHariLiburResponse {
                 success: true,
@@ -232,6 +233,7 @@ impl HariLibur for HariLiburService {
                     "hari libur {date} tidak ditemukan"
                 )));
             }
+            market_holiday::invalidate_national_holiday(date).await;
 
             Ok(Response::new(UpdateHariLiburResponse {
                 success: true,
@@ -276,6 +278,7 @@ impl HariLibur for HariLiburService {
                     "hari libur {date} tidak ditemukan"
                 )));
             }
+            market_holiday::invalidate_national_holiday(date).await;
 
             Ok(Response::new(DeleteHariLiburResponse {
                 success: true,

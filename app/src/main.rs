@@ -80,6 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr = format!("{host}:{port}").parse()?;
 
     let session = connect().await?;
+    market_holiday::init_scylla_session(session.clone());
     let auth_sessions = new_session_store();
     let stock_list = StockListService::new(session.clone(), auth_sessions.clone())
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;

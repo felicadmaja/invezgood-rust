@@ -1,21 +1,25 @@
 //! Deteksi market libur untuk semua RPC.
 //!
 //! Sabtu/Minggu selalu hari libur (tanpa cek Yahoo).
-//! Tanggal di `ARRAY_HOLIDAY` (.env, JSON `["YYYY-MM-DD", ...]`) = libur nasional (tanpa cek Yahoo).
+//! Tanggal yang ada di Scylla `invezgood.hari_libur` (PK `date`) = libur nasional (tanpa cek Yahoo).
 //! Senin–Jumat setelah jam **10:00** waktu lokal: GET Yahoo Finance v8 chart **BBCA**.JK (1d, hari ini).
 //! Volume titik terakhir = 0 → hari libur.
 //! Cache Redis `invezgood:market_holiday:{YYYY-MM-DD}` (`1`=libur, `0`=buka; TTL s/d 23:59:59).
-//! Senin–Jumat sebelum 10:00 (bukan tanggal ARRAY_HOLIDAY) selalu `false`. Error fetch → `false`.
+//! Senin–Jumat sebelum 10:00 (bukan tanggal `invezgood.hari_libur`) selalu `false`. Error fetch → `false`.
 
-use std::collections::HashSet;
-use std::sync::OnceLock;
+use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use chrono::{Datelike, Local, NaiveDate, TimeZone, Timelike, Weekday};
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
+use scylla::client::session::Session;
+use scylla::client::session_builder::SessionBuilder;
 use serde_json::Value;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 use tokio::time::sleep;
 
 const BENCHMARK_EMITEN: &str = "BBCA";
@@ -25,6 +29,9 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_millis(300);
 const RATE_LIMIT_MAX_RETRIES: u32 = 20;
+const KEYSPACE: &str = "invezgood";
+const TABLE: &str = "hari_libur";
+const NATIONAL_HOLIDAY_QUERY: &str = "SELECT date FROM invezgood.hari_libur WHERE date = ?";
 
 fn redis_url() -> String {
     std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string())
@@ -124,43 +131,122 @@ pub fn is_weekend() -> bool {
     is_weekend_date(Local::now().date_naive())
 }
 
-fn parse_array_holiday(raw: &str) -> HashSet<String> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return HashSet::new();
-    }
+static SCYLLA: OnceCell<Arc<Session>> = OnceCell::const_new();
+static NATIONAL_CACHE: OnceLock<Mutex<NationalCache>> = OnceLock::new();
 
-    let items: Vec<String> = serde_json::from_str(trimmed).unwrap_or_else(|_| {
-        trimmed
-            .trim_matches(|c| c == '[' || c == ']')
-            .split(',')
-            .map(|s| s.trim().trim_matches('"').to_string())
-            .filter(|s| !s.is_empty())
-            .collect()
-    });
-
-    items
-        .into_iter()
-        .map(|s| s.trim().to_string())
-        .filter(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok())
-        .collect()
+/// Cache hasil cek `invezgood.hari_libur` yang berlaku satu hari kalender.
+/// `cached_on` = tanggal lokal saat isi cache dibuat; begitu tanggal lokal berganti
+/// seluruh isi dibuang supaya kalender dibaca ulang dari Scylla.
+struct NationalCache {
+    cached_on: NaiveDate,
+    holidays: HashMap<NaiveDate, bool>,
 }
 
-fn national_holiday_dates() -> &'static HashSet<String> {
-    static DATES: OnceLock<HashSet<String>> = OnceLock::new();
-    DATES.get_or_init(|| {
-        parse_array_holiday(&std::env::var("ARRAY_HOLIDAY").unwrap_or_default())
+/// Pakai session Scylla milik app (dipanggil sekali saat startup) supaya crate ini tidak
+/// membuka koneksi kedua. Tanpa ini: connect sendiri dari `SCYLLA_URI`/`SCYLLA_USER`/`SCYLLA_PASSWORD`.
+pub fn init_scylla_session(session: Arc<Session>) {
+    if SCYLLA.set(session).is_err() {
+        eprintln!("market_holiday: session Scylla sudah terpasang — init_scylla_session diabaikan");
+    }
+}
+
+async fn scylla_session() -> Result<Arc<Session>, String> {
+    SCYLLA
+        .get_or_try_init(|| async {
+            let uri = std::env::var("SCYLLA_URI").unwrap_or_else(|_| "127.0.0.1:9042".into());
+            let user = std::env::var("SCYLLA_USER").unwrap_or_else(|_| "cassandra".into());
+            let password = std::env::var("SCYLLA_PASSWORD").unwrap_or_default();
+            SessionBuilder::new()
+                .known_node(uri)
+                .user(user, password)
+                .build()
+                .await
+                .map(Arc::new)
+                .map_err(|e| format!("connect Scylla {KEYSPACE}.{TABLE}: {e}"))
+        })
+        .await
+        .map(Arc::clone)
+}
+
+fn national_cache() -> &'static Mutex<NationalCache> {
+    NATIONAL_CACHE.get_or_init(|| {
+        Mutex::new(NationalCache {
+            cached_on: Local::now().date_naive(),
+            holidays: HashMap::new(),
+        })
     })
 }
 
-/// True bila `date` (YYYY-MM-DD) ada di `ARRAY_HOLIDAY`.
-pub fn is_national_holiday_date(date: NaiveDate) -> bool {
-    national_holiday_dates().contains(&date.format("%Y-%m-%d").to_string())
+/// Buang seluruh isi cache bila hari lokal sudah berganti sejak cache diisi.
+fn drop_if_stale(cache: &mut NationalCache) {
+    let today = Local::now().date_naive();
+    if cache.cached_on != today {
+        cache.holidays.clear();
+        cache.cached_on = today;
+    }
 }
 
-/// True bila hari ini ada di `ARRAY_HOLIDAY` (.env, libur nasional Indonesia).
-pub fn is_national_holiday() -> bool {
-    is_national_holiday_date(Local::now().date_naive())
+async fn national_cache_get(date: NaiveDate) -> Option<bool> {
+    let mut guard = national_cache().lock().await;
+    drop_if_stale(&mut guard);
+    guard.holidays.get(&date).copied()
+}
+
+async fn national_cache_set(date: NaiveDate, holiday: bool) {
+    let mut guard = national_cache().lock().await;
+    drop_if_stale(&mut guard);
+    guard.holidays.insert(date, holiday);
+}
+
+/// Buang cache satu tanggal — dipakai setelah Insert/Update/DeleteHariLibur agar
+/// perubahan kalender langsung terpakai tanpa menunggu pergantian hari.
+pub async fn invalidate_national_holiday(date: NaiveDate) {
+    national_cache().lock().await.holidays.remove(&date);
+}
+
+async fn national_holiday_from_scylla(date: NaiveDate) -> Result<bool, String> {
+    let session = scylla_session().await?;
+    let rows = session
+        .query_unpaged(NATIONAL_HOLIDAY_QUERY, (date,))
+        .await
+        .map_err(|e| format!("query {KEYSPACE}.{TABLE} date={date}: {e}"))?
+        .into_rows_result()
+        .map_err(|e| format!("rows {KEYSPACE}.{TABLE} date={date}: {e}"))?;
+
+    Ok(rows
+        .maybe_first_row::<(NaiveDate,)>()
+        .map_err(|e| format!("row {KEYSPACE}.{TABLE} date={date}: {e}"))?
+        .is_some())
+}
+
+/// True bila `date` ada di `invezgood.hari_libur` (query by PK `date`) = libur nasional.
+/// Hasil di-cache di memori sepanjang hari itu dan dibuang saat tanggal lokal berganti;
+/// error koneksi/query → `false` (dianggap bukan libur).
+pub async fn is_national_holiday_date(date: NaiveDate) -> bool {
+    if let Some(holiday) = national_cache_get(date).await {
+        return holiday;
+    }
+
+    // Future query Scylla di-box: tanpa ini tipe future handler gRPC (chart, haka_haki)
+    // melewati batas kedalaman tipe rustc saat menghitung layout.
+    let query: Pin<Box<dyn Future<Output = Result<bool, String>> + Send>> =
+        Box::pin(national_holiday_from_scylla(date));
+
+    match query.await {
+        Ok(holiday) => {
+            national_cache_set(date, holiday).await;
+            holiday
+        }
+        Err(e) => {
+            eprintln!("Cek libur nasional {KEYSPACE}.{TABLE} gagal: {e} — anggap bukan libur");
+            false
+        }
+    }
+}
+
+/// True bila hari ini ada di `invezgood.hari_libur` (libur nasional Indonesia).
+pub async fn is_national_holiday() -> bool {
+    is_national_holiday_date(Local::now().date_naive()).await
 }
 
 /// True bila sudah >= 10:00 waktu server lokal.
@@ -267,9 +353,10 @@ async fn fetch_bbca_volume() -> Result<i64, String> {
     }
 }
 
-/// `true` bila `date` hari libur: Sabtu/Minggu, ARRAY_HOLIDAY, atau (bila hari ini) BBCA volume=0 mulai 10:00.
+/// `true` bila `date` hari libur: Sabtu/Minggu, ada di `invezgood.hari_libur`,
+/// atau (bila hari ini) BBCA volume=0 mulai 10:00.
 pub async fn is_market_holiday_on(date: NaiveDate) -> bool {
-    if is_weekend_date(date) || is_national_holiday_date(date) {
+    if is_weekend_date(date) || is_national_holiday_date(date).await {
         return true;
     }
     if date != Local::now().date_naive() {
@@ -306,7 +393,7 @@ pub async fn is_market_holiday_on(date: NaiveDate) -> bool {
     }
 }
 
-/// `true` bila market libur hari ini (Sabtu/Minggu, ARRAY_HOLIDAY, atau BBCA volume=0 mulai 10:00).
+/// `true` bila market libur hari ini (Sabtu/Minggu, `invezgood.hari_libur`, atau BBCA volume=0 mulai 10:00).
 pub async fn is_market_holiday() -> bool {
     is_market_holiday_on(Local::now().date_naive()).await
 }
