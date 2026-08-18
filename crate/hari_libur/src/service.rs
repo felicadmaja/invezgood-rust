@@ -12,11 +12,13 @@ use crate::model::HariLiburRow as DbHariLiburRow;
 use crate::pb::hari_libur_server::HariLibur;
 use crate::pb::{
     DeleteHariLiburRequest, DeleteHariLiburResponse, GetAllHariLiburRequest,
-    GetAllHariLiburResponse, HariLiburRow, InsertHariLiburRequest, InsertHariLiburResponse,
-    UpdateHariLiburRequest, UpdateHariLiburResponse,
+    GetAllHariLiburResponse, GetHariLiburFromApiRequest, GetHariLiburFromApiResponse, HariLiburRow,
+    InsertHariLiburRequest, InsertHariLiburResponse, UpdateHariLiburRequest,
+    UpdateHariLiburResponse,
 };
 
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<GetAllHariLiburResponse, Status>> + Send>>;
+type FromApiStream = Pin<Box<dyn Stream<Item = Result<GetHariLiburFromApiResponse, Status>> + Send>>;
 
 pub struct HariLiburService {
     session: Arc<Session>,
@@ -38,6 +40,20 @@ impl HariLiburService {
             .await
             .map_err(Status::unauthenticated)?;
         Ok(auth.nama)
+    }
+
+    /// `YYYY` dari request; kosong → tahun berjalan waktu server.
+    fn normalize_tahun(raw: &str) -> Result<String, Status> {
+        let tahun = match raw.trim() {
+            "" => Local::now().year().to_string(),
+            value => value.to_string(),
+        };
+        if tahun.len() != 4 || !tahun.chars().all(|c| c.is_ascii_digit()) {
+            return Err(Status::invalid_argument(format!(
+                "tahun tidak valid (harus YYYY): {tahun}"
+            )));
+        }
+        Ok(tahun)
     }
 
     fn parse_date(value: &str) -> Result<NaiveDate, Status> {
@@ -65,6 +81,83 @@ impl HariLiburService {
 #[tonic::async_trait]
 impl HariLibur for HariLiburService {
     type GetAllHariLiburStream = ResponseStream;
+    type GetHariLiburFromApiStream = FromApiStream;
+
+    async fn get_hari_libur_from_api(
+        &self,
+        request: Request<GetHariLiburFromApiRequest>,
+    ) -> Result<Response<FromApiStream>, Status> {
+        let started = std::time::Instant::now();
+        let rpc_name = "GetHariLiburFromApi";
+
+        let user_name = match self.require_auth(&request).await {
+            Ok(nama) => nama,
+            Err(e) => {
+                eprintln!("{rpc_name} anonymous {}ms", started.elapsed().as_millis());
+                return Err(e);
+            }
+        };
+
+        let tahun_raw = request.into_inner().tahun;
+        let tahun = match Self::normalize_tahun(&tahun_raw) {
+            Ok(tahun) => tahun,
+            Err(e) => {
+                eprintln!(
+                    "{rpc_name} {user_name} {} {}ms",
+                    tahun_raw.trim(),
+                    started.elapsed().as_millis()
+                );
+                return Err(e);
+            }
+        };
+
+        let session = Arc::clone(&self.session);
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+
+        tokio::spawn(async move {
+            let rows = match crate::api::fetch_and_save(session, &tahun).await {
+                Ok(Some(rows)) => rows,
+                // Tahun tidak ada di API: stream ditutup kosong, bukan error.
+                Ok(None) => {
+                    eprintln!(
+                        "{rpc_name} {user_name} {tahun} {}ms - tahun tidak ada di API",
+                        started.elapsed().as_millis()
+                    );
+                    return;
+                }
+                Err(e) => {
+                    eprintln!(
+                        "{rpc_name} {user_name} {tahun} {}ms - error: {e}",
+                        started.elapsed().as_millis()
+                    );
+                    let _ = tx.send(Err(Status::internal(e))).await;
+                    return;
+                }
+            };
+
+            let total = rows.len();
+            for row in rows {
+                if tx
+                    .send(Ok(GetHariLiburFromApiResponse {
+                        item: Some(Self::row_to_proto(row)),
+                    }))
+                    .await
+                    .is_err()
+                {
+                    return;
+                }
+            }
+
+            eprintln!(
+                "{rpc_name} {user_name} {tahun} {}ms - {total} tanggal",
+                started.elapsed().as_millis()
+            );
+        });
+
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(rx)) as FromApiStream
+        ))
+    }
 
     async fn get_all_hari_libur(
         &self,
@@ -81,19 +174,18 @@ impl HariLibur for HariLiburService {
             }
         };
 
-        let tahun = match request.into_inner().tahun {
-            Some(value) if !value.trim().is_empty() => value.trim().to_string(),
-            _ => Local::now().year().to_string(),
+        let tahun_raw = request.into_inner().tahun.unwrap_or_default();
+        let tahun = match Self::normalize_tahun(&tahun_raw) {
+            Ok(tahun) => tahun,
+            Err(e) => {
+                eprintln!(
+                    "{rpc_name} {user_name} {} {}ms",
+                    tahun_raw.trim(),
+                    started.elapsed().as_millis()
+                );
+                return Err(e);
+            }
         };
-        if tahun.len() != 4 || !tahun.chars().all(|c| c.is_ascii_digit()) {
-            eprintln!(
-                "{rpc_name} {user_name} {tahun} {}ms",
-                started.elapsed().as_millis()
-            );
-            return Err(Status::invalid_argument(format!(
-                "tahun tidak valid (harus YYYY): {tahun}"
-            )));
-        }
 
         let session = Arc::clone(&self.session);
         let (tx, rx) = tokio::sync::mpsc::channel(8);
@@ -112,6 +204,25 @@ impl HariLibur for HariLiburService {
                 }
             };
 
+            // Tahun belum ada di Scylla → ambil dari API (sekaligus tersimpan ke tabel),
+            // supaya request berikutnya untuk tahun itu sudah dilayani dari Scylla.
+            let (rows, sumber) = if rows.is_empty() {
+                match crate::api::fetch_and_save(Arc::clone(&session), &tahun).await {
+                    Ok(Some(fetched)) => (fetched, "api"),
+                    Ok(None) => (Vec::new(), "api tanpa data"),
+                    Err(e) => {
+                        eprintln!(
+                            "{rpc_name} {user_name} {tahun} {}ms - fallback api error: {e}",
+                            started.elapsed().as_millis()
+                        );
+                        let _ = tx.send(Err(Status::internal(e))).await;
+                        return;
+                    }
+                }
+            } else {
+                (rows, "scylla")
+            };
+
             let total = rows.len();
             for row in rows {
                 if tx
@@ -126,7 +237,7 @@ impl HariLibur for HariLiburService {
             }
 
             eprintln!(
-                "{rpc_name} {user_name} {tahun} {}ms - {total} tanggal",
+                "{rpc_name} {user_name} {tahun} {}ms - {total} tanggal ({sumber})",
                 started.elapsed().as_millis()
             );
         });

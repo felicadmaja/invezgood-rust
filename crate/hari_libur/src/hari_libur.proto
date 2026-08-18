@@ -4,9 +4,25 @@ package hari_libur;
 
 service HariLibur {
   // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
-  // Read-only dari MV invezgood.hari_libur_by_tahun (PK tahun, date) — 1 partisi, urut tanggal ASC.
-  // request.tahun format "YYYY"; kosong → tahun berjalan (waktu lokal server). Tidak GET API eksternal.
-  // Stream 1 GetAllHariLiburResponse per baris libur; tahun tanpa data → stream kosong tanpa error.
+  // GET https://api.kemendesa.link/libur-nasional/api/holidays/{tahun}.json (tanpa auth, field
+  // dipakai: data[].date, name, is_civic, is_religious, is_cuti_bersama) → upsert tiap baris ke
+  // invezgood.hari_libur (PK date, tanggal sama = overwrite; kolom tahun & updated_at diisi server),
+  // lalu cache libur nasional market_holiday untuk tanggal itu dibuang agar langsung terpakai.
+  // request.tahun format "YYYY"; kosong → tahun berjalan (waktu lokal server).
+  // Stream 1 GetHariLiburFromApiResponse per baris libur, urut date ASC.
+  // Tahun tanpa data di API (HTTP 404) → stream kosong tanpa error; tahun bukan "YYYY" →
+  // invalid_argument; HTTP/parse/Scylla gagal → internal.
+  rpc GetHariLiburFromApi(GetHariLiburFromApiRequest) returns (stream GetHariLiburFromApiResponse);
+
+  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
+  // Baca MV invezgood.hari_libur_by_tahun (PK tahun, date) — 1 partisi, urut tanggal ASC.
+  // request.tahun format "YYYY"; kosong → tahun berjalan (waktu lokal server).
+  // Tahun tidak punya baris di Scylla → fallback logic GetHariLiburFromApi: GET
+  // api.kemendesa.link/libur-nasional/api/holidays/{tahun}.json + upsert ke invezgood.hari_libur,
+  // hasilnya yang di-stream (request berikutnya untuk tahun itu sudah dilayani dari Scylla).
+  // Stream 1 GetAllHariLiburResponse per baris libur; tahun tanpa data di Scylla maupun API
+  // (HTTP 404) → stream kosong tanpa error. Fallback API gagal (HTTP/parse/upsert) → internal.
+  // Log debug menandai sumber data: "- {N} tanggal (scylla | api | api tanpa data)".
   rpc GetAllHariLibur(GetAllHariLiburRequest) returns (stream GetAllHariLiburResponse);
 
   // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
@@ -67,6 +83,15 @@ message InsertHariLiburRequest {
 message InsertHariLiburResponse {
   bool success = 1;
   string message = 2;
+}
+
+// tahun format "YYYY"; kosong → tahun berjalan di server.
+message GetHariLiburFromApiRequest {
+  string tahun = 1;
+}
+
+message GetHariLiburFromApiResponse {
+  HariLiburRow item = 1;
 }
 
 message GetAllHariLiburRequest {

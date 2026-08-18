@@ -44,3 +44,6 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.hari_libur_by_tahun AS
 --
 -- Data 2026 (25 baris, SKB 3 Menteri 2026) sudah di-import 2026-08-17 dari
 -- api.kemendesa.link/libur-nasional/api/holidays/2026.json.
+--
+-- Import ulang / tahun lain: RPC HariLibur.GetHariLiburFromApi (tahun "YYYY") — fetch API di atas
+-- lalu upsert per baris. Tahun yang belum ada di API (HTTP 404) → stream kosong, tabel tidak berubah.

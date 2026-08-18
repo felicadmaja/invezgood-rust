@@ -8,6 +8,7 @@ pub mod pb {
 pub const FILE_DESCRIPTOR_SET: &[u8] =
     tonic::include_file_descriptor_set!("hari_libur_descriptor");
 
+mod api;
 pub mod model;
 mod repository;
 mod service;
