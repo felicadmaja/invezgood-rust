@@ -10,10 +10,10 @@ service HakaHaki {
   // invezgood.hari_libur, atau hari ini Yahoo BBCA volume=0 setelah 10:00) → success=false message
   // "hari libur", tidak GET Invezgo.
   // Bila tahun_bulan_tanggal bukan hari ini: cache Redis key `{code}:{YYYY-MM-DD}:{range}` (hanya bila items tidak kosong).
-  // Jam operasional (waktu server lokal): 
-  // - Senin–Kamis 09:00–12:00 & 13:30–16:00;
-  // - Jumat 09:00–11:30 & 14:00–16:00 — hit API live.
-  // Setelah 16:00 (Senin–Jumat): baca cache EOD (Moka→Redis); bila miss hit API 1x lalu simpan.
+  // Jam operasional (waktu server lokal):
+  // - Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00 — hit API live.
+  // - Senin–Kamis 12:00–13:29 & Jumat 11:30–13:59: baca cache EOD (Moka→Redis); bila miss hit API 1x lalu simpan.
+  // - Setelah 16:00 (Senin–Jumat): baca cache EOD (Moka→Redis); bila miss hit API 1x lalu simpan.
   rpc GetHakaHakiFromInvezgo(GetHakaHakiFromInvezgoRequest)
       returns (GetHakaHakiFromInvezgoResponse);
 

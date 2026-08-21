@@ -6,7 +6,8 @@ service StockList {
   // Semua RPC memerlukan user login. Kirim metadata: authorization: Bearer <token> (token dari user.Login).
   //
   // Cek Redis StockListUpdatedAt: kosong atau >30 hari → GET Invezgo + upsert Scylla + set timestamp.
-  // Masih valid (<30 hari) → baca Scylla saja. Response: daftar saham.
+  // Masih valid (<30 hari) → baca Scylla saja. Response di-cache Moka in-memory TTL 1 menit
+  // (key global, semua user); hit → skip Redis/Scylla/Invezgo. Response: daftar saham.
   rpc GetAllStocks(GetAllStocksRequest) returns (GetAllStocksResponse);
 
   // Baca Scylla by PK code. Request: code wajib. Response: StockByCodeResponse.

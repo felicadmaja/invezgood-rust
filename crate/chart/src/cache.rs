@@ -100,7 +100,7 @@ impl From<&GetCurrentDayChartFromInvezgoResponse> for CachedIntradayData {
 
 impl From<CachedIntradayData> for GetCurrentDayChartFromInvezgoResponse {
     fn from(c: CachedIntradayData) -> Self {
-        Self {
+        let mut resp = Self {
             code: c.code,
             open: c.open,
             high: c.high,
@@ -121,7 +121,9 @@ impl From<CachedIntradayData> for GetCurrentDayChartFromInvezgoResponse {
             iev: c.iev,
             success: true,
             message: "ok".to_string(),
-        }
+        };
+        resp.normalize_open_if_zero();
+        resp
     }
 }
 

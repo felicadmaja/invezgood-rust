@@ -163,6 +163,7 @@ pub struct StockListService {
     session: Arc<Session>,
     redis: redis::Client,
     auth_sessions: SessionStore,
+    all_stocks_cache: crate::all_stocks_cache::AllStocksCache,
 }
 
 impl StockListService {
@@ -172,6 +173,7 @@ impl StockListService {
             session,
             redis,
             auth_sessions,
+            all_stocks_cache: crate::all_stocks_cache::AllStocksCache::new(),
         })
     }
 
@@ -1631,8 +1633,17 @@ impl StockList for StockListService {
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
+        if let Some(cached) = self.all_stocks_cache.get().await {
+            eprintln!(
+                "GetAllStocks {user_name} {}ms - HIT moka",
+                started.elapsed().as_millis()
+            );
+            return Ok(Response::new(cached));
+        }
+
         let result: Result<Response<GetAllStocksResponse>, Status> = async {
             let _inner = request.into_inner();
+
             let mut redis_conn = self
                 .redis
                 .get_multiplexed_tokio_connection()
@@ -1661,11 +1672,14 @@ impl StockList for StockListService {
 
             let items = rows.into_iter().map(Self::summary_row_to_proto).collect();
 
-            Ok(Response::new(GetAllStocksResponse {
+            let response = GetAllStocksResponse {
                 success: true,
                 message,
                 items,
-            }))
+            };
+            self.all_stocks_cache.set(response.clone()).await;
+
+            Ok(Response::new(response))
         }
         .await;
 

@@ -6,6 +6,7 @@ pub mod pb {
 pub const FILE_DESCRIPTOR_SET: &[u8] =
     tonic::include_file_descriptor_set!("stock_list_descriptor");
 
+mod all_stocks_cache;
 mod database;
 mod invezgo;
 mod model;

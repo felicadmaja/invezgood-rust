@@ -110,7 +110,9 @@ impl HakaHakiService {
         now.hour() * 60 + now.minute()
     }
 
-    /// Senin–Kamis: live 09:00–12:00 & 13:30–16:00. Jumat: 09:00–11:30 & 14:00–16:00.
+    /// Senin–Kamis: live 09:00–11:59 & 13:30–16:00; istirahat 12:00–13:29 → EOD cache.
+    /// Jumat: live 09:00–11:29 & 14:00–16:00; istirahat 11:30–13:59 → EOD cache.
+    /// Setelah 16:00 → EOD cache.
     fn require_current_day_access() -> Result<CurrentDayMode, Status> {
         let now = Local::now();
         let weekday = now.weekday();
@@ -125,30 +127,48 @@ impl HakaHakiService {
 
         let mins = Self::minutes_now();
         const MORNING_START: u32 = 9 * 60;
-        let in_session = match weekday {
+        const CLOSE: u32 = 16 * 60;
+        const AFTERNOON_END: u32 = 16 * 60 + 1;
+
+        match weekday {
             chrono::Weekday::Fri => {
-                const MORNING_END: u32 = 11 * 60 + 30 + 1;
+                const MORNING_END: u32 = 11 * 60 + 30;
+                const LUNCH_EOD_END: u32 = 14 * 60;
                 const AFTERNOON_START: u32 = 14 * 60;
-                const AFTERNOON_END: u32 = 16 * 60 + 1;
-                (mins >= MORNING_START && mins < MORNING_END)
-                    || (mins >= AFTERNOON_START && mins < AFTERNOON_END)
+
+                if mins >= MORNING_START && mins < MORNING_END {
+                    return Ok(CurrentDayMode::Live);
+                }
+                if mins >= MORNING_END && mins < LUNCH_EOD_END {
+                    return Ok(CurrentDayMode::EodCache);
+                }
+                if mins >= AFTERNOON_START && mins < AFTERNOON_END {
+                    return Ok(CurrentDayMode::Live);
+                }
             }
             _ => {
-                const MORNING_END: u32 = 12 * 60 + 1;
+                const MORNING_END: u32 = 12 * 60;
+                const LUNCH_EOD_END: u32 = 13 * 60 + 30;
                 const AFTERNOON_START: u32 = 13 * 60 + 30;
-                const AFTERNOON_END: u32 = 16 * 60 + 1;
-                (mins >= MORNING_START && mins < MORNING_END)
-                    || (mins >= AFTERNOON_START && mins < AFTERNOON_END)
+
+                if mins >= MORNING_START && mins < MORNING_END {
+                    return Ok(CurrentDayMode::Live);
+                }
+                if mins >= MORNING_END && mins < LUNCH_EOD_END {
+                    return Ok(CurrentDayMode::EodCache);
+                }
+                if mins >= AFTERNOON_START && mins < AFTERNOON_END {
+                    return Ok(CurrentDayMode::Live);
+                }
             }
-        };
-        if in_session {
-            return Ok(CurrentDayMode::Live);
         }
-        if mins > 16 * 60 {
+
+        if mins > CLOSE {
             return Ok(CurrentDayMode::EodCache);
         }
+
         Err(Status::failed_precondition(
-            "Diluar jam operasional (Senin-Kamis 09:00-12:00 & 13:30-16:00; Jumat 09:00-11:30 & 14:00-16:00)",
+            "Diluar jam operasional (Senin-Kamis 09:00-12:00 & 13:30-16:00; istirahat 12:00-13:29 cache EOD; Jumat 09:00-11:30 & 14:00-16:00; istirahat 11:30-13:59 cache EOD; setelah 16:00 cache EOD)",
         ))
     }
 

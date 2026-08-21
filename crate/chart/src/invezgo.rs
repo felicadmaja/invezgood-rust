@@ -45,6 +45,17 @@ fn normalize_api_date(raw: &str) -> Result<String, String> {
     Ok(date.format("%Y-%m-%d").to_string())
 }
 
+fn normalize_intraday_open(open: f64, close: f64) -> f64 {
+    if open == 0.0 { close } else { open }
+}
+
+impl GetCurrentDayChartFromInvezgoResponse {
+    /// Bila `open` = 0 dari API, ganti dengan `close` sebelum return ke client / cache.
+    pub fn normalize_open_if_zero(&mut self) {
+        self.open = normalize_intraday_open(self.open, self.close);
+    }
+}
+
 fn api_bar_to_proto(bar: ApiChartBar) -> Result<ChartBar, String> {
     Ok(ChartBar {
         date: normalize_api_date(&bar.date)?,
@@ -139,7 +150,7 @@ pub async fn fetch_intraday_data(code: &str) -> Result<GetCurrentDayChartFromInv
     let parsed: ApiIntradayData = serde_json::from_str(&body)
         .map_err(|e| format!("parse JSON Invezgo intraday-data gagal: {e}"))?;
 
-    Ok(GetCurrentDayChartFromInvezgoResponse {
+    let mut resp = GetCurrentDayChartFromInvezgoResponse {
         code: parsed.code,
         open: parsed.open,
         high: parsed.high,
@@ -160,5 +171,7 @@ pub async fn fetch_intraday_data(code: &str) -> Result<GetCurrentDayChartFromInv
         iev: parsed.iev,
         success: true,
         message: "ok".to_string(),
-    })
+    };
+    resp.normalize_open_if_zero();
+    Ok(resp)
 }
