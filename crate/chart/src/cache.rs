@@ -122,7 +122,7 @@ impl From<CachedIntradayData> for GetCurrentDayChartFromInvezgoResponse {
             success: true,
             message: "ok".to_string(),
         };
-        resp.normalize_open_if_zero();
+        resp.normalize_intraday_prices();
         resp
     }
 }

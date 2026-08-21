@@ -599,11 +599,13 @@ pub async fn fetch_yahoo_price_spikes(
         .into_iter()
         .filter(|e| !reported.contains(e))
         .collect();
+    let (up_pct, down_pct, mode_label) = crate::yahoo_atr::active_spike_thresholds();
     println!(
-        "\x1b[32mYahoo spike: cek {} emiten UP>={}% DOWN>={}% (skip {} sudah di-cache hari ini)\x1b[0m",
+        "\x1b[32mYahoo spike: cek {} emiten UP>={}% DOWN>={}% {} (skip {} sudah di-cache hari ini)\x1b[0m",
         to_check.len(),
-        crate::yahoo_atr::spike_up_pct(),
-        crate::yahoo_atr::spike_down_pct(),
+        up_pct,
+        down_pct,
+        mode_label,
         skipped
     );
 
@@ -611,13 +613,9 @@ pub async fn fetch_yahoo_price_spikes(
     if spikes.is_empty() {
         println!(
             "Yahoo spike: tidak ada lonjakan baru (UP >= {}% / DOWN >= {}% {})",
-            crate::yahoo_atr::spike_up_pct(),
-            crate::yahoo_atr::spike_down_pct(),
-            if crate::yahoo_atr::in_open_vs_prev_close_window() {
-                "open vs close kemarin"
-            } else {
-                "close vs open hari ini"
-            }
+            up_pct,
+            down_pct,
+            mode_label
         );
     } else {
         let summary: Vec<String> = spikes

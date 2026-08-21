@@ -45,14 +45,17 @@ fn normalize_api_date(raw: &str) -> Result<String, String> {
     Ok(date.format("%Y-%m-%d").to_string())
 }
 
-fn normalize_intraday_open(open: f64, close: f64) -> f64 {
-    if open == 0.0 { close } else { open }
-}
-
 impl GetCurrentDayChartFromInvezgoResponse {
-    /// Bila `open` = 0 dari API, ganti dengan `close` sebelum return ke client / cache.
-    pub fn normalize_open_if_zero(&mut self) {
-        self.open = normalize_intraday_open(self.open, self.close);
+    /// Normalisasi harga nol dari API sebelum return ke client / cache:
+    /// `open` = 0 → `close`; `low` = 0 dan `high` = 0 → keduanya `close`.
+    pub fn normalize_intraday_prices(&mut self) {
+        if self.open == 0.0 {
+            self.open = self.close;
+        }
+        if self.low == 0.0 && self.high == 0.0 {
+            self.low = self.close;
+            self.high = self.close;
+        }
     }
 }
 
@@ -172,6 +175,6 @@ pub async fn fetch_intraday_data(code: &str) -> Result<GetCurrentDayChartFromInv
         success: true,
         message: "ok".to_string(),
     };
-    resp.normalize_open_if_zero();
+    resp.normalize_intraday_prices();
     Ok(resp)
 }

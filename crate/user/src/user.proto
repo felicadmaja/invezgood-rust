@@ -40,9 +40,12 @@ service User {
   // seterusnya interval INTERVAL_YAHOO_SPIKE_POLL_SECS (.env, detik; default 120) di jam kerja
   // Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
   // Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur. Senin–Jumat mulai 10:00: GET Yahoo Finance v8 chart BBCA.JK (1d, hanya hari ini period1=00:00 lokal period2=sekarang) — bila volume titik terakhir = 0, hari itu dianggap market libur; poller TIDAK dijalankan. Hasil cek di-cache Redis key `invezgood:market_holiday:{YYYY-MM-DD}` (value `1`=libur, `0`=buka; TTL s/d 23:59:59 lokal).
-  // 09:00:00–09:05:59 waktu lokal: spike = open hari ini vs close sesi sebelumnya (kemarin / Jumat bila Senin; chart 1d lookback 7 hari). Di luar jam itu: spike = close vs open candle hari ini.
+  // 09:00:00–09:05:59 waktu lokal: spike = (close hari ini - open candle sebelumnya) / open candle
+  // sebelumnya * 100 (chart 1d lookback 7 hari); ambang OPENING_UP_SPIKE_PERCENTAGE /
+  // OPENING_DOWN_SPIKE_PERCENTAGE (.env). Di luar jam itu: spike = (close - open) / open * 100
+  // hari ini; ambang UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env).
   // Tiap tick (bila market buka): fetch_yahoo_price_spikes untuk code invezgood.stock_list_by_is_plan_to_trade WHERE is_plan_to_trade = true.
-  // Jeda JEDA_MS_ANTAR_EMITEN (.env, ms). UP/DOWN dari UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env, %).
+  // Jeda JEDA_MS_ANTAR_EMITEN (.env, ms).
   // HTTP 409: log merah, jeda 300ms, retry.
   // Setelah GET Yahoo: spike baru di-upsert Redis JSON
   // `invezgood:yahoo_atr:spike_today:{YYYY-MM-DD}` — tiap item: spike_at, emiten_name,
@@ -54,6 +57,7 @@ service User {
   // subscribe poller Yahoo, tidak hit API). Request kosong. Push: success, message, data.
   // Subscribe: push saat data berubah + heartbeat ~30s. Banyak subscriber tidak menambah frekuensi poll.
   rpc GetPriceSpikeFromYahooFinance(GetPriceSpikeFromYahooFinanceRequest) returns (stream PriceSpikeResponse);
+
 
   // GET api.invezgo.com/usage/api → jatah pemakaian API Invezgo (Bearer INVEZGO_BEARER_TOKEN).
   // Wajib authorization: Bearer <token> login. Request kosong. Response: UsageResponse.
@@ -118,10 +122,11 @@ message GetPriceSpikeFromYahooFinanceRequest {}
 
 message PriceSpikeRow {
   string emiten_name = 1;
-  // "up" bila perubahan >= UP_SPIKE_PERCENTAGE; "down" bila <= -DOWN_SPIKE_PERCENTAGE.
-  // 09:00–09:05: open hari ini vs close kemarin; selain itu close vs open hari ini.
+  // "up" / "down" dari ambang .env. 09:00–09:05: OPENING_UP/DOWN_SPIKE_PERCENTAGE,
+  // (close_hari_ini - open_kemarin) / open_kemarin * 100; selain itu UP/DOWN_SPIKE_PERCENTAGE,
+  // (close - open) / open * 100 hari ini.
   string jenis_spike = 2;
-  // Persentase (naik positif, turun negatif). 09:00–09:05: vs close kemarin; selain itu vs open hari ini.
+  // Persentase (naik positif, turun negatif). 09:00–09:05: vs open kemarin; selain itu vs open hari ini.
   double value_spike_percentage = 3;
   // Waktu lokal deteksi spike (YYYY-MM-DD HH:MM:SS), dari Redis cache.
   string spike_at = 4;

@@ -1,7 +1,8 @@
 //! Fetch Yahoo Finance daily chart; deteksi spike.
-//! 09:00:00–09:05:59 lokal: open hari ini vs close sesi sebelumnya.
-//! Di luar jam itu: close vs open hari ini.
-//! Ambang dari `.env`: `UP_SPIKE_PERCENTAGE`, `DOWN_SPIKE_PERCENTAGE` (angka persen, mis. 8 = 8%).
+//! 09:00:00–09:05:59 lokal: close hari ini vs open candle sebelumnya
+//!   `(close_hari_ini - open_kemarin) / open_kemarin * 100` — ambang `OPENING_UP_SPIKE_PERCENTAGE` /
+//!   `OPENING_DOWN_SPIKE_PERCENTAGE`.
+//! Di luar jam itu: close vs open hari ini — ambang `UP_SPIKE_PERCENTAGE` / `DOWN_SPIKE_PERCENTAGE`.
 //! Jeda antar emiten: `JEDA_MS_ANTAR_EMITEN` (ms).
 
 use chrono::{Duration as ChronoDuration, Local, TimeZone, Timelike};
@@ -15,6 +16,8 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const DEFAULT_UP_SPIKE_PERCENTAGE: f64 = 8.0;
 const DEFAULT_DOWN_SPIKE_PERCENTAGE: f64 = 6.0;
+const DEFAULT_OPENING_UP_SPIKE_PERCENTAGE: f64 = 4.0;
+const DEFAULT_OPENING_DOWN_SPIKE_PERCENTAGE: f64 = 2.0;
 const DEFAULT_JEDA_MS_ANTAR_EMITEN: u64 = 25;
 const RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_millis(300);
 const RATE_LIMIT_MAX_RETRIES: u32 = 20;
@@ -54,6 +57,49 @@ pub fn spike_down_pct() -> f64 {
     spike_thresholds().1
 }
 
+fn opening_spike_thresholds() -> (f64, f64) {
+    static CACHED: OnceLock<(f64, f64)> = OnceLock::new();
+    *CACHED.get_or_init(|| {
+        (
+            env_percentage(
+                "OPENING_UP_SPIKE_PERCENTAGE",
+                DEFAULT_OPENING_UP_SPIKE_PERCENTAGE,
+            ),
+            env_percentage(
+                "OPENING_DOWN_SPIKE_PERCENTAGE",
+                DEFAULT_OPENING_DOWN_SPIKE_PERCENTAGE,
+            ),
+        )
+    })
+}
+
+/// Ambang UP jam buka (09:00–09:05) dari `OPENING_UP_SPIKE_PERCENTAGE`.
+pub fn opening_spike_up_pct() -> f64 {
+    opening_spike_thresholds().0
+}
+
+/// Ambang DOWN jam buka (09:00–09:05) dari `OPENING_DOWN_SPIKE_PERCENTAGE`.
+pub fn opening_spike_down_pct() -> f64 {
+    opening_spike_thresholds().1
+}
+
+/// Ambang aktif sesuai jendela waktu + label mode (untuk log).
+pub fn active_spike_thresholds() -> (f64, f64, &'static str) {
+    if in_opening_spike_window() {
+        (
+            opening_spike_up_pct(),
+            opening_spike_down_pct(),
+            "close vs open kemarin",
+        )
+    } else {
+        (
+            spike_up_pct(),
+            spike_down_pct(),
+            "close vs open hari ini",
+        )
+    }
+}
+
 fn env_millis(name: &str, default: u64) -> u64 {
     match std::env::var(name) {
         Ok(raw) => match raw.trim().parse::<u64>() {
@@ -88,10 +134,15 @@ struct Candle {
     close: f64,
 }
 
-/// 09:00:00–09:05:59 waktu lokal: bandingkan open hari ini vs close kemarin.
-pub fn in_open_vs_prev_close_window() -> bool {
+/// 09:00:00–09:05:59 waktu lokal: bandingkan close hari ini vs open candle sebelumnya.
+pub fn in_opening_spike_window() -> bool {
     let now = Local::now();
     now.hour() == 9 && now.minute() <= 5
+}
+
+/// Alias lama — masih dipakai pemanggil eksternal.
+pub fn in_open_vs_prev_close_window() -> bool {
+    in_opening_spike_window()
 }
 
 fn candle_date(c: &Candle) -> Option<chrono::NaiveDate> {
@@ -118,13 +169,17 @@ fn spike_at_now() -> String {
     Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-fn spike_from_change(base: f64, value: f64) -> Option<(&'static str, f64)> {
+fn spike_from_change(
+    base: f64,
+    value: f64,
+    up_pct: f64,
+    down_pct: f64,
+) -> Option<(&'static str, f64)> {
     if base <= 0.0 {
         return None;
     }
     let change = (value - base) / base;
     let pct = change * 100.0;
-    let (up_pct, down_pct) = spike_thresholds();
     if change >= up_pct / 100.0 {
         Some(("up", pct))
     } else if change <= -(down_pct / 100.0) {
@@ -136,12 +191,14 @@ fn spike_from_change(base: f64, value: f64) -> Option<(&'static str, f64)> {
 
 /// `up`/`down` + persen bila close vs open hari ini memenuhi ambang `.env`.
 fn spike_from_candle(c: &Candle) -> Option<(&'static str, f64)> {
-    spike_from_change(c.open, c.close)
+    let (up_pct, down_pct) = spike_thresholds();
+    spike_from_change(c.open, c.close, up_pct, down_pct)
 }
 
-/// `up`/`down` + persen bila open hari ini vs close sesi sebelumnya memenuhi ambang `.env`.
-fn spike_from_open_vs_prev_close(today: &Candle, prev: &Candle) -> Option<(&'static str, f64)> {
-    spike_from_change(prev.close, today.open)
+/// `up`/`down` + persen bila close hari ini vs open candle sebelumnya memenuhi ambang opening `.env`.
+fn spike_from_close_vs_prev_open(today: &Candle, prev: &Candle) -> Option<(&'static str, f64)> {
+    let (up_pct, down_pct) = opening_spike_thresholds();
+    spike_from_change(prev.open, today.close, up_pct, down_pct)
 }
 
 fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
@@ -335,7 +392,8 @@ fn today_and_prev_candles(candles: &[Candle]) -> Option<(&Candle, &Candle)> {
 }
 
 /// Untuk setiap emiten: GET Yahoo chart (jeda `JEDA_MS_ANTAR_EMITEN`), kembalikan yang memenuhi ambang `.env`.
-/// 09:00–09:05: open hari ini vs close sesi sebelumnya; selain itu close vs open hari ini.
+/// 09:00–09:05: `(close_hari_ini - open_kemarin) / open_kemarin * 100` (ambang opening);
+/// selain itu close vs open hari ini.
 pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
         return Vec::new();
@@ -352,11 +410,12 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
         }
     };
 
-    let gap = in_open_vs_prev_close_window();
+    let gap = in_opening_spike_window();
     let lookback_days = if gap { 7 } else { 0 };
     if gap {
+        let (up, down, _) = active_spike_thresholds();
         println!(
-            "Yahoo spike: mode 09:00-09:05 — open hari ini vs close sesi sebelumnya"
+            "Yahoo spike: mode 09:00-09:05 — close hari ini vs open kemarin (UP>={up}% DOWN>={down}%)"
         );
     }
 
@@ -375,7 +434,7 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
                     let Some((today, prev)) = today_and_prev_candles(&candles) else {
                         continue;
                     };
-                    spike_from_open_vs_prev_close(today, prev).map(|hit| (hit, today, Some(prev)))
+                    spike_from_close_vs_prev_open(today, prev).map(|hit| (hit, today, Some(prev)))
                 } else {
                     let Some(last) = candles.last() else {
                         continue;
@@ -387,8 +446,8 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
                 };
                 if let Some(prev) = prev {
                     println!(
-                        "\x1b[32myahoo spike {code} {jenis}: {pct:+.2}% (open hari ini={:.2} vs close kemarin={:.2})\x1b[0m",
-                        last.open, prev.close
+                        "\x1b[32myahoo spike {code} {jenis}: {pct:+.2}% (close hari ini={:.2} vs open kemarin={:.2})\x1b[0m",
+                        last.close, prev.open
                     );
                 } else {
                     println!(
