@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use chrono::Local;
 use futures::Stream;
+use grpc_stream::send_or_break;
 use scylla::client::session::Session;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
@@ -145,7 +146,11 @@ impl TopGainerLoser for TopGainerLoserService {
             response.items.len(),
             response.message
         );
-        let _ = tx.send(Ok(response)).await;
+        if !send_or_break(&tx, Ok(response)).await {
+            eprintln!(
+                "GetTopGainerLoser {user_name} client disconnect sebelum menerima response date={trade_date}"
+            );
+        }
         drop(tx);
 
         Self::log_rpc_debug("GetTopGainerLoser", &user_name, started);

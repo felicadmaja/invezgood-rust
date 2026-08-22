@@ -19,6 +19,7 @@ members = [
     "crate/stockbit_browser",
     "crate/wyckoff_glosary",
     "crate/tls",
+    "crate/grpc_stream",
     "worker_scrapping",
 ]
 resolver = "2"

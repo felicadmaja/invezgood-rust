@@ -8,6 +8,7 @@ futures = "0.3"
 scylla = "1.5"
 stockbit_browser = { path = "../stockbit_browser" }
 worker_scrapping = { path = "../../worker_scrapping" }
+grpc_stream = { path = "../grpc_stream" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
 tokio-stream = "0.1"
 tonic = "0.12"

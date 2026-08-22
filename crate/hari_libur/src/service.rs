@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use chrono::{Datelike, Local, NaiveDate, Utc};
 use futures::Stream;
+use grpc_stream::send_or_break;
 use scylla::client::session::Session;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
@@ -115,34 +116,40 @@ impl HariLibur for HariLiburService {
         let (tx, rx) = tokio::sync::mpsc::channel(8);
 
         tokio::spawn(async move {
-            let rows = match crate::api::fetch_and_save(session, &tahun).await {
-                Ok(Some(rows)) => rows,
+            let rows = match tokio::select! {
+                biased;
+                () = tx.closed() => None,
+                result = crate::api::fetch_and_save(session, &tahun) => Some(result),
+            } {
+                None => return,
+                Some(Ok(Some(rows))) => rows,
                 // Tahun tidak ada di API: stream ditutup kosong, bukan error.
-                Ok(None) => {
+                Some(Ok(None)) => {
                     eprintln!(
                         "{rpc_name} {user_name} {tahun} {}ms - tahun tidak ada di API",
                         started.elapsed().as_millis()
                     );
                     return;
                 }
-                Err(e) => {
+                Some(Err(e)) => {
                     eprintln!(
                         "{rpc_name} {user_name} {tahun} {}ms - error: {e}",
                         started.elapsed().as_millis()
                     );
-                    let _ = tx.send(Err(Status::internal(e))).await;
+                    let _ = send_or_break(&tx, Err(Status::internal(e))).await;
                     return;
                 }
             };
 
             let total = rows.len();
             for row in rows {
-                if tx
-                    .send(Ok(GetHariLiburFromApiResponse {
+                if !send_or_break(
+                    &tx,
+                    Ok(GetHariLiburFromApiResponse {
                         item: Some(Self::row_to_proto(row)),
-                    }))
-                    .await
-                    .is_err()
+                    }),
+                )
+                .await
                 {
                     return;
                 }
@@ -191,15 +198,18 @@ impl HariLibur for HariLiburService {
         let (tx, rx) = tokio::sync::mpsc::channel(8);
 
         tokio::spawn(async move {
-            let result = crate::repository::find_by_tahun(session.as_ref(), &tahun).await;
-            let rows = match result {
+            let rows = match tokio::select! {
+                biased;
+                () = tx.closed() => return,
+                result = crate::repository::find_by_tahun(session.as_ref(), &tahun) => result,
+            } {
                 Ok(rows) => rows,
                 Err(e) => {
                     eprintln!(
                         "{rpc_name} {user_name} {tahun} {}ms - error: {e}",
                         started.elapsed().as_millis()
                     );
-                    let _ = tx.send(Err(Status::internal(e))).await;
+                    let _ = send_or_break(&tx, Err(Status::internal(e))).await;
                     return;
                 }
             };
@@ -207,15 +217,22 @@ impl HariLibur for HariLiburService {
             // Tahun belum ada di Scylla → ambil dari API (sekaligus tersimpan ke tabel),
             // supaya request berikutnya untuk tahun itu sudah dilayani dari Scylla.
             let (rows, sumber) = if rows.is_empty() {
-                match crate::api::fetch_and_save(Arc::clone(&session), &tahun).await {
-                    Ok(Some(fetched)) => (fetched, "api"),
-                    Ok(None) => (Vec::new(), "api tanpa data"),
-                    Err(e) => {
+                match tokio::select! {
+                    biased;
+                    () = tx.closed() => None,
+                    result = crate::api::fetch_and_save(Arc::clone(&session), &tahun) => {
+                        Some(result)
+                    }
+                } {
+                    None => return,
+                    Some(Ok(Some(fetched))) => (fetched, "api"),
+                    Some(Ok(None)) => (Vec::new(), "api tanpa data"),
+                    Some(Err(e)) => {
                         eprintln!(
                             "{rpc_name} {user_name} {tahun} {}ms - fallback api error: {e}",
                             started.elapsed().as_millis()
                         );
-                        let _ = tx.send(Err(Status::internal(e))).await;
+                        let _ = send_or_break(&tx, Err(Status::internal(e))).await;
                         return;
                     }
                 }
@@ -225,12 +242,13 @@ impl HariLibur for HariLiburService {
 
             let total = rows.len();
             for row in rows {
-                if tx
-                    .send(Ok(GetAllHariLiburResponse {
+                if !send_or_break(
+                    &tx,
+                    Ok(GetAllHariLiburResponse {
                         item: Some(Self::row_to_proto(row)),
-                    }))
-                    .await
-                    .is_err()
+                    }),
+                )
+                .await
                 {
                     return;
                 }

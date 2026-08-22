@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use chrono::{Local, NaiveDate};
 use futures::Stream;
+use grpc_stream::send_or_break;
 use scylla::client::session::Session;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
@@ -178,19 +179,31 @@ impl Bandarmology for BandarmologyService {
 
             for trade_date in trade_dates {
                 let date_str = trade_date.format("%Y-%m-%d").to_string();
-                match Self::load_or_fetch(Arc::clone(&session), &code, trade_date).await {
+                let load_result = tokio::select! {
+                    biased;
+                    () = tx.closed() => None,
+                    result = Self::load_or_fetch(Arc::clone(&session), &code, trade_date) => {
+                        Some(result)
+                    }
+                };
+                let Some(result) = load_result else {
+                    aborted = true;
+                    break;
+                };
+                match result {
                     Ok((row, from_api)) => {
                         if from_api {
                             api_gets += 1;
                         } else {
                             cache_hits += 1;
                         }
-                        if tx
-                            .send(Ok(GetBandarmologyByCodeResponse {
+                        if !send_or_break(
+                            &tx,
+                            Ok(GetBandarmologyByCodeResponse {
                                 item: Some(Self::row_to_proto(row)),
-                            }))
-                            .await
-                            .is_err()
+                            }),
+                        )
+                        .await
                         {
                             aborted = true;
                             break;
@@ -202,7 +215,7 @@ impl Bandarmology for BandarmologyService {
                             started.elapsed().as_millis(),
                             status.message()
                         );
-                        let _ = tx.send(Err(status)).await;
+                        let _ = send_or_break(&tx, Err(status)).await;
                         aborted = true;
                         break;
                     }

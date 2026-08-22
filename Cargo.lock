@@ -182,6 +182,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "grpc_stream",
  "prost",
  "reqwest 0.12.28",
  "scylla",
@@ -833,6 +834,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "grpc_stream"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+]
+
+[[package]]
 name = "h2"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -877,6 +885,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "grpc_stream",
  "market_holiday",
  "prost",
  "reqwest 0.12.28",
@@ -2355,6 +2364,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "grpc_stream",
  "moka",
  "prost",
  "redis",
@@ -2637,6 +2647,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "grpc_stream",
  "prost",
  "reqwest 0.12.28",
  "scylla",
@@ -2812,6 +2823,7 @@ dependencies = [
  "chrono",
  "futures",
  "getrandom 0.2.17",
+ "grpc_stream",
  "prost",
  "reqwest 0.12.28",
  "scylla",

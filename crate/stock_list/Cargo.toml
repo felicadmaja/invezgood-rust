@@ -18,6 +18,7 @@ tokio-stream = "0.1"
 tonic = "0.12"
 prost = "0.13"
 user = { path = "../user" }
+grpc_stream = { path = "../grpc_stream" }
 
 [build-dependencies]
 tonic-build = "0.12"

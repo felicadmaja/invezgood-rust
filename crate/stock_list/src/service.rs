@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use futures::Stream;
+use grpc_stream::send_or_break;
 use scylla::client::session::Session;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::ReceiverStream;
@@ -1749,13 +1750,14 @@ impl StockList for StockListService {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         tokio::spawn(async move {
-            if tx
-                .send(Ok(GetStockByRepeatedCodeResponse {
+            if !send_or_break(
+                &tx,
+                Ok(GetStockByRepeatedCodeResponse {
                     part: GetStockByRepeatedCodeStreamPart::Meta.into(),
                     ..Default::default()
-                }))
-                .await
-                .is_err()
+                }),
+            )
+            .await
             {
                 Self::log_rpc_debug("GetStockByRepeatedCode", &user_name_spawn, started);
                 return;
@@ -1764,31 +1766,34 @@ impl StockList for StockListService {
             for code in normalized {
                 match crate::repository::get_by_code(session.as_ref(), &code).await {
                     Ok(Some(row)) => {
-                        if tx
-                            .send(Ok(GetStockByRepeatedCodeResponse {
+                        if !send_or_break(
+                            &tx,
+                            Ok(GetStockByRepeatedCodeResponse {
                                 item: Some(Self::stock_by_code_from_db_row(&row)),
                                 part: GetStockByRepeatedCodeStreamPart::Item.into(),
-                            }))
-                            .await
-                            .is_err()
+                            }),
+                        )
+                        .await
                         {
                             break;
                         }
                     }
                     Ok(None) => {}
                     Err(e) => {
-                        let _ = tx.send(Err(Status::internal(e))).await;
+                        let _ = send_or_break(&tx, Err(Status::internal(e))).await;
                         break;
                     }
                 }
             }
 
-            let _ = tx
-                .send(Ok(GetStockByRepeatedCodeResponse {
+            let _ = send_or_break(
+                &tx,
+                Ok(GetStockByRepeatedCodeResponse {
                     part: GetStockByRepeatedCodeStreamPart::Done.into(),
                     ..Default::default()
-                }))
-                .await;
+                }),
+            )
+            .await;
 
             Self::log_rpc_debug("GetStockByRepeatedCode", &user_name_spawn, started);
         });
@@ -1826,56 +1831,66 @@ impl StockList for StockListService {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         tokio::spawn(async move {
-            let stream_result: Result<Vec<KeyStatsFromStockbitResponse>, Status> = async {
-                let mut row = crate::repository::get_keystats_from_stockbit_by_code(
-                    session.as_ref(),
-                    &code,
-                )
-                .await
-                .map_err(Status::internal)?
-                .ok_or_else(|| {
-                    Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                })?;
+            let stream_result: Result<Vec<KeyStatsFromStockbitResponse>, Status> =
+                match tokio::select! {
+                    biased;
+                    () = tx.closed() => None,
+                    result = async {
+                        let mut row = crate::repository::get_keystats_from_stockbit_by_code(
+                            session.as_ref(),
+                            &code,
+                        )
+                        .await
+                        .map_err(Status::internal)?
+                        .ok_or_else(|| {
+                            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                        })?;
 
-                let message = if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
-                    acquire_keystats_from_stockbit_slot(&user_name_spawn).await?;
-                    eprintln!(
-                        "GetKeyStatsFromStockbit {user_name_spawn} GET Stockbit API keystats/ratio/v1/{code}"
-                    );
-                    crate::stockbit::fetch_and_save_keystats_from_stockbit(
-                        Arc::clone(&session),
-                        &code,
-                    )
-                    .await
-                    .map_err(Status::internal)?;
-                    row = crate::repository::get_keystats_from_stockbit_by_code(
-                        session.as_ref(),
-                        &code,
-                    )
-                    .await
-                    .map_err(Status::internal)?
-                    .ok_or_else(|| {
-                        Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                    })?;
-                    "Key stats Stockbit di-upsert ke stock_list"
-                } else {
-                    "Key stats Stockbit dari Scylla"
+                        let message = if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
+                            acquire_keystats_from_stockbit_slot(&user_name_spawn).await?;
+                            eprintln!(
+                                "GetKeyStatsFromStockbit {user_name_spawn} GET Stockbit API keystats/ratio/v1/{code}"
+                            );
+                            crate::stockbit::fetch_and_save_keystats_from_stockbit(
+                                Arc::clone(&session),
+                                &code,
+                            )
+                            .await
+                            .map_err(Status::internal)?;
+                            row = crate::repository::get_keystats_from_stockbit_by_code(
+                                session.as_ref(),
+                                &code,
+                            )
+                            .await
+                            .map_err(Status::internal)?
+                            .ok_or_else(|| {
+                                Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                            })?;
+                            "Key stats Stockbit di-upsert ke stock_list"
+                        } else {
+                            "Key stats Stockbit dari Scylla"
+                        };
+
+                        Ok(Self::keystats_from_stockbit_row_stream(row, message))
+                    } => Some(result),
+                } {
+                    None => {
+                        Self::log_rpc_debug("GetKeyStatsFromStockbit", &user_name_spawn, started);
+                        return;
+                    }
+                    Some(result) => result,
                 };
-
-                Ok(Self::keystats_from_stockbit_row_stream(row, message))
-            }
-            .await;
 
             match stream_result {
                 Ok(chunks) => {
                     for chunk in chunks {
-                        if tx.send(Ok(chunk)).await.is_err() {
+                        if !send_or_break(&tx, Ok(chunk)).await {
                             break;
                         }
                     }
                 }
                 Err(status) => {
-                    let _ = tx.send(Err(status)).await;
+                    let _ = send_or_break(&tx, Err(status)).await;
                 }
             }
 
@@ -1915,56 +1930,74 @@ impl StockList for StockListService {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         tokio::spawn(async move {
-            let stream_result: Result<Vec<StockbitProfileResponse>, Status> = async {
-                let mut row = crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
-                    .await
-                    .map_err(Status::internal)?
-                    .ok_or_else(|| {
-                        Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                    })?;
+            let stream_result: Result<Vec<StockbitProfileResponse>, Status> =
+                match tokio::select! {
+                    biased;
+                    () = tx.closed() => None,
+                    result = async {
+                        let mut row =
+                            crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
+                                .await
+                                .map_err(Status::internal)?
+                                .ok_or_else(|| {
+                                    Status::not_found(format!(
+                                        "stock_list code={code} tidak ditemukan"
+                                    ))
+                                })?;
 
-                let message = if crate::stockbit_profile::needs_stockbit_profile_refresh(
-                    row.stockbit_profile.as_ref(),
-                    row.stockbit_profile_updated_at,
-                ) {
-                    acquire_keystats_from_stockbit_slot(&user_name_spawn).await?;
-                    eprintln!(
-                        "\x1b[32mGetStockbitProfileByCode {user_name_spawn} GET Stockbit API emitten/{code}/profile\x1b[0m"
-                    );
-                    crate::stockbit_profile::fetch_and_save_stockbit_profile(
-                        Arc::clone(&session),
-                        &code,
-                    )
-                    .await
-                    .map_err(Status::internal)?;
-                    row = crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
-                        .await
-                        .map_err(Status::internal)?
-                        .ok_or_else(|| {
-                            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                        })?;
-                    "Stockbit profile di-upsert ke stock_list"
-                } else {
-                    eprintln!(
-                        "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<30 hari, data ada)"
-                    );
-                    "Stockbit profile dari Scylla"
+                        let message = if crate::stockbit_profile::needs_stockbit_profile_refresh(
+                            row.stockbit_profile.as_ref(),
+                            row.stockbit_profile_updated_at,
+                        ) {
+                            acquire_keystats_from_stockbit_slot(&user_name_spawn).await?;
+                            eprintln!(
+                                "\x1b[32mGetStockbitProfileByCode {user_name_spawn} GET Stockbit API emitten/{code}/profile\x1b[0m"
+                            );
+                            crate::stockbit_profile::fetch_and_save_stockbit_profile(
+                                Arc::clone(&session),
+                                &code,
+                            )
+                            .await
+                            .map_err(Status::internal)?;
+                            row = crate::repository::get_stockbit_profile_by_code(
+                                session.as_ref(),
+                                &code,
+                            )
+                            .await
+                            .map_err(Status::internal)?
+                            .ok_or_else(|| {
+                                Status::not_found(format!(
+                                    "stock_list code={code} tidak ditemukan"
+                                ))
+                            })?;
+                            "Stockbit profile di-upsert ke stock_list"
+                        } else {
+                            eprintln!(
+                                "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<30 hari, data ada)"
+                            );
+                            "Stockbit profile dari Scylla"
+                        };
+
+                        Self::stockbit_profile_row_stream(row, message)
+                    } => Some(result),
+                } {
+                    None => {
+                        Self::log_rpc_debug("GetStockbitProfileByCode", &user_name_spawn, started);
+                        return;
+                    }
+                    Some(result) => result,
                 };
-
-                Self::stockbit_profile_row_stream(row, message)
-            }
-            .await;
 
             match stream_result {
                 Ok(chunks) => {
                     for chunk in chunks {
-                        if tx.send(Ok(chunk)).await.is_err() {
+                        if !send_or_break(&tx, Ok(chunk)).await {
                             break;
                         }
                     }
                 }
                 Err(status) => {
-                    let _ = tx.send(Err(status)).await;
+                    let _ = send_or_break(&tx, Err(status)).await;
                 }
             }
 
@@ -2004,52 +2037,66 @@ impl StockList for StockListService {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         tokio::spawn(async move {
-            let stream_result: Result<Vec<StockbitReportsRow>, Status> = async {
-                let mut row =
-                    crate::repository::get_stockbit_reports_by_code(session.as_ref(), &code)
-                        .await
-                        .map_err(Status::internal)?
-                        .ok_or_else(|| {
-                            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                        })?;
+            let stream_result: Result<Vec<StockbitReportsRow>, Status> =
+                match tokio::select! {
+                    biased;
+                    () = tx.closed() => None,
+                    result = async {
+                        let mut row =
+                            crate::repository::get_stockbit_reports_by_code(session.as_ref(), &code)
+                                .await
+                                .map_err(Status::internal)?
+                                .ok_or_else(|| {
+                                    Status::not_found(format!(
+                                        "stock_list code={code} tidak ditemukan"
+                                    ))
+                                })?;
 
-                let message = if crate::stockbit_reports::needs_stockbit_reports_refresh(
-                    row.stockbit_reports_updated_at,
-                ) {
-                    eprintln!(
-                        "GetStockbitReportsByCode {user_name_spawn} GET Stockbit API stream/v3/symbol/{code}"
-                    );
-                    crate::stockbit_reports::fetch_and_save_stockbit_reports(
-                        Arc::clone(&session),
-                        &code,
-                    )
-                    .await
-                    .map_err(Status::internal)?;
-                    row = crate::repository::get_stockbit_reports_by_code(session.as_ref(), &code)
-                        .await
-                        .map_err(Status::internal)?
-                        .ok_or_else(|| {
-                            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                        })?;
-                    "Stockbit reports di-upsert ke stock_list"
-                } else {
-                    "Stockbit reports dari Scylla"
+                        let message = if crate::stockbit_reports::needs_stockbit_reports_refresh(
+                            row.stockbit_reports_updated_at,
+                        ) {
+                            eprintln!(
+                                "GetStockbitReportsByCode {user_name_spawn} GET Stockbit API stream/v3/symbol/{code}"
+                            );
+                            crate::stockbit_reports::fetch_and_save_stockbit_reports(
+                                Arc::clone(&session),
+                                &code,
+                            )
+                            .await
+                            .map_err(Status::internal)?;
+                            row = crate::repository::get_stockbit_reports_by_code(
+                                session.as_ref(),
+                                &code,
+                            )
+                            .await
+                            .map_err(Status::internal)?
+                            .ok_or_else(|| {
+                                Status::not_found(format!(
+                                    "stock_list code={code} tidak ditemukan"
+                                ))
+                            })?;
+                            "Stockbit reports di-upsert ke stock_list"
+                        } else {
+                            "Stockbit reports dari Scylla"
+                        };
+
+                        Ok(Self::stockbit_reports_row_stream(row, message))
+                    } => Some(result),
+                } {
+                    None => return,
+                    Some(result) => result,
                 };
-
-                Ok(Self::stockbit_reports_row_stream(row, message))
-            }
-            .await;
 
             match stream_result {
                 Ok(chunks) => {
                     for chunk in chunks {
-                        if tx.send(Ok(chunk)).await.is_err() {
+                        if !send_or_break(&tx, Ok(chunk)).await {
                             break;
                         }
                     }
                 }
                 Err(status) => {
-                    let _ = tx.send(Err(status)).await;
+                    let _ = send_or_break(&tx, Err(status)).await;
                 }
             }
 
@@ -2122,13 +2169,14 @@ impl StockList for StockListService {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         tokio::spawn(async move {
-            if tx
-                .send(Ok(GetAllKeyStatsResponse {
+            if !send_or_break(
+                &tx,
+                Ok(GetAllKeyStatsResponse {
                     part: GetAllKeyStatsStreamPart::Meta.into(),
                     ..Default::default()
-                }))
-                .await
-                .is_err()
+                }),
+            )
+            .await
             {
                 Self::log_rpc_debug("GetAllKeyStats", &user_name_spawn, started);
                 return;
@@ -2137,31 +2185,34 @@ impl StockList for StockListService {
             match crate::repository::list_all_keystats(session.as_ref()).await {
                 Ok(rows) => {
                     for row in rows {
-                        if tx
-                            .send(Ok(GetAllKeyStatsResponse {
+                        if !send_or_break(
+                            &tx,
+                            Ok(GetAllKeyStatsResponse {
                                 item: Some(Self::keystats_response_from_row(row)),
                                 part: GetAllKeyStatsStreamPart::Item.into(),
-                            }))
-                            .await
-                            .is_err()
+                            }),
+                        )
+                        .await
                         {
                             break;
                         }
                     }
                 }
                 Err(e) => {
-                    let _ = tx.send(Err(Status::internal(e))).await;
+                    let _ = send_or_break(&tx, Err(Status::internal(e))).await;
                     Self::log_rpc_debug("GetAllKeyStats", &user_name_spawn, started);
                     return;
                 }
             }
 
-            let _ = tx
-                .send(Ok(GetAllKeyStatsResponse {
+            let _ = send_or_break(
+                &tx,
+                Ok(GetAllKeyStatsResponse {
                     part: GetAllKeyStatsStreamPart::Done.into(),
                     ..Default::default()
-                }))
-                .await;
+                }),
+            )
+            .await;
 
             Self::log_rpc_debug("GetAllKeyStats", &user_name_spawn, started);
         });

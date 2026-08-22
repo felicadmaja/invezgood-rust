@@ -3,9 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use scylla::client::session::Session;
+use grpc_stream::{send_or_break, sleep_unless_disconnected};
 use stockbit_browser::{ReadinessPoller, ReadinessUpdate};
 use tokio::sync::mpsc;
-use tokio::time::sleep;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
@@ -215,15 +215,16 @@ impl User for UserService {
                         );
                     }
 
-                    let ok = tx
-                        .send(Ok(IsStockbitReadyResponse {
+                    let ok = send_or_break(
+                        &tx,
+                        Ok(IsStockbitReadyResponse {
                             success: update.ready,
                             message: update.message,
                             portofolio: Vec::new(),
                             is_need_login: false,
-                        }))
-                        .await
-                        .is_ok();
+                        }),
+                    )
+                    .await;
                     if !ok {
                         eprintln!(
                             "\x1b[31mIsStockbitReady {user_name}: client disconnect — stream ditutup\x1b[0m"
@@ -236,7 +237,17 @@ impl User for UserService {
                     ticks_since_send += 1;
                 }
 
-                sleep(Duration::from_secs(READY_STREAM_CHECK_SECS)).await;
+                if !sleep_unless_disconnected(
+                    &tx,
+                    Duration::from_secs(READY_STREAM_CHECK_SECS),
+                )
+                .await
+                {
+                    eprintln!(
+                        "\x1b[31mIsStockbitReady {user_name}: client disconnect — stream ditutup\x1b[0m"
+                    );
+                    break;
+                }
             }
 
             readiness.unregister_subscriber().await;
@@ -318,14 +329,15 @@ impl User for UserService {
                             spike_at: s.spike_at.clone(),
                         })
                         .collect();
-                    let ok = tx
-                        .send(Ok(PriceSpikeResponse {
+                    let ok = send_or_break(
+                        &tx,
+                        Ok(PriceSpikeResponse {
                             success: snap.success,
                             message: snap.message.clone(),
                             data,
-                        }))
-                        .await
-                        .is_ok();
+                        }),
+                    )
+                    .await;
                     if !ok {
                         eprintln!(
                             "\x1b[31m{rpc_name} {user_name}: client disconnect — stream ditutup\x1b[0m"
@@ -338,7 +350,17 @@ impl User for UserService {
                     ticks_since_send += 1;
                 }
 
-                sleep(Duration::from_secs(READY_STREAM_CHECK_SECS)).await;
+                if !sleep_unless_disconnected(
+                    &tx,
+                    Duration::from_secs(READY_STREAM_CHECK_SECS),
+                )
+                .await
+                {
+                    eprintln!(
+                        "\x1b[31m{rpc_name} {user_name}: client disconnect — stream ditutup\x1b[0m"
+                    );
+                    break;
+                }
             }
             poller.unregister_subscriber();
         });
