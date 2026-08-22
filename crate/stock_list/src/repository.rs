@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use futures::TryStreamExt;
 use scylla::client::session::Session;
 use scylla::DeserializeRow;
@@ -8,7 +10,7 @@ use crate::model::{
     StockbitProfileColDb, StockbitReportsByCodeRow, StockbitReportsDb,
     StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
     StockListKeystatsDb, StockListKeystatsRow, StockListRow, StockListSummaryRow,
-    HorizontalLineByCodeRow, WyckoffChartByCodeRow, WyckoffChartDb, KEYSPACE, TABLE,
+    HorizontalLineByCodeRow, WyckoffChartByCodeRow, TakeProfitWyckoffByCodeRow, WyckoffChartDb, KEYSPACE, TABLE,
 };
 
 const ROW_SELECT: &str = "code, name, sector, sub_sector, logo, keystats, keystats_updated_at, \
@@ -16,7 +18,7 @@ const ROW_SELECT: &str = "code, name, sector, sub_sector, logo, keystats, keysta
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
     company_information, company_information_updated_at, corporate_action, corporate_action_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line";
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -28,6 +30,9 @@ const SELECT_WYCKOFF_CHART_BY_CODE: &str =
 
 const SELECT_HORIZONTAL_LINE_BY_CODE: &str =
     "SELECT code, horizontal_line FROM invezgood.stock_list WHERE code = ?";
+
+const SELECT_TAKEPROFIT_WYCKOFF_BY_CODE: &str =
+    "SELECT code, takeprofit_wyckoff FROM invezgood.stock_list WHERE code = ?";
 
 const SELECT_KEYSTATS_FROM_STOCKBIT_BY_CODE: &str = "SELECT code, \
     closure_fin_items_results_stockbit, closure_fin_items_results_stockbit_updated_at, \
@@ -98,6 +103,12 @@ const UPDATE_WYCKOFF_CHART: &str =
 
 const UPDATE_HORIZONTAL_LINE: &str =
     "UPDATE invezgood.stock_list SET horizontal_line = ? WHERE code = ?";
+
+const UPDATE_TAKEPROFIT_WYCKOFF: &str =
+    "UPDATE invezgood.stock_list SET takeprofit_wyckoff = ? WHERE code = ?";
+
+const DELETE_TAKEPROFIT_WYCKOFF: &str =
+    "UPDATE invezgood.stock_list SET takeprofit_wyckoff = null WHERE code = ?";
 
 const UPDATE_SUB_SECTOR: &str =
     "UPDATE invezgood.stock_list SET sub_sector = ? WHERE code = ?";
@@ -195,6 +206,24 @@ pub async fn get_horizontal_line_by_code(
     rows.try_next()
         .await
         .map_err(|e| format!("select horizontal_line row {KEYSPACE}.{TABLE} code={code}: {e}"))
+}
+
+pub async fn get_takeprofit_wyckoff_by_code(
+    session: &Session,
+    code: &str,
+) -> Result<Option<TakeProfitWyckoffByCodeRow>, String> {
+    let mut rows = session
+        .query_iter(SELECT_TAKEPROFIT_WYCKOFF_BY_CODE, (code,))
+        .await
+        .map_err(|e| format!("select takeprofit_wyckoff {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .rows_stream::<TakeProfitWyckoffByCodeRow>()
+        .map_err(|e| {
+            format!("select takeprofit_wyckoff stream {KEYSPACE}.{TABLE} code={code}: {e}")
+        })?;
+
+    rows.try_next()
+        .await
+        .map_err(|e| format!("select takeprofit_wyckoff row {KEYSPACE}.{TABLE} code={code}: {e}"))
 }
 
 pub async fn get_keystats_from_stockbit_by_code(
@@ -531,6 +560,34 @@ pub async fn update_horizontal_line(
         .query_unpaged(UPDATE_HORIZONTAL_LINE, (horizontal_line, code))
         .await
         .map_err(|e| format!("update horizontal_line {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn upsert_takeprofit_wyckoff(
+    session: &Session,
+    code: &str,
+    takeprofit_wyckoff: &HashMap<String, f64>,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_TAKEPROFIT_WYCKOFF, (takeprofit_wyckoff, code))
+        .await
+        .map_err(|e| format!("upsert takeprofit_wyckoff {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn delete_takeprofit_wyckoff(session: &Session, code: &str) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(DELETE_TAKEPROFIT_WYCKOFF, (code,))
+        .await
+        .map_err(|e| format!("delete takeprofit_wyckoff {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 

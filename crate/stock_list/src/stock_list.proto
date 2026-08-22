@@ -81,6 +81,25 @@ service StockList {
 
   // Baca kolom horizontal_line di Scylla by PK code. Request: code wajib. Response: code + horizontal_line.
   rpc GetHorizontalLineByCode(GetHorizontalLineByCodeRequest) returns (GetHorizontalLineByCodeResponse);
+
+  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
+  // Read-only: baca kolom takeprofit_wyckoff dari invezgood.stock_list by PK code. Tidak GET API eksternal.
+  // Request: code wajib. code tidak ada → not_found. Kolom null/kosong → success + map kosong.
+  rpc GetTakeProfitWyckoffByCode(GetTakeProfitWyckoffByCodeRequest)
+      returns (GetTakeProfitWyckoffByCodeResponse);
+
+  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
+  // Upsert kolom takeprofit_wyckoff (map<text,double>) di invezgood.stock_list by PK code.
+  // Request: code wajib + map take-profit Wyckoff (key=fase/label, value=harga). Map kosong = hapus isi map.
+  // Cek code ada dulu; tidak ada → not_found. Side effect: tulis Scylla saja (read-only tidak GET API).
+  rpc UpsertTakeProfitWyckoffByCode(UpsertTakeProfitWyckoffByCodeRequest)
+      returns (UpsertTakeProfitWyckoffByCodeResponse);
+
+  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
+  // Hapus nilai kolom takeprofit_wyckoff (SET null) di invezgood.stock_list by PK code; baris stock tetap ada.
+  // Request: code wajib. Cek code ada dulu; tidak ada → not_found. Tidak GET API eksternal.
+  rpc DeleteTakeProfitWyckoffByCode(DeleteTakeProfitWyckoffByCodeRequest)
+      returns (DeleteTakeProfitWyckoffByCodeResponse);
 }
 
 message GetAllStocksRequest {}
@@ -533,6 +552,7 @@ message StockByCodeResponse {
   WyckoffChartData wyckoff_chart = 18;
   repeated int32 horizontal_line = 19;
   string sub_sector = 20;
+  map<string, double> takeprofit_wyckoff = 21;
 }
 
 message WyckoffChartData {
@@ -616,6 +636,35 @@ message UpdateHorizontalLineByCodeRequest {
 }
 
 message UpdateHorizontalLineByCodeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpsertTakeProfitWyckoffByCodeRequest {
+  string code = 1;
+  map<string, double> takeprofit_wyckoff = 2;
+}
+
+message GetTakeProfitWyckoffByCodeRequest {
+  string code = 1;
+}
+
+message GetTakeProfitWyckoffByCodeResponse {
+  bool success = 1;
+  string message = 2;
+  map<string, double> takeprofit_wyckoff = 3;
+}
+
+message UpsertTakeProfitWyckoffByCodeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteTakeProfitWyckoffByCodeRequest {
+  string code = 1;
+}
+
+message DeleteTakeProfitWyckoffByCodeResponse {
   bool success = 1;
   string message = 2;
 }

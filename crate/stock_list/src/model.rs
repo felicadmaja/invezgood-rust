@@ -959,6 +959,8 @@ pub struct StockListRow {
     pub wyckoff_chart: Option<WyckoffChartDb>,
     #[scylla(default_when_null)]
     pub horizontal_line: Option<Vec<i32>>,
+    #[scylla(default_when_null)]
+    pub takeprofit_wyckoff: Option<HashMap<String, f64>>,
 }
 
 /// Subset kolom untuk `GetWyckoffChartByCode`.
@@ -975,6 +977,14 @@ pub struct HorizontalLineByCodeRow {
     pub code: String,
     #[scylla(default_when_null)]
     pub horizontal_line: Option<Vec<i32>>,
+}
+
+/// Subset kolom untuk `GetTakeProfitWyckoffByCode`.
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct TakeProfitWyckoffByCodeRow {
+    pub code: String,
+    #[scylla(default_when_null)]
+    pub takeprofit_wyckoff: Option<HashMap<String, f64>>,
 }
 
 /// Subset kolom untuk `GetAllKeyStats`.

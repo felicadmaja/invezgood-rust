@@ -37,6 +37,7 @@ use crate::pb::{
     FinancialStatementResponse, FinancialStatementRowItem,     GetAllKeyStatsRequest, GetAllKeyStatsResponse, GetAllKeyStatsStreamPart, GetAllStocksRequest, GetAllStocksResponse,
     GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest,
     GetHorizontalLineByCodeRequest, GetHorizontalLineByCodeResponse,
+    GetTakeProfitWyckoffByCodeRequest, GetTakeProfitWyckoffByCodeResponse,
     GetKeyStatsFromStockbitRequest, GetStockbitProfileByCodeRequest,
     GetStockbitReportsByCodeRequest, GetStockByCodeRequest,
     GetStockByRepeatedCodeRequest, GetStockByRepeatedCodeResponse,
@@ -61,6 +62,8 @@ use crate::pb::{
     StockbitReportReactionEntry, StockbitReportsRow, StockbitReportsStreamPart, StockbitReportStatus, StockbitReportStream,
     StockbitReportSummary, StockbitReportUser, StockbitStats, StockByCodeResponse, StockListRow,
     UpdateHorizontalLineByCodeRequest, UpdateHorizontalLineByCodeResponse,
+    UpsertTakeProfitWyckoffByCodeRequest, UpsertTakeProfitWyckoffByCodeResponse,
+    DeleteTakeProfitWyckoffByCodeRequest, DeleteTakeProfitWyckoffByCodeResponse,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
     UpdateIsPlanToTradeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
     UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, UpdateSubSectorRequest,
@@ -264,6 +267,7 @@ impl StockListService {
             is_konglomerasi: row.is_konglomerasi.unwrap_or(false),
             wyckoff_chart: row.wyckoff_chart.as_ref().map(Self::wyckoff_chart_from_db),
             horizontal_line: row.horizontal_line.clone().unwrap_or_default(),
+            takeprofit_wyckoff: row.takeprofit_wyckoff.clone().unwrap_or_default(),
         }
     }
 
@@ -2583,6 +2587,46 @@ impl StockList for StockListService {
         result
     }
 
+    async fn get_take_profit_wyckoff_by_code(
+        &self,
+        request: Request<GetTakeProfitWyckoffByCodeRequest>,
+    ) -> Result<Response<GetTakeProfitWyckoffByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+
+        let result: Result<Response<GetTakeProfitWyckoffByCodeResponse>, Status> = async {
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            let row =
+                crate::repository::get_takeprofit_wyckoff_by_code(self.session.as_ref(), &code)
+                    .await
+                    .map_err(Status::internal)?
+                    .ok_or_else(|| {
+                        Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                    })?;
+
+            let takeprofit_wyckoff = row.takeprofit_wyckoff.unwrap_or_default();
+            let entries = takeprofit_wyckoff.len();
+
+            Ok(Response::new(GetTakeProfitWyckoffByCodeResponse {
+                success: true,
+                message: format!("takeprofit_wyckoff code={code} ({entries} entri)"),
+                takeprofit_wyckoff,
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "GetTakeProfitWyckoffByCode {user_name} {code} {}ms",
+            started.elapsed().as_millis()
+        );
+        result
+    }
+
     async fn update_horizontal_line_by_code(
         &self,
         request: Request<UpdateHorizontalLineByCodeRequest>,
@@ -2623,6 +2667,90 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("UpdateHorizontalLineByCode", &user_name, started);
+        result
+    }
+
+    async fn upsert_take_profit_wyckoff_by_code(
+        &self,
+        request: Request<UpsertTakeProfitWyckoffByCodeRequest>,
+    ) -> Result<Response<UpsertTakeProfitWyckoffByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+        let inner = request.into_inner();
+        let code = inner.code.trim().to_ascii_uppercase();
+        let entries = inner.takeprofit_wyckoff.len();
+
+        let result: Result<Response<UpsertTakeProfitWyckoffByCodeResponse>, Status> = async {
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            crate::repository::upsert_takeprofit_wyckoff(
+                self.session.as_ref(),
+                &code,
+                &inner.takeprofit_wyckoff,
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpsertTakeProfitWyckoffByCodeResponse {
+                success: true,
+                message: format!(
+                    "takeprofit_wyckoff code={code} berhasil diupsert ({entries} entri)"
+                ),
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "UpsertTakeProfitWyckoffByCode {user_name} {code} {}ms",
+            started.elapsed().as_millis()
+        );
+        result
+    }
+
+    async fn delete_take_profit_wyckoff_by_code(
+        &self,
+        request: Request<DeleteTakeProfitWyckoffByCodeRequest>,
+    ) -> Result<Response<DeleteTakeProfitWyckoffByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+
+        let result: Result<Response<DeleteTakeProfitWyckoffByCodeResponse>, Status> = async {
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            crate::repository::delete_takeprofit_wyckoff(self.session.as_ref(), &code)
+                .await
+                .map_err(|e| {
+                    if e.contains("tidak ditemukan") {
+                        Status::not_found(e)
+                    } else {
+                        Status::internal(e)
+                    }
+                })?;
+
+            Ok(Response::new(DeleteTakeProfitWyckoffByCodeResponse {
+                success: true,
+                message: format!("takeprofit_wyckoff code={code} berhasil dihapus"),
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "DeleteTakeProfitWyckoffByCode {user_name} {code} {}ms",
+            started.elapsed().as_millis()
+        );
         result
     }
 }
