@@ -695,7 +695,12 @@ name = "ftse"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "futures",
+ "prost",
  "scylla",
+ "tonic",
+ "tonic-build",
+ "user",
 ]
 
 [[package]]
@@ -1239,6 +1244,7 @@ dependencies = [
  "chart",
  "dotenvy",
  "emiten_trending",
+ "ftse",
  "grpc_server",
  "haka_haki",
  "hari_libur",

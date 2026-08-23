@@ -6,6 +6,7 @@ use chart::{ChartServer, ChartService};
 use emiten_trending::{EmitenTrendingServer, EmitenTrendingService};
 use haka_haki::{HakaHakiServer, HakaHakiService};
 use hari_libur::{HariLiburServer, HariLiburService};
+use ftse::{FtseServer, FtseService};
 use msci::{MsciServer, MsciService};
 use pending_order::{PendingOrderServer, PendingOrderService};
 use portofolio::{PortofolioServer, PortofolioService};
@@ -108,6 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
     );
     let msci = MsciService::new(session.clone(), auth_sessions.clone());
+    let ftse = FtseService::new(session.clone(), auth_sessions.clone());
     let hari_libur = HariLiburService::new(session.clone(), auth_sessions.clone());
     let wyckoff_glossary =
         WyckoffGlossaryService::new(session.clone(), auth_sessions.clone());
@@ -150,6 +152,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(chart::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(haka_haki::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(msci::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(ftse::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(hari_libur::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(wyckoff_glossary::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
@@ -185,6 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let chart_svc = maybe_compressed!(ChartServer::new(chart), enable_compression);
     let haka_haki_svc = maybe_compressed!(HakaHakiServer::new(haka_haki), enable_compression);
     let msci_svc = maybe_compressed!(MsciServer::new(msci), enable_compression);
+    let ftse_svc = maybe_compressed!(FtseServer::new(ftse), enable_compression);
     let hari_libur_svc =
         maybe_compressed!(HariLiburServer::new(hari_libur), enable_compression);
     let wyckoff_glossary_svc =
@@ -220,6 +224,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(chart_svc)
         .add_service(haka_haki_svc)
         .add_service(msci_svc)
+        .add_service(ftse_svc)
         .add_service(hari_libur_svc)
         .add_service(wyckoff_glossary_svc)
         .serve(addr)

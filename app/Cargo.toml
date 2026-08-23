@@ -24,6 +24,7 @@ haka_haki = { path = "../crate/haka_haki" }
 hari_libur = { path = "../crate/hari_libur" }
 market_holiday = { path = "../crate/market_holiday" }
 msci = { path = "../crate/msci" }
+ftse = { path = "../crate/ftse" }
 stockbit_browser = { path = "../crate/stockbit_browser" }
 wyckoff_glossary = { path = "../crate/wyckoff_glosary" }
 worker_scrapping = { path = "../worker_scrapping" }
