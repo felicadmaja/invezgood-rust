@@ -350,6 +350,7 @@ impl StockListService {
             catatan_pribadi: row.catatan_pribadi.unwrap_or_default(),
             is_plan_to_trade: row.is_plan_to_trade.unwrap_or(false),
             is_konglomerasi: row.is_konglomerasi.unwrap_or(false),
+            takeprofit_wyckoff: row.takeprofit_wyckoff.unwrap_or_default(),
         }
     }
 
@@ -2665,7 +2666,7 @@ impl StockList for StockListService {
 
             Ok(Response::new(GetTakeProfitWyckoffByCodeResponse {
                 success: true,
-                message: format!("takeprofit_wyckoff code={code} ({entries} entri)"),
+                message: format!("takeprofit_wyckoff code={} ({entries} entri)", row.code),
                 takeprofit_wyckoff,
             }))
         }

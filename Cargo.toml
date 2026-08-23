@@ -20,6 +20,10 @@ members = [
     "crate/wyckoff_glosary",
     "crate/tls",
     "crate/grpc_stream",
+    "crate/grpc_server",
     "worker_scrapping",
 ]
 resolver = "2"
+
+[patch.crates-io]
+tonic = { path = "third_party/tonic" }

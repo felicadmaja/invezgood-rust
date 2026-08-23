@@ -116,7 +116,8 @@ const UPDATE_SUB_SECTOR: &str =
 const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?";
 
 const LIST_ALL: &str = "SELECT code, name, sector, sub_sector, logo, keystats_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi FROM invezgood.stock_list";
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, takeprofit_wyckoff \
+    FROM invezgood.stock_list";
 
 const LIST_ALL_KEYSTATS: &str =
     "SELECT code, keystats, keystats_updated_at FROM invezgood.stock_list";

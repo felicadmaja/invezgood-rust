@@ -895,6 +895,7 @@ message StockListRow {
   bool is_plan_to_trade = 8;
   bool is_konglomerasi = 9;
   string sub_sector = 10;
+  map<string, double> takeprofit_wyckoff = 11;
 }
 
 message GetAllStocksResponse {

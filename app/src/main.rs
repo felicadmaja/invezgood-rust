@@ -17,8 +17,8 @@ use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{new_session_store, UserServer, UserService};
 use wyckoff_glossary::{WyckoffGlossaryServer, WyckoffGlossaryService};
-use std::time::Duration;
 
+use grpc_server::apply_grpc_transport;
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder as ReflectionBuilder;
@@ -52,54 +52,6 @@ use pb::{PingRequest, PingResponse};
 
 const DEFAULT_HOST: &str = "0.0.0.0";
 const DEFAULT_PORT: &str = "50054";
-
-/// Idle sebelum probe TCP keepalive (deteksi RST/timeout di lapisan socket).
-const DEFAULT_TCP_KEEPALIVE_SECS: u64 = 30;
-/// Interval HTTP/2 PING dari server ke client.
-const DEFAULT_HTTP2_KEEPALIVE_INTERVAL_SECS: u64 = 30;
-/// Batas tunggu PING ACK; koneksi ditutup bila lewat → stream task dibatalkan.
-const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 10;
-
-/// Baca durasi detik dari env. `0` = nonaktif (`None`). Env tidak di-set → default.
-fn duration_secs_from_env(key: &str, default_secs: u64) -> Option<Duration> {
-    match std::env::var(key) {
-        Ok(raw) => {
-            let secs: u64 = raw.parse().unwrap_or(default_secs);
-            if secs == 0 {
-                None
-            } else {
-                Some(Duration::from_secs(secs))
-            }
-        }
-        Err(_) => Some(Duration::from_secs(default_secs)),
-    }
-}
-
-/// TCP + HTTP/2 keepalive agar hyper/h2 segera menutup koneksi mati dan drop task stream.
-fn apply_grpc_keepalive(builder: Server) -> Server {
-    let tcp_keepalive =
-        duration_secs_from_env("GRPC_TCP_KEEPALIVE_SECS", DEFAULT_TCP_KEEPALIVE_SECS);
-    let http2_interval = duration_secs_from_env(
-        "GRPC_HTTP2_KEEPALIVE_INTERVAL_SECS",
-        DEFAULT_HTTP2_KEEPALIVE_INTERVAL_SECS,
-    );
-    let http2_timeout = duration_secs_from_env(
-        "GRPC_HTTP2_KEEPALIVE_TIMEOUT_SECS",
-        DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS,
-    );
-
-    println!(
-        "gRPC keepalive: tcp={}s, http2_ping={}s, http2_timeout={}s",
-        tcp_keepalive.map(|d| d.as_secs()).unwrap_or(0),
-        http2_interval.map(|d| d.as_secs()).unwrap_or(0),
-        http2_timeout.map(|d| d.as_secs()).unwrap_or(0),
-    );
-
-    builder
-        .tcp_keepalive(tcp_keepalive)
-        .http2_keepalive_interval(http2_interval)
-        .http2_keepalive_timeout(http2_timeout)
-}
 
 #[derive(Default)]
 struct InvezgoodService;
@@ -238,7 +190,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let wyckoff_glossary_svc =
         maybe_compressed!(WyckoffGlossaryServer::new(wyckoff_glossary), enable_compression);
 
-    let mut builder = apply_grpc_keepalive(Server::builder());
+    let mut builder = apply_grpc_transport(Server::builder());
 
     if tls::use_tls_from_env() {
         let tls_config = tls::load_tls_config()?;

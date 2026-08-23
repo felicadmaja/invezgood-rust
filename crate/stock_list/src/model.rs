@@ -1019,6 +1019,8 @@ pub struct StockListSummaryRow {
     pub is_plan_to_trade: Option<bool>,
     #[scylla(default_when_null)]
     pub is_konglomerasi: Option<bool>,
+    #[scylla(default_when_null)]
+    pub takeprofit_wyckoff: Option<HashMap<String, f64>>,
 }
 
 #[derive(Debug, Clone)]

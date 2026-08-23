@@ -1,8 +1,8 @@
 # Aturan timing keepalive gRPC (Tonic / HTTP/2)
 
-Server gRPC (`app/src/main.rs`) memakai **dua lapisan** keepalive supaya koneksi mati (TCP RST, timeout, client hilang) terdeteksi cepat dan **task stream Tokio segera dibatalkan**.
+Server gRPC memakai **`grpc_server::apply_grpc_transport`** (`crate/grpc_server`) + patch Tonic (`third_party/tonic`) untuk keepalive, idle GOAWAY, dan max connection age.
 
-Implementasi: `Server::tcp_keepalive`, `Server::http2_keepalive_interval`, `Server::http2_keepalive_timeout` (Tonic 0.12 → hyper/h2).
+Implementasi: `Server::tcp_keepalive`, `http2_keepalive_*`, `max_connection_idle`, `max_connection_age`, `max_connection_age_grace`.
 
 ---
 
@@ -13,20 +13,22 @@ Implementasi: `Server::tcp_keepalive`, `Server::http2_keepalive_interval`, `Serv
 | TCP idle probe | `GRPC_TCP_KEEPALIVE_SECS` | **30 detik** | Setelah idle N detik, OS mulai kirim TCP keepalive probe ke socket |
 | HTTP/2 PING interval | `GRPC_HTTP2_KEEPALIVE_INTERVAL_SECS` | **30 detik** | Server kirim frame HTTP/2 PING ke client setiap N detik |
 | HTTP/2 PING timeout | `GRPC_HTTP2_KEEPALIVE_TIMEOUT_SECS` | **10 detik** | Jika PING tidak di-ACK dalam N detik, koneksi ditutup |
+| Max connection **idle** | `GRPC_HTTP2_MAX_CONNECTION_IDLE_SECS` | **300 detik (5 menit)** | Tanpa RPC → graceful **GOAWAY**; timer reset tiap request |
+| Max connection **age** | `GRPC_HTTP2_MAX_CONNECTION_AGE_SECS` | **0 (nonaktif)** | Umur maks koneksi → GOAWAY → client renegotiasi channel baru |
+| Age **grace** | `GRPC_HTTP2_MAX_CONNECTION_AGE_GRACE_SECS` | **30 detik** | Setelah age GOAWAY, tunggu drain lalu force-close bila perlu |
+| PING tanpa RPC aktif | `GRPC_HTTP2_PERMIT_KEEPALIVE_WITHOUT_CALLS` | **true** | Hyper server: PING tetap jalan saat idle bila interval aktif |
 
-**Worst-case deteksi koneksi mati (HTTP/2):** `interval + timeout` = **40 detik** (30 + 10).
-
-**Nonaktifkan:** set env ke `0` → Tonic menerima `None` (keepalive layer itu dimatikan).
+**Nonaktifkan:** set env ke `0` (kecuali `PERMIT_*` → `false`).
 
 ---
 
-## Alur HTTP/2 keepalive
+## Graceful GOAWAY (Swift gRPC client)
 
-1. Koneksi idle (tidak ada frame data) selama **interval** → hyper/h2 kirim **PING**.
-2. Client wajib balas **PING ACK** dalam **timeout**.
-3. Timeout habis → hyper menutup koneksi → semua stream gRPC pada koneksi itu **cancel** → handler/stream task Tokio drop.
+1. **Idle timeout** — koneksi tidak menerima RPC selama `MAX_CONNECTION_IDLE` → `graceful_shutdown()` → frame GOAWAY → Swift buat subchannel baru pada request berikutnya.
+2. **Max age** — koneksi hidup ≥ `MAX_CONNECTION_AGE` → GOAWAY → grace period → force-close bila client tidak selesai drain.
+3. **PING gagal** — client mati/ suspended → koneksi putus (bukan GOAWAY graceful, tapi stream task server tetap dibersihkan).
 
-PING berjalan **per koneksi**, bukan per RPC. Satu konegsi mati = semua stream di koneksi itu ikut putus.
+Timer idle **reset** pada setiap inbound RPC (unary maupun stream).
 
 ---
 
@@ -89,8 +91,10 @@ Nilai `0` = layer nonaktif.
 
 ## Referensi kode
 
-- Konfigurasi: `app/src/main.rs` → `apply_grpc_keepalive()`
-- Contoh env: `.env-example` (blok `GRPC_*_KEEPALIVE_*`)
+- Konfigurasi env: `crate/grpc_server/src/lib.rs` → `apply_grpc_transport()`
+- Entry: `app/src/main.rs`
+- Patch GOAWAY/idle: `third_party/tonic/src/transport/server/mod.rs`
+- Contoh env: `.env-example`
 
 ---
 
