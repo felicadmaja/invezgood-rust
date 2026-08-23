@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::Utc;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
@@ -63,6 +63,22 @@ impl FtseService {
             return Err("status wajib diisi".to_string());
         }
         Ok(())
+    }
+
+    fn parse_updated_at(raw: &str) -> Result<DateTime<Utc>, String> {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return Ok(Utc::now());
+        }
+        if let Ok(dt) = DateTime::parse_from_rfc3339(trimmed) {
+            return Ok(dt.with_timezone(&Utc));
+        }
+        if let Ok(naive) = NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S") {
+            return Ok(naive.and_utc());
+        }
+        Err(format!(
+            "updated_at tidak valid ({raw}); gunakan RFC3339 atau YYYY-MM-DD HH:MM:SS"
+        ))
     }
 }
 
@@ -134,12 +150,21 @@ impl Ftse for FtseService {
                     message: error,
                 }));
             }
+            let updated_at = match Self::parse_updated_at(&req.updated_at) {
+                Ok(ts) => ts,
+                Err(error) => {
+                    return Ok(Response::new(InsertFtseResponse {
+                        success: false,
+                        message: error,
+                    }));
+                }
+            };
 
             let row = FtseRow {
                 code,
                 grade: Some(req.grade.trim().to_string()),
                 status: Some(req.status.trim().to_string()),
-                updated_at: Some(Utc::now()),
+                updated_at: Some(updated_at),
             };
 
             match crate::repository::upsert(self.session.as_ref(), &row).await {
@@ -190,6 +215,15 @@ impl Ftse for FtseService {
                     message: error,
                 }));
             }
+            let updated_at = match Self::parse_updated_at(&req.updated_at) {
+                Ok(ts) => ts,
+                Err(error) => {
+                    return Ok(Response::new(UpdateFtseResponse {
+                        success: false,
+                        message: error,
+                    }));
+                }
+            };
 
             match crate::repository::find_by_code(self.session.as_ref(), &code).await {
                 Ok(None) => {
@@ -211,7 +245,7 @@ impl Ftse for FtseService {
                 code,
                 grade: Some(req.grade.trim().to_string()),
                 status: Some(req.status.trim().to_string()),
-                updated_at: Some(Utc::now()),
+                updated_at: Some(updated_at),
             };
 
             match crate::repository::update(self.session.as_ref(), &row).await {

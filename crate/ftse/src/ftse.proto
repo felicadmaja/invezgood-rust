@@ -7,11 +7,11 @@ service Ftse {
   // Response: success + message + data (repeated FtseRow). success=false bila query Scylla gagal.
   rpc GetAllFtse(GetAllFtseRequest) returns (GetAllFtseResponse);
 
-  // INSERT/upsert baris ke invezgood.ftse (PK code). Set updated_at = now (UTC).
+  // INSERT/upsert baris ke invezgood.ftse (PK code). updated_at dari request (RFC3339); kosong = now (UTC).
   // Wajib authorization: Bearer <token> login. success=false + message bila validasi/DB gagal.
   rpc InsertFtse(InsertFtseRequest) returns (InsertFtseResponse);
 
-  // UPDATE grade+status di invezgood.ftse WHERE code = ?; set updated_at = now (UTC).
+  // UPDATE grade+status+updated_at di invezgood.ftse WHERE code = ?. updated_at kosong = now (UTC).
   // Gagal bila code belum ada (bukan insert). Wajib Bearer login.
   // success=false + message bila validasi / not found / DB gagal.
   rpc UpdateFtse(UpdateFtseRequest) returns (UpdateFtseResponse);
@@ -33,6 +33,8 @@ message InsertFtseRequest {
   string code = 1;
   string grade = 2;
   string status = 3;
+  // RFC3339 atau "YYYY-MM-DD HH:MM:SS" (UTC). Kosong = server isi now (UTC).
+  string updated_at = 4;
 }
 
 message InsertFtseResponse {
@@ -44,6 +46,8 @@ message UpdateFtseRequest {
   string code = 1;
   string grade = 2;
   string status = 3;
+  // RFC3339 atau "YYYY-MM-DD HH:MM:SS" (UTC). Kosong = server isi now (UTC).
+  string updated_at = 4;
 }
 
 message UpdateFtseResponse {

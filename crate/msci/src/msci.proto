@@ -7,11 +7,11 @@ service Msci {
   // Response: success + message + data (repeated MsciRow). success=false bila query Scylla gagal.
   rpc GetAllMsci(GetAllMsciRequest) returns (GetAllMsciResponse);
 
-  // INSERT/upsert baris ke invezgood.msci (PK code). Set updated_at = now (UTC).
+  // INSERT/upsert baris ke invezgood.msci (PK code). updated_at dari request (RFC3339); kosong = now (UTC).
   // Wajib authorization: Bearer <token> login. success=false + message bila validasi/DB gagal.
   rpc InsertMsci(InsertMsciRequest) returns (InsertMsciResponse);
 
-  // UPDATE grade+status di invezgood.msci WHERE code = ?; set updated_at = now (UTC).
+  // UPDATE grade+status+updated_at di invezgood.msci WHERE code = ?. updated_at kosong = now (UTC).
   // Gagal bila code belum ada (bukan insert). Wajib Bearer login.
   // success=false + message bila validasi / not found / DB gagal.
   rpc UpdateMsci(UpdateMsciRequest) returns (UpdateMsciResponse);
@@ -33,6 +33,8 @@ message InsertMsciRequest {
   string code = 1;
   string grade = 2;
   string status = 3;
+  // RFC3339 atau "YYYY-MM-DD HH:MM:SS" (UTC). Kosong = server isi now (UTC).
+  string updated_at = 4;
 }
 
 message InsertMsciResponse {
@@ -44,6 +46,8 @@ message UpdateMsciRequest {
   string code = 1;
   string grade = 2;
   string status = 3;
+  // RFC3339 atau "YYYY-MM-DD HH:MM:SS" (UTC). Kosong = server isi now (UTC).
+  string updated_at = 4;
 }
 
 message UpdateMsciResponse {
