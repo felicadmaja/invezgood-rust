@@ -16,3 +16,5 @@ CREATE TABLE IF NOT EXISTS invezgood.ftse (
 -- | grade       | regular       | text      |
 -- | status      | regular       | text      |
 -- | updated_at  | regular       | timestamp |
+--
+-- Nilai grade: Large | Standard | Small | Micro (tanpa suffix "Cap").
