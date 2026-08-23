@@ -48,6 +48,7 @@
 -- | wyckoff_chart                       | regular        | frozen<wyckoff_chart>                   |
 -- | horizontal_line                     | regular        | list<int>                               |
 -- | takeprofit_wyckoff                  | regular        | map<text, double>                       |
+-- | is_bad_fundamental                    | regular        | boolean                                 |
 
 
 -- MV stock_list_by_is_plan_to_trade:

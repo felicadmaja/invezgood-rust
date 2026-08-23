@@ -66,7 +66,8 @@ use crate::pb::{
     UpsertTakeProfitWyckoffByCodeRequest, UpsertTakeProfitWyckoffByCodeResponse,
     DeleteTakeProfitWyckoffByCodeRequest, DeleteTakeProfitWyckoffByCodeResponse,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
-    UpdateIsPlanToTradeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
+    UpdateIsPlanToTradeResponse, UpdateIsBadFundamentalByCodeRequest,
+    UpdateIsBadFundamentalByCodeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
     UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, UpdateSubSectorRequest,
     UpdateSubSectorResponse, UpdateWyckoffChartByCodeRequest,
     UpdateWyckoffChartByCodeResponse, WyckoffChartData,
@@ -269,6 +270,7 @@ impl StockListService {
             wyckoff_chart: row.wyckoff_chart.as_ref().map(Self::wyckoff_chart_from_db),
             horizontal_line: row.horizontal_line.clone().unwrap_or_default(),
             takeprofit_wyckoff: row.takeprofit_wyckoff.clone().unwrap_or_default(),
+            is_bad_fundamental: row.is_bad_fundamental.unwrap_or(false),
         }
     }
 
@@ -351,6 +353,7 @@ impl StockListService {
             is_plan_to_trade: row.is_plan_to_trade.unwrap_or(false),
             is_konglomerasi: row.is_konglomerasi.unwrap_or(false),
             takeprofit_wyckoff: row.takeprofit_wyckoff.unwrap_or_default(),
+            is_bad_fundamental: row.is_bad_fundamental.unwrap_or(false),
         }
     }
 
@@ -2482,6 +2485,52 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("UpdateIsPlanToTrade", &user_name, started);
+        result
+    }
+
+    async fn update_is_bad_fundamental_by_code(
+        &self,
+        request: Request<UpdateIsBadFundamentalByCodeRequest>,
+    ) -> Result<Response<UpdateIsBadFundamentalByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+        let inner = request.into_inner();
+        let code = inner.code.trim().to_ascii_uppercase();
+
+        let result: Result<Response<UpdateIsBadFundamentalByCodeResponse>, Status> = async {
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            crate::repository::update_is_bad_fundamental(
+                self.session.as_ref(),
+                &code,
+                inner.is_bad_fundamental,
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpdateIsBadFundamentalByCodeResponse {
+                success: true,
+                message: format!(
+                    "is_bad_fundamental code={code}={}",
+                    inner.is_bad_fundamental
+                ),
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "UpdateIsBadFundamentalByCode {user_name} {code} {}ms",
+            started.elapsed().as_millis()
+        );
         result
     }
 

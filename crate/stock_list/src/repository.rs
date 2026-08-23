@@ -18,7 +18,7 @@ const ROW_SELECT: &str = "code, name, sector, sub_sector, logo, keystats, keysta
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
     company_information, company_information_updated_at, corporate_action, corporate_action_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff";
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff, is_bad_fundamental";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -92,6 +92,9 @@ const UPDATE_IS_KONGLOMERASI: &str =
 const UPDATE_IS_PLAN_TO_TRADE: &str =
     "UPDATE invezgood.stock_list SET is_plan_to_trade = ? WHERE code = ?";
 
+const UPDATE_IS_BAD_FUNDAMENTAL: &str =
+    "UPDATE invezgood.stock_list SET is_bad_fundamental = ? WHERE code = ?";
+
 const UPDATE_CATATAN_OWNER: &str =
     "UPDATE invezgood.stock_list SET catatan_owner = ? WHERE code = ?";
 
@@ -116,7 +119,7 @@ const UPDATE_SUB_SECTOR: &str =
 const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?";
 
 const LIST_ALL: &str = "SELECT code, name, sector, sub_sector, logo, keystats_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, takeprofit_wyckoff \
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, takeprofit_wyckoff, is_bad_fundamental \
     FROM invezgood.stock_list";
 
 const LIST_ALL_KEYSTATS: &str =
@@ -481,6 +484,22 @@ pub async fn update_is_plan_to_trade(
         .query_unpaged(UPDATE_IS_PLAN_TO_TRADE, (is_plan_to_trade, code))
         .await
         .map_err(|e| format!("update is_plan_to_trade {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_is_bad_fundamental(
+    session: &Session,
+    code: &str,
+    is_bad_fundamental: bool,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_IS_BAD_FUNDAMENTAL, (is_bad_fundamental, code))
+        .await
+        .map_err(|e| format!("update is_bad_fundamental {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 

@@ -100,6 +100,11 @@ service StockList {
   // Request: code wajib. Cek code ada dulu; tidak ada → not_found. Tidak GET API eksternal.
   rpc DeleteTakeProfitWyckoffByCode(DeleteTakeProfitWyckoffByCodeRequest)
       returns (DeleteTakeProfitWyckoffByCodeResponse);
+
+  // Update kolom is_bad_fundamental di invezgood.stock_list by PK code.
+  // Wajib Bearer login. success=false + message bila code tidak ada atau DB gagal.
+  rpc UpdateIsBadFundamentalByCode(UpdateIsBadFundamentalByCodeRequest)
+      returns (UpdateIsBadFundamentalByCodeResponse);
 }
 
 message GetAllStocksRequest {}
@@ -553,6 +558,7 @@ message StockByCodeResponse {
   repeated int32 horizontal_line = 19;
   string sub_sector = 20;
   map<string, double> takeprofit_wyckoff = 21;
+  bool is_bad_fundamental = 22;
 }
 
 message WyckoffChartData {
@@ -697,6 +703,16 @@ message UpdateIsPlanToTradeRequest {
 message UpdateIsPlanToTradeResponse {
   string code = 1;
   bool is_plan_to_trade = 2;
+}
+
+message UpdateIsBadFundamentalByCodeRequest {
+  string code = 1;
+  bool is_bad_fundamental = 2;
+}
+
+message UpdateIsBadFundamentalByCodeResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 message UpdateCatatanOwnerRequest {
@@ -896,6 +912,7 @@ message StockListRow {
   bool is_konglomerasi = 9;
   string sub_sector = 10;
   map<string, double> takeprofit_wyckoff = 11;
+  bool is_bad_fundamental = 12;
 }
 
 message GetAllStocksResponse {

@@ -961,6 +961,8 @@ pub struct StockListRow {
     pub horizontal_line: Option<Vec<i32>>,
     #[scylla(default_when_null)]
     pub takeprofit_wyckoff: Option<HashMap<String, f64>>,
+    #[scylla(default_when_null)]
+    pub is_bad_fundamental: Option<bool>,
 }
 
 /// Subset kolom untuk `GetWyckoffChartByCode`.
@@ -1021,6 +1023,8 @@ pub struct StockListSummaryRow {
     pub is_konglomerasi: Option<bool>,
     #[scylla(default_when_null)]
     pub takeprofit_wyckoff: Option<HashMap<String, f64>>,
+    #[scylla(default_when_null)]
+    pub is_bad_fundamental: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
