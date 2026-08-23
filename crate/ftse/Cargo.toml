@@ -1,0 +1,8 @@
+[package]
+name = "ftse"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+scylla = { version = "1.5", features = ["chrono-04"] }

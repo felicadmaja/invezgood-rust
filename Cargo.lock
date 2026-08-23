@@ -691,6 +691,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ftse"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "scylla",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"

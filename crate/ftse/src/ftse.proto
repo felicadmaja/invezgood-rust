@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package ftse;
+
+service Ftse {
+  // Scan semua baris invezgood.ftse (read-only). Wajib Bearer login.
+  // Response: success + message + data (repeated FtseRow). success=false bila query Scylla gagal.
+  rpc GetAllFtse(GetAllFtseRequest) returns (GetAllFtseResponse);
+
+  // INSERT/upsert baris ke invezgood.ftse (PK code). Set updated_at = now (UTC).
+  // Wajib authorization: Bearer <token> login. success=false + message bila validasi/DB gagal.
+  rpc InsertFtse(InsertFtseRequest) returns (InsertFtseResponse);
+
+  // UPDATE grade+status di invezgood.ftse WHERE code = ?; set updated_at = now (UTC).
+  // Gagal bila code belum ada (bukan insert). Wajib Bearer login.
+  // success=false + message bila validasi / not found / DB gagal.
+  rpc UpdateFtse(UpdateFtseRequest) returns (UpdateFtseResponse);
+
+  // DELETE FROM invezgood.ftse WHERE code = ?. Gagal bila code belum ada.
+  // Wajib Bearer login. success=false + message bila validasi / not found / DB gagal.
+  rpc DeleteFtse(DeleteFtseRequest) returns (DeleteFtseResponse);
+}
+
+message GetAllFtseRequest {}
+
+message GetAllFtseResponse {
+  bool success = 1;
+  string message = 2;
+  repeated FtseRow data = 3;
+}
+
+message InsertFtseRequest {
+  string code = 1;
+  string grade = 2;
+  string status = 3;
+}
+
+message InsertFtseResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateFtseRequest {
+  string code = 1;
+  string grade = 2;
+  string status = 3;
+}
+
+message UpdateFtseResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteFtseRequest {
+  string code = 1;
+}
+
+message DeleteFtseResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Baris invezgood.ftse (PK code).
+message FtseRow {
+  string code = 1;
+  string grade = 2;
+  string status = 3;
+  string updated_at = 4;
+}
