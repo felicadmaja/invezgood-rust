@@ -25,6 +25,7 @@ service PendingOrder {
   // Jumat 09:00–11:30 & 14:00–16:00 bila Stockbit ready
   // (poller selalu jalan tanpa perlu subscriber). Scrape order Stockbit
   // (carina.stockbit.com/order/v2/list) via Chrome → upsert invezgood.pending_order.
+  // tahun_bulan_tanggal = tanggal invoke scrape (bukan tanggal time_open order).
   rpc GetAllPendingOrderFromStockbit(GetAllPendingOrderFromStockbitRequest)
       returns (GetAllPendingOrderFromStockbitResponse);
 
@@ -88,7 +89,7 @@ message PendingOrderRow {
   double amount_match_total = 12;
   bool is_gtc = 13;
   string updated_at = 14;
-  // Tanggal dari time_open (YYYY-MM-DD); clustering key DESC.
+  // Tanggal invoke scrape/API (YYYY-MM-DD, waktu lokal); clustering key DESC. time_open tetap dari Stockbit.
   string tahun_bulan_tanggal = 15;
   // YYYY-MM dari tahun_bulan_tanggal.
   string tahun_bulan = 16;

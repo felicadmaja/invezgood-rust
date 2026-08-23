@@ -16,6 +16,7 @@ pub fn tahun_bulan_from_date(date: NaiveDate) -> String {
 
 /// Satu baris `invezgood.pending_order` (juga hasil query MV).
 /// PK: `((order_id), tahun_bulan_tanggal DESC)`.
+/// `tahun_bulan_tanggal` = tanggal invoke scrape/API (bukan dari `time_open`).
 #[derive(Debug, Clone, DeserializeRow)]
 pub struct PendingOrderRow {
     #[scylla(default_when_null)]

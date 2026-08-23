@@ -1,6 +1,6 @@
 -- Keyspace: invezgood
 -- Pending order. Scrape Stockbit hanya upsert by (order_id, tahun_bulan_tanggal)
--- tahun_bulan_tanggal = tanggal dari time_open (YYYY-MM-DD), clustering DESC.
+-- tahun_bulan_tanggal = tanggal invoke scrape/API (waktu lokal server YYYY-MM-DD), bukan dari time_open.
 
 CREATE KEYSPACE IF NOT EXISTS invezgood
 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
@@ -60,7 +60,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_tahun_bulan AS
 -- | column_name         | kind            | type      |
 -- |---------------------|-----------------|-----------|
 -- | order_id            | partition_key   | text      |
--- | tahun_bulan_tanggal | clustering DESC | date (dari time_open YYYY-MM-DD) |
+-- | tahun_bulan_tanggal | clustering DESC | date (tanggal invoke scrape/API, waktu lokal) |
 -- | tahun_bulan         | regular         | text (YYYY-MM dari tahun_bulan_tanggal) |
 -- | emiten_name         | regular         | text      |
 -- | status              | regular         | text      |

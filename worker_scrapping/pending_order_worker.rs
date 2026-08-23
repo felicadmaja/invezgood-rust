@@ -10,7 +10,7 @@
 //! - `message` ← `message`
 //! - `side` ← `side`
 //! - `time_open` ← `time.open` (timestamp RFC3339)
-//! - `tahun_bulan_tanggal` ← tanggal dari `time_open` (YYYY-MM-DD)
+//! - `tahun_bulan_tanggal` ← tanggal invoke scrape/API (waktu lokal server, YYYY-MM-DD), bukan dari `time.open`
 //! - `lot_open` ← `qty.lot_open`
 //! - `lot_done` ← `qty.lot_done`
 //! - `price_order` ← `price.order`
@@ -20,7 +20,7 @@
 //! - `is_gtc` ← `gtc.is_gtc`
 //! - `updated_at` ← waktu upsert (UTC now)
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Local, NaiveDate, Utc};
 use chromiumoxide::page::Page;
 use scylla::client::session::Session;
 use serde_json::Value;
@@ -108,7 +108,7 @@ fn parse_time_open(item: &Value) -> Option<DateTime<Utc>> {
     ))
 }
 
-fn parse_order_list_json(v: &Value) -> Vec<PendingOrderRow> {
+fn parse_order_list_json(v: &Value, scrape_date: NaiveDate) -> Vec<PendingOrderRow> {
     let items = v
         .get("data")
         .and_then(|x| x.as_array())
@@ -134,7 +134,7 @@ fn parse_order_list_json(v: &Value) -> Vec<PendingOrderRow> {
         };
         rows.push(PendingOrderRow {
             order_id,
-            tahun_bulan_tanggal: time_open.date_naive(),
+            tahun_bulan_tanggal: scrape_date,
             emiten_name,
             status: json_str(&item, "status_text"),
             message: json_str(&item, "message"),
@@ -155,6 +155,7 @@ fn parse_order_list_json(v: &Value) -> Vec<PendingOrderRow> {
 async fn fetch_order_list(
     http: &reqwest::Client,
     bearer: &str,
+    scrape_date: NaiveDate,
 ) -> Result<(Vec<PendingOrderRow>, RateLimitInfo), Box<dyn std::error::Error>> {
     let resp = http
         .get(ORDER_LIST_API_URL)
@@ -180,7 +181,7 @@ async fn fetch_order_list(
 
     let v: Value =
         serde_json::from_str(&body).map_err(|e| format!("order/v2/list JSON: {e}"))?;
-    Ok((parse_order_list_json(&v), rate))
+    Ok((parse_order_list_json(&v, scrape_date), rate))
 }
 
 async fn upsert_pending_orders(
@@ -280,7 +281,8 @@ async fn scrape_and_insert_pending_order_once(
         .build()?;
 
     println!("\x1b[32mPending order API: GET {ORDER_LIST_API_URL}...\x1b[0m");
-    let (rows, rate) = fetch_order_list(&http, &bearer).await?;
+    let scrape_date = Local::now().date_naive();
+    let (rows, rate) = fetch_order_list(&http, &bearer, scrape_date).await?;
     let delay_ms = rate.inter_emiten_delay_ms();
     if delay_ms > 0 {
         println!(
@@ -337,7 +339,8 @@ mod tests {
         )
         .unwrap();
 
-        let rows = parse_order_list_json(&v);
+        let scrape_date = NaiveDate::from_ymd_opt(2026, 8, 23).unwrap();
+        let rows = parse_order_list_json(&v, scrape_date);
         assert_eq!(rows.len(), 1);
         let r = &rows[0];
         assert_eq!(r.order_id, "XL4637614QBOkCmZbPu7");
@@ -349,7 +352,7 @@ mod tests {
             r.time_open.to_rfc3339(),
             "2026-07-20T13:04:25+00:00"
         );
-        assert_eq!(r.tahun_bulan_tanggal.to_string(), "2026-07-20");
+        assert_eq!(r.tahun_bulan_tanggal.to_string(), "2026-08-23");
         assert_eq!(r.lot_open, 157.0);
         assert_eq!(r.lot_done, 0.0);
         assert_eq!(r.price_order, 63.0);
