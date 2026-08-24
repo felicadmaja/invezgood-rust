@@ -9,14 +9,15 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
+use worker_scrapping::invezgo_spike_poller::{InvezgoSpikePoller, InvezgoSpikeSnapshot};
 use worker_scrapping::yahoo_spike_poller::{YahooSpikePoller, YahooSpikeSnapshot};
 
 use crate::auth::{extract_bearer_token, validate_session, SessionStore};
 use crate::model::UserRow as DbUserRow;
 use crate::pb::user_server::User;
 use crate::pb::{
-    CekUsageRequest, GetPriceSpikeFromYahooFinanceRequest, GetUsersFromScyllaRequest,
-    GetUsersFromScyllaResponse, IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest,
+    CekUsageRequest, GetPriceSpikeFromInvezGoRequest, GetPriceSpikeFromYahooFinanceRequest,
+    GetUsersFromScyllaRequest, GetUsersFromScyllaResponse, IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest,
     LoginResponse, LogoutRequest, LogoutResponse, PriceSpikeResponse, PriceSpikeRow,
     UsageResponse, UserRow,
 };
@@ -38,6 +39,7 @@ pub struct UserService {
     auth_sessions: SessionStore,
     readiness: Arc<ReadinessPoller>,
     yahoo_spike: Arc<YahooSpikePoller>,
+    invezgo_spike: Arc<InvezgoSpikePoller>,
 }
 
 impl UserService {
@@ -46,12 +48,14 @@ impl UserService {
         auth_sessions: SessionStore,
         readiness: Arc<ReadinessPoller>,
         yahoo_spike: Arc<YahooSpikePoller>,
+        invezgo_spike: Arc<InvezgoSpikePoller>,
     ) -> Self {
         Self {
             session,
             auth_sessions,
             readiness,
             yahoo_spike,
+            invezgo_spike,
         }
     }
 
@@ -314,6 +318,118 @@ impl User for UserService {
 
                 if first || changed || heartbeat {
                     let cached = worker_scrapping::yahoo_spike_cache::today_details().await;
+                    if first || changed {
+                        eprintln!(
+                            "{rpc_name} {user_name}: push success={} msg={:?} data={:?}",
+                            snap.success, snap.message, cached
+                        );
+                    }
+                    let data = cached
+                        .iter()
+                        .map(|s| PriceSpikeRow {
+                            emiten_name: s.emiten_name.clone(),
+                            jenis_spike: s.jenis_spike.clone(),
+                            value_spike_percentage: s.value_spike_percentage,
+                            spike_at: s.spike_at.clone(),
+                        })
+                        .collect();
+                    let ok = send_or_break(
+                        &tx,
+                        Ok(PriceSpikeResponse {
+                            success: snap.success,
+                            message: snap.message.clone(),
+                            data,
+                        }),
+                    )
+                    .await;
+                    if !ok {
+                        eprintln!(
+                            "\x1b[31m{rpc_name} {user_name}: client disconnect — stream ditutup\x1b[0m"
+                        );
+                        break;
+                    }
+                    last = Some(snap);
+                    ticks_since_send = 0;
+                } else {
+                    ticks_since_send += 1;
+                }
+
+                if !sleep_unless_disconnected(
+                    &tx,
+                    Duration::from_secs(READY_STREAM_CHECK_SECS),
+                )
+                .await
+                {
+                    eprintln!(
+                        "\x1b[31m{rpc_name} {user_name}: client disconnect — stream ditutup\x1b[0m"
+                    );
+                    break;
+                }
+            }
+            poller.unregister_subscriber();
+        });
+
+        Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
+    }
+
+    type GetPriceSpikeFromInvezGoStream =
+        Pin<Box<dyn Stream<Item = Result<PriceSpikeResponse, Status>> + Send>>;
+
+    async fn get_price_spike_from_invez_go(
+        &self,
+        request: Request<GetPriceSpikeFromInvezGoRequest>,
+    ) -> Result<Response<Self::GetPriceSpikeFromInvezGoStream>, Status> {
+        let started = std::time::Instant::now();
+        let rpc_name = "GetPriceSpikeFromInvezGo";
+
+        let user_name = match extract_bearer_token(&request) {
+            Ok(token) => match validate_session(&self.auth_sessions, &token).await {
+                Ok(auth) => auth.nama,
+                Err(_) => {
+                    eprintln!(
+                        "{rpc_name} anonymous {}ms — abaikan (session invalid, tidak subscribe Invezgo poller)",
+                        started.elapsed().as_millis()
+                    );
+                    let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(1);
+                    drop(tx);
+                    return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
+                }
+            },
+            Err(_) => {
+                eprintln!(
+                    "{rpc_name} anonymous {}ms — abaikan (tanpa auth, tidak subscribe Invezgo poller)",
+                    started.elapsed().as_millis()
+                );
+                let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(1);
+                drop(tx);
+                return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
+            }
+        };
+        let _ = request.into_inner();
+
+        let poller = Arc::clone(&self.invezgo_spike);
+        let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(8);
+
+        eprintln!("\x1b[32m{rpc_name} {user_name}: client connect — stream dibuka\x1b[0m");
+        eprintln!(
+            "{rpc_name} {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
+
+        let user_name = user_name.clone();
+        tokio::spawn(async move {
+            poller.register_subscriber();
+            let mut last: Option<InvezgoSpikeSnapshot> = None;
+            let mut ticks_since_send: u64 = 0;
+
+            loop {
+                let snap = poller.latest();
+                let changed = last.as_ref() != Some(&snap);
+                let first = last.is_none();
+                let heartbeat = ticks_since_send >= READY_STREAM_HEARTBEAT_TICKS;
+
+                if first || changed || heartbeat {
+                    let cached = worker_scrapping::invezgo_spike_cache::today_details().await;
                     if first || changed {
                         eprintln!(
                             "{rpc_name} {user_name}: push success={} msg={:?} data={:?}",

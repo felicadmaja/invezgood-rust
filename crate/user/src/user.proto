@@ -58,6 +58,17 @@ service User {
   // Subscribe: push saat data berubah + heartbeat ~30s. Banyak subscriber tidak menambah frekuensi poll.
   rpc GetPriceSpikeFromYahooFinance(GetPriceSpikeFromYahooFinanceRequest) returns (stream PriceSpikeResponse);
 
+  // Stream spike Invezgo. Poller hanya jalan bila ≥1 client subscribe (0 subscriber → idle).
+  // Jadwal & ambang: cek pertama Senin–Jumat 09:00:00–09:00:59; lalu
+  // INTERVAL_INVEZGO_SPIKE_POLL_SECS (.env, default 120) di jam kerja; Sabtu/Minggu &
+  // invezgood.hari_libur libur; mulai 10:00 cek market libur (Redis `invezgood:market_holiday:{date}`).
+  // 09:00–09:05: GET analysis/chart/stock/{code}?from=&to= (7 hari) — spike = (close hari ini - open kemarin) / open kemarin * 100 (OPENING_* .env).
+  // Di luar itu: GET analysis/intraday-data/{code}?market=RG — spike = (close - open) / open * 100 (UP/DOWN_SPIKE .env); open=0 → close.
+  // Emiten: MV is_plan_to_trade=true; 
+  // `invezgood:invezgo:spike_today:{date}` + spike_reported; stream isi cache + heartbeat ~30s.
+  // Wajib Bearer login; tanpa auth stream ditutup tanpa hit Invezgo.
+  rpc GetPriceSpikeFromInvezGo(GetPriceSpikeFromInvezGoRequest) returns (stream PriceSpikeResponse);
+
 
   // GET api.invezgo.com/usage/api → jatah pemakaian API Invezgo (Bearer INVEZGO_BEARER_TOKEN).
   // Wajib authorization: Bearer <token> login. Request kosong. Response: UsageResponse.
@@ -119,6 +130,8 @@ message IsStockbitReadyResponse {
 }
 
 message GetPriceSpikeFromYahooFinanceRequest {}
+
+message GetPriceSpikeFromInvezGoRequest {}
 
 message PriceSpikeRow {
   string emiten_name = 1;

@@ -14,6 +14,7 @@ use portofolio_equity::{PortofolioEquityServer, PortofolioEquityService};
 use portofolio_history::{PortofolioHistoryServer, PortofolioHistoryService};
 use stock_list::{connect, StockListServer, StockListService};
 use stockbit_browser::ReadinessPoller;
+use worker_scrapping::invezgo_spike_poller::InvezgoSpikePoller;
 use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{new_session_store, UserServer, UserService};
@@ -133,7 +134,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .ensure_loop_running(session.clone())
         .await;
 
-    let user = UserService::new(session, auth_sessions, readiness_poller, yahoo_spike);
+    let invezgo_spike = InvezgoSpikePoller::new();
+    invezgo_spike
+        .ensure_loop_running(session.clone())
+        .await;
+
+    let user = UserService::new(
+        session,
+        auth_sessions,
+        readiness_poller,
+        yahoo_spike,
+        invezgo_spike,
+    );
 
     let enable_compression = enable_compression_from_env();
 

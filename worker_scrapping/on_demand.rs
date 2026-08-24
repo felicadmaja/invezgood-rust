@@ -635,6 +635,54 @@ pub async fn fetch_yahoo_price_spikes(
     Ok(crate::yahoo_spike_cache::upsert_spikes(&spikes).await)
 }
 
+/// Poller + stream `GetPriceSpikeFromInvezGo`.
+/// MV `stock_list_by_is_plan_to_trade = true` → intraday-data / chart Invezgo.
+pub async fn fetch_invezgo_price_spikes(
+    session: &Session,
+) -> Result<Vec<crate::yahoo_atr::SpikeEmiten>, String> {
+    let emitens = list_plan_to_trade_emiten_codes(session).await?;
+    let reported = crate::invezgo_spike_cache::cached_emiten_names().await;
+    let skipped = emitens.iter().filter(|e| reported.contains(*e)).count();
+    let to_check: Vec<String> = emitens
+        .into_iter()
+        .filter(|e| !reported.contains(e))
+        .collect();
+    let (up_pct, down_pct, mode_label) = crate::yahoo_atr::active_spike_thresholds();
+    println!(
+        "\x1b[32mInvezgo spike: cek {} emiten UP>={}% DOWN>={}% {} (skip {} sudah di-cache hari ini)\x1b[0m",
+        to_check.len(),
+        up_pct,
+        down_pct,
+        mode_label,
+        skipped
+    );
+
+    let spikes = crate::invezgo_atr::find_spike_emitens(&to_check).await;
+    if spikes.is_empty() {
+        println!(
+            "Invezgo spike: tidak ada lonjakan baru (UP >= {}% / DOWN >= {}% {})",
+            up_pct,
+            down_pct,
+            mode_label
+        );
+    } else {
+        let summary: Vec<String> = spikes
+            .iter()
+            .map(|s| {
+                format!(
+                    "{}:{}:{:+.2}% @{}",
+                    s.emiten_name, s.jenis_spike, s.value_spike_percentage, s.spike_at
+                )
+            })
+            .collect();
+        println!(
+            "\x1b[32mInvezgo spike: lonjakan baru {}\x1b[0m",
+            summary.join(", ")
+        );
+    }
+    Ok(crate::invezgo_spike_cache::upsert_spikes(&spikes).await)
+}
+
 async fn list_plan_to_trade_emiten_codes(session: &Session) -> Result<Vec<String>, String> {
     use futures_util::TryStreamExt;
     use scylla::DeserializeRow;
