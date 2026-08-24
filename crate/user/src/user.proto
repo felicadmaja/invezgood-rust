@@ -20,15 +20,12 @@ service User {
   // Setelah tiap tick (bila ready + jam operasional Senin–Kamis 09:00–12:00 & 13:30–16:00;
   // Jumat 09:00–11:30 & 14:00–16:00), poller auto-invoke alur scrape berikut
   // (bukan panggil gRPC client, langsung scrape worker):
-  //   Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur.
-  //   Senin–Jumat mulai 10:00: GET Yahoo Finance v8 chart BBCA.JK
-  //   (1d, hanya hari ini period1=00:00 lokal period2=sekarang) — bila volume titik terakhir = 0,
-  //   hari itu dianggap market libur; poller TIDAK menjalankan:
+  //   Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur —
+  //   poller TIDAK menjalankan:
   //     1. GetAllPortofolioFromStockbit
   //     2. GetLatestEmitenTrendingFromStockbit
   //     3. GetAllPendingOrderFromStockbit
-  //   Hasil cek di-cache Redis key `invezgood:market_holiday:{YYYY-MM-DD}` (value `1`=libur, `0`=buka; TTL s/d 23:59:59 lokal).
-  //   Bila market buka (volume > 0):
+  //   Bila bukan libur dan jam operasional:
   //     Serial (satu Chrome): GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit
   // Subscribe stream: server push saat status berubah + heartbeat ~30s.
   // Wajib Bearer login valid. Tanpa auth / session invalid: push 1x is_need_login=true lalu stream ditutup.
@@ -39,7 +36,7 @@ service User {
   // Cek pertama tiap hari Senin–Jumat 09:00:00–09:00:59 waktu server;
   // seterusnya interval INTERVAL_YAHOO_SPIKE_POLL_SECS (.env, detik; default 120) di jam kerja
   // Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
-  // Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur. Senin–Jumat mulai 10:00: GET Yahoo Finance v8 chart BBCA.JK (1d, hanya hari ini period1=00:00 lokal period2=sekarang) — bila volume titik terakhir = 0, hari itu dianggap market libur; poller TIDAK dijalankan. Hasil cek di-cache Redis key `invezgood:market_holiday:{YYYY-MM-DD}` (value `1`=libur, `0`=buka; TTL s/d 23:59:59 lokal).
+  // Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur — poller TIDAK dijalankan.
   // 09:00:00–09:05:59 waktu lokal: spike = (close hari ini - open candle sebelumnya) / open candle
   // sebelumnya * 100 (chart 1d lookback 7 hari); ambang OPENING_UP_SPIKE_PERCENTAGE /
   // OPENING_DOWN_SPIKE_PERCENTAGE (.env). Di luar jam itu: spike = (close - open) / open * 100
@@ -59,11 +56,12 @@ service User {
   rpc GetPriceSpikeFromYahooFinance(GetPriceSpikeFromYahooFinanceRequest) returns (stream PriceSpikeResponse);
 
   // Stream spike Invezgo. Poller hanya jalan bila ≥1 client subscribe (0 subscriber → idle).
-  // Jadwal & ambang: cek pertama Senin–Jumat 09:00:00–09:00:59; lalu
-  // INTERVAL_INVEZGO_SPIKE_POLL_SECS (.env, default 120) di jam kerja; Sabtu/Minggu &
-  // invezgood.hari_libur libur; mulai 10:00 cek market libur (Redis `invezgood:market_holiday:{date}`).
-  // 09:00–09:05: GET analysis/chart/stock/{code}?from=&to= (7 hari) — spike = (close hari ini - open kemarin) / open kemarin * 100 (OPENING_* .env).
-  // Di luar itu: GET analysis/intraday-data/{code}?market=RG — spike = (close - open) / open * 100 (UP/DOWN_SPIKE .env); open=0 → close.
+  // Cek pertama tiap hari Senin–Jumat 09:00:00–09:00:59 waktu server;
+  // seterusnya interval INTERVAL_INVEZGO_SPIKE_POLL_SECS (.env, detik; default 120) di jam kerja
+  // Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
+  // Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur — poller TIDAK dijalankan.
+  // 09:00–09:05: GET analysis/chart/stock/{code}?from=&to= (7 hari) — spike = (close hari ini - open kemarin) / open kemarin * 100; ambang OPENING_UP_SPIKE_PERCENTAGE / OPENING_DOWN_SPIKE_PERCENTAGE (.env).
+  // Di luar itu: GET analysis/intraday-data/{code}?market=RG — spike = (close - open) / open * 100; ambang UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env); open=0 → close.
   // Emiten: MV is_plan_to_trade=true; 
   // `invezgood:invezgo:spike_today:{date}` + spike_reported; stream isi cache + heartbeat ~30s.
   // Wajib Bearer login; tanpa auth stream ditutup tanpa hit Invezgo.

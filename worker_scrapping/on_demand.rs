@@ -544,9 +544,9 @@ pub async fn run_poller_stockbit_scrapes(
         );
         return None;
     }
-    if crate::yahoo_market_holiday::is_poller_market_holiday().await {
+    if crate::yahoo_market_holiday::is_readiness_poller_holiday().await {
         println!(
-            "Poller scrapes: market libur (Yahoo BBCA volume=0) — skip GetAllPortofolioFromStockbit, emiten_trending, pending_order"
+            "Poller scrapes: hari libur (Sabtu/Minggu atau invezgood.hari_libur) — skip GetAllPortofolioFromStockbit, emiten_trending, pending_order"
         );
         return None;
     }

@@ -312,15 +312,15 @@ impl YahooSpikePoller {
             if !is_stockbit_poller_scrape_hours() {
                 continue;
             }
-            if crate::yahoo_market_holiday::is_poller_market_holiday().await {
+            if crate::yahoo_market_holiday::is_spike_poller_holiday().await {
                 let today = Local::now().date_naive();
                 println!(
-                    "Yahoo spike poller: market libur (Yahoo BBCA volume=0) — poller tidak dijalankan"
+                    "Yahoo spike poller: hari libur (Sabtu/Minggu atau invezgood.hari_libur) — poller tidak dijalankan"
                 );
                 let acc = crate::yahoo_spike_cache::today_details().await;
                 self.publish(YahooSpikeSnapshot {
                     success: true,
-                    message: format!("market libur (Yahoo BBCA volume=0, {today})"),
+                    message: format!("hari libur (invezgood.hari_libur, {today})"),
                     data: acc,
                 })
                 .await;

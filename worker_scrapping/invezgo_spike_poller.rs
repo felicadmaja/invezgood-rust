@@ -312,15 +312,15 @@ impl InvezgoSpikePoller {
             if !is_stockbit_poller_scrape_hours() {
                 continue;
             }
-            if crate::yahoo_market_holiday::is_poller_market_holiday().await {
+            if crate::yahoo_market_holiday::is_spike_poller_holiday().await {
                 let today = Local::now().date_naive();
                 println!(
-                    "Invezgo spike poller: market libur — poller tidak dijalankan"
+                    "Invezgo spike poller: hari libur (Sabtu/Minggu atau invezgood.hari_libur) — poller tidak dijalankan"
                 );
                 let acc = crate::invezgo_spike_cache::today_details().await;
                 self.publish(InvezgoSpikeSnapshot {
                     success: true,
-                    message: format!("market libur ({today})"),
+                    message: format!("hari libur (invezgood.hari_libur, {today})"),
                     data: acc,
                 })
                 .await;
