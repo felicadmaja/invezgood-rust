@@ -7,7 +7,7 @@ use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 use crate::model::TopForeignFlowRow as DbTopForeignFlowRow;
 use crate::pb::top_foreign_flow_server::TopForeignFlow;
 use crate::pb::{
-    GetTopForeignFlowRequest, GetTopForeignFlowResponse, TopForeignFlowRow,
+    GetTopForeignFlowByTanggalRequest, GetTopForeignFlowByTanggalResponse, TopForeignFlowRow,
 };
 
 pub struct TopForeignFlowService {
@@ -53,15 +53,15 @@ impl TopForeignFlowService {
 
 #[tonic::async_trait]
 impl TopForeignFlow for TopForeignFlowService {
-    async fn get_top_foreign_flow(
+    async fn get_top_foreign_flow_by_tanggal(
         &self,
-        request: Request<GetTopForeignFlowRequest>,
-    ) -> Result<Response<GetTopForeignFlowResponse>, Status> {
+        request: Request<GetTopForeignFlowByTanggalRequest>,
+    ) -> Result<Response<GetTopForeignFlowByTanggalResponse>, Status> {
         let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
 
-        let result: Result<Response<GetTopForeignFlowResponse>, Status> = async {
+        let result: Result<Response<GetTopForeignFlowByTanggalResponse>, Status> = async {
             let trade_date =
                 crate::invezgo::resolve_trade_date(request.into_inner().tahun_bulan_tanggal)
                     .map_err(Status::invalid_argument)?;
@@ -69,23 +69,46 @@ impl TopForeignFlow for TopForeignFlowService {
             crate::invezgo::ensure_not_weekend(trade_date)
                 .map_err(Status::failed_precondition)?;
 
-            let saved = crate::invezgo::fetch_and_save(self.session.clone(), trade_date)
+            let cached = crate::repository::exists_by_date_mv(self.session.as_ref(), trade_date)
                 .await
                 .map_err(Status::internal)?;
+
+            let saved = if cached {
+                eprintln!(
+                    "GetTopForeignFlowByTanggal {user_name} skip Invezgo API date={trade_date} (MV ada ≥1 baris)"
+                );
+                0
+            } else {
+                crate::invezgo::fetch_and_save(self.session.clone(), trade_date)
+                    .await
+                    .map_err(Status::internal)?
+            };
 
             let rows = crate::repository::find_by_date(self.session.as_ref(), trade_date)
                 .await
                 .map_err(Status::internal)?;
 
-            Ok(Response::new(GetTopForeignFlowResponse {
+            let message = if cached {
+                format!(
+                    "cache Scylla: Invezgo API dilewati, {} baris dari Scylla",
+                    rows.len()
+                )
+            } else {
+                format!(
+                    "{saved} baris di-upsert dari Invezgo, {} baris dari Scylla",
+                    rows.len()
+                )
+            };
+
+            Ok(Response::new(GetTopForeignFlowByTanggalResponse {
                 success: true,
-                message: format!("{saved} baris di-upsert dari Invezgo, {read} baris dari Scylla", read = rows.len()),
+                message,
                 items: rows.into_iter().map(Self::db_row_to_proto).collect(),
             }))
         }
         .await;
 
-        Self::log_rpc_debug("GetTopForeignFlow", &user_name, started);
+        Self::log_rpc_debug("GetTopForeignFlowByTanggal", &user_name, started);
         result
     }
 }

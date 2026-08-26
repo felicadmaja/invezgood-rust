@@ -1,7 +1,7 @@
 use futures::TryStreamExt;
 use scylla::client::session::Session;
 
-use crate::model::{TopForeignFlowRow, KEYSPACE, TABLE};
+use crate::model::{TopForeignFlowPkRow, TopForeignFlowRow, KEYSPACE, MV_BY_TAHUN_BULAN_TANGGAL, TABLE};
 
 const UPSERT: &str = "INSERT INTO invezgood.top_foreign_flow \
     (tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist) \
@@ -12,6 +12,41 @@ const DELETE_BY_DATE: &str =
 
 const FIND_BY_DATE: &str = "SELECT tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist \
     FROM invezgood.top_foreign_flow WHERE tahun_bulan_tanggal = ?";
+
+pub async fn exists_by_date_mv(
+    session: &Session,
+    trade_date: chrono::NaiveDate,
+) -> Result<bool, String> {
+    let query = format!(
+        "SELECT tahun_bulan_tanggal, value, code \
+         FROM {KEYSPACE}.{MV_BY_TAHUN_BULAN_TANGGAL} \
+         WHERE tahun_bulan_tanggal = ? LIMIT 1"
+    );
+    let mut rows = session
+        .query_iter(query, (trade_date,))
+        .await
+        .map_err(|e| {
+            format!(
+                "exists_by_date_mv {KEYSPACE}.{MV_BY_TAHUN_BULAN_TANGGAL} date={trade_date}: {e}"
+            )
+        })?
+        .rows_stream::<TopForeignFlowPkRow>()
+        .map_err(|e| {
+            format!(
+                "exists_by_date_mv stream {KEYSPACE}.{MV_BY_TAHUN_BULAN_TANGGAL}: {e}"
+            )
+        })?;
+
+    Ok(rows
+        .try_next()
+        .await
+        .map_err(|e| {
+            format!(
+                "exists_by_date_mv row {KEYSPACE}.{MV_BY_TAHUN_BULAN_TANGGAL} date={trade_date}: {e}"
+            )
+        })?
+        .is_some())
+}
 
 pub async fn delete_by_date(
     session: &Session,

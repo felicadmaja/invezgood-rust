@@ -11,6 +11,6 @@ mod model;
 mod repository;
 mod service;
 
-pub use model::{TopForeignFlowRow, KEYSPACE, TABLE};
+pub use model::{TopForeignFlowPkRow, TopForeignFlowRow, KEYSPACE, MV_BY_CODE, MV_BY_TAHUN_BULAN_TANGGAL, TABLE};
 pub use pb::top_foreign_flow_server::{TopForeignFlow, TopForeignFlowServer};
 pub use service::TopForeignFlowService;
