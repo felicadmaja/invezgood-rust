@@ -5,6 +5,7 @@ pub mod pb {
 pub const FILE_DESCRIPTOR_SET: &[u8] =
     tonic::include_file_descriptor_set!("emiten_trending_descriptor");
 
+mod invezgo;
 mod model;
 mod repository;
 mod service;

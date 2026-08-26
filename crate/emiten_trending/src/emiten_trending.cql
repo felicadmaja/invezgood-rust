@@ -25,4 +25,4 @@
 -- SELECT semua kolom payload → GetAllEmitenTrendingFromScylla 1 query (tanpa N+1).
 
 -- MV: invezgood.emiten_trending_by_emiten_name
--- PK: (emiten_name), agg_tahun_bulan_tanggal_emiten_name
+-- PK: (emiten_name), agg_tahun_bulan_tanggal_emiten_name 

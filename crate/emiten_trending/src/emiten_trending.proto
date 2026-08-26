@@ -11,11 +11,25 @@ service EmitenTrending {
 
   // Invoke RPC langsung (admin): tanpa batas hari/jam; rate limit global 1× / 5 menit.
   // Auto dari IsStockbitReady poller (poller selalu jalan tanpa perlu subscriber) bila Stockbit ready,
-  // hanya pada jam operasional (waktu server lokal):
-  // Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
+  // hanya pada jam operasional (waktu server lokal): Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
   // Scrape Stockbit market-mover (TOP_GAINER + TOP_LOSER) → upsert invezgood.emiten_trending.
   // Setelah upsert, baca ulang dari Scylla (hari ini) lalu return rows.
   rpc GetLatestEmitenTrendingFromStockbit(GetLatestEmitenTrendingFromStockbitRequest)
+      returns (GetAllEmitenTrendingResponse);
+
+  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
+  // Alur: (1) GET api.invezgo.com/analysis/top/change?date={YYYY-MM-DD hari ini}&filter_column=change
+  // (Bearer INVEZGO_BEARER_TOKEN) → upsert ke invezgood.emiten_trending saja (bukan return ke client);
+  // (2) baca ulang MV emiten_trending_by_tahun_bulan_tanggal hari ini → response ke client.
+  // Mapping upsert: gain→gainer, loss→loser; PK agg=`{date}_{code}`; emiten_icon Stockbit CDN;
+  // long_name/price/change/value/volume dari API; sector lookup stock_list (tinyint bila numerik);
+  // freq null; updated_at waktu server.
+  // Hanya jam operasional (waktu server lokal): Senin–Kamis 09:00–12:00 & 13:30–16:00;
+  // Jumat 09:00–11:30 & 14:00–16:00 — di luar itu failed_precondition, tidak GET Invezgo.
+  // Rate limit global 1× / 5 menit (shared dengan GetLatestEmitenTrendingFromStockbit).
+  // Response rows **selalu dari Scylla** (sama pola GetLatestEmitenTrendingFromStockbit); kosong bila
+  // MV hari ini tidak punya baris. Invezgo HTTP/parse/upsert gagal → internal (client tidak terima JSON API).
+  rpc GetLatestEmitenTrendingFromInvezgo(GetLatestEmitenTrendingFromInvezgoRequest)
       returns (GetAllEmitenTrendingResponse);
 }
 
@@ -24,6 +38,8 @@ message GetAllEmitenTrendingFromScyllaRequest {
 }
 
 message GetLatestEmitenTrendingFromStockbitRequest {}
+
+message GetLatestEmitenTrendingFromInvezgoRequest {}
 
 message EmitenTrendingRow {
   string agg_tahun_bulan_tanggal_emiten_name = 1;

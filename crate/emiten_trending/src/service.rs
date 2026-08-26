@@ -16,7 +16,7 @@ use crate::model::EmitenTrending;
 use crate::pb::emiten_trending_server::EmitenTrending as EmitenTrendingRpc;
 use crate::pb::{
     GetAllEmitenTrendingFromScyllaRequest, GetAllEmitenTrendingResponse,
-    GetLatestEmitenTrendingFromStockbitRequest,
+    GetLatestEmitenTrendingFromInvezgoRequest, GetLatestEmitenTrendingFromStockbitRequest,
 };
 use crate::repository::EmitenTrendingRepository;
 
@@ -28,7 +28,7 @@ fn movers_scrape_gate() -> &'static Mutex<Option<Instant>> {
     LAST_MOVERS_SCRAPE.get_or_init(|| Mutex::new(None))
 }
 
-async fn acquire_movers_scrape_slot(user_name: &str) -> Result<(), Status> {
+async fn acquire_trending_refresh_slot(user_name: &str, rpc_name: &str) -> Result<(), Status> {
     let mut last = movers_scrape_gate().lock().await;
     if let Some(at) = *last {
         let elapsed = at.elapsed();
@@ -38,7 +38,7 @@ async fn acquire_movers_scrape_slot(user_name: &str) -> Result<(), Status> {
                 "Rate limit: maksimal 1× / 5 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
             );
             eprintln!(
-                "GetLatestEmitenTrendingFromStockbit {user_name} rate-limit ditolak: sisa {remaining_secs}s"
+                "{rpc_name} {user_name} rate-limit ditolak: sisa {remaining_secs}s"
             );
             return Err(Status::failed_precondition(message));
         }
@@ -135,7 +135,7 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         let _ = request.into_inner();
 
         let result: Result<Response<GetAllEmitenTrendingResponse>, Status> = async {
-            acquire_movers_scrape_slot(&user_name).await?;
+            acquire_trending_refresh_slot(&user_name, "GetLatestEmitenTrendingFromStockbit").await?;
 
             on_demand::scrape_emiten_trending_movers(Arc::clone(&self.session))
                 .await
@@ -155,6 +155,46 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         .await;
 
         Self::log_rpc_debug("GetLatestEmitenTrendingFromStockbit", &user_name, started);
+        result
+    }
+
+    async fn get_latest_emiten_trending_from_invezgo(
+        &self,
+        request: Request<GetLatestEmitenTrendingFromInvezgoRequest>,
+    ) -> Result<Response<GetAllEmitenTrendingResponse>, Status> {
+        let started = Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+        let _ = request.into_inner();
+
+        let result: Result<Response<GetAllEmitenTrendingResponse>, Status> = async {
+            if !on_demand::is_stockbit_poller_scrape_hours() {
+                return Err(Status::failed_precondition(
+                    "Diluar jam operasional (Senin-Kamis 09:00-12:00 & 13:30-16:00; Jumat 09:00-11:30 & 14:00-16:00)",
+                ));
+            }
+
+            acquire_trending_refresh_slot(&user_name, "GetLatestEmitenTrendingFromInvezgo").await?;
+
+            // Invezgo hanya menulis ke Scylla; response client dari MV, bukan payload API langsung.
+            let _saved = crate::invezgo::fetch_and_save(Arc::clone(&self.session))
+                .await
+                .map_err(Status::internal)?;
+
+            let today = Local::now().date_naive();
+            let rows = self
+                .repo
+                .get_all_by_date(today)
+                .await
+                .map_err(|e| Status::internal(format!("Scylla query failed: {e}")))?;
+
+            Ok(Response::new(GetAllEmitenTrendingResponse {
+                rows: rows.into_iter().map(EmitenTrending::into_proto).collect(),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("GetLatestEmitenTrendingFromInvezgo", &user_name, started);
         result
     }
 }
