@@ -12,6 +12,7 @@ dotenvy = "0.15"
 stock_list = { path = "../crate/stock_list" }
 user = { path = "../crate/user" }
 top_gainer_loser = { path = "../crate/top_gainer_loser" }
+top_foreign_flow = { path = "../crate/top_foreign_flow" }
 bandarmology = { path = "../crate/bandarmology" }
 broker = { path = "../crate/broker" }
 portofolio = { path = "../crate/portofolio" }

@@ -1265,6 +1265,7 @@ dependencies = [
  "tonic",
  "tonic-build",
  "tonic-reflection",
+ "top_foreign_flow",
  "top_gainer_loser",
  "user",
  "worker_scrapping",
@@ -2662,6 +2663,23 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
+]
+
+[[package]]
+name = "top_foreign_flow"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures",
+ "prost",
+ "reqwest 0.12.28",
+ "scylla",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "user",
 ]
 
 [[package]]
