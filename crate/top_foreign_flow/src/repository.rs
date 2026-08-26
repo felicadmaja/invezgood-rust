@@ -1,7 +1,7 @@
 use futures::TryStreamExt;
 use scylla::client::session::Session;
 
-use crate::model::{TopForeignFlowPkRow, TopForeignFlowRow, KEYSPACE, MV_BY_TAHUN_BULAN_TANGGAL, TABLE};
+use crate::model::{TopForeignFlowPkRow, TopForeignFlowRow, KEYSPACE, MV_BY_CODE, MV_BY_TAHUN_BULAN_TANGGAL, TABLE};
 
 const UPSERT: &str = "INSERT INTO invezgood.top_foreign_flow \
     (tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist) \
@@ -12,6 +12,9 @@ const DELETE_BY_DATE: &str =
 
 const FIND_BY_DATE: &str = "SELECT tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist \
     FROM invezgood.top_foreign_flow WHERE tahun_bulan_tanggal = ?";
+
+const FIND_BY_PK: &str = "SELECT tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist \
+    FROM invezgood.top_foreign_flow WHERE tahun_bulan_tanggal = ? AND value = ? AND code = ?";
 
 pub async fn exists_by_date_mv(
     session: &Session,
@@ -102,6 +105,54 @@ pub async fn find_by_date(
         .map_err(|e| format!("find_by_date row {KEYSPACE}.{TABLE}: {e}"))?
     {
         items.push(row);
+    }
+
+    Ok(items)
+}
+
+pub async fn find_by_code(
+    session: &Session,
+    code: &str,
+) -> Result<Vec<TopForeignFlowRow>, String> {
+    let query = format!(
+        "SELECT code, tahun_bulan_tanggal, value \
+         FROM {KEYSPACE}.{MV_BY_CODE} WHERE code = ?"
+    );
+    let mut pk_rows = session
+        .query_iter(query, (code,))
+        .await
+        .map_err(|e| format!("find_by_code {KEYSPACE}.{MV_BY_CODE} code={code}: {e}"))?
+        .rows_stream::<TopForeignFlowPkRow>()
+        .map_err(|e| format!("find_by_code stream {KEYSPACE}.{MV_BY_CODE}: {e}"))?;
+
+    let mut items = Vec::new();
+    while let Some(pk) = pk_rows
+        .try_next()
+        .await
+        .map_err(|e| format!("find_by_code pk row {KEYSPACE}.{MV_BY_CODE} code={code}: {e}"))?
+    {
+        let mut rows = session
+            .query_iter(
+                FIND_BY_PK,
+                (pk.tahun_bulan_tanggal, pk.value, pk.code.as_str()),
+            )
+            .await
+            .map_err(|e| {
+                format!(
+                    "find_by_pk {KEYSPACE}.{TABLE} date={} code={} value={}: {e}",
+                    pk.tahun_bulan_tanggal, pk.code, pk.value
+                )
+            })?
+            .rows_stream::<TopForeignFlowRow>()
+            .map_err(|e| format!("find_by_pk stream {KEYSPACE}.{TABLE}: {e}"))?;
+
+        if let Some(row) = rows
+            .try_next()
+            .await
+            .map_err(|e| format!("find_by_pk row {KEYSPACE}.{TABLE}: {e}"))?
+        {
+            items.push(row);
+        }
     }
 
     Ok(items)

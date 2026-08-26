@@ -5,15 +5,29 @@ package top_foreign_flow;
 service TopForeignFlow {
   // Baca MV top_foreign_flow_by_tahun_bulan_tanggal dulu; bila ≥1 baris → skip Invezgo, baca tabel dasar.
   // Bila MV kosong → GET api.invezgo.com/analysis/top/foreign?date=...&filter_column=value, upsert, baca Scylla.
-  // Bearer login wajib. Request date kosong = hari ini. Sabtu/Minggu → failed_precondition "Sabtu/Minggi Libur".
+  // Bearer login wajib. tahun_bulan_tanggal wajib (YYYY-MM-DD), bukan hari ini, bukan Sabtu/Minggu.
   rpc GetTopForeignFlowByTanggal(GetTopForeignFlowByTanggalRequest) returns (GetTopForeignFlowByTanggalResponse);
+
+  // Baca Scylla MV top_foreign_flow_by_code by PK code → baris penuh dari tabel dasar per PK.
+  // Bearer login wajib. Tidak GET API eksternal. code kosong → invalid_argument.
+  rpc GetTopForeignFlowByCode(GetTopForeignFlowByCodeRequest) returns (GetTopForeignFlowByCodeResponse);
 }
 
 message GetTopForeignFlowByTanggalRequest {
-  optional string tahun_bulan_tanggal = 1;
+  string tahun_bulan_tanggal = 1;
 }
 
 message GetTopForeignFlowByTanggalResponse {
+  bool success = 1;
+  string message = 2;
+  repeated TopForeignFlowRow items = 3;
+}
+
+message GetTopForeignFlowByCodeRequest {
+  string code = 1;
+}
+
+message GetTopForeignFlowByCodeResponse {
   bool success = 1;
   string message = 2;
   repeated TopForeignFlowRow items = 3;

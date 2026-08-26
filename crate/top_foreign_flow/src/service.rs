@@ -7,6 +7,7 @@ use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 use crate::model::TopForeignFlowRow as DbTopForeignFlowRow;
 use crate::pb::top_foreign_flow_server::TopForeignFlow;
 use crate::pb::{
+    GetTopForeignFlowByCodeRequest, GetTopForeignFlowByCodeResponse,
     GetTopForeignFlowByTanggalRequest, GetTopForeignFlowByTanggalResponse, TopForeignFlowRow,
 };
 
@@ -62,9 +63,12 @@ impl TopForeignFlow for TopForeignFlowService {
         let user_name = auth.nama;
 
         let result: Result<Response<GetTopForeignFlowByTanggalResponse>, Status> = async {
-            let trade_date =
-                crate::invezgo::resolve_trade_date(request.into_inner().tahun_bulan_tanggal)
-                    .map_err(Status::invalid_argument)?;
+            let inner = request.into_inner();
+            let trade_date = crate::invezgo::parse_trade_date(&inner.tahun_bulan_tanggal)
+                .map_err(Status::invalid_argument)?;
+
+            crate::invezgo::ensure_not_today(trade_date)
+                .map_err(Status::failed_precondition)?;
 
             crate::invezgo::ensure_not_weekend(trade_date)
                 .map_err(Status::failed_precondition)?;
@@ -109,6 +113,36 @@ impl TopForeignFlow for TopForeignFlowService {
         .await;
 
         Self::log_rpc_debug("GetTopForeignFlowByTanggal", &user_name, started);
+        result
+    }
+
+    async fn get_top_foreign_flow_by_code(
+        &self,
+        request: Request<GetTopForeignFlowByCodeRequest>,
+    ) -> Result<Response<GetTopForeignFlowByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+
+        let result: Result<Response<GetTopForeignFlowByCodeResponse>, Status> = async {
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            let rows = crate::repository::find_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(Status::internal)?;
+
+            Ok(Response::new(GetTopForeignFlowByCodeResponse {
+                success: true,
+                message: format!("{} baris top foreign flow code={code}", rows.len()),
+                items: rows.into_iter().map(Self::db_row_to_proto).collect(),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("GetTopForeignFlowByCode", &user_name, started);
         result
     }
 }
