@@ -3,13 +3,14 @@ use std::sync::Arc;
 
 use crate::model::{
     BalanceStatement, CompanyInformation, CompanyPersonEntry, CompanySubsidiaryEntry, CorporateAction,
-    CorporateActionEntry, Keystats, ShareHolder1, ShareHolder1Entry, ShareHolder5, ShareHolder5Entry,
-    ShareHolderComposition, ShareHolderCompositionEntry,
+    CorporateActionEntry, Keystats, NotationEntryDb, ShareHolder1, ShareHolder1Entry, ShareHolder5,
+    ShareHolder5Entry, ShareHolderComposition, ShareHolderCompositionEntry,
 };
 use scylla::client::session::Session;
 use serde::Deserialize;
 
 const INVEZGO_STOCK_LIST_URL: &str = "https://api.invezgo.com/analysis/list/stock";
+const INVEZGO_NOTATION_URL: &str = "https://api.invezgo.com/analysis/notation";
 
 fn keystat_url(code: &str) -> String {
     format!("https://api.invezgo.com/analysis/keystat/{code}?type=Q")
@@ -56,6 +57,19 @@ struct InvezgoStockItem {
 #[derive(Debug, Deserialize)]
 struct InvezgoStockListWrapped {
     data: Vec<InvezgoStockItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct InvezgoNotationItem {
+    code: String,
+    #[serde(default)]
+    list: Vec<InvezgoNotationEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct InvezgoNotationEntry {
+    notation: String,
+    description: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -797,6 +811,63 @@ fn parse_keystats(body: &str) -> Result<Keystats, String> {
             })
             .collect(),
     })
+}
+
+pub async fn fetch_and_save_notation(session: Arc<Session>) -> Result<(usize, usize), String> {
+    let token = std::env::var("INVEZGO_BEARER_TOKEN")
+        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
+
+    let response = reqwest::Client::new()
+        .get(INVEZGO_NOTATION_URL)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("request Invezgo notation gagal: {e}"))?;
+
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("baca body Invezgo notation gagal: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!("Invezgo notation HTTP {status}: {body}"));
+    }
+
+    let items: Vec<InvezgoNotationItem> = serde_json::from_str(&body)
+        .map_err(|e| format!("parse JSON Invezgo notation gagal: {e}"))?;
+
+    let mut updated = 0usize;
+    let mut skipped = 0usize;
+
+    for item in items {
+        let code = item.code.trim().to_ascii_uppercase();
+        if code.is_empty() {
+            continue;
+        }
+
+        let notation: Vec<NotationEntryDb> = item
+            .list
+            .into_iter()
+            .map(|entry| NotationEntryDb {
+                notation: entry.notation,
+                description: entry.description,
+            })
+            .collect();
+        let notation_db = if notation.is_empty() {
+            None
+        } else {
+            Some(notation)
+        };
+
+        match crate::repository::update_notation(session.as_ref(), &code, notation_db).await {
+            Ok(()) => updated += 1,
+            Err(e) if e.contains("tidak ditemukan") => skipped += 1,
+            Err(e) => return Err(e),
+        }
+    }
+
+    Ok((updated, skipped))
 }
 
 pub async fn fetch_and_save(session: Arc<Session>) -> Result<usize, String> {

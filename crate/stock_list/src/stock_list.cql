@@ -49,7 +49,11 @@
 -- | horizontal_line                     | regular        | list<int>                               |
 -- | takeprofit_wyckoff                  | regular        | map<text, double>                       |
 -- | is_bad_fundamental                    | regular        | boolean                                 |
-
+-- | notation                              | regular        | frozen<list<frozen<notation_entry>>>    |
+--
+-- UDT notation_entry:
+--   notation text, description text
+-- ALTER TABLE invezgood.stock_list ADD notation frozen<list<frozen<notation_entry>>>;
 
 -- MV stock_list_by_is_plan_to_trade:
 -- PK (is_plan_to_trade, code ASC)

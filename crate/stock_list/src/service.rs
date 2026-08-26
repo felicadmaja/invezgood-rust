@@ -62,12 +62,14 @@ use crate::pb::{
     StockbitReportFollowingActivity, StockbitReportItem, StockbitReportNewsFeed, StockbitReportReaction,
     StockbitReportReactionEntry, StockbitReportsRow, StockbitReportsStreamPart, StockbitReportStatus, StockbitReportStream,
     StockbitReportSummary, StockbitReportUser, StockbitStats, StockByCodeResponse, StockListRow,
+    NotationEntry,
     UpdateHorizontalLineByCodeRequest, UpdateHorizontalLineByCodeResponse,
     UpsertTakeProfitWyckoffByCodeRequest, UpsertTakeProfitWyckoffByCodeResponse,
     DeleteTakeProfitWyckoffByCodeRequest, DeleteTakeProfitWyckoffByCodeResponse,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
     UpdateIsPlanToTradeResponse, UpdateIsBadFundamentalByCodeRequest,
-    UpdateIsBadFundamentalByCodeResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
+    UpdateIsBadFundamentalByCodeResponse, UpdateNotationInvezgoRequest,
+    UpdateNotationInvezgoResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
     UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, UpdateSubSectorRequest,
     UpdateSubSectorResponse, UpdateWyckoffChartByCodeRequest,
     UpdateWyckoffChartByCodeResponse, WyckoffChartData,
@@ -271,6 +273,16 @@ impl StockListService {
             horizontal_line: row.horizontal_line.clone().unwrap_or_default(),
             takeprofit_wyckoff: row.takeprofit_wyckoff.clone().unwrap_or_default(),
             is_bad_fundamental: row.is_bad_fundamental.unwrap_or(false),
+            notation: row
+                .notation
+                .clone()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|e| NotationEntry {
+                    notation: e.notation,
+                    description: e.description,
+                })
+                .collect(),
         }
     }
 
@@ -2531,6 +2543,36 @@ impl StockList for StockListService {
             "UpdateIsBadFundamentalByCode {user_name} {code} {}ms",
             started.elapsed().as_millis()
         );
+        result
+    }
+
+    async fn update_notation_invezgo(
+        &self,
+        request: Request<UpdateNotationInvezgoRequest>,
+    ) -> Result<Response<UpdateNotationInvezgoResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<UpdateNotationInvezgoResponse>, Status> = async {
+            let _inner = request.into_inner();
+
+            let (updated, skipped) = crate::invezgo::fetch_and_save_notation(self.session.clone())
+                .await
+                .map_err(Status::internal)?;
+
+            Ok(Response::new(UpdateNotationInvezgoResponse {
+                success: true,
+                message: format!(
+                    "notation Invezgo: {updated} code diupdate, {skipped} dilewati (tidak ada di stock_list)"
+                ),
+                updated_count: updated as i32,
+                skipped_count: skipped as i32,
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateNotationInvezgo", &user_name, started);
         result
     }
 

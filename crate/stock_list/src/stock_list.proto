@@ -105,6 +105,11 @@ service StockList {
   // Wajib Bearer login. success=false + message bila code tidak ada atau DB gagal.
   rpc UpdateIsBadFundamentalByCode(UpdateIsBadFundamentalByCodeRequest)
       returns (UpdateIsBadFundamentalByCodeResponse);
+
+  // GET api.invezgo.com/analysis/notation → upsert kolom notation (list UDT) per code di invezgood.stock_list.
+  // Bearer dari INVEZGO_BEARER_TOKEN. Request kosong. Code tidak ada di DB → dilewati (skipped_count).
+  // Response: success + pesan jumlah updated/skipped.
+  rpc UpdateNotationInvezgo(UpdateNotationInvezgoRequest) returns (UpdateNotationInvezgoResponse);
 }
 
 message GetAllStocksRequest {}
@@ -559,6 +564,12 @@ message StockByCodeResponse {
   string sub_sector = 20;
   map<string, double> takeprofit_wyckoff = 21;
   bool is_bad_fundamental = 22;
+  repeated NotationEntry notation = 23;
+}
+
+message NotationEntry {
+  string notation = 1;
+  string description = 2;
 }
 
 message WyckoffChartData {
@@ -713,6 +724,15 @@ message UpdateIsBadFundamentalByCodeRequest {
 message UpdateIsBadFundamentalByCodeResponse {
   bool success = 1;
   string message = 2;
+}
+
+message UpdateNotationInvezgoRequest {}
+
+message UpdateNotationInvezgoResponse {
+  bool success = 1;
+  string message = 2;
+  int32 updated_count = 3;
+  int32 skipped_count = 4;
 }
 
 message UpdateCatatanOwnerRequest {

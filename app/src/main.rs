@@ -12,7 +12,7 @@ use pending_order::{PendingOrderServer, PendingOrderService};
 use portofolio::{PortofolioServer, PortofolioService};
 use portofolio_equity::{PortofolioEquityServer, PortofolioEquityService};
 use portofolio_history::{PortofolioHistoryServer, PortofolioHistoryService};
-use stock_list::{connect, StockListServer, StockListService};
+use stock_list::{connect, spawn_daily_notation_sync, StockListServer, StockListService};
 use stockbit_browser::ReadinessPoller;
 use worker_scrapping::invezgo_spike_poller::InvezgoSpikePoller;
 use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
@@ -138,6 +138,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     invezgo_spike
         .ensure_loop_running(session.clone())
         .await;
+
+    spawn_daily_notation_sync(session.clone());
 
     let user = UserService::new(
         session,

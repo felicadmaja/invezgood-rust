@@ -115,6 +115,16 @@ pub struct ShareHolderCompositionEntryDb {
 /// Kolom `share_holder_composition` — komposisi kepemilikan (pengendali, direksi, dll.).
 pub type ShareHolderCompositionDb = Option<Vec<ShareHolderCompositionEntryDb>>;
 
+/// UDT `notation_entry` — notasi BEI per emiten (E, X, M, dll.).
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct NotationEntryDb {
+    pub notation: String,
+    pub description: String,
+}
+
+/// Kolom `notation` — list notasi BEI dari Invezgo.
+pub type NotationDb = Option<Vec<NotationEntryDb>>;
+
 /// UDT `company_person_entry`.
 #[derive(Debug, Clone, SerializeValue, DeserializeValue)]
 pub struct CompanyPersonEntryDb {
@@ -963,6 +973,8 @@ pub struct StockListRow {
     pub takeprofit_wyckoff: Option<HashMap<String, f64>>,
     #[scylla(default_when_null)]
     pub is_bad_fundamental: Option<bool>,
+    #[scylla(default_when_null)]
+    pub notation: NotationDb,
 }
 
 /// Subset kolom untuk `GetWyckoffChartByCode`.

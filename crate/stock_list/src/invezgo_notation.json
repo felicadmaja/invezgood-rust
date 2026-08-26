@@ -1,0 +1,2750 @@
+[
+    {
+        "code": "ABBA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "ACST",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "ADCP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            }
+        ]
+    },
+    {
+        "code": "ADES",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "AIMS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "AKKU",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "ALMI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "ALTO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "AMMS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Tahunan"
+            }
+        ]
+    },
+    {
+        "code": "ANDI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "ARKA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "ARMY",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2021 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "ARTI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "ASMI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BAJA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BAPI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BATA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BAUT",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BEBS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "BEKS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BHAT",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "BHIT",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BIKA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "BIMA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BLTA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BLTZ",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BOSS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2023 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2023 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "BSWD",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BTEK",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "BTEL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "BUKA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "I",
+                "description": "Perusahaan Tercatat yang tidak menerapkan Saham Dengan Hak Suara Multipel dan tercatat di Papan Ekonomi Baru"
+            }
+        ]
+    },
+    {
+        "code": "CANI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "CBMF",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2023 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "CMPP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "CNKO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "COAL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "S",
+                "description": "Laporan keuangan terakhir menunjukkan tidak ada pendapatan usaha berdasarkan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "COWL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2019 Tahunan"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2019 Tahunan"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "CPRI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2022 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "CRAB",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "DEAL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2023 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2023 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "DIGI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "DPNS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Tahunan"
+            }
+        ]
+    },
+    {
+        "code": "DPUM",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2026 Kuartal I"
+            }
+        ]
+    },
+    {
+        "code": "DUCK",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2020 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "DUTI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "ELTY",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "ENVY",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "ETWA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2023 Kuartal II"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2023 Kuartal II"
+            },
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "FASW",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "FIMP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "FOOD",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "GAMA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2022 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "GLOB",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "GOLL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2021 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "GOTO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "N",
+                "description": "Perusahaan Tercatat yang menerapkan Saham Dengan Hak Suara Multipel dan tidak tercatat di Papan Ekonomi Baru"
+            }
+        ]
+    },
+    {
+        "code": "GTBO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Tahunan"
+            },
+            {
+                "notation": "S",
+                "description": "Laporan keuangan terakhir menunjukkan tidak ada pendapatan usaha berdasarkan laporan keuangan 2025 Tahunan"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "HADE",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "HILL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "HITS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "HKMU",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2023 Kuartal I"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2023 Kuartal I"
+            },
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "HOME",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "A",
+                "description": "Adanya Opini Tidak Wajar (Adverse) dari Akuntan Publik berdasarkan laporan keuangan 2020 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2020 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "HOTL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "F",
+                "description": "Sanksi Administratif dan/atau Perintah Tertulis dari OJK yang dikenakan terhadap Perusahaan Tercatat karena pelanggaran peraturan di bidang Pasar Modal dengan kategori Pelanggaran Ringan"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "HRME",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "IBFN",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "IBST",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "IFSH",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "IIKP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "IKAI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "INAF",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "INCF",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "INDX",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "INPS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "INRU",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "A",
+                "description": "Adanya Opini Tidak Wajar (Adverse) dari Akuntan Publik berdasarkan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "INTA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "IPPE",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "IPTV",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "JMAS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2018 Tahunan"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "JSKY",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2022 Tahunan"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2022 Tahunan"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "KARW",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "KAYU",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2023 Tahunan"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "KBAG",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "KBRI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2019 Kuartal III"
+            },
+            {
+                "notation": "S",
+                "description": "Laporan keuangan terakhir menunjukkan tidak ada pendapatan usaha berdasarkan laporan keuangan 2019 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "KIAS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "KKES",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "KOIN",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "KREN",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "LCGP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2021 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "LCKM",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2026 Kuartal I"
+            }
+        ]
+    },
+    {
+        "code": "LMAS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2021 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2021 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "LMSH",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MABA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2019 Tahunan"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "MAGP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2022 Kuartal I"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "MAPB",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MARI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MDIA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "MDRN",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MENN",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "MFMI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MIRA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MKNT",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "S",
+                "description": "Laporan keuangan terakhir menunjukkan tidak ada pendapatan usaha berdasarkan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MLIA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MPPA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MREI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "MSKY",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            }
+        ]
+    },
+    {
+        "code": "MTFN",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "MTPS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "S",
+                "description": "Laporan keuangan terakhir menunjukkan tidak ada pendapatan usaha berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MTRA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2022 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2022 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "MTSM",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "MYTX",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "NANO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Tahunan"
+            }
+        ]
+    },
+    {
+        "code": "NASA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "NUSA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2019 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "OCAP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "S",
+                "description": "Laporan keuangan terakhir menunjukkan tidak ada pendapatan usaha berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "OLIV",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Tahunan"
+            }
+        ]
+    },
+    {
+        "code": "PBRX",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "PCAR",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "PGJO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2025 Tahunan"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "PLAS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2020 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "PLIN",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "PMMP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "PNGO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "POLL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "POLY",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "POOL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2022 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "POSA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "PPRO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "PTDU",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "PTMR",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "PTPP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            }
+        ]
+    },
+    {
+        "code": "PURA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "PURE",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "A",
+                "description": "Adanya Opini Tidak Wajar (Adverse) dari Akuntan Publik berdasarkan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "RAFI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "RICY",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "RIMO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2019 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "SAFE",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "C",
+                "description": "Kejadian perkara hukum terhadap Perusahaan Tercatat, Anak Perusahaan Tercatat dan/atau anggota Direksi dan anggota Dewan Komisaris Perusahaan Tercatat yang berdampak Material"
+            }
+        ]
+    },
+    {
+        "code": "SAGE",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "SBAT",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2023 Kuartal III"
+            },
+            {
+                "notation": "S",
+                "description": "Laporan keuangan terakhir menunjukkan tidak ada pendapatan usaha berdasarkan laporan keuangan 2023 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "SCPI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "SHID",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            }
+        ]
+    },
+    {
+        "code": "SIMA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2019 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2019 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "SINI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "SKYB",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2022 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "SMCB",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "SMMA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2026 Kuartal I"
+            }
+        ]
+    },
+    {
+        "code": "SMRU",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "SONA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "SOSS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "SOUL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal II"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "SQMI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "SRIL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "SUGI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2018 Tahunan"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "SUPR",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "SWAT",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "TAMU",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "TARA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "TAXI",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "TAYS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "TDPM",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2023 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "TECH",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2023 Kuartal I"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "TELE",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2025 Kuartal II"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "TFCO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "TGRA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "S",
+                "description": "Laporan keuangan terakhir menunjukkan tidak ada pendapatan usaha berdasarkan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "TGUK",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "TIRT",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "TOPS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "S",
+                "description": "Laporan keuangan terakhir menunjukkan tidak ada pendapatan usaha berdasarkan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "TOYS",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2023 Tahunan"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "TRAM",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2020 Tahunan"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "TRIL",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2021 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "TRIO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "TRUE",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2025 Kuartal III"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "UNIT",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2020 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "UNSP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "URBN",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "VIVA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2026 Kuartal I"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "WEGE",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "M",
+                "description": "Adanya permohonan Penundaan Kewajiban Pembayaran Utang (PKPU)"
+            }
+        ]
+    },
+    {
+        "code": "WICO",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "WIKA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "WINR",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "WMPP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "WSBP",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "E",
+                "description": "Laporan keuangan terakhir menunjukkan ekuitas negatif berdasarkan laporan keuangan 2026 Kuartal II"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "WSKT",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    },
+    {
+        "code": "ZATA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "ZBRA",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "B",
+                "description": "Adanya permohonan Pernyataan Pailit, permohonan pembatalan perdamaian, atau dalam kondisi pailit"
+            },
+            {
+                "notation": "L",
+                "description": "Perusahaan Tercatat terakhir menyampaikan laporan keuangan 2024 Kuartal III"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            },
+            {
+                "notation": "Y",
+                "description": "Perusahaan Tercatat yang belum menyelenggarakan Rapat Umum Pemegang Saham Tahunan (RUPST) sampai dengan 6 (enam) bulan setelah tahun buku berakhir"
+            }
+        ]
+    },
+    {
+        "code": "ZINC",
+        "date": "2026-08-24T00:00:00.000Z",
+        "list": [
+            {
+                "notation": "D",
+                "description": "Adanya Opini \"Tidak Menyatakan Pendapat (Disclaimer)\" dari Akuntan Publik"
+            },
+            {
+                "notation": "X",
+                "description": "Perusahaan Tercatat dicatatkan di Papan Pemantauan Khusus"
+            }
+        ]
+    }
+]

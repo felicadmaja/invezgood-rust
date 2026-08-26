@@ -10,7 +10,8 @@ use crate::model::{
     StockbitProfileColDb, StockbitReportsByCodeRow, StockbitReportsDb,
     StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
     StockListKeystatsDb, StockListKeystatsRow, StockListRow, StockListSummaryRow,
-    HorizontalLineByCodeRow, WyckoffChartByCodeRow, TakeProfitWyckoffByCodeRow, WyckoffChartDb, KEYSPACE, TABLE,
+    HorizontalLineByCodeRow, WyckoffChartByCodeRow, TakeProfitWyckoffByCodeRow, WyckoffChartDb,
+    NotationDb, KEYSPACE, TABLE,
 };
 
 const ROW_SELECT: &str = "code, name, sector, sub_sector, logo, keystats, keystats_updated_at, \
@@ -18,7 +19,7 @@ const ROW_SELECT: &str = "code, name, sector, sub_sector, logo, keystats, keysta
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
     company_information, company_information_updated_at, corporate_action, corporate_action_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff, is_bad_fundamental";
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff, is_bad_fundamental, notation";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -94,6 +95,9 @@ const UPDATE_IS_PLAN_TO_TRADE: &str =
 
 const UPDATE_IS_BAD_FUNDAMENTAL: &str =
     "UPDATE invezgood.stock_list SET is_bad_fundamental = ? WHERE code = ?";
+
+const UPDATE_NOTATION: &str =
+    "UPDATE invezgood.stock_list SET notation = ? WHERE code = ?";
 
 const UPDATE_CATATAN_OWNER: &str =
     "UPDATE invezgood.stock_list SET catatan_owner = ? WHERE code = ?";
@@ -500,6 +504,22 @@ pub async fn update_is_bad_fundamental(
         .query_unpaged(UPDATE_IS_BAD_FUNDAMENTAL, (is_bad_fundamental, code))
         .await
         .map_err(|e| format!("update is_bad_fundamental {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_notation(
+    session: &Session,
+    code: &str,
+    notation: NotationDb,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_NOTATION, (notation, code))
+        .await
+        .map_err(|e| format!("update notation {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 
