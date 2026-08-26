@@ -1,6 +1,6 @@
 //! Fetch Yahoo Finance daily chart; deteksi spike.
-//! 09:00:00–09:05:59 lokal: close hari ini vs open candle sebelumnya
-//!   `(close_hari_ini - open_kemarin) / open_kemarin * 100` — ambang `OPENING_UP_SPIKE_PERCENTAGE` /
+//! 09:00:00–09:05:59 lokal: close hari ini vs close candle sebelumnya
+//!   `(close_hari_ini - close_candle_sebelumnya) / close_candle_sebelumnya * 100` — ambang `OPENING_UP_SPIKE_PERCENTAGE` /
 //!   `OPENING_DOWN_SPIKE_PERCENTAGE`.
 //! Di luar jam itu: close vs open hari ini — ambang `UP_SPIKE_PERCENTAGE` / `DOWN_SPIKE_PERCENTAGE`.
 //! Jeda antar emiten: `JEDA_MS_ANTAR_EMITEN` (ms).
@@ -89,7 +89,7 @@ pub fn active_spike_thresholds() -> (f64, f64, &'static str) {
         (
             opening_spike_up_pct(),
             opening_spike_down_pct(),
-            "close vs open kemarin",
+            "close vs close candle sebelumnya",
         )
     } else {
         (
@@ -134,7 +134,7 @@ struct Candle {
     close: f64,
 }
 
-/// 09:00:00–09:05:59 waktu lokal: bandingkan close hari ini vs open candle sebelumnya.
+/// 09:00:00–09:05:59 waktu lokal: bandingkan close hari ini vs close candle sebelumnya.
 pub fn in_opening_spike_window() -> bool {
     let now = Local::now();
     now.hour() == 9 && now.minute() <= 5
@@ -195,10 +195,10 @@ fn spike_from_candle(c: &Candle) -> Option<(&'static str, f64)> {
     spike_from_change(c.open, c.close, up_pct, down_pct)
 }
 
-/// `up`/`down` + persen bila close hari ini vs open candle sebelumnya memenuhi ambang opening `.env`.
-fn spike_from_close_vs_prev_open(today: &Candle, prev: &Candle) -> Option<(&'static str, f64)> {
+/// `up`/`down` + persen bila close hari ini vs close candle sebelumnya memenuhi ambang opening `.env`.
+fn spike_from_close_vs_prev_close(today: &Candle, prev: &Candle) -> Option<(&'static str, f64)> {
     let (up_pct, down_pct) = opening_spike_thresholds();
-    spike_from_change(prev.open, today.close, up_pct, down_pct)
+    spike_from_change(prev.close, today.close, up_pct, down_pct)
 }
 
 fn parse_candles(body: &str) -> Result<Vec<Candle>, String> {
@@ -392,7 +392,7 @@ fn today_and_prev_candles(candles: &[Candle]) -> Option<(&Candle, &Candle)> {
 }
 
 /// Untuk setiap emiten: GET Yahoo chart (jeda `JEDA_MS_ANTAR_EMITEN`), kembalikan yang memenuhi ambang `.env`.
-/// 09:00–09:05: `(close_hari_ini - open_kemarin) / open_kemarin * 100` (ambang opening);
+/// 09:00–09:05: `(close_hari_ini - close_candle_sebelumnya) / close_candle_sebelumnya * 100` (ambang opening);
 /// selain itu close vs open hari ini.
 pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
@@ -415,7 +415,7 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if gap {
         let (up, down, _) = active_spike_thresholds();
         println!(
-            "Yahoo spike: mode 09:00-09:05 — close hari ini vs open kemarin (UP>={up}% DOWN>={down}%)"
+            "Yahoo spike: mode 09:00-09:05 — close hari ini vs close candle sebelumnya (UP>={up}% DOWN>={down}%)"
         );
     }
 
@@ -434,7 +434,7 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
                     let Some((today, prev)) = today_and_prev_candles(&candles) else {
                         continue;
                     };
-                    spike_from_close_vs_prev_open(today, prev).map(|hit| (hit, today, Some(prev)))
+                    spike_from_close_vs_prev_close(today, prev).map(|hit| (hit, today, Some(prev)))
                 } else {
                     let Some(last) = candles.last() else {
                         continue;
@@ -446,8 +446,8 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
                 };
                 if let Some(prev) = prev {
                     println!(
-                        "\x1b[32myahoo spike {code} {jenis}: {pct:+.2}% (close hari ini={:.2} vs open kemarin={:.2})\x1b[0m",
-                        last.close, prev.open
+                        "\x1b[32myahoo spike {code} {jenis}: {pct:+.2}% (close hari ini={:.2} vs close candle sebelumnya={:.2})\x1b[0m",
+                        last.close, prev.close
                     );
                 } else {
                     println!(

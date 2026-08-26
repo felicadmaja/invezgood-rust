@@ -17,16 +17,13 @@ service User {
   // Poller global selalu jalan sejak server start (tanpa perlu subscriber stream).
   // Cek pertama: Senin–Jumat 09:00:00–09:00:59 waktu server; seterusnya interval 9–10 menit.
   // Banyak subscriber stream tidak menambah frekuensi poll.
-  // Setelah tiap tick (bila ready + jam operasional Senin–Kamis 09:00–12:00 & 13:30–16:00;
-  // Jumat 09:00–11:30 & 14:00–16:00), poller auto-invoke alur scrape berikut
-  // (bukan panggil gRPC client, langsung scrape worker):
-  //   Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur —
-  //   poller TIDAK menjalankan:
+  // Setelah tiap tick (bila ready + jam operasional Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00), Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur 
+  // poller auto-invoke alur scrape berikut
   //     1. GetAllPortofolioFromStockbit
   //     2. GetLatestEmitenTrendingFromInvezgo
   //     3. GetAllPendingOrderFromStockbit
-  //   Bila bukan libur dan jam operasional:
-  //     Serial: GetAllPortofolioFromStockbit (Chrome) → GetLatestEmitenTrendingFromInvezgo (HTTP Invezgo) → GetAllPendingOrderFromStockbit (Chrome)
+  //     Paralel: GetLatestEmitenTrendingFromInvezgo (HTTP Invezgo, tanpa Chrome).
+  //     Serial Chrome (satu browser): GetAllPortofolioFromStockbit → GetAllPendingOrderFromStockbit.
   // Subscribe stream: server push saat status berubah + heartbeat ~30s.
   // Wajib Bearer login valid. Tanpa auth / session invalid: push 1x is_need_login=true lalu stream ditutup.
   // success=true bila sesi Stockbit sudah login/ready.
@@ -37,7 +34,7 @@ service User {
   // seterusnya interval INTERVAL_YAHOO_SPIKE_POLL_SECS (.env, detik; default 120) di jam kerja
   // Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
   // Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur — poller TIDAK dijalankan.
-  // 09:00:00–09:05:59 waktu lokal: spike = (close hari ini - open candle sebelumnya) / open candle
+  // 09:00:00–09:05:59 waktu lokal: spike = (close hari ini - close candle sebelumnya) / close candle
   // sebelumnya * 100 (chart 1d lookback 7 hari); ambang OPENING_UP_SPIKE_PERCENTAGE /
   // OPENING_DOWN_SPIKE_PERCENTAGE (.env). Di luar jam itu: spike = (close - open) / open * 100
   // hari ini; ambang UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env).
@@ -60,7 +57,7 @@ service User {
   // seterusnya interval INTERVAL_INVEZGO_SPIKE_POLL_SECS (.env, detik; default 120) di jam kerja
   // Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
   // Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur — poller TIDAK dijalankan.
-  // 09:00–09:05: GET analysis/chart/stock/{code}?from=&to= (7 hari) — spike = (close hari ini - open kemarin) / open kemarin * 100; ambang OPENING_UP_SPIKE_PERCENTAGE / OPENING_DOWN_SPIKE_PERCENTAGE (.env).
+  // 09:00–09:05: GET analysis/chart/stock/{code}?from=&to= (7 hari) — spike = (close hari ini - close candle sebelumnya) / close candle sebelumnya * 100; ambang OPENING_UP_SPIKE_PERCENTAGE / OPENING_DOWN_SPIKE_PERCENTAGE (.env).
   // Di luar itu: GET analysis/intraday-data/{code}?market=RG — spike = (close - open) / open * 100; ambang UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env); open=0 → close.
   // Emiten: MV is_plan_to_trade=true; 
   // `invezgood:invezgo:spike_today:{date}` + spike_reported; stream isi cache + heartbeat ~30s.
@@ -134,10 +131,10 @@ message GetPriceSpikeFromInvezGoRequest {}
 message PriceSpikeRow {
   string emiten_name = 1;
   // "up" / "down" dari ambang .env. 09:00–09:05: OPENING_UP/DOWN_SPIKE_PERCENTAGE,
-  // (close_hari_ini - open_kemarin) / open_kemarin * 100; selain itu UP/DOWN_SPIKE_PERCENTAGE,
+  // (close_hari_ini - close_candle_sebelumnya) / close_candle_sebelumnya * 100; selain itu UP/DOWN_SPIKE_PERCENTAGE,
   // (close - open) / open * 100 hari ini.
   string jenis_spike = 2;
-  // Persentase (naik positif, turun negatif). 09:00–09:05: vs open kemarin; selain itu vs open hari ini.
+  // Persentase (naik positif, turun negatif). 09:00–09:05: vs close candle sebelumnya; selain itu vs open hari ini.
   double value_spike_percentage = 3;
   // Waktu lokal deteksi spike (YYYY-MM-DD HH:MM:SS), dari Redis cache.
   string spike_at = 4;

@@ -22,7 +22,7 @@ service EmitenTrending {
   // Mapping upsert: gain→gainer, loss→loser; PK agg=`{date}_{code}`; emiten_icon Stockbit CDN;
   // long_name/price/change/value/volume dari API; sector lookup stock_list (tinyint bila numerik);
   // freq null; updated_at waktu server.
-  // Auto dari IsStockbitReady poller (poller selalu jalan tanpa perlu subscriber) bila Stockbit ready,
+  // Auto dari IsStockbitReady poller (paralel dengan scrape Chrome portofolio/pending_order; HTTP tanpa browser) bila Stockbit ready,
   // hanya pada jam operasional (waktu server lokal): Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00,
   // dan bukan hari libur (Sabtu/Minggu atau tanggal ada di invezgood.hari_libur — sumber sama GetAllHariLibur).
   // GET Invezgo (manual RPC) hanya pada jam operasional dan bukan libur; di luar itu skip GET, tetap baca MV hari ini.

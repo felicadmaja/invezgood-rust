@@ -1,7 +1,7 @@
 //! Deteksi spike via Invezgo API.
 //! Di luar 09:00–09:05: GET `analysis/intraday-data/{code}?market=RG` — `(close - open) / open * 100`.
 //! 09:00–09:05: GET `analysis/chart/stock/{code}?from=&to=` (lookback 7 hari) —
-//!   `(close_hari_ini - open_kemarin) / open_kemarin * 100`; ambang opening `.env`.
+//!   `(close_hari_ini - close_candle_sebelumnya) / close_candle_sebelumnya * 100`; ambang opening `.env`.
 
 use chrono::{Duration as ChronoDuration, Local, NaiveDate};
 use serde::Deserialize;
@@ -15,7 +15,6 @@ const INVEZGO_INTRADAY_DATA_URL: &str = "https://api.invezgo.com/analysis/intrad
 #[derive(Debug, Deserialize)]
 struct ApiChartBar {
     date: String,
-    open: f64,
     close: f64,
 }
 
@@ -133,7 +132,7 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if opening {
         let (up, down, _) = active_spike_thresholds();
         println!(
-            "Invezgo spike: mode 09:00-09:05 — close hari ini vs open kemarin (UP>={up}% DOWN>={down}%)"
+            "Invezgo spike: mode 09:00-09:05 — close hari ini vs close candle sebelumnya (UP>={up}% DOWN>={down}%)"
         );
     }
 
@@ -152,12 +151,12 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
                         continue;
                     };
                     let (up_pct, down_pct, _) = active_spike_thresholds();
-                    spike_from_change(prev.open, today.close, up_pct, down_pct).map(|hit| {
+                    spike_from_change(prev.close, today.close, up_pct, down_pct).map(|hit| {
                         (
                             hit,
                             format!(
-                                "close hari ini={:.2} vs open kemarin={:.2}",
-                                today.close, prev.open
+                                "close hari ini={:.2} vs close candle sebelumnya={:.2}",
+                                today.close, prev.close
                             ),
                         )
                     })
