@@ -552,7 +552,7 @@ pub async fn run_poller_stockbit_scrapes(
     }
 
     println!(
-        "Poller scrapes: GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit"
+        "Poller scrapes: GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromInvezgo → GetAllPendingOrderFromStockbit"
     );
 
     match run_portofolio_all_scrape(
@@ -566,15 +566,9 @@ pub async fn run_poller_stockbit_scrapes(
         Err(e) => eprintln!("Poller GetAllPortofolioFromStockbit skip/fail: {e}"),
     }
 
-    match run_emiten_trending_movers_scrape(Arc::clone(&session), BrowserLockClass::Background)
-        .await
-    {
-        Ok((g, l)) => {
-            println!("Poller GetLatestEmitenTrendingFromStockbit OK: gainer={g} loser={l}")
-        }
-        Err(e) => {
-            eprintln!("Poller GetLatestEmitenTrendingFromStockbit skip/fail: {e}")
-        }
+    match crate::emiten_trending_invezgo::fetch_and_save(Arc::clone(&session)).await {
+        Ok(n) => println!("Poller GetLatestEmitenTrendingFromInvezgo OK: {n} baris di-upsert"),
+        Err(e) => eprintln!("Poller GetLatestEmitenTrendingFromInvezgo skip/fail: {e}"),
     }
 
     match run_pending_order_all_scrape(session, BrowserLockClass::Background).await {

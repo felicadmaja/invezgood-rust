@@ -168,20 +168,28 @@ impl EmitenTrendingRpc for EmitenTrendingService {
         let _ = request.into_inner();
 
         let result: Result<Response<GetAllEmitenTrendingResponse>, Status> = async {
-            if !on_demand::is_stockbit_poller_scrape_hours() {
-                return Err(Status::failed_precondition(
-                    "Diluar jam operasional (Senin-Kamis 09:00-12:00 & 13:30-16:00; Jumat 09:00-11:30 & 14:00-16:00)",
-                ));
+            let today = Local::now().date_naive();
+
+            let in_scrape_hours = on_demand::is_stockbit_poller_scrape_hours();
+            let is_holiday = worker_scrapping::yahoo_market_holiday::is_spike_poller_holiday().await;
+
+            if in_scrape_hours && !is_holiday {
+                acquire_trending_refresh_slot(&user_name, "GetLatestEmitenTrendingFromInvezgo").await?;
+
+                // Invezgo hanya menulis ke Scylla; response client dari MV, bukan payload API langsung.
+                let _saved = crate::invezgo::fetch_and_save(Arc::clone(&self.session))
+                    .await
+                    .map_err(Status::internal)?;
+            } else if is_holiday {
+                eprintln!(
+                    "GetLatestEmitenTrendingFromInvezgo {user_name}: hari libur (Sabtu/Minggu atau invezgood.hari_libur) — skip Invezgo, baca Scylla saja"
+                );
+            } else {
+                eprintln!(
+                    "GetLatestEmitenTrendingFromInvezgo {user_name}: diluar jam operasional — skip Invezgo, baca Scylla saja"
+                );
             }
 
-            acquire_trending_refresh_slot(&user_name, "GetLatestEmitenTrendingFromInvezgo").await?;
-
-            // Invezgo hanya menulis ke Scylla; response client dari MV, bukan payload API langsung.
-            let _saved = crate::invezgo::fetch_and_save(Arc::clone(&self.session))
-                .await
-                .map_err(Status::internal)?;
-
-            let today = Local::now().date_naive();
             let rows = self
                 .repo
                 .get_all_by_date(today)

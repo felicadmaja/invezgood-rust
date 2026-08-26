@@ -23,10 +23,10 @@ service User {
   //   Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur —
   //   poller TIDAK menjalankan:
   //     1. GetAllPortofolioFromStockbit
-  //     2. GetLatestEmitenTrendingFromStockbit
+  //     2. GetLatestEmitenTrendingFromInvezgo
   //     3. GetAllPendingOrderFromStockbit
   //   Bila bukan libur dan jam operasional:
-  //     Serial (satu Chrome): GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit
+  //     Serial: GetAllPortofolioFromStockbit (Chrome) → GetLatestEmitenTrendingFromInvezgo (HTTP Invezgo) → GetAllPendingOrderFromStockbit (Chrome)
   // Subscribe stream: server push saat status berubah + heartbeat ~30s.
   // Wajib Bearer login valid. Tanpa auth / session invalid: push 1x is_need_login=true lalu stream ditutup.
   // success=true bila sesi Stockbit sudah login/ready.

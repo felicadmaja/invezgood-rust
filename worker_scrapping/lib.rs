@@ -1,6 +1,7 @@
 //! Worker scrape Stockbit on-demand — dipakai crate portofolio, pending_order, emiten_trending.
 
 pub mod buy_limit_order_worker;
+pub mod emiten_trending_invezgo;
 pub mod emiten_trending_worker;
 pub mod http_abort;
 pub mod on_demand;
