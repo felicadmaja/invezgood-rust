@@ -1,23 +1,32 @@
-//! HTTP helper Invezgo: serialisasi global, serial per emiten (chart+bandarmology), cooldown 429.
+//! HTTP helper Invezgo: token bucket 500 req/min (paralel OK), cooldown 429, retry backoff.
 
-use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use tokio::sync::Mutex;
 
-const DEFAULT_MIN_INTERVAL_MS: u64 = 500;
+const DEFAULT_MAX_REQ_PER_MINUTE: u64 = 500;
+const DEFAULT_BURST: u64 = 20;
 const DEFAULT_JEDA_MS_ANTAR_EMITEN: u64 = 25;
-const DEFAULT_429_MAX_RETRIES: u32 = 4;
-const DEFAULT_429_BACKOFF_MS: u64 = 15_000;
-const DEFAULT_429_COOLDOWN_SECS: u64 = 60;
+const DEFAULT_429_MAX_RETRIES: u32 = 3;
+const DEFAULT_429_BACKOFF_MS: u64 = 2_000;
+const DEFAULT_429_COOLDOWN_SECS: u64 = 10;
 
-static REQUEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-static EMITEN_DETAIL_LOCKS: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
-static LAST_REQUEST_AT: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+static RATE_LIMITER: OnceLock<TokenBucket> = OnceLock::new();
 static COOLDOWN_UNTIL: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+struct TokenBucketState {
+    tokens: f64,
+    last: Instant,
+}
+
+struct TokenBucket {
+    state: Mutex<TokenBucketState>,
+    max_tokens: f64,
+    /// Token per millisecond (500/min → 500/60000).
+    refill_per_ms: f64,
+}
 
 fn env_u64(key: &str, default: u64) -> u64 {
     std::env::var(key)
@@ -33,9 +42,73 @@ fn env_u32(key: &str, default: u32) -> u32 {
         .unwrap_or(default)
 }
 
-fn min_interval_ms() -> u64 {
+fn max_req_per_minute() -> u64 {
     static CACHED: OnceLock<u64> = OnceLock::new();
-    *CACHED.get_or_init(|| env_u64("INVEZGO_MIN_INTERVAL_MS", DEFAULT_MIN_INTERVAL_MS))
+    *CACHED.get_or_init(|| env_u64("INVEZGO_MAX_REQ_PER_MINUTE", DEFAULT_MAX_REQ_PER_MINUTE))
+}
+
+fn burst_capacity() -> u64 {
+    static CACHED: OnceLock<u64> = OnceLock::new();
+    *CACHED.get_or_init(|| {
+        let burst = env_u64("INVEZGO_BURST", DEFAULT_BURST);
+        burst.max(1).min(max_req_per_minute())
+    })
+}
+
+fn rate_limiter() -> &'static TokenBucket {
+    RATE_LIMITER.get_or_init(|| {
+        let rpm = max_req_per_minute().max(1) as f64;
+        let burst = burst_capacity().max(1) as f64;
+        TokenBucket {
+            state: Mutex::new(TokenBucketState {
+                tokens: burst,
+                last: Instant::now(),
+            }),
+            max_tokens: burst,
+            refill_per_ms: rpm / 60_000.0,
+        }
+    })
+}
+
+impl TokenBucket {
+    /// Ambil 1 token; request paralel antre di sini bila bucket kosong.
+    async fn acquire(&self) {
+        loop {
+            let wait = {
+                let mut st = self.state.lock().await;
+                let now = Instant::now();
+                let elapsed_ms = now.duration_since(st.last).as_secs_f64() * 1000.0;
+                st.tokens = (st.tokens + elapsed_ms * self.refill_per_ms).min(self.max_tokens);
+                st.last = now;
+
+                if st.tokens >= 1.0 {
+                    st.tokens -= 1.0;
+                    None
+                } else {
+                    let deficit = 1.0 - st.tokens;
+                    let wait_ms = (deficit / self.refill_per_ms).ceil() as u64;
+                    Some(Duration::from_millis(wait_ms.max(1)))
+                }
+            };
+
+            match wait {
+                None => return,
+                Some(d) => tokio::time::sleep(d).await,
+            }
+        }
+    }
+}
+
+fn log_rate_limit_config() {
+    static LOGGED: OnceLock<()> = OnceLock::new();
+    LOGGED.get_or_init(|| {
+        let rpm = max_req_per_minute();
+        let burst = burst_capacity();
+        let avg_ms = 60_000u64.div_ceil(rpm.max(1));
+        eprintln!(
+            "Invezgo rate limit {rpm} req/min burst={burst} (~{avg_ms}ms avg antar req, paralel OK)"
+        );
+    });
 }
 
 fn max_429_retries() -> u32 {
@@ -53,7 +126,7 @@ fn cooldown_secs_on_429() -> u64 {
     *CACHED.get_or_init(|| env_u64("INVEZGO_429_COOLDOWN_SECS", DEFAULT_429_COOLDOWN_SECS))
 }
 
-/// Jeda antar emiten dari `JEDA_MS_ANTAR_EMITEN` (ms).
+/// Jeda antar emiten dari `JEDA_MS_ANTAR_EMITEN` (ms) — spike poller batch.
 pub fn jeda_ms_antar_emiten() -> u64 {
     static CACHED: OnceLock<u64> = OnceLock::new();
     *CACHED.get_or_init(|| env_u64("JEDA_MS_ANTAR_EMITEN", DEFAULT_JEDA_MS_ANTAR_EMITEN))
@@ -71,22 +144,6 @@ fn http_client() -> &'static reqwest::Client {
             .build()
             .expect("invezgo_http: gagal buat reqwest client")
     })
-}
-
-async fn wait_min_interval() {
-    let min = Duration::from_millis(min_interval_ms());
-    if min.is_zero() {
-        return;
-    }
-    let last = LAST_REQUEST_AT.get_or_init(|| Mutex::new(None));
-    let mut guard = last.lock().await;
-    if let Some(at) = *guard {
-        let elapsed = at.elapsed();
-        if elapsed < min {
-            tokio::time::sleep(min - elapsed).await;
-        }
-    }
-    *guard = Some(Instant::now());
 }
 
 async fn cooldown_remaining() -> Duration {
@@ -168,7 +225,8 @@ fn log_token_fingerprint(token: &str) {
 }
 
 fn log_429_headers(headers: &reqwest::header::HeaderMap) {
-    for name in ["retry-after", "x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset"] {
+    for name in ["retry-after", "x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset"]
+    {
         if let Some(v) = headers.get(name) {
             if let Ok(s) = v.to_str() {
                 eprintln!("Invezgo 429 header {name}: {s}");
@@ -184,54 +242,21 @@ fn log_path(url: &str) -> &str {
         .unwrap_or(url)
 }
 
-fn normalize_emiten_code(code: &str) -> String {
-    code.trim().to_ascii_uppercase()
-}
-
-async fn emiten_detail_lock(code: &str) -> Arc<Mutex<()>> {
-    let key = normalize_emiten_code(code);
-    let map = EMITEN_DETAIL_LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut guard = map.lock().await;
-    guard
-        .entry(key)
-        .or_insert_with(|| Arc::new(Mutex::new(())))
-        .clone()
-}
-
-/// Serialkan fetch Invezgo chart + bandarmology untuk emiten yang sama (RPC paralel → antre).
-pub async fn with_emiten_detail_serial<T, F, Fut>(code: &str, label: &str, f: F) -> T
-where
-    F: FnOnce() -> Fut,
-    Fut: std::future::Future<Output = T>,
-{
-    let key = normalize_emiten_code(code);
-    if key.is_empty() {
-        return f().await;
-    }
-
-    let lock = emiten_detail_lock(&key).await;
-    eprintln!("Invezgo emiten serial {key} — tunggu giliran ({label})");
-    let _guard = lock.lock().await;
-    eprintln!("Invezgo emiten serial {key} — jalan ({label})");
-    f().await
-}
-
-/// GET Invezgo dengan mutex global, jeda minimum, cooldown 429, dan retry exponential backoff.
+/// GET Invezgo: paralel OK, dibatasi token bucket + cooldown 429.
 pub async fn get(url: &str) -> Result<String, String> {
     let token = std::env::var("INVEZGO_BEARER_TOKEN")
         .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
+    log_rate_limit_config();
     log_token_fingerprint(&token);
-
-    let lock = REQUEST_LOCK.get_or_init(|| Mutex::new(()));
-    let _guard = lock.lock().await;
 
     let max_retries = max_429_retries();
     let client = http_client();
     let path = log_path(url);
+    let limiter = rate_limiter();
 
     for attempt in 0..=max_retries {
         wait_cooldown().await;
-        wait_min_interval().await;
+        limiter.acquire().await;
 
         let started = Instant::now();
         let attempt_no = attempt + 1;
