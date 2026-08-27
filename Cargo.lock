@@ -183,6 +183,7 @@ dependencies = [
  "chrono",
  "futures",
  "grpc_stream",
+ "invezgo_http",
  "prost",
  "reqwest 0.12.28",
  "scylla",
@@ -314,6 +315,7 @@ name = "chart"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "invezgo_http",
  "market_holiday",
  "moka",
  "prost",
@@ -1236,6 +1238,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "invezgo_http"
+version = "0.1.0"
+dependencies = [
+ "reqwest 0.12.28",
+ "tokio",
 ]
 
 [[package]]
@@ -3208,6 +3218,7 @@ dependencies = [
  "chromiumoxide",
  "chrono",
  "futures-util",
+ "invezgo_http",
  "market_holiday",
  "rand 0.8.7",
  "redis",

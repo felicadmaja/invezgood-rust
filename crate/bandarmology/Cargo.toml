@@ -16,6 +16,7 @@ tonic = "0.12"
 prost = "0.13"
 user = { path = "../user" }
 grpc_stream = { path = "../grpc_stream" }
+invezgo_http = { path = "../invezgo_http" }
 
 [build-dependencies]
 tonic-build = "0.12"

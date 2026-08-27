@@ -13,6 +13,7 @@ members = [
     "crate/pending_order",
     "crate/emiten_trending",
     "crate/chart",
+    "crate/invezgo_http",
     "crate/haka_haki",
     "crate/msci",
     "crate/ftse",

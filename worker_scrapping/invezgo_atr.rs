@@ -5,7 +5,6 @@
 
 use chrono::{Duration as ChronoDuration, Local, NaiveDate};
 use serde::Deserialize;
-use std::time::Duration;
 
 use crate::yahoo_atr::{active_spike_thresholds, in_opening_spike_window, SpikeEmiten};
 
@@ -74,26 +73,7 @@ fn today_and_prev_bars(bars: &[ApiChartBar]) -> Option<(&ApiChartBar, &ApiChartB
 }
 
 async fn invezgo_get(url: &str) -> Result<String, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-    let response = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|e| format!("Invezgo HTTP client: {e}"))?
-        .get(url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("Invezgo GET {url}: {e}"))?;
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("Invezgo body {url}: {e}"))?;
-    if !status.is_success() {
-        return Err(format!("Invezgo HTTP {status} {url}: {body}"));
-    }
-    Ok(body)
+    invezgo_http::get(url).await
 }
 
 async fn fetch_intraday_open_close(code: &str) -> Result<(f64, f64), String> {
@@ -121,7 +101,7 @@ async fn fetch_chart_bars(code: &str, lookback_days: i64) -> Result<Vec<ApiChart
     serde_json::from_str(&body).map_err(|e| format!("parse Invezgo chart/stock {code}: {e}"))
 }
 
-/// Scan emiten plan-to-trade; GET Invezgo per emiten tanpa jeda antar emiten.
+/// Scan emiten plan-to-trade; GET Invezgo per emiten dengan jeda `JEDA_MS_ANTAR_EMITEN`.
 pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
     if emitens.is_empty() {
         return Vec::new();
@@ -138,7 +118,10 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
 
     let mut spikes = Vec::new();
 
-    for raw in emitens.iter() {
+    for (i, raw) in emitens.iter().enumerate() {
+        if i > 0 {
+            invezgo_http::delay_between_emitens().await;
+        }
         let code = raw.trim().to_ascii_uppercase();
         if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
             continue;

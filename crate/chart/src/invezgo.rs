@@ -75,29 +75,11 @@ pub async fn fetch_from_api(
     from_date: &str,
     to_date: &str,
 ) -> Result<Vec<ChartBar>, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
     let url = format!("{INVEZGO_CHART_STOCK_URL}/{code}?from={from_date}&to={to_date}");
 
     eprintln!("\x1b[32mchart Invezgo GET {url}\x1b[0m");
 
-    let response = reqwest::Client::new()
-        .get(&url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo chart/stock gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo chart/stock gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo HTTP {status} chart/stock: {body}"));
-    }
+    let body = invezgo_http::get(&url).await?;
 
     let parsed: Vec<ApiChartBar> = serde_json::from_str(&body)
         .map_err(|e| format!("parse JSON Invezgo chart/stock gagal: {e}"))?;
@@ -128,27 +110,9 @@ struct ApiIntradayData {
 }
 
 pub async fn fetch_intraday_data(code: &str) -> Result<GetCurrentDayChartFromInvezgoResponse, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
     let url = format!("{INVEZGO_INTRADAY_DATA_URL}/{code}?market=RG");
 
-    let response = reqwest::Client::new()
-        .get(&url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo intraday-data gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo intraday-data gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo HTTP {status} intraday-data: {body}"));
-    }
+    let body = invezgo_http::get(&url).await?;
 
     let parsed: ApiIntradayData = serde_json::from_str(&body)
         .map_err(|e| format!("parse JSON Invezgo intraday-data gagal: {e}"))?;

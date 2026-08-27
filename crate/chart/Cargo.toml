@@ -15,6 +15,7 @@ serde_json = "1"
 tonic = "0.12"
 user = { path = "../user" }
 market_holiday = { path = "../market_holiday" }
+invezgo_http = { path = "../invezgo_http" }
 
 [build-dependencies]
 tonic-build = "0.12"
