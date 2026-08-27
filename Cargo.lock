@@ -2671,6 +2671,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "market_holiday",
  "prost",
  "reqwest 0.12.28",
  "scylla",

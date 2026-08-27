@@ -10,9 +10,10 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 scylla = { version = "1.5", features = ["chrono-04"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["sync", "macros", "rt"] }
+tokio = { version = "1", features = ["sync", "macros", "rt", "time"] }
 tonic = "0.12"
 prost = "0.13"
+market_holiday = { path = "../market_holiday" }
 user = { path = "../user" }
 
 [build-dependencies]

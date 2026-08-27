@@ -16,7 +16,7 @@ use stock_list::{connect, spawn_daily_notation_sync, StockListServer, StockListS
 use stockbit_browser::ReadinessPoller;
 use worker_scrapping::invezgo_spike_poller::InvezgoSpikePoller;
 use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
-use top_foreign_flow::{TopForeignFlowServer, TopForeignFlowService};
+use top_foreign_flow::{spawn_daily_top_foreign_flow_sync, TopForeignFlowServer, TopForeignFlowService};
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{new_session_store, UserServer, UserService};
 use wyckoff_glossary::{WyckoffGlossaryServer, WyckoffGlossaryService};
@@ -142,6 +142,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .await;
 
     spawn_daily_notation_sync(session.clone());
+    spawn_daily_top_foreign_flow_sync(session.clone());
 
     let user = UserService::new(
         session,

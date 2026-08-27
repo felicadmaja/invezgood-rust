@@ -109,11 +109,6 @@ pub async fn fetch_and_save(
         .await
         .map_err(|e| format!("baca body Invezgo gagal: {e}"))?;
 
-    eprintln!(
-        "top_foreign_flow Invezgo HTTP {status} url={url} body={}",
-        body_preview(&body, 2000)
-    );
-
     if !status.is_success() {
         return Err(format!("Invezgo HTTP {status}: {body}"));
     }
