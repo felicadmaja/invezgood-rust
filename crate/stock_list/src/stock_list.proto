@@ -933,6 +933,8 @@ message StockListRow {
   string sub_sector = 10;
   map<string, double> takeprofit_wyckoff = 11;
   bool is_bad_fundamental = 12;
+  // Notasi BEI per emiten (E, X, M, dll.) — kolom frozen list UDT invezgood.stock_list.notation, sumber GET Invezgo /analysis/notation.
+  repeated NotationEntry notation = 13;
 }
 
 message GetAllStocksResponse {

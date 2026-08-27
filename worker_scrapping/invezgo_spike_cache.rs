@@ -1,6 +1,10 @@
 //! Cache Redis hasil spike Invezgo untuk stream client.
-//! Key JSON: `invezgood:invezgo:spike_today:{YYYY-MM-DD}`
-//! Key SET: `invezgood:invezgo:spike_reported:{YYYY-MM-DD}`
+//! Key terpisah opening (09:00–09:05) vs intraday (di luar jam itu):
+//! - Opening JSON: `invezgood:invezgo:spike_opening_today:{YYYY-MM-DD}`
+//! - Opening SET:  `invezgood:invezgo:spike_opening_reported:{YYYY-MM-DD}`
+//! - Intraday JSON: `invezgood:invezgo:spike_intraday_today:{YYYY-MM-DD}`
+//! - Intraday SET:  `invezgood:invezgo:spike_intraday_reported:{YYYY-MM-DD}`
+//! Stream client: merge kedua JSON (first-write wins per emiten). Skip GET Invezgo hanya per mode aktif.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
@@ -10,18 +14,38 @@ use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use tokio::sync::Mutex;
 
-fn reported_key() -> String {
-    format!(
-        "invezgood:invezgo:spike_reported:{}",
-        Local::now().format("%Y-%m-%d")
-    )
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SpikeCacheKind {
+    Opening,
+    Intraday,
 }
 
-fn today_key() -> String {
-    format!(
-        "invezgood:invezgo:spike_today:{}",
-        Local::now().format("%Y-%m-%d")
-    )
+fn current_kind() -> SpikeCacheKind {
+    if crate::yahoo_atr::in_opening_spike_window() {
+        SpikeCacheKind::Opening
+    } else {
+        SpikeCacheKind::Intraday
+    }
+}
+
+fn today_date_suffix() -> String {
+    Local::now().format("%Y-%m-%d").to_string()
+}
+
+fn reported_key(kind: SpikeCacheKind) -> String {
+    let date = today_date_suffix();
+    match kind {
+        SpikeCacheKind::Opening => format!("invezgood:invezgo:spike_opening_reported:{date}"),
+        SpikeCacheKind::Intraday => format!("invezgood:invezgo:spike_intraday_reported:{date}"),
+    }
+}
+
+fn today_key(kind: SpikeCacheKind) -> String {
+    let date = today_date_suffix();
+    match kind {
+        SpikeCacheKind::Opening => format!("invezgood:invezgo:spike_opening_today:{date}"),
+        SpikeCacheKind::Intraday => format!("invezgood:invezgo:spike_intraday_today:{date}"),
+    }
 }
 
 fn redis_url() -> String {
@@ -60,7 +84,7 @@ async fn connection() -> Result<ConnectionManager, String> {
     Ok(mgr)
 }
 
-pub async fn already_reported() -> HashSet<String> {
+async fn already_reported_for(kind: SpikeCacheKind) -> HashSet<String> {
     let mut conn = match connection().await {
         Ok(c) => c,
         Err(e) => {
@@ -68,7 +92,7 @@ pub async fn already_reported() -> HashSet<String> {
             return HashSet::new();
         }
     };
-    let members: Vec<String> = match conn.smembers(reported_key()).await {
+    let members: Vec<String> = match conn.smembers(reported_key(kind)).await {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Redis invezgo spike SMEMBERS: {e} — cache miss");
@@ -82,7 +106,7 @@ pub async fn already_reported() -> HashSet<String> {
         .collect()
 }
 
-pub async fn mark_reported(emitens: &[String]) {
+async fn mark_reported_for(kind: SpikeCacheKind, emitens: &[String]) {
     if emitens.is_empty() {
         return;
     }
@@ -101,7 +125,7 @@ pub async fn mark_reported(emitens: &[String]) {
     if codes.is_empty() {
         return;
     }
-    let key = reported_key();
+    let key = reported_key(kind);
     let added: i64 = match conn.sadd(&key, &codes).await {
         Ok(n) => n,
         Err(e) => {
@@ -114,14 +138,18 @@ pub async fn mark_reported(emitens: &[String]) {
         eprintln!("Redis invezgo spike EXPIRE: {e}");
     }
     if added > 0 {
+        let mode = match kind {
+            SpikeCacheKind::Opening => "opening",
+            SpikeCacheKind::Intraday => "intraday",
+        };
         println!(
-            "Invezgo spike cache: +{added} emiten di-Redis (skip Invezgo s/d 23:59:59) {}",
+            "Invezgo spike cache ({mode}): +{added} emiten di-Redis (skip Invezgo s/d 23:59:59) {}",
             codes.join(",")
         );
     }
 }
 
-pub async fn today_details() -> Vec<crate::yahoo_atr::SpikeEmiten> {
+async fn today_details_for(kind: SpikeCacheKind) -> Vec<crate::yahoo_atr::SpikeEmiten> {
     let mut conn = match connection().await {
         Ok(c) => c,
         Err(e) => {
@@ -129,7 +157,7 @@ pub async fn today_details() -> Vec<crate::yahoo_atr::SpikeEmiten> {
             return Vec::new();
         }
     };
-    let raw: Option<String> = match conn.get(today_key()).await {
+    let raw: Option<String> = match conn.get(today_key(kind)).await {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Redis invezgo spike_today GET: {e}");
@@ -145,7 +173,7 @@ pub async fn today_details() -> Vec<crate::yahoo_atr::SpikeEmiten> {
     })
 }
 
-async fn set_today_details(items: &[crate::yahoo_atr::SpikeEmiten]) {
+async fn set_today_details_for(kind: SpikeCacheKind, items: &[crate::yahoo_atr::SpikeEmiten]) {
     let mut conn = match connection().await {
         Ok(c) => c,
         Err(e) => {
@@ -160,7 +188,7 @@ async fn set_today_details(items: &[crate::yahoo_atr::SpikeEmiten]) {
             return;
         }
     };
-    let key = today_key();
+    let key = today_key(kind);
     if let Err(e) = conn.set::<_, _, ()>(&key, raw).await {
         eprintln!("Redis invezgo spike_today SET: {e}");
         return;
@@ -187,9 +215,18 @@ fn merge_first_wins(
     out
 }
 
+/// Gabungan spike opening + intraday hari ini (untuk stream client).
+pub async fn today_details() -> Vec<crate::yahoo_atr::SpikeEmiten> {
+    let opening = today_details_for(SpikeCacheKind::Opening).await;
+    let intraday = today_details_for(SpikeCacheKind::Intraday).await;
+    merge_first_wins(opening, intraday)
+}
+
+/// Emiten yang sudah dicek/di-cache untuk **mode aktif** (opening atau intraday).
 pub async fn cached_emiten_names() -> HashSet<String> {
-    let mut names = already_reported().await;
-    for row in today_details().await {
+    let kind = current_kind();
+    let mut names = already_reported_for(kind).await;
+    for row in today_details_for(kind).await {
         let code = row.emiten_name.trim().to_ascii_uppercase();
         if !code.is_empty() {
             names.insert(code);
@@ -198,16 +235,18 @@ pub async fn cached_emiten_names() -> HashSet<String> {
     names
 }
 
+/// Upsert spike ke cache mode aktif; return gabungan opening + intraday untuk stream.
 pub async fn upsert_spikes(
     incoming: &[crate::yahoo_atr::SpikeEmiten],
 ) -> Vec<crate::yahoo_atr::SpikeEmiten> {
-    let existing = today_details().await;
+    let kind = current_kind();
+    let existing = today_details_for(kind).await;
     if incoming.is_empty() {
-        return existing;
+        return today_details().await;
     }
     let acc = merge_first_wins(existing, incoming.to_vec());
-    set_today_details(&acc).await;
+    set_today_details_for(kind, &acc).await;
     let names: Vec<String> = incoming.iter().map(|s| s.emiten_name.clone()).collect();
-    mark_reported(&names).await;
-    acc
+    mark_reported_for(kind, &names).await;
+    today_details().await
 }

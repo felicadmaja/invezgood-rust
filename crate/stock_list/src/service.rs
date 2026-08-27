@@ -366,6 +366,15 @@ impl StockListService {
             is_konglomerasi: row.is_konglomerasi.unwrap_or(false),
             takeprofit_wyckoff: row.takeprofit_wyckoff.unwrap_or_default(),
             is_bad_fundamental: row.is_bad_fundamental.unwrap_or(false),
+            notation: row
+                .notation
+                .unwrap_or_default()
+                .into_iter()
+                .map(|e| NotationEntry {
+                    notation: e.notation,
+                    description: e.description,
+                })
+                .collect(),
         }
     }
 

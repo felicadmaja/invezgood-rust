@@ -59,8 +59,11 @@ service User {
   // Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur — poller TIDAK dijalankan.
   // 09:00–09:05: GET analysis/chart/stock/{code}?from=&to= (7 hari) — spike = (close hari ini - close candle sebelumnya) / close candle sebelumnya * 100; ambang OPENING_UP_SPIKE_PERCENTAGE / OPENING_DOWN_SPIKE_PERCENTAGE (.env).
   // Di luar itu: GET analysis/intraday-data/{code}?market=RG — spike = (close - open) / open * 100; ambang UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env); open=0 → close.
-  // Emiten: MV is_plan_to_trade=true; 
-  // `invezgood:invezgo:spike_today:{date}` + spike_reported; stream isi cache + heartbeat ~30s.
+  // Emiten: MV is_plan_to_trade=true;
+  // Redis terpisah per mode (TTL s/d 23:59:59 lokal):
+  //   opening 09:00–09:05 — `invezgood:invezgo:spike_opening_today:{date}` + `spike_opening_reported:{date}`;
+  //   intraday di luar jam itu — `invezgood:invezgo:spike_intraday_today:{date}` + `spike_intraday_reported:{date}`.
+  // Stream ke client: merge kedua JSON; skip GET Invezgo hanya cache mode yang sedang aktif.
   // Wajib Bearer login; tanpa auth stream ditutup tanpa hit Invezgo.
   rpc GetPriceSpikeFromInvezGo(GetPriceSpikeFromInvezGoRequest) returns (stream PriceSpikeResponse);
 
