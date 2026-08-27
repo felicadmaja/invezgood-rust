@@ -16,6 +16,9 @@ use stock_list::{connect, spawn_daily_notation_sync, StockListServer, StockListS
 use stockbit_browser::ReadinessPoller;
 use worker_scrapping::invezgo_spike_poller::InvezgoSpikePoller;
 use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
+use shareholder_composition::{
+    ShareholderCompositionServer, ShareholderCompositionService,
+};
 use top_foreign_flow::{spawn_daily_top_foreign_flow_sync, TopForeignFlowServer, TopForeignFlowService};
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{new_session_store, UserServer, UserService};
@@ -91,6 +94,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     let top_gainer_loser = TopGainerLoserService::new(session.clone(), auth_sessions.clone());
     let top_foreign_flow = TopForeignFlowService::new(session.clone(), auth_sessions.clone());
+    let shareholder_composition =
+        ShareholderCompositionService::new(session.clone(), auth_sessions.clone());
     let bandarmology = BandarmologyService::new(session.clone(), auth_sessions.clone());
     let broker = BrokerService::new(session.clone(), auth_sessions.clone());
     let portofolio = PortofolioService::new(session.clone(), auth_sessions.clone());
@@ -160,6 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(user::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(top_gainer_loser::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(top_foreign_flow::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(shareholder_composition::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(bandarmology::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(broker::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(portofolio::FILE_DESCRIPTOR_SET)
@@ -186,6 +192,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         maybe_compressed!(TopGainerLoserServer::new(top_gainer_loser), enable_compression);
     let top_foreign_flow_svc =
         maybe_compressed!(TopForeignFlowServer::new(top_foreign_flow), enable_compression);
+    let shareholder_composition_svc = maybe_compressed!(
+        ShareholderCompositionServer::new(shareholder_composition),
+        enable_compression
+    );
     let bandarmology_svc =
         maybe_compressed!(BandarmologyServer::new(bandarmology), enable_compression);
     let broker_svc = maybe_compressed!(BrokerServer::new(broker), enable_compression);
@@ -235,6 +245,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(user_svc)
         .add_service(top_gainer_loser_svc)
         .add_service(top_foreign_flow_svc)
+        .add_service(shareholder_composition_svc)
         .add_service(bandarmology_svc)
         .add_service(broker_svc)
         .add_service(portofolio_svc)

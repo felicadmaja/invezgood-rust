@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package shareholder_composition;
+
+service ShareholderComposition {
+  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
+  // GET api.invezgo.com/analysis/shareholder/classification/{code}?range=6 (Bearer INVEZGO_BEARER_TOKEN)
+  // → upsert tiap item ke invezgood.shareholder_composition (PK code+tahun_bulan; detail map<text,text>).
+  // Mapping: code dari API; date → tahun_bulan YYYY-MM; field bk/gv/pe/…/total → detail.
+  // Response **selalu dari Scylla**: baca MV shareholder_composition_by_code (PK code) lalu baris penuh tabel dasar.
+  // code kosong → invalid_argument; HTTP/parse/upsert gagal → internal.
+  rpc GetShareholderCompositionByCode(GetShareholderCompositionByCodeRequest)
+      returns (GetShareholderCompositionByCodeResponse);
+}
+
+message GetShareholderCompositionByCodeRequest {
+  string code = 1;
+}
+
+message GetShareholderCompositionByCodeResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ShareholderCompositionRow rows = 3;
+}
+
+message ShareholderCompositionRow {
+  string code = 1;
+  // Periode YYYY-MM (dari field date API).
+  string tahun_bulan = 2;
+  map<string, string> detail = 3;
+  /* Mapping detail:
+  - BK: Bank
+- GV: Pemerintah (Government)
+- PE: Private Equity
+- TB: Trustee Bank
+- VC: Venture Capital
+- PB: Private Bank
+- EF: Exchange Traded Funds (ETF)
+- IM: Manajer Investasi
+- IA: Investment Advisors
+- BR: Perusahaan Sekuritas (Brokerage Firms)
+- HF: Hedge Fund
+- SW: Sovereign Wealth Fund
+- CM: Lembaga Pendukung Pasar Modal
+- CV: Commanditaire Vennootschap (CV)
+- FM: Firma (Firm)
+- SA: Agen Penjual Reksa Dana
+- PP: Peer to Peer Lending
+- PS: Permanent Establishment
+- SP: Sole Proprietorship (Usaha Perorangan)
+- CR: Korporasi (Corporate)
+- AS: Asosiasi / Organisasi Sosial
+- SO: Badan Usaha Milik Negara (BUMN)
+- CB: Bank Sentral
+- OC: Perusahaan Milik Negara
+- DC: Keuskupan (Diocese)
+- CN: Konferensi (Conference)
+- CG: Kongregasi (Congregation)
+- CP: Koperasi
+- IO: Organisasi Internasional
+- PL: Partai Politik
+- PT: Partnership (Persekutuan)
+- ED: Lembaga Pendidikan
+- MF: Reksa Dana (Mutual Funds)
+- SC: Perusahaan Sekuritas
+- PF: Dana Pensiun
+- IB: Lembaga Finansial
+- IS: Asuransi
+- FD: Yayasan (Foundation)
+- IN: Individu
+  */
+}
