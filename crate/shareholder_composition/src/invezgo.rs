@@ -70,30 +70,9 @@ pub async fn fetch_and_save(session: Arc<Session>, code: &str) -> Result<usize, 
         return Err("code wajib diisi".into());
     }
 
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
     let url = format!("{INVEZGO_CLASSIFICATION_URL}/{code}?range={DEFAULT_RANGE}");
-    eprintln!("shareholder_composition Invezgo GET {url}");
 
-    let response = reqwest::Client::new()
-        .get(&url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo classification {code}: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo classification {code}: {e}"))?;
-
-    if !status.is_success() {
-        let preview: String = body.chars().take(300).collect();
-        return Err(format!("Invezgo HTTP {status} classification {code}: {preview}"));
-    }
-
+    let body = invezgo_http::get(&url).await?;
     let parsed: Vec<ApiClassificationItem> = serde_json::from_str(&body)
         .map_err(|e| format!("parse JSON Invezgo classification {code}: {e}"))?;
 

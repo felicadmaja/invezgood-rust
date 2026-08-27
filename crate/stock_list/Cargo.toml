@@ -8,6 +8,7 @@ chrono = "0.4"
 futures = "0.3"
 moka = { version = "0.12", features = ["future"] }
 redis = { version = "0.27", features = ["tokio-comp"] }
+invezgo_http = { path = "../invezgo_http" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 scylla = { version = "1.5", features = ["chrono-04"] }
 serde = { version = "1", features = ["derive"] }

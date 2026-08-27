@@ -122,33 +122,11 @@ async fn upsert_row(
 
 /// GET Invezgo top/change hari ini → upsert semua gainer/loser ke Scylla. Return jumlah baris tersimpan.
 pub async fn fetch_and_save(session: Arc<Session>) -> Result<usize, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
     let trade_date = Local::now().date_naive();
     let date_param = trade_date.format("%Y-%m-%d").to_string();
     let url = format!("{INVEZGO_TOP_CHANGE_URL}?date={date_param}&filter_column=change");
 
-    eprintln!("emiten_trending Invezgo GET {url}");
-
-    let response = reqwest::Client::new()
-        .get(&url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo top/change: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo top/change: {e}"))?;
-
-    if !status.is_success() {
-        let preview: String = body.chars().take(300).collect();
-        return Err(format!("Invezgo HTTP {status} top/change: {preview}"));
-    }
-
+    let body = invezgo_http::get(&url).await?;
     let parsed: ApiTopChangeResponse = serde_json::from_str(&body)
         .map_err(|e| format!("parse JSON Invezgo top/change: {e}"))?;
 

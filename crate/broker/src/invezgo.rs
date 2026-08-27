@@ -23,26 +23,7 @@ struct ApiStalkerResponse {
 }
 
 pub async fn fetch_and_save(session: Arc<Session>) -> Result<Vec<BrokerRow>, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
-    let response = reqwest::Client::new()
-        .get(INVEZGO_LIST_BROKER_URL)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo list/broker: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo list/broker: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo HTTP {status} list/broker: {body}"));
-    }
-
+    let body = invezgo_http::get(INVEZGO_LIST_BROKER_URL).await?;
     let parsed: Vec<ApiBrokerItem> = serde_json::from_str(&body)
         .map_err(|e| format!("parse JSON Invezgo list/broker: {e}"))?;
 
@@ -97,9 +78,6 @@ pub async fn fetch_stalker_and_save(
     broker_code: &str,
     tahun_bulan: &str,
 ) -> Result<BrokerStalkerRow, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
     let (from, to) = month_range(tahun_bulan)?;
     let url = format!(
         "{INVEZGO_STALKER_LIST_URL}/{broker_code}?from={}&to={}&investor=all&market=RG",
@@ -107,23 +85,7 @@ pub async fn fetch_stalker_and_save(
         to.format("%Y-%m-%d")
     );
 
-    let response = reqwest::Client::new()
-        .get(&url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo stalker/list: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo stalker/list: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo HTTP {status} stalker/list: {body}"));
-    }
-
+    let body = invezgo_http::get(&url).await?;
     let parsed: ApiStalkerResponse = serde_json::from_str(&body)
         .map_err(|e| format!("parse JSON Invezgo stalker/list: {e}"))?;
 

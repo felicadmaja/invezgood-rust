@@ -1,17 +1,19 @@
-//! HTTP helper Invezgo: serialisasi global antar request, jeda antar emiten, retry 429.
+//! HTTP helper Invezgo: serialisasi global, jeda antar request, cooldown 429, retry backoff.
 
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use tokio::sync::Mutex;
 
-const DEFAULT_MIN_INTERVAL_MS: u64 = 200;
+const DEFAULT_MIN_INTERVAL_MS: u64 = 500;
 const DEFAULT_JEDA_MS_ANTAR_EMITEN: u64 = 25;
-const DEFAULT_429_MAX_RETRIES: u32 = 3;
-const DEFAULT_429_BACKOFF_MS: u64 = 1000;
+const DEFAULT_429_MAX_RETRIES: u32 = 4;
+const DEFAULT_429_BACKOFF_MS: u64 = 15_000;
+const DEFAULT_429_COOLDOWN_SECS: u64 = 60;
 
 static REQUEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 static LAST_REQUEST_AT: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+static COOLDOWN_UNTIL: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 fn env_u64(key: &str, default: u64) -> u64 {
@@ -41,6 +43,11 @@ fn max_429_retries() -> u32 {
 fn backoff_base_ms() -> u64 {
     static CACHED: OnceLock<u64> = OnceLock::new();
     *CACHED.get_or_init(|| env_u64("INVEZGO_429_BACKOFF_MS", DEFAULT_429_BACKOFF_MS))
+}
+
+fn cooldown_secs_on_429() -> u64 {
+    static CACHED: OnceLock<u64> = OnceLock::new();
+    *CACHED.get_or_init(|| env_u64("INVEZGO_429_COOLDOWN_SECS", DEFAULT_429_COOLDOWN_SECS))
 }
 
 /// Jeda antar emiten dari `JEDA_MS_ANTAR_EMITEN` (ms).
@@ -79,12 +86,75 @@ async fn wait_min_interval() {
     *guard = Some(Instant::now());
 }
 
-fn backoff_ms(attempt: u32) -> u64 {
-    let base = backoff_base_ms();
-    base.saturating_mul(1u64 << attempt.min(10))
+async fn cooldown_remaining() -> Duration {
+    let cooldown = COOLDOWN_UNTIL.get_or_init(|| Mutex::new(None));
+    let guard = cooldown.lock().await;
+    guard
+        .map(|until| until.saturating_duration_since(Instant::now()))
+        .unwrap_or(Duration::ZERO)
 }
 
-/// GET Invezgo dengan mutex global, jeda minimum antar request, dan retry exponential backoff bila 429.
+async fn extend_cooldown(extra: Duration) {
+    let until = Instant::now() + extra;
+    let cooldown = COOLDOWN_UNTIL.get_or_init(|| Mutex::new(None));
+    let mut guard = cooldown.lock().await;
+    let extend = match *guard {
+        Some(current) if current > until => current,
+        _ => until,
+    };
+    *guard = Some(extend);
+}
+
+async fn wait_cooldown() {
+    loop {
+        let remaining = cooldown_remaining().await;
+        if remaining.is_zero() {
+            break;
+        }
+        eprintln!(
+            "Invezgo cooldown — tunggu {}ms sebelum request berikutnya",
+            remaining.as_millis()
+        );
+        tokio::time::sleep(remaining).await;
+    }
+}
+
+fn backoff_ms(attempt: u32) -> u64 {
+    let base = backoff_base_ms();
+    base.saturating_mul(1u64 << attempt.min(6))
+}
+
+fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<Duration> {
+    headers
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.trim().parse::<u64>().ok())
+        .map(Duration::from_secs)
+}
+
+async fn wait_on_429(attempt: u32, retry_after: Option<Duration>) {
+    let cooldown = Duration::from_secs(cooldown_secs_on_429());
+    extend_cooldown(cooldown).await;
+    let wait = retry_after
+        .unwrap_or(cooldown)
+        .max(Duration::from_millis(backoff_ms(attempt)))
+        .max(cooldown);
+    eprintln!(
+        "Invezgo 429 — tunggu {}ms sebelum retry (attempt {})",
+        wait.as_millis(),
+        attempt + 1
+    );
+    tokio::time::sleep(wait).await;
+}
+
+/// Path relatif untuk log (tanpa host).
+fn log_path(url: &str) -> &str {
+    url.strip_prefix("https://api.invezgo.com")
+        .or_else(|| url.strip_prefix("http://api.invezgo.com"))
+        .unwrap_or(url)
+}
+
+/// GET Invezgo dengan mutex global, jeda minimum, cooldown 429, dan retry exponential backoff.
 pub async fn get(url: &str) -> Result<String, String> {
     let token = std::env::var("INVEZGO_BEARER_TOKEN")
         .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
@@ -94,42 +164,67 @@ pub async fn get(url: &str) -> Result<String, String> {
 
     let max_retries = max_429_retries();
     let client = http_client();
+    let path = log_path(url);
 
     for attempt in 0..=max_retries {
+        wait_cooldown().await;
         wait_min_interval().await;
 
-        let response = client
-            .get(url)
-            .bearer_auth(&token)
-            .send()
-            .await
-            .map_err(|e| format!("Invezgo GET {url}: {e}"))?;
+        let started = Instant::now();
+        let attempt_no = attempt + 1;
+        eprintln!(
+            "Invezgo invoke GET {path} attempt={attempt_no}/{}",
+            max_retries + 1
+        );
+
+        let response = match client.get(url).bearer_auth(&token).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                let elapsed = started.elapsed().as_millis();
+                eprintln!("Invezgo invoke ERR GET {path} network {elapsed}ms — {e}");
+                return Err(format!("Invezgo GET {url}: {e}"));
+            }
+        };
 
         let status = response.status();
-        let body = response
-            .text()
-            .await
-            .map_err(|e| format!("Invezgo body {url}: {e}"))?;
+        let retry_after = parse_retry_after(response.headers());
 
         if status.as_u16() == 429 {
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| String::from("(body kosong)"));
+            let elapsed = started.elapsed().as_millis();
+            eprintln!(
+                "Invezgo invoke 429 GET {path} {elapsed}ms attempt={attempt_no}/{}",
+                max_retries + 1
+            );
+
             if attempt < max_retries {
-                let wait = backoff_ms(attempt);
-                eprintln!(
-                    "Invezgo 429 {url} — retry {}/{} dalam {}ms",
-                    attempt + 1,
-                    max_retries,
-                    wait
-                );
-                tokio::time::sleep(Duration::from_millis(wait)).await;
+                wait_on_429(attempt, retry_after).await;
                 continue;
             }
             return Err(format!("Invezgo HTTP 429 {url} (habis retry): {body}"));
         }
 
+        let body = response
+            .text()
+            .await
+            .map_err(|e| format!("Invezgo body {url}: {e}"))?;
+        let elapsed = started.elapsed().as_millis();
+
         if !status.is_success() {
+            eprintln!(
+                "Invezgo invoke ERR GET {path} HTTP {status} {elapsed}ms body={}b",
+                body.len()
+            );
             return Err(format!("Invezgo HTTP {status} {url}: {body}"));
         }
 
+        eprintln!(
+            "\x1b[32mInvezgo invoke OK GET {path} HTTP {status} {elapsed}ms body={}b\x1b[0m",
+            body.len()
+        );
         return Ok(body);
     }
 

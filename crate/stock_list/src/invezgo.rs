@@ -42,6 +42,9 @@ fn corporate_action_url(code: &str, page: i32) -> String {
     format!("https://api.invezgo.com/analysis/calendar?code={code}&page={page}")
 }
 
+async fn invezgo_get(url: &str) -> Result<String, String> {
+    invezgo_http::get(url).await
+}
 
 #[derive(Debug, Deserialize)]
 struct InvezgoStockItem {
@@ -262,30 +265,7 @@ pub async fn fetch_cash_flow(code: &str) -> Result<BalanceStatement, String> {
 }
 
 async fn fetch_financial_statement(code: &str, statement: &str) -> Result<BalanceStatement, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
-    let response = reqwest::Client::new()
-        .get(financial_statement_url(code, statement))
-        .header("Accept", "application/json")
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| {
-            format!("request Invezgo financial-statement code={code} statement={statement} gagal: {e}")
-        })?;
-
-    let status = response.status();
-    let body = response.text().await.map_err(|e| {
-        format!("baca body Invezgo financial-statement code={code} statement={statement} gagal: {e}")
-    })?;
-
-    if !status.is_success() {
-        return Err(format!(
-            "Invezgo financial-statement HTTP {status} code={code} statement={statement}: {body}"
-        ));
-    }
-
+    let body = invezgo_get(&financial_statement_url(code, statement)).await?;
     parse_financial_statement(&body)
 }
 
@@ -323,29 +303,7 @@ pub async fn fetch_and_save_cash_flow(
 }
 
 pub async fn fetch_share_holder_5(code: &str) -> Result<ShareHolder5, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
-    let response = reqwest::Client::new()
-        .get(shareholder_detail_url(code))
-        .header("Accept", "application/json")
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo shareholder-detail code={code} gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo shareholder-detail code={code} gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!(
-            "Invezgo shareholder-detail HTTP {status} code={code}: {body}"
-        ));
-    }
-
+    let body = invezgo_get(&shareholder_detail_url(code)).await?;
     parse_share_holder_5(&body)
 }
 
@@ -389,29 +347,7 @@ fn parse_share_holder_5(body: &str) -> Result<ShareHolder5, String> {
 }
 
 pub async fn fetch_share_holder_1(code: &str) -> Result<ShareHolder1, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
-    let response = reqwest::Client::new()
-        .get(shareholder_detail_one_url(code))
-        .header("Accept", "application/json")
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo shareholder-detail-one code={code} gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo shareholder-detail-one code={code} gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!(
-            "Invezgo shareholder-detail-one HTTP {status} code={code}: {body}"
-        ));
-    }
-
+    let body = invezgo_get(&shareholder_detail_one_url(code)).await?;
     parse_share_holder_1(&body)
 }
 
@@ -449,27 +385,7 @@ fn parse_share_holder_1(body: &str) -> Result<ShareHolder1, String> {
 }
 
 pub async fn fetch_share_holder_composition(code: &str) -> Result<ShareHolderComposition, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
-    let response = reqwest::Client::new()
-        .get(shareholder_composition_url(code))
-        .header("Accept", "application/json")
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo shareholder code={code} gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo shareholder code={code} gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo shareholder HTTP {status} code={code}: {body}"));
-    }
-
+    let body = invezgo_get(&shareholder_composition_url(code)).await?;
     parse_share_holder_composition(&body)
 }
 
@@ -502,27 +418,7 @@ fn parse_share_holder_composition(body: &str) -> Result<ShareHolderComposition, 
 }
 
 pub async fn fetch_company_information(code: &str) -> Result<CompanyInformation, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
-    let response = reqwest::Client::new()
-        .get(company_information_url(code))
-        .header("Accept", "application/json")
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo information code={code} gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo information code={code} gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo information HTTP {status} code={code}: {body}"));
-    }
-
+    let body = invezgo_get(&company_information_url(code)).await?;
     parse_company_information(&body)
 }
 
@@ -538,33 +434,11 @@ pub async fn fetch_and_save_company_information(
 }
 
 pub async fn fetch_corporate_action(code: &str) -> Result<CorporateAction, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
-    let client = reqwest::Client::new();
     let mut page = 1;
     let mut merged = CorporateAction::default();
 
     loop {
-        let response = client
-            .get(corporate_action_url(code, page))
-            .header("Accept", "application/json")
-            .bearer_auth(&token)
-            .send()
-            .await
-            .map_err(|e| format!("request Invezgo calendar code={code} page={page} gagal: {e}"))?;
-
-        let status = response.status();
-        let body = response.text().await.map_err(|e| {
-            format!("baca body Invezgo calendar code={code} page={page} gagal: {e}")
-        })?;
-
-        if !status.is_success() {
-            return Err(format!(
-                "Invezgo calendar HTTP {status} code={code} page={page}: {body}"
-            ));
-        }
-
+        let body = invezgo_get(&corporate_action_url(code, page)).await?;
         let parsed = parse_corporate_action_page(&body)?;
         if page == 1 {
             merged.total_page = parsed.total_page;
@@ -741,27 +615,7 @@ fn parse_financial_statement(body: &str) -> Result<BalanceStatement, String> {
 }
 
 pub async fn fetch_keystats(code: &str) -> Result<Keystats, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
-    let response = reqwest::Client::new()
-        .get(keystat_url(code))
-        .header("Accept", "application/json")
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo keystat code={code} gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo keystat code={code} gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo keystat HTTP {status} code={code}: {body}"));
-    }
-
+    let body = invezgo_get(&keystat_url(code)).await?;
     parse_keystats(&body)
 }
 
@@ -814,26 +668,7 @@ fn parse_keystats(body: &str) -> Result<Keystats, String> {
 }
 
 pub async fn fetch_and_save_notation(session: Arc<Session>) -> Result<(usize, usize), String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
-    let response = reqwest::Client::new()
-        .get(INVEZGO_NOTATION_URL)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo notation gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo notation gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo notation HTTP {status}: {body}"));
-    }
-
+    let body = invezgo_get(INVEZGO_NOTATION_URL).await?;
     let items: Vec<InvezgoNotationItem> = serde_json::from_str(&body)
         .map_err(|e| format!("parse JSON Invezgo notation gagal: {e}"))?;
 
@@ -871,26 +706,7 @@ pub async fn fetch_and_save_notation(session: Arc<Session>) -> Result<(usize, us
 }
 
 pub async fn fetch_and_save(session: Arc<Session>) -> Result<usize, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
-    let response = reqwest::Client::new()
-        .get(INVEZGO_STOCK_LIST_URL)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo HTTP {status}: {body}"));
-    }
-
+    let body = invezgo_get(INVEZGO_STOCK_LIST_URL).await?;
     let items = parse_stock_list(&body)?;
     let mut saved = 0usize;
 

@@ -88,31 +88,10 @@ pub async fn fetch_and_save(
     session: Arc<Session>,
     trade_date: chrono::NaiveDate,
 ) -> Result<usize, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
     let date_param = trade_date.format("%Y-%m-%d").to_string();
     let url = format!("{INVEZGO_TOP_FOREIGN_URL}?date={date_param}&filter_column=value");
 
-    eprintln!("top_foreign_flow Invezgo GET {url}");
-
-    let response = reqwest::Client::new()
-        .get(&url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo HTTP {status}: {body}"));
-    }
-
+    let body = invezgo_http::get(&url).await?;
     let parsed: ApiTopForeignResponse = serde_json::from_str(&body).map_err(|e| {
         format!(
             "parse JSON Invezgo gagal: {e}; body={}",

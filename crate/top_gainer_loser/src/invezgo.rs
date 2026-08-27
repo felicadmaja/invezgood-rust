@@ -47,36 +47,15 @@ pub async fn fetch_and_save(
     session: Arc<Session>,
     trade_date: chrono::NaiveDate,
 ) -> Result<Vec<TopGainerLoserRow>, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
     let date_param = trade_date.format("%Y-%m-%d").to_string();
     let url = format!("{INVEZGO_TOP_CHANGE_URL}?date={date_param}");
 
-    eprintln!("top_gainer_loser Invezgo GET {url}");
-
-    let response = reqwest::Client::new()
-        .get(&url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo gagal: {e}"))?;
+    let body = invezgo_http::get(&url).await?;
 
     eprintln!(
-        "top_gainer_loser Invezgo HTTP {status} url={url} body={}",
+        "top_gainer_loser Invezgo OK url={url} body={}",
         body_preview(&body, 2000)
     );
-
-    if !status.is_success() {
-        return Err(format!("Invezgo HTTP {status}: {body}"));
-    }
-
     let parsed: ApiTopChangeResponse = serde_json::from_str(&body).map_err(|e| {
         format!(
             "parse JSON Invezgo gagal: {e}; body={}",

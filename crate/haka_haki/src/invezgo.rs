@@ -69,30 +69,12 @@ pub async fn fetch_momentum_chart(
     trade_date: NaiveDate,
     range: i32,
 ) -> Result<Vec<ApiHakaHakiPoint>, String> {
-    let token = std::env::var("INVEZGO_BEARER_TOKEN")
-        .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
-
     let date = trade_date.format("%Y-%m-%d");
     let url = format!(
         "{INVEZGO_MOMENTUM_CHART_URL}/{code}?date={date}&range={range}&scope=volume"
     );
 
-    let response = reqwest::Client::new()
-        .get(&url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("request Invezgo momentum-chart gagal: {e}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("baca body Invezgo momentum-chart gagal: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Invezgo HTTP {status} momentum-chart: {body}"));
-    }
+    let body = invezgo_http::get(&url).await?;
 
     serde_json::from_str(&body).map_err(|e| format!("parse JSON Invezgo momentum-chart gagal: {e}"))
 }

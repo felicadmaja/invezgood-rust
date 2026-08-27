@@ -77,8 +77,6 @@ pub async fn fetch_from_api(
 ) -> Result<Vec<ChartBar>, String> {
     let url = format!("{INVEZGO_CHART_STOCK_URL}/{code}?from={from_date}&to={to_date}");
 
-    eprintln!("\x1b[32mchart Invezgo GET {url}\x1b[0m");
-
     let body = invezgo_http::get(&url).await?;
 
     let parsed: Vec<ApiChartBar> = serde_json::from_str(&body)

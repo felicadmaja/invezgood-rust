@@ -246,6 +246,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "invezgo_http",
  "prost",
  "reqwest 0.12.28",
  "scylla",
@@ -890,6 +891,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "invezgo_http",
  "market_holiday",
  "moka",
  "prost",
@@ -2335,6 +2337,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "invezgo_http",
  "prost",
  "reqwest 0.12.28",
  "scylla",
@@ -2419,6 +2422,7 @@ dependencies = [
  "chrono",
  "futures",
  "grpc_stream",
+ "invezgo_http",
  "moka",
  "prost",
  "redis",
@@ -2699,6 +2703,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "invezgo_http",
  "market_holiday",
  "prost",
  "reqwest 0.12.28",
@@ -2718,6 +2723,7 @@ dependencies = [
  "chrono",
  "futures",
  "grpc_stream",
+ "invezgo_http",
  "prost",
  "reqwest 0.12.28",
  "scylla",
@@ -2894,6 +2900,7 @@ dependencies = [
  "futures",
  "getrandom 0.2.17",
  "grpc_stream",
+ "invezgo_http",
  "prost",
  "reqwest 0.12.28",
  "scylla",
