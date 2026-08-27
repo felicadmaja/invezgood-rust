@@ -1,5 +1,7 @@
-//! HTTP helper Invezgo: serialisasi global, jeda antar request, cooldown 429, retry backoff.
+//! HTTP helper Invezgo: serialisasi global, serial per emiten (chart+bandarmology), cooldown 429.
 
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
@@ -12,6 +14,7 @@ const DEFAULT_429_BACKOFF_MS: u64 = 15_000;
 const DEFAULT_429_COOLDOWN_SECS: u64 = 60;
 
 static REQUEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+static EMITEN_DETAIL_LOCKS: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
 static LAST_REQUEST_AT: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 static COOLDOWN_UNTIL: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -147,6 +150,33 @@ async fn wait_on_429(attempt: u32, retry_after: Option<Duration>) {
     tokio::time::sleep(wait).await;
 }
 
+fn log_token_fingerprint(token: &str) {
+    static LOGGED: OnceLock<()> = OnceLock::new();
+    LOGGED.get_or_init(|| {
+        let fp = if token.len() >= 12 {
+            format!(
+                "{}…{} len={}",
+                &token[..8],
+                &token[token.len().saturating_sub(4)..],
+                token.len()
+            )
+        } else {
+            format!("len={}", token.len())
+        };
+        eprintln!("Invezgo invoke auth token fp={fp}");
+    });
+}
+
+fn log_429_headers(headers: &reqwest::header::HeaderMap) {
+    for name in ["retry-after", "x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset"] {
+        if let Some(v) = headers.get(name) {
+            if let Ok(s) = v.to_str() {
+                eprintln!("Invezgo 429 header {name}: {s}");
+            }
+        }
+    }
+}
+
 /// Path relatif untuk log (tanpa host).
 fn log_path(url: &str) -> &str {
     url.strip_prefix("https://api.invezgo.com")
@@ -154,10 +184,43 @@ fn log_path(url: &str) -> &str {
         .unwrap_or(url)
 }
 
+fn normalize_emiten_code(code: &str) -> String {
+    code.trim().to_ascii_uppercase()
+}
+
+async fn emiten_detail_lock(code: &str) -> Arc<Mutex<()>> {
+    let key = normalize_emiten_code(code);
+    let map = EMITEN_DETAIL_LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut guard = map.lock().await;
+    guard
+        .entry(key)
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone()
+}
+
+/// Serialkan fetch Invezgo chart + bandarmology untuk emiten yang sama (RPC paralel → antre).
+pub async fn with_emiten_detail_serial<T, F, Fut>(code: &str, label: &str, f: F) -> T
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = T>,
+{
+    let key = normalize_emiten_code(code);
+    if key.is_empty() {
+        return f().await;
+    }
+
+    let lock = emiten_detail_lock(&key).await;
+    eprintln!("Invezgo emiten serial {key} — tunggu giliran ({label})");
+    let _guard = lock.lock().await;
+    eprintln!("Invezgo emiten serial {key} — jalan ({label})");
+    f().await
+}
+
 /// GET Invezgo dengan mutex global, jeda minimum, cooldown 429, dan retry exponential backoff.
 pub async fn get(url: &str) -> Result<String, String> {
     let token = std::env::var("INVEZGO_BEARER_TOKEN")
         .map_err(|_| "INVEZGO_BEARER_TOKEN belum diset".to_string())?;
+    log_token_fingerprint(&token);
 
     let lock = REQUEST_LOCK.get_or_init(|| Mutex::new(()));
     let _guard = lock.lock().await;
@@ -177,7 +240,13 @@ pub async fn get(url: &str) -> Result<String, String> {
             max_retries + 1
         );
 
-        let response = match client.get(url).bearer_auth(&token).send().await {
+        let response = match client
+            .get(url)
+            .bearer_auth(&token)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .send()
+            .await
+        {
             Ok(resp) => resp,
             Err(e) => {
                 let elapsed = started.elapsed().as_millis();
@@ -190,6 +259,7 @@ pub async fn get(url: &str) -> Result<String, String> {
         let retry_after = parse_retry_after(response.headers());
 
         if status.as_u16() == 429 {
+            log_429_headers(response.headers());
             let body = response
                 .text()
                 .await

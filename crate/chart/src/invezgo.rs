@@ -75,14 +75,17 @@ pub async fn fetch_from_api(
     from_date: &str,
     to_date: &str,
 ) -> Result<Vec<ChartBar>, String> {
-    let url = format!("{INVEZGO_CHART_STOCK_URL}/{code}?from={from_date}&to={to_date}");
-
-    let body = invezgo_http::get(&url).await?;
-
-    let parsed: Vec<ApiChartBar> = serde_json::from_str(&body)
-        .map_err(|e| format!("parse JSON Invezgo chart/stock gagal: {e}"))?;
-
-    parsed.into_iter().map(api_bar_to_proto).collect()
+    let code = code.to_string();
+    let from_date = from_date.to_string();
+    let to_date = to_date.to_string();
+    invezgo_http::with_emiten_detail_serial(&code.clone(), "chart-history", || async move {
+        let url = format!("{INVEZGO_CHART_STOCK_URL}/{code}?from={from_date}&to={to_date}");
+        let body = invezgo_http::get(&url).await?;
+        let parsed: Vec<ApiChartBar> = serde_json::from_str(&body)
+            .map_err(|e| format!("parse JSON Invezgo chart/stock gagal: {e}"))?;
+        parsed.into_iter().map(api_bar_to_proto).collect()
+    })
+    .await
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,35 +111,36 @@ struct ApiIntradayData {
 }
 
 pub async fn fetch_intraday_data(code: &str) -> Result<GetCurrentDayChartFromInvezgoResponse, String> {
-    let url = format!("{INVEZGO_INTRADAY_DATA_URL}/{code}?market=RG");
-
-    let body = invezgo_http::get(&url).await?;
-
-    let parsed: ApiIntradayData = serde_json::from_str(&body)
-        .map_err(|e| format!("parse JSON Invezgo intraday-data gagal: {e}"))?;
-
-    let mut resp = GetCurrentDayChartFromInvezgoResponse {
-        code: parsed.code,
-        open: parsed.open,
-        high: parsed.high,
-        low: parsed.low,
-        close: parsed.close,
-        avg: parsed.avg,
-        volume: parsed.volume,
-        freq: parsed.freq,
-        value: parsed.value,
-        prev: parsed.prev,
-        bid_price: parsed.bid_price,
-        bid_lot: parsed.bid_lot,
-        bid_freq: parsed.bid_freq,
-        offer_price: parsed.offer_price,
-        offer_lot: parsed.offer_lot,
-        offer_freq: parsed.offer_freq,
-        iep: parsed.iep,
-        iev: parsed.iev,
-        success: true,
-        message: "ok".to_string(),
-    };
-    resp.normalize_intraday_prices();
-    Ok(resp)
+    let code = code.to_string();
+    invezgo_http::with_emiten_detail_serial(&code.clone(), "chart-intraday", || async move {
+        let url = format!("{INVEZGO_INTRADAY_DATA_URL}/{code}?market=RG");
+        let body = invezgo_http::get(&url).await?;
+        let parsed: ApiIntradayData = serde_json::from_str(&body)
+            .map_err(|e| format!("parse JSON Invezgo intraday-data gagal: {e}"))?;
+        let mut resp = GetCurrentDayChartFromInvezgoResponse {
+            code: parsed.code,
+            open: parsed.open,
+            high: parsed.high,
+            low: parsed.low,
+            close: parsed.close,
+            avg: parsed.avg,
+            volume: parsed.volume,
+            freq: parsed.freq,
+            value: parsed.value,
+            prev: parsed.prev,
+            bid_price: parsed.bid_price,
+            bid_lot: parsed.bid_lot,
+            bid_freq: parsed.bid_freq,
+            offer_price: parsed.offer_price,
+            offer_lot: parsed.offer_lot,
+            offer_freq: parsed.offer_freq,
+            iep: parsed.iep,
+            iev: parsed.iev,
+            success: true,
+            message: "ok".to_string(),
+        };
+        resp.normalize_intraday_prices();
+        Ok(resp)
+    })
+    .await
 }

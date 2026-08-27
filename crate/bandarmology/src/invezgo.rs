@@ -80,24 +80,29 @@ pub async fn fetch_and_save(
     code: &str,
     trade_date: chrono::NaiveDate,
 ) -> Result<BandarmologyRow, String> {
-    let date_param = trade_date.format("%Y-%m-%d").to_string();
-    let url = summary_stock_url(code, &date_param);
+    let session = session.clone();
+    let code = code.to_string();
+    invezgo_http::with_emiten_detail_serial(&code.clone(), "bandarmology", || async move {
+        let date_param = trade_date.format("%Y-%m-%d").to_string();
+        let url = summary_stock_url(&code, &date_param);
 
-    let body = invezgo_http::get(&url).await?;
+        let body = invezgo_http::get(&url).await?;
 
-    let parsed: Vec<ApiSummaryEntry> = serde_json::from_str(&body).map_err(|e| {
-        format!("parse JSON Invezgo summary/stock code={code} date={date_param}: {e}")
-    })?;
+        let parsed: Vec<ApiSummaryEntry> = serde_json::from_str(&body).map_err(|e| {
+            format!("parse JSON Invezgo summary/stock code={code} date={date_param}: {e}")
+        })?;
 
-    let row = BandarmologyRow {
-        code: code.to_string(),
-        tahun_bulan_tanggal: trade_date,
-        bandarmology: Some(parsed.into_iter().map(api_entry_to_db).collect()),
-        updated_at: Some(Utc::now()),
-    };
+        let row = BandarmologyRow {
+            code: code.clone(),
+            tahun_bulan_tanggal: trade_date,
+            bandarmology: Some(parsed.into_iter().map(api_entry_to_db).collect()),
+            updated_at: Some(Utc::now()),
+        };
 
-    crate::repository::upsert(session.as_ref(), &row).await?;
-    Ok(row)
+        crate::repository::upsert(session.as_ref(), &row).await?;
+        Ok(row)
+    })
+    .await
 }
 
 fn api_entry_to_db(item: ApiSummaryEntry) -> BandarmologyEntryDb {

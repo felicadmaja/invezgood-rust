@@ -77,10 +77,26 @@ impl Invezgood for InvezgoodService {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Parse error di satu baris .env membuat dotenvy berhenti: variabel setelahnya
-    // (SCYLLA_*, TLS_*, token) tidak ter-load. Jangan sampai gagal senyap.
-    if let Err(e) = dotenvy::dotenv() {
+    // Wajib override: bila shell/PM2 masih punya INVEZGO_BEARER_TOKEN lama, dotenv() biasa
+    // TIDAK menimpa → server pakai key rate-limited, Postman pakai key baru dari .env.
+    if let Err(e) = dotenvy::dotenv_override() {
         eprintln!("\x1b[31m.env gagal di-load: {e} — variabel setelah baris itu TIDAK ter-load\x1b[0m");
+    }
+
+    if let Ok(token) = std::env::var("INVEZGO_BEARER_TOKEN") {
+        let fp = if token.len() >= 12 {
+            format!(
+                "{}…{} len={}",
+                &token[..8],
+                &token[token.len().saturating_sub(4)..],
+                token.len()
+            )
+        } else {
+            format!("len={}", token.len())
+        };
+        eprintln!("INVEZGO_BEARER_TOKEN loaded fp={fp}");
+    } else {
+        eprintln!("\x1b[31mINVEZGO_BEARER_TOKEN tidak ter-load\x1b[0m");
     }
 
     let host = std::env::var("HOST").unwrap_or_else(|_| DEFAULT_HOST.into());
