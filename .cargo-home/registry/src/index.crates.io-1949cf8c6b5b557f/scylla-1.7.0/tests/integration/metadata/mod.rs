@@ -1,2 +1,0 @@
-mod configuration;
-mod contents;
