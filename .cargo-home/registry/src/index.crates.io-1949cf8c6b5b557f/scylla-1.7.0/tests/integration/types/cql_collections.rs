@@ -1,0 +1,851 @@
+use crate::utils::{
+    DeserializeOwnedValue, PerformDDL, SerializeValueWithFakeType, create_new_session_builder,
+    setup_tracing, unique_keyspace_name,
+};
+use scylla::cluster::metadata::NativeType;
+use scylla::deserialize::value::DeserializeValue;
+use scylla::value::{
+    CqlDate, CqlDecimal, CqlDuration, CqlTime, CqlTimestamp, CqlTimeuuid, CqlValue, CqlVarint,
+};
+use scylla::{client::session::Session, cluster::metadata::ColumnType};
+use scylla_cql::serialize::CellWriter;
+use scylla_cql::serialize::value::SerializeValue;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::fmt::Debug;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::str::FromStr as _;
+use uuid::Uuid;
+
+async fn connect() -> Session {
+    let session = create_new_session_builder().build().await.unwrap();
+    let ks = unique_keyspace_name();
+    session.ddl(format!("CREATE KEYSPACE IF NOT EXISTS {ks} WITH REPLICATION = {{'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1}}")).await.unwrap();
+    session.use_keyspace(ks, false).await.unwrap();
+
+    session
+}
+
+async fn create_table(session: &Session, table_name: &str, value_type: &str) {
+    session
+        .ddl(format!(
+            "CREATE TABLE IF NOT EXISTS {table_name} (p int PRIMARY KEY, val {value_type})"
+        ))
+        .await
+        .unwrap();
+}
+
+async fn insert_and_select<InsertT, SelectT>(
+    session: &Session,
+    table_name: &str,
+    to_insert: &InsertT,
+    expected: &SelectT,
+) where
+    InsertT: SerializeValue,
+    SelectT: DeserializeOwnedValue + PartialEq + Debug,
+{
+    session
+        .query_unpaged(
+            format!("INSERT INTO {table_name} (p, val) VALUES (0, ?)"),
+            (&to_insert,),
+        )
+        .await
+        .unwrap();
+
+    let selected_value: SelectT = session
+        .query_unpaged(format!("SELECT val FROM {table_name} WHERE p = 0"), ())
+        .await
+        .unwrap()
+        .into_rows_result()
+        .unwrap()
+        .single_row::<(SelectT,)>()
+        .unwrap()
+        .0;
+
+    assert_eq!(&selected_value, expected);
+}
+
+#[tokio::test]
+async fn test_cql_list() {
+    setup_tracing();
+    let session: Session = connect().await;
+
+    let table_name: &str = "test_cql_list_tab";
+    create_table(&session, table_name, "list<int>").await;
+
+    // Vec
+    let list1: Vec<i32> = vec![-1, 0, 1, 1, 2];
+    let list2: Vec<i32> = vec![100, 212, 2323];
+    let list_empty: Vec<i32> = vec![];
+    let list_empty_selected: Option<Vec<i32>> = None;
+    insert_and_select(&session, table_name, &list1, &list1).await;
+    insert_and_select(&session, table_name, &list2, &list2).await;
+    insert_and_select(&session, table_name, &list_empty, &list_empty_selected).await;
+
+    // CqlValue
+    let list_cql_value: CqlValue =
+        CqlValue::List(vec![CqlValue::Int(-1), CqlValue::Int(1), CqlValue::Int(0)]);
+    let list_cql_value_empty: CqlValue = CqlValue::List(Vec::new());
+    let list_cql_value_empty_selected: Option<CqlValue> = None;
+
+    insert_and_select(&session, table_name, &list_cql_value, &list_cql_value).await;
+    insert_and_select(
+        &session,
+        table_name,
+        &list_cql_value_empty,
+        &list_cql_value_empty_selected,
+    )
+    .await;
+
+    session
+        .ddl(format!("DROP KEYSPACE {}", session.get_keyspace().unwrap()))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_cql_set() {
+    setup_tracing();
+    let session: Session = connect().await;
+
+    let table_name: &str = "test_cql_set_tab";
+    create_table(&session, table_name, "set<int>").await;
+
+    // Vec
+    let set_vec_sorted: Vec<i32> = vec![-1, 0, 1, 2];
+    let set_vec_unordered: Vec<i32> = vec![1, -1, 1, 2, 0];
+    let set_vec_empty: Vec<i32> = vec![];
+    let set_vec_empty_selected: Option<Vec<i32>> = None;
+    insert_and_select(&session, table_name, &set_vec_sorted, &set_vec_sorted).await;
+    insert_and_select(&session, table_name, &set_vec_unordered, &set_vec_sorted).await;
+    insert_and_select(
+        &session,
+        table_name,
+        &set_vec_empty,
+        &set_vec_empty_selected,
+    )
+    .await;
+
+    // HashSet
+    let set_hashset: HashSet<i32> = vec![-1, 1, -2].into_iter().collect();
+    let set_hashset_empty: HashSet<i32> = HashSet::new();
+    let set_hashset_empty_selected: Option<HashSet<i32>> = None;
+    insert_and_select(&session, table_name, &set_hashset, &set_hashset).await;
+    insert_and_select(
+        &session,
+        table_name,
+        &set_hashset_empty,
+        &set_hashset_empty_selected,
+    )
+    .await;
+
+    // BTreeSet
+    let set_btreeset: BTreeSet<i32> = vec![0, -2, -1].into_iter().collect();
+    let set_btreeset_empty: BTreeSet<i32> = BTreeSet::new();
+    let set_btreeset_empty_selected: Option<BTreeSet<i32>> = None;
+    insert_and_select(&session, table_name, &set_btreeset, &set_btreeset).await;
+    insert_and_select(
+        &session,
+        table_name,
+        &set_btreeset_empty,
+        &set_btreeset_empty_selected,
+    )
+    .await;
+
+    // CqlValue
+    let set_cql_value: CqlValue =
+        CqlValue::Set(vec![CqlValue::Int(-1), CqlValue::Int(1), CqlValue::Int(2)]);
+    let set_cql_value_empty: CqlValue = CqlValue::Set(Vec::new());
+    let set_cql_value_empty_selected: Option<CqlValue> = None;
+    insert_and_select(&session, table_name, &set_cql_value, &set_cql_value).await;
+    insert_and_select(
+        &session,
+        table_name,
+        &set_cql_value_empty,
+        &set_cql_value_empty_selected,
+    )
+    .await;
+
+    session
+        .ddl(format!("DROP KEYSPACE {}", session.get_keyspace().unwrap()))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_cql_map() {
+    setup_tracing();
+    let session: Session = connect().await;
+
+    let table_name: &str = "test_cql_map_tab";
+    create_table(&session, table_name, "map<int, int>").await;
+
+    // HashMap
+    let map_hashmap: HashMap<i32, i32> = vec![(-1, 0), (0, 1), (2, 1)].into_iter().collect();
+    let map_hashmap_empty: HashMap<i32, i32> = HashMap::new();
+    let map_hashmap_empty_selected: Option<HashMap<i32, i32>> = None;
+    insert_and_select(&session, table_name, &map_hashmap, &map_hashmap).await;
+    insert_and_select(
+        &session,
+        table_name,
+        &map_hashmap_empty,
+        &map_hashmap_empty_selected,
+    )
+    .await;
+
+    // BTreeMap
+    let map_btreemap: BTreeMap<i32, i32> = vec![(10, 20), (30, 10), (4, 5)].into_iter().collect();
+    let map_btreemap_empty: BTreeMap<i32, i32> = BTreeMap::new();
+    let map_btreemap_empty_selected: Option<BTreeMap<i32, i32>> = None;
+    insert_and_select(&session, table_name, &map_btreemap, &map_btreemap).await;
+    insert_and_select(
+        &session,
+        table_name,
+        &map_btreemap_empty,
+        &map_btreemap_empty_selected,
+    )
+    .await;
+
+    // CqlValue
+    let map_cql_value: CqlValue = CqlValue::Map(vec![
+        (CqlValue::Int(2), CqlValue::Int(4)),
+        (CqlValue::Int(8), CqlValue::Int(16)),
+    ]);
+    let map_cql_value_empty: CqlValue = CqlValue::Map(Vec::new());
+    let map_cql_value_empty_selected: Option<CqlValue> = None;
+    insert_and_select(&session, table_name, &map_cql_value, &map_cql_value).await;
+    insert_and_select(
+        &session,
+        table_name,
+        &map_cql_value_empty,
+        &map_cql_value_empty_selected,
+    )
+    .await;
+
+    session
+        .ddl(format!("DROP KEYSPACE {}", session.get_keyspace().unwrap()))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_cql_tuple() {
+    setup_tracing();
+    let session: Session = connect().await;
+
+    let table_name: &str = "test_cql_tuple_tab";
+    create_table(&session, table_name, "tuple<int, int, text>").await;
+
+    // Rust tuple ()
+    let tuple1: (i32, i32, String) = (1, 2, "three".to_string());
+    let tuple2: (Option<i32>, Option<i32>, String) = (Some(4), None, "sixteen".to_string());
+    insert_and_select(&session, table_name, &tuple1, &tuple1).await;
+    insert_and_select(&session, table_name, &tuple2, &tuple2).await;
+
+    // CqlValue
+    let tuple_cql_value: CqlValue = CqlValue::Tuple(vec![
+        None,
+        Some(CqlValue::Int(1024)),
+        Some(CqlValue::Text("cql_value_text".to_string())),
+    ]);
+    insert_and_select(&session, table_name, &tuple_cql_value, &tuple_cql_value).await;
+
+    session
+        .ddl(format!("DROP KEYSPACE {}", session.get_keyspace().unwrap()))
+        .await
+        .unwrap();
+}
+
+// Cassandra does not support altering column types starting with version 3.0.11 and 3.10.
+// See https://stackoverflow.com/a/76926622 for explanation.
+#[cfg_attr(cassandra_tests, ignore)]
+#[tokio::test]
+async fn test_alter_column_add_field_to_tuple() {
+    setup_tracing();
+    let session: Session = connect().await;
+
+    let table_name: &str = "test_cql_tuple_alter_tab";
+    create_table(&session, table_name, "tuple<int, int>").await;
+
+    let tuple1: (i32, i32) = (1, 2);
+    session
+        .query_unpaged(
+            format!("INSERT INTO {table_name} (p, val) VALUES (0, ?)"),
+            &(tuple1,),
+        )
+        .await
+        .unwrap();
+
+    // Add a field to the tuple. Existing rows will still have 2 fields in the tuple.
+    session
+        .query_unpaged(
+            format!("ALTER TABLE {table_name} ALTER val TYPE tuple<int, int, text>"),
+            &(),
+        )
+        .await
+        .unwrap();
+
+    // Select a tuple - ScyllaDB will send 2-element tuple.
+    // Driver should return the third element as null.
+    let selected_value: (Option<i32>, Option<i32>, Option<String>) = session
+        .query_unpaged(format!("SELECT val FROM {table_name} WHERE p = 0"), ())
+        .await
+        .unwrap()
+        .into_rows_result()
+        .unwrap()
+        .single_row::<((Option<i32>, Option<i32>, Option<String>),)>()
+        .unwrap()
+        .0;
+
+    assert!(selected_value.2.is_none());
+
+    // Test CqlValue deserialization: the stored 2-element tuple should deserialize to a
+    // CqlValue::Tuple with 3 elements, where the third is None.
+    let selected_as_cql_value: CqlValue = session
+        .query_unpaged(format!("SELECT val FROM {table_name} WHERE p = 0"), ())
+        .await
+        .unwrap()
+        .into_rows_result()
+        .unwrap()
+        .single_row::<(CqlValue,)>()
+        .unwrap()
+        .0;
+    assert_eq!(
+        selected_as_cql_value,
+        CqlValue::Tuple(vec![Some(CqlValue::Int(1)), Some(CqlValue::Int(2)), None,])
+    );
+
+    session
+        .ddl(format!("DROP KEYSPACE {}", session.get_keyspace().unwrap()))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_cql_tuple_db_repr_shorter_than_metadata() {
+    use ColumnType::*;
+    use NativeType::*;
+
+    setup_tracing();
+    let session: Session = connect().await;
+
+    {
+        let table_name: &str = "test_cql_shorter_tuple_tab";
+        create_table(
+            &session,
+            table_name,
+            "tuple<tuple<int, text, int>, int, tuple<int>>",
+        )
+        .await;
+
+        // We craft a tuple that is shorter in DB representation than in metadata,
+        // and also contains another nested tuple with the same property.
+        // In order to do that, we use SerializeValueWithFakeType to lie about the type
+        // the value is being serialized to, so that tuple serialization logic does not complain.
+        let inner_tuple: (i32, String) = (1, "Ala".to_owned());
+        let inner_tuple_ser =
+            SerializeValueWithFakeType::new(inner_tuple, Tuple(vec![Native(Int), Native(Text)]));
+        let tuple: (SerializeValueWithFakeType<_>, i32) = (inner_tuple_ser, 2);
+        let tuple_ser = SerializeValueWithFakeType::new(
+            tuple,
+            Tuple(vec![Tuple(vec![Native(Int), Native(Text)]), Native(Int)]),
+        );
+        // The expected deserialized tuple has None for the missing elements.
+        let tuple_deser = ((1, "Ala".to_owned(), None::<i32>), 2, None::<(i32,)>);
+        insert_and_select(&session, table_name, &tuple_ser, &tuple_deser).await;
+
+        let tuple_cql_deser = CqlValue::Tuple(vec![
+            Some(CqlValue::Tuple(vec![
+                Some(CqlValue::Int(1)),
+                Some(CqlValue::Text("Ala".to_owned())),
+                None, // missing third field of inner tuple
+            ])),
+            Some(CqlValue::Int(2)),
+            None, // missing third field of outer tuple
+        ]);
+        insert_and_select(&session, table_name, &tuple_ser, &tuple_cql_deser).await;
+
+        // Test that shorter Rust tuple can also be successfully inserted, and is of correct form
+        // when selected.
+        let tuple_ser_raw = ((1, "Ala".to_owned()), 2);
+        insert_and_select(&session, table_name, &tuple_ser_raw, &tuple_deser).await;
+        // Check that the tuple does not serialize the missing elements.
+        {
+            let typ = Tuple(vec![
+                Tuple(vec![Native(Int), Native(Text), Native(Int)]),
+                Native(Int),
+                Tuple(vec![Native(Int)]),
+            ]);
+            let mut buf = vec![];
+            let _ = tuple_ser_raw
+                .serialize(&typ, CellWriter::new(&mut buf))
+                .unwrap();
+            // First inner tuple: [bytes] for Int (8 bytes) and [bytes] for "Ala" (7 bytes) + length prefix of tuple (4 bytes) = 19 bytes
+            // Int: 8 bytes
+            // Length prefix of outer tuple: 4 bytes
+            // Total: 31 bytes
+            assert_eq!(buf.len(), 31);
+        }
+
+        // Verify that CqlValue::Tuple can be shorter than the DB column type indicates.
+        let tuple_ser_cql = CqlValue::Tuple(vec![
+            Some(CqlValue::Tuple(vec![
+                Some(CqlValue::Int(1)),
+                Some(CqlValue::Text("Ala".to_owned())),
+                // No third element
+            ])),
+            Some(CqlValue::Int(2)),
+            // No third element
+        ]);
+        insert_and_select(&session, table_name, &tuple_ser_cql, &tuple_deser).await;
+    }
+
+    session
+        .ddl(format!("DROP KEYSPACE {}", session.get_keyspace().unwrap()))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_vector_type_metadata() {
+    setup_tracing();
+    let session = create_new_session_builder().build().await.unwrap();
+    let ks = unique_keyspace_name();
+
+    session.ddl(format!("CREATE KEYSPACE IF NOT EXISTS {ks} WITH REPLICATION = {{'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1}}")).await.unwrap();
+    session
+        .ddl(
+            format!(
+                "CREATE TABLE IF NOT EXISTS {ks}.t (a int PRIMARY KEY, b vector<int, 4>, c vector<text, 2>)"
+            ),
+        )
+        .await
+        .unwrap();
+
+    session.refresh_metadata().await.unwrap();
+    let metadata = session.get_cluster_state();
+    let columns = &metadata.get_keyspace(&ks).unwrap().tables["t"].columns;
+    assert_eq!(
+        columns["b"].typ,
+        ColumnType::Vector {
+            typ: Box::new(ColumnType::Native(NativeType::Int)),
+            dimensions: 4,
+        },
+    );
+    assert_eq!(
+        columns["c"].typ,
+        ColumnType::Vector {
+            typ: Box::new(ColumnType::Native(NativeType::Text)),
+            dimensions: 2,
+        },
+    );
+
+    session.ddl(format!("DROP KEYSPACE {ks}")).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_vector_type_unprepared() {
+    setup_tracing();
+    let session = create_new_session_builder().build().await.unwrap();
+    let ks = unique_keyspace_name();
+
+    session.ddl(format!("CREATE KEYSPACE IF NOT EXISTS {ks} WITH REPLICATION = {{'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1}}")).await.unwrap();
+
+    session
+        .ddl(
+            format!(
+                "CREATE TABLE IF NOT EXISTS {ks}.t (a int PRIMARY KEY, b vector<int, 4>, c vector<text, 2>, d vector<frozen<list<set<int>>>, 2>)"
+            ),
+        )
+        .await
+        .unwrap();
+
+    let complex_vector: Vec<Vec<HashSet<i32>>> = vec![
+        vec![HashSet::from([1, 2, 3]), HashSet::from([4, 5])],
+        vec![HashSet::from([6, 7, 8])],
+    ];
+
+    session
+        .query_unpaged(
+            format!("INSERT INTO {ks}.t (a, b, c, d) VALUES (?, ?, ?, ?)"),
+            &(1, vec![1, 2, 3, 4], vec!["foo", "bar"], &complex_vector),
+        )
+        .await
+        .unwrap();
+
+    session
+        .query_unpaged(
+            format!("INSERT INTO {ks}.t (a, b, c, d) VALUES (?, ?, ?, ?)"),
+            &(2, &[5, 6, 7, 8][..], &["afoo", "abar"][..], &complex_vector),
+        )
+        .await
+        .unwrap();
+
+    let query_result = session
+        .query_unpaged(format!("SELECT a, b, c, d FROM {ks}.t"), &[])
+        .await
+        .unwrap();
+
+    type RowType = (i32, Vec<i32>, Vec<String>, Vec<Vec<HashSet<i32>>>);
+    let rows: Vec<RowType> = query_result
+        .into_rows_result()
+        .unwrap()
+        .rows::<RowType>()
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    assert_eq!(
+        rows[0],
+        (
+            1,
+            vec![1, 2, 3, 4],
+            vec!["foo".to_string(), "bar".to_string()],
+            complex_vector.clone(),
+        )
+    );
+    assert_eq!(
+        rows[1],
+        (
+            2,
+            vec![5, 6, 7, 8],
+            vec!["afoo".to_string(), "abar".to_string()],
+            complex_vector,
+        )
+    );
+
+    session.ddl(format!("DROP KEYSPACE {ks}")).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_vector_type_prepared() {
+    setup_tracing();
+    let session = create_new_session_builder().build().await.unwrap();
+    let ks = unique_keyspace_name();
+
+    session.ddl(format!("CREATE KEYSPACE IF NOT EXISTS {ks} WITH REPLICATION = {{'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1}}")).await.unwrap();
+    session
+        .ddl(
+            format!(
+                "CREATE TABLE IF NOT EXISTS {ks}.t (a int PRIMARY KEY, b vector<int, 4>, c vector<text, 2>)"
+            ),
+        )
+        .await
+        .unwrap();
+
+    let prepared_statement = session
+        .prepare(format!("INSERT INTO {ks}.t (a, b, c) VALUES (?, ?, ?)"))
+        .await
+        .unwrap();
+    session
+        .execute_unpaged(
+            &prepared_statement,
+            &(2, vec![11, 12, 13, 14], vec!["afoo", "abar"]),
+        )
+        .await
+        .unwrap();
+
+    let query_result = session
+        .query_unpaged(format!("SELECT a, b, c FROM {ks}.t"), &[])
+        .await
+        .unwrap();
+
+    let row = query_result
+        .into_rows_result()
+        .unwrap()
+        .single_row::<(i32, Vec<i32>, Vec<String>)>()
+        .unwrap();
+    assert_eq!(
+        row,
+        (
+            2,
+            vec![11, 12, 13, 14],
+            vec!["afoo".to_string(), "abar".to_string()]
+        )
+    );
+
+    session.ddl(format!("DROP KEYSPACE {ks}")).await.unwrap();
+}
+
+async fn test_vector_single_type<
+    T: SerializeValue + for<'a> DeserializeValue<'a, 'a> + PartialEq + Debug + Clone,
+>(
+    keyspace: &str,
+    session: &Session,
+    type_name: &str,
+    values: Vec<T>,
+) {
+    let table_name = format!(
+        "test_vector_{}",
+        type_name
+            .replace("<", "A")
+            .replace(">", "B")
+            .replace(",", "C")
+    );
+    let create_statement = format!(
+        "CREATE TABLE {}.{} (a int PRIMARY KEY, b vector<{}, {}>)",
+        keyspace,
+        table_name,
+        type_name,
+        values.len()
+    );
+    session.ddl(create_statement).await.unwrap();
+
+    let prepared_insert = session
+        .prepare(format!(
+            "INSERT INTO {keyspace}.{table_name} (a, b) VALUES (?, ?)"
+        ))
+        .await
+        .unwrap();
+    let prepared_select = session
+        .prepare(format!("SELECT a, b FROM {keyspace}.{table_name}"))
+        .await
+        .unwrap();
+    session
+        .execute_unpaged(&prepared_insert, &(1, &values))
+        .await
+        .unwrap();
+
+    let query_result = session
+        .execute_unpaged(&prepared_select, &[])
+        .await
+        .unwrap();
+
+    let result = query_result.into_rows_result().unwrap();
+
+    let row = result.single_row::<(i32, Vec<T>)>().unwrap();
+
+    assert_eq!(row, (1, values));
+
+    let drop_statement = format!("DROP TABLE {keyspace}.{table_name}");
+    session.ddl(drop_statement).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_vector_type_all_types() {
+    setup_tracing();
+    let session = create_new_session_builder().build().await.unwrap();
+    let ks = unique_keyspace_name();
+
+    session.ddl(format!("CREATE KEYSPACE IF NOT EXISTS {ks} WITH REPLICATION = {{'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1}}")).await.unwrap();
+
+    // Native types
+
+    test_vector_single_type(
+        &ks,
+        &session,
+        "ascii",
+        vec!["foo".to_string(), "bar".to_string()],
+    )
+    .await;
+    test_vector_single_type(&ks, &session, "bigint", vec![1i64, 2i64, 3i64]).await;
+    test_vector_single_type(
+        &ks,
+        &session,
+        "blob",
+        vec![vec![1_u8, 2_u8], vec![3_u8, 4_u8]],
+    )
+    .await;
+    test_vector_single_type(&ks, &session, "boolean", vec![true, false]).await;
+    test_vector_single_type(&ks, &session, "date", vec![CqlDate(123), CqlDate(456)]).await;
+    test_vector_single_type(
+        &ks,
+        &session,
+        "decimal",
+        vec![
+            CqlDecimal::from_signed_be_bytes_slice_and_exponent(b"123", 42),
+            CqlDecimal::from_signed_be_bytes_slice_and_exponent(b"123", 42),
+        ],
+    )
+    .await;
+    test_vector_single_type(&ks, &session, "double", vec![1.0f64, 2.0f64, 3.0f64]).await;
+    test_vector_single_type(
+        &ks,
+        &session,
+        "duration",
+        vec![
+            CqlDuration {
+                months: 1,
+                days: 2,
+                nanoseconds: 3,
+            },
+            CqlDuration {
+                months: 1,
+                days: 2,
+                nanoseconds: 3,
+            },
+        ],
+    )
+    .await;
+    test_vector_single_type(&ks, &session, "float", vec![1.0f32, 2.0f32, 3.0f32]).await;
+    test_vector_single_type(
+        &ks,
+        &session,
+        "inet",
+        vec![
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            IpAddr::V6(Ipv6Addr::LOCALHOST),
+        ],
+    )
+    .await;
+    test_vector_single_type(&ks, &session, "int", vec![1, 2, 3]).await;
+    test_vector_single_type(&ks, &session, "smallint", vec![1_i16, 2_i16]).await;
+    test_vector_single_type(
+        &ks,
+        &session,
+        "text",
+        vec!["foo".to_string(), "bar".to_string()],
+    )
+    .await;
+    test_vector_single_type(&ks, &session, "time", vec![CqlTime(1234), CqlTime(5678)]).await;
+    test_vector_single_type(
+        &ks,
+        &session,
+        "timestamp",
+        vec![CqlTimestamp(1234), CqlTimestamp(5678)],
+    )
+    .await;
+    test_vector_single_type(
+        &ks,
+        &session,
+        "timeuuid",
+        vec![
+            CqlTimeuuid::from_str("f4a7c45e-220e-11f0-8a95-325096b39f47").unwrap(),
+            CqlTimeuuid::from_str("f4a7c620-220e-11f0-bfde-325096b39f47").unwrap(),
+        ],
+    )
+    .await;
+    test_vector_single_type(&ks, &session, "tinyint", vec![1_i8, 2_i8, 3_i8, 4_i8]).await;
+    test_vector_single_type(&ks, &session, "uuid", vec![Uuid::new_v4(), Uuid::new_v4()]).await;
+
+    test_vector_single_type(
+        &ks,
+        &session,
+        "varchar",
+        vec!["foo".to_string(), "bar".to_string()],
+    )
+    .await;
+    test_vector_single_type(
+        &ks,
+        &session,
+        "varint",
+        vec![
+            CqlVarint::from_signed_bytes_be(vec![1, 2]),
+            CqlVarint::from_signed_bytes_be(vec![3, 4]),
+        ],
+    )
+    .await;
+
+    // Collections
+
+    test_vector_single_type(&ks, &session, "list<int>", vec![vec![1, 2], vec![3, 4]]).await;
+
+    test_vector_single_type(
+        &ks,
+        &session,
+        "set<int>",
+        vec![HashSet::from([1, 2]), HashSet::from([3, 4])],
+    )
+    .await;
+
+    test_vector_single_type(
+        &ks,
+        &session,
+        "map<int,text>",
+        vec![
+            HashMap::from([(1, "foo".to_string()), (2, "bar".to_string())]),
+            HashMap::from([(3, "baz".to_string()), (4, "qux".to_string())]),
+        ],
+    )
+    .await;
+
+    // Tuples
+
+    test_vector_single_type(
+        &ks,
+        &session,
+        "tuple<int,text>",
+        vec![
+            (1, "foo".to_string()),
+            (2, "bar".to_string()),
+            (3, "baz".to_string()),
+        ],
+    )
+    .await;
+
+    // Nested vectors
+    test_vector_single_type(&ks, &session, "vector<int,3>", vec![vec![1, 2, 3]]).await;
+
+    test_vector_single_type(
+        &ks,
+        &session,
+        "list<vector<int,2>>",
+        vec![vec![vec![1, 2], vec![3, 4]], vec![vec![5, 6], vec![7, 8]]],
+    )
+    .await;
+
+    session.ddl(format!("DROP KEYSPACE {ks}")).await.unwrap();
+}
+
+/// ScyllaDB does not distinguish empty collections from nulls. That is, INSERTing an empty collection
+/// is equivalent to nullifying the corresponding column.
+/// As pointed out in [#1001](https://github.com/scylladb/scylla-rust-driver/issues/1001), it's a nice
+/// QOL feature to be able to deserialize empty CQL collections to empty Rust collections instead of
+/// `None::<RustCollection>`. This test checks that.
+#[tokio::test]
+async fn test_deserialize_empty_collections() {
+    // Setup session.
+    let ks = unique_keyspace_name();
+    let session = create_new_session_builder().build().await.unwrap();
+    session.ddl(format!("CREATE KEYSPACE IF NOT EXISTS {ks} WITH REPLICATION = {{'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1}}")).await.unwrap();
+    session.use_keyspace(&ks, true).await.unwrap();
+
+    async fn deserialize_empty_collection<
+        Collection: Default + DeserializeOwnedValue + SerializeValue,
+    >(
+        session: &Session,
+        collection_name: &str,
+        collection_type_params: &str,
+    ) -> Collection {
+        // Create a table for the given collection type.
+        let table_name = "test_empty_".to_owned() + collection_name;
+        let query = format!(
+            "CREATE TABLE {table_name} (n int primary key, c {collection_name}<{collection_type_params}>)"
+        );
+        session.ddl(query).await.unwrap();
+
+        // Populate the table with an empty collection, effectively inserting null as the collection.
+        session
+            .query_unpaged(
+                format!("INSERT INTO {table_name} (n, c) VALUES (?, ?)",),
+                (0, Collection::default()),
+            )
+            .await
+            .unwrap();
+
+        let query_rows_result = session
+            .query_unpaged(format!("SELECT c FROM {table_name}"), ())
+            .await
+            .unwrap()
+            .into_rows_result()
+            .unwrap();
+        let (collection,) = query_rows_result.first_row::<(Collection,)>().unwrap();
+
+        // Drop the table
+        collection
+    }
+
+    let list = deserialize_empty_collection::<Vec<i32>>(&session, "list", "int").await;
+    assert!(list.is_empty());
+
+    let set = deserialize_empty_collection::<HashSet<i64>>(&session, "set", "bigint").await;
+    assert!(set.is_empty());
+
+    let map = deserialize_empty_collection::<HashMap<bool, CqlVarint>>(
+        &session,
+        "map",
+        "boolean, varint",
+    )
+    .await;
+    assert!(map.is_empty());
+
+    session.ddl(format!("DROP KEYSPACE {ks}")).await.unwrap();
+}

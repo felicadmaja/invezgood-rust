@@ -1,0 +1,166 @@
+[package]
+name = "scylla"
+version = "1.7.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Async CQL driver for Rust, optimized for ScyllaDB, fully compatible with Apache Cassandra™"
+repository = "https://github.com/scylladb/scylla-rust-driver"
+readme = "../README.md"
+keywords = ["database", "scylla", "scylladb", "cql", "cassandra"]
+categories = ["database"]
+license = "MIT OR Apache-2.0"
+
+[package.metadata."docs.rs"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.cargo-semver-checks.lints]
+workspace = true
+
+[lints.rust]
+unnameable_types = "warn"
+unreachable_pub = "warn"
+missing-docs = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(scylla_unstable)',
+    'cfg(cassandra_tests)',
+] }
+
+[[bench]]
+name = "benchmark"
+harness = false
+required-features = ["unstable-testing"]
+
+[features]
+default = []
+# Enables TLS support via OpenSSL 0.10.
+openssl-010 = ["dep:tokio-openssl", "dep:openssl"]
+# Enables TLS support via rustls 0.23.
+rustls-023 = ["dep:tokio-rustls", "dep:rustls"]
+# Enables support for CQL ser/de of Secrecy type from secrecy 0.8 crate.
+secrecy-08 = ["scylla-cql/secrecy-08"]
+# Enables support for CQL ser/de of Secrecy type from secrecy 0.10 crate.
+secrecy-10 = ["scylla-cql/secrecy-10"]
+# Enables support for CQL ser/de of time/date types from chrono 0.4 crate.
+chrono-04 = ["scylla-cql/chrono-04", "scylla-cql-core/chrono-04"]
+# Enables support for CQL ser/de of time/date types from time 0.3 crate.
+time-03 = ["scylla-cql/time-03", "scylla-cql-core/time-03"]
+# Enables support for CQL ser/de of arbitrary length integer types from num-bigint 0.3 crate.
+num-bigint-03 = ["scylla-cql/num-bigint-03", "scylla-cql-core/num-bigint-03"]
+# Enables support for CQL ser/de of arbitrary length integer types from num-bigint 0.4 crate.
+num-bigint-04 = ["scylla-cql/num-bigint-04", "scylla-cql-core/num-bigint-04"]
+# Enables support for CQL ser/de of arbitrary precision decimal types from bigdecimal 0.4 crate.
+bigdecimal-04 = ["scylla-cql/bigdecimal-04", "scylla-cql-core/bigdecimal-04"]
+# Enables support for CQL ser/de of all supported external types.
+full-serialization = [
+    "chrono-04",
+    "time-03",
+    "secrecy-08",
+    "secrecy-10",
+    "num-bigint-03",
+    "num-bigint-04",
+    "bigdecimal-04",
+]
+# Enables collection of internal driver metrics.
+metrics = ["dep:histogram"]
+
+### UNSTABLE FEATURES ###
+# Opts-in to various unstable testing features.
+unstable-testing = []
+# Enables features for use in CPP-RS Driver.
+unstable-cpp-rs = []
+# Enables features for use in Node.js-RS Driver.
+unstable-nodejs-rs = ["scylla-cql/unstable-nodejs-rs"]
+# Enables HostListener experimental support.
+unstable-host-listener = []
+# Enables unstable reconnection policy configuration.
+unstable-reconnect-policy = []
+# Enables fetching contents of the `system.client_routes` table.
+# Needed for custom routing (AWS PrivateLink, GCP PSC, etc.).
+unstable-client-routes = []
+
+
+[dependencies]
+###########################
+# Main, public dependencies
+###########################
+scylla-cql = { version = "=1.7.0", path = "../scylla-cql" }
+scylla-cql-core = { version = "=1.7.0", path = "../scylla-cql-core" }
+tokio = { version = "1.40", features = [
+    "net",
+    "time",
+    "io-util",
+    "sync",
+    "rt",
+    "macros",
+] }
+tracing = "0.1.36"
+# Appears in various places of our public API.
+bytes = "1.10"
+# Used for representing tracing ids and host ids.
+uuid = { version = "1.0", features = ["v4"] }
+# Used in history module to represent times of events.
+chrono = { version = "0.4.32", default-features = false, features = ["clock"] }
+# Stream trait is part of public API (in pager).
+# Stream and future combinators are used in many places in the crate.
+futures = "0.3.6"
+# Part of ReplicaSet::choose_filtered public API.
+# Used internally in some other places (mostly in LBP / routing).
+rand = "0.9.0"
+
+#####################
+# TLS implementations
+#####################
+openssl = { version = "0.10.70", optional = true }
+# Not part of public API
+tokio-openssl = { version = "0.6.1", optional = true }
+rustls = { version = "0.23", optional = true }
+# Not part of public API
+tokio-rustls = { version = "0.26", optional = true }
+
+####################
+# Internal utilities
+####################
+# Used in metrics.
+histogram = { version = "0.11.1", optional = true }
+# Used by authentication and address translation public traits.
+# Technically not part of public API, since it just transforms the
+# trait code, which we could do without it.
+async-trait = "0.1.56"
+# Easier error type creation, used in most of our errors.
+# Technically not part of public API, for similar reasons as async-trait:
+# we could manually do what this macro does.
+thiserror = "2.0.6"
+# Used by CachingSession for its internal statement cache.
+dashmap = "6.0"
+# Required to set TCP keepalive on a socket.
+# Unfortunately, neither std nor tokio have this functionality yet,
+# so such workaround is required.
+socket2 = { version = "0.5.3", features = ["all"] }
+# Useful operations on iterators.
+itertools = "0.14.0"
+# Used by DefaultPolicy to have reproducible randomness.
+rand_pcg = "0.9.0"
+# Used in execution profiles and ClusterState.
+arc-swap = "1.3.0"
+# Used in tablets to have a hashmap queryable with borrowed key.
+hashbrown = "0.15"
+# Used to avoid allocs when representing PK values / replica list.
+smallvec = "1.8.0"
+
+[dev-dependencies]
+num-bigint-03 = { package = "num-bigint", version = "0.3" }
+num-bigint-04 = { package = "num-bigint", version = "0.4" }
+bigdecimal-04 = { package = "bigdecimal", version = "0.4" }
+scylla-proxy = { version = "0.0.6", path = "../scylla-proxy" }
+criterion = "0.6"
+tokio = { version = "1.34", features = ["test-util", "process", "fs"] }
+tracing-subscriber = { version = "0.3.14", features = ["env-filter"] }
+assert_matches = "1.5.0"
+rand_chacha = "0.9.0"
+time = "0.3"
+anyhow = "1.0.98"
+tempfile = "3.19"
+rcgen = "0.14"
+uuid = { version = "1.0", features = ["v1"] }
+env_logger = "0.11"
