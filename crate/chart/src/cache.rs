@@ -175,7 +175,7 @@ impl ChartCache {
         format!("{REDIS_INTRADAY_EOD_PREFIX}{today}:{code}")
     }
 
-    /// Cache EOD intraday setelah 16:00: Moka → Redis → None.
+    /// Snapshot intraday hari ini: Moka → Redis → None (key per tanggal+code).
     pub async fn get_intraday_eod(
         &self,
         code: &str,
@@ -215,7 +215,7 @@ impl ChartCache {
         )))
     }
 
-    /// Simpan snapshot EOD intraday (TTL 24 jam, key per tanggal+code).
+    /// Simpan snapshot intraday hari ini (TTL 24 jam, key per tanggal+code).
     pub async fn set_intraday_eod(
         &self,
         code: &str,

@@ -13,24 +13,19 @@ use crate::pb::{
 };
 
 enum CurrentDayMode {
-    /// Jam operasional: hit API live.
+    /// Jam operasional: GET Invezgo live + simpan snapshot ke cache.
     Live,
-    /// Setelah 16:00: cache EOD, miss → API 1x.
-    EodCache,
+    /// Diluar jam operasional / libur: cache Moka→Redis; miss → GET Invezgo 1x lalu simpan.
+    Cached,
 }
 
-/// Senin–Kamis: jam operasional live 09:00–12:00 & 13:30–16:00.
-/// Jumat: 09:00–11:30 & 14:00–16:00. Setelah 16:00: cache EOD.
-fn require_current_day_chart_access() -> Result<CurrentDayMode, Status> {
+/// Senin–Kamis: live 09:00–12:00 & 13:30–16:00. Jumat: 09:00–11:30 & 14:00–16:00.
+/// Selain itu (istirahat, setelah 16:00, Sabtu/Minggu): mode Cached.
+fn current_day_chart_mode() -> CurrentDayMode {
     let now = Local::now();
     let weekday = now.weekday();
-    match weekday {
-        chrono::Weekday::Sat | chrono::Weekday::Sun => {
-            return Err(Status::failed_precondition(
-                "Diluar hari operasional Senin-Jumat",
-            ));
-        }
-        _ => {}
+    if matches!(weekday, chrono::Weekday::Sat | chrono::Weekday::Sun) {
+        return CurrentDayMode::Cached;
     }
 
     let mins = now.hour() * 60 + now.minute();
@@ -52,15 +47,10 @@ fn require_current_day_chart_access() -> Result<CurrentDayMode, Status> {
         }
     };
     if in_session {
-        return Ok(CurrentDayMode::Live);
+        CurrentDayMode::Live
+    } else {
+        CurrentDayMode::Cached
     }
-    // > 16:00 (setelah jam operasional sore)
-    if mins > 16 * 60 {
-        return Ok(CurrentDayMode::EodCache);
-    }
-    Err(Status::failed_precondition(
-        "Diluar jam operasional (Senin-Kamis 09:00-12:00 & 13:30-16:00; Jumat 09:00-11:30 & 14:00-16:00)",
-    ))
 }
 
 fn format_ohlc(d: &GetCurrentDayChartFromInvezgoResponse) -> String {
@@ -68,21 +58,6 @@ fn format_ohlc(d: &GetCurrentDayChartFromInvezgoResponse) -> String {
         " O={:.2} H={:.2} L={:.2} C={:.2}",
         d.open, d.high, d.low, d.close
     )
-}
-
-fn is_outside_operational(status: &Status) -> bool {
-    status.code() == tonic::Code::FailedPrecondition
-        && (status.message().starts_with("Diluar hari operasional")
-            || status.message().starts_with("Diluar jam operasional"))
-}
-
-fn holiday_response(code: &str) -> GetCurrentDayChartFromInvezgoResponse {
-    GetCurrentDayChartFromInvezgoResponse {
-        code: code.to_string(),
-        success: false,
-        message: "hari libur".to_string(),
-        ..Default::default()
-    }
 }
 
 pub struct ChartService {
@@ -168,15 +143,15 @@ impl Chart for ChartService {
         let mut cache_hit = false;
 
         let result: Result<Response<GetCurrentDayChartFromInvezgoResponse>, Status> = async {
-            let mode = require_current_day_chart_access()?;
+            let mode = current_day_chart_mode();
             let code = Self::normalize_code(&request.into_inner().code)?;
             code_log = code.clone();
 
-            if market_holiday::is_market_holiday().await {
-                return Ok(Response::new(holiday_response(&code)));
-            }
+            let is_holiday =
+                market_holiday::is_weekend() || market_holiday::is_national_holiday().await;
+            let use_cache = matches!(mode, CurrentDayMode::Cached) || is_holiday;
 
-            if matches!(mode, CurrentDayMode::EodCache) {
+            if use_cache {
                 match self.cache.get_intraday_eod(&code).await {
                     Ok(Some((data, detail))) => {
                         code_log = format!("{code} {detail}");
@@ -198,10 +173,10 @@ impl Chart for ChartService {
                     Ok(data) => {
                         if let Err(error) = self.cache.set_intraday_eod(&code, &data).await {
                             eprintln!(
-                                "GetCurrentDayChartFromInvezgo set eod {code} gagal: {error}"
+                                "GetCurrentDayChartFromInvezgo set cache {code} gagal: {error}"
                             );
                         }
-                        code_log = format!("{code} intraday eod MISS — GET Invezgo");
+                        code_log = format!("{code} intraday cache MISS — GET Invezgo 1x");
                         Ok(Response::new(data))
                     }
                     Err(error) => Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
@@ -212,7 +187,14 @@ impl Chart for ChartService {
                 }
             } else {
                 match crate::invezgo::fetch_intraday_data(&code).await {
-                    Ok(data) => Ok(Response::new(data)),
+                    Ok(data) => {
+                        if let Err(error) = self.cache.set_intraday_eod(&code, &data).await {
+                            eprintln!(
+                                "GetCurrentDayChartFromInvezgo set cache {code} gagal: {error}"
+                            );
+                        }
+                        Ok(Response::new(data))
+                    }
                     Err(error) => Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
                         success: false,
                         message: error,
@@ -230,21 +212,18 @@ impl Chart for ChartService {
         }
 
         let elapsed = started.elapsed().as_millis();
-        let skip_log = matches!(&result, Err(status) if is_outside_operational(status));
-        if !skip_log {
-            let ohlc_log = match &result {
-                Ok(resp) => format_ohlc(resp.get_ref()),
-                Err(_) => String::new(),
-            };
-            if cache_hit {
-                eprintln!(
-                    "GetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}"
-                );
-            } else {
-                eprintln!(
-                    "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}\x1b[0m"
-                );
-            }
+        let ohlc_log = match &result {
+            Ok(resp) => format_ohlc(resp.get_ref()),
+            Err(_) => String::new(),
+        };
+        if cache_hit {
+            eprintln!(
+                "GetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}"
+            );
+        } else {
+            eprintln!(
+                "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}\x1b[0m"
+            );
         }
         result
     }

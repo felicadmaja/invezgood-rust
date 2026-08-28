@@ -6,14 +6,11 @@ service Chart {
   // Memerlukan user login valid. Tanpa auth / session invalid: response default (tidak GET Invezgo).
   // Kirim metadata: authorization: Bearer <token>.
   // GET api.invezgo.com/analysis/intraday-data/{code}?market=RG (Bearer INVEZGO_BEARER_TOKEN).
-  // Jam operasional (waktu server lokal): 
+  // Jam operasional (waktu server lokal):
   // - Senin–Kamis 09:00–12:00 & 13:30–16:00;
-  // - Jumat 09:00–11:30 & 14:00–16:00 — hit API live.
-  // Setelah 16:00 (Senin–Jumat): baca cache EOD (Moka→Redis); bila miss hit API 1x lalu simpan.
-  // Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur (query by PK date) selalu libur.
-  // Senin–Jumat setelah 10:00: cek Yahoo BBCA.JK volume hari ini.
-  // Volume=0 → market libur (cache Redis `invezgood:market_holiday:{YYYY-MM-DD}`, TTL s/d 23:59:59).
-  // Bila libur: success=false message "hari libur", tidak GET Invezgo untuk code request.
+  // - Jumat 09:00–11:30 & 14:00–16:00 — GET Invezgo live; snapshot disimpan ke cache Moka+Redis.
+  // Diluar jam operasional (istirahat, setelah 16:00), Sabtu/Minggu, dan tanggal invezgood.hari_libur:
+  // baca cache Moka→Redis; miss → GET Invezgo 1x lalu simpan; request ulang kirim dari cache.
   // Response intraday: bila open=0 → open=close; bila low=0 dan high=0 → low=high=close (sebelum return/cache).
   // Debug log: GetCurrentDayChartFromInvezgo {user} {ms}ms - {code} O= H= L= C=
   rpc GetCurrentDayChartFromInvezgo(GetCurrentDayChartFromInvezgoRequest)
