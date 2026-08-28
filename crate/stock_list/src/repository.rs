@@ -19,7 +19,7 @@ const ROW_SELECT: &str = "code, name, sector, sub_sector, logo, keystats, keysta
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
     company_information, company_information_updated_at, corporate_action, corporate_action_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff, is_bad_fundamental, notation, is_idx_30, is_lq_45, is_idx_80";
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff, fundamental_assesment, notation, index_family";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -93,8 +93,8 @@ const UPDATE_IS_KONGLOMERASI: &str =
 const UPDATE_IS_PLAN_TO_TRADE: &str =
     "UPDATE invezgood.stock_list SET is_plan_to_trade = ? WHERE code = ?";
 
-const UPDATE_IS_BAD_FUNDAMENTAL: &str =
-    "UPDATE invezgood.stock_list SET is_bad_fundamental = ? WHERE code = ?";
+const UPDATE_FUNDAMENTAL_ASSESMENT: &str =
+    "UPDATE invezgood.stock_list SET fundamental_assesment = ? WHERE code = ?";
 
 const UPDATE_NOTATION: &str =
     "UPDATE invezgood.stock_list SET notation = ? WHERE code = ?";
@@ -123,7 +123,7 @@ const UPDATE_SUB_SECTOR: &str =
 const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?";
 
 const LIST_ALL: &str = "SELECT code, name, sector, sub_sector, logo, keystats_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, takeprofit_wyckoff, is_bad_fundamental, notation, is_idx_30, is_lq_45, is_idx_80 \
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, takeprofit_wyckoff, fundamental_assesment, notation, index_family \
     FROM invezgood.stock_list";
 
 const LIST_ALL_KEYSTATS: &str =
@@ -491,19 +491,24 @@ pub async fn update_is_plan_to_trade(
     Ok(())
 }
 
-pub async fn update_is_bad_fundamental(
+pub async fn update_fundamental_assesment(
     session: &Session,
     code: &str,
-    is_bad_fundamental: bool,
+    fundamental_assesment: i8,
 ) -> Result<(), String> {
     if !code_exists(session, code).await? {
         return Err(format!("stock_list code={code} tidak ditemukan"));
     }
 
     session
-        .query_unpaged(UPDATE_IS_BAD_FUNDAMENTAL, (is_bad_fundamental, code))
+        .query_unpaged(
+            UPDATE_FUNDAMENTAL_ASSESMENT,
+            (fundamental_assesment, code),
+        )
         .await
-        .map_err(|e| format!("update is_bad_fundamental {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+        .map_err(|e| {
+            format!("update fundamental_assesment {KEYSPACE}.{TABLE} code={code}: {e}")
+        })?;
     Ok(())
 }
 

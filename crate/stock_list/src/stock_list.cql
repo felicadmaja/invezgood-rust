@@ -48,12 +48,23 @@
 -- | wyckoff_chart                       | regular        | frozen<wyckoff_chart>                   |
 -- | horizontal_line                     | regular        | list<int>                               |
 -- | takeprofit_wyckoff                  | regular        | map<text, double>                       |
--- | is_bad_fundamental                    | regular        | boolean                                 |
+-- | fundamental_assesment                 | regular        | tinyint (-1=bad fund, 0=normal)         |
 -- | notation                              | regular        | frozen<list<frozen<notation_entry>>>    |
--- | is_idx_30                             | regular        | boolean                                 |
--- | is_lq_45                              | regular        | boolean                                 |
--- | is_idx_80                             | regular        | boolean                                 |
+-- | index_family                          | regular        | list<text> (IDX30, LQ45, IDX80, ...)    |
 --
+-- Migrasi is_bad_fundamental (boolean) → fundamental_assesment (tinyint):
+-- ALTER TABLE invezgood.stock_list ADD fundamental_assesment tinyint;
+-- UPDATE per code: true → -1, false → 0 (43 baris saat migrasi 2026-08-28)
+-- DROP MATERIALIZED VIEW stock_list_by_is_plan_to_trade;
+-- ALTER TABLE invezgood.stock_list DROP is_bad_fundamental;
+-- CREATE MATERIALIZED VIEW stock_list_by_is_plan_to_trade AS SELECT * ... (lihat bawah);
+--
+-- Migrasi is_idx_30 / is_lq_45 / is_idx_80 (boolean) → index_family (list<text>):
+-- ALTER TABLE invezgood.stock_list ADD index_family list<text>;
+-- UPDATE per code: gabung flag true → ['IDX30','LQ45','IDX80'] sesuai kolom lama
+-- DROP MATERIALIZED VIEW stock_list_by_is_plan_to_trade;
+-- ALTER TABLE invezgood.stock_list DROP is_idx_30; DROP is_lq_45; DROP is_idx_80;
+-- CREATE MATERIALIZED VIEW stock_list_by_is_plan_to_trade AS SELECT * ... (lihat bawah);
 
 
 

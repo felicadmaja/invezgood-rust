@@ -67,8 +67,8 @@ use crate::pb::{
     UpsertTakeProfitWyckoffByCodeRequest, UpsertTakeProfitWyckoffByCodeResponse,
     DeleteTakeProfitWyckoffByCodeRequest, DeleteTakeProfitWyckoffByCodeResponse,
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
-    UpdateIsPlanToTradeResponse, UpdateIsBadFundamentalByCodeRequest,
-    UpdateIsBadFundamentalByCodeResponse, UpdateNotationInvezgoRequest,
+    UpdateIsPlanToTradeResponse, UpdateFundamentalAssesmentByCodeRequest,
+    UpdateFundamentalAssesmentByCodeResponse, UpdateNotationInvezgoRequest,
     UpdateNotationInvezgoResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
     UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, UpdateSubSectorRequest,
     UpdateSubSectorResponse, UpdateWyckoffChartByCodeRequest,
@@ -272,7 +272,7 @@ impl StockListService {
             wyckoff_chart: row.wyckoff_chart.as_ref().map(Self::wyckoff_chart_from_db),
             horizontal_line: row.horizontal_line.clone().unwrap_or_default(),
             takeprofit_wyckoff: row.takeprofit_wyckoff.clone().unwrap_or_default(),
-            is_bad_fundamental: row.is_bad_fundamental.unwrap_or(false),
+            fundamental_assesment: i32::from(row.fundamental_assesment.unwrap_or(0)),
             notation: row
                 .notation
                 .clone()
@@ -283,9 +283,7 @@ impl StockListService {
                     description: e.description,
                 })
                 .collect(),
-            is_idx_30: row.is_idx_30.unwrap_or(false),
-            is_lq_45: row.is_lq_45.unwrap_or(false),
-            is_idx_80: row.is_idx_80.unwrap_or(false),
+            index_family: row.index_family.clone().unwrap_or_default(),
         }
     }
 
@@ -368,7 +366,7 @@ impl StockListService {
             is_plan_to_trade: row.is_plan_to_trade.unwrap_or(false),
             is_konglomerasi: row.is_konglomerasi.unwrap_or(false),
             takeprofit_wyckoff: row.takeprofit_wyckoff.unwrap_or_default(),
-            is_bad_fundamental: row.is_bad_fundamental.unwrap_or(false),
+            fundamental_assesment: i32::from(row.fundamental_assesment.unwrap_or(0)),
             notation: row
                 .notation
                 .unwrap_or_default()
@@ -378,9 +376,7 @@ impl StockListService {
                     description: e.description,
                 })
                 .collect(),
-            is_idx_30: row.is_idx_30.unwrap_or(false),
-            is_lq_45: row.is_lq_45.unwrap_or(false),
-            is_idx_80: row.is_idx_80.unwrap_or(false),
+            index_family: row.index_family.unwrap_or_default(),
         }
     }
 
@@ -2515,25 +2511,29 @@ impl StockList for StockListService {
         result
     }
 
-    async fn update_is_bad_fundamental_by_code(
+    async fn update_fundamental_assesment_by_code(
         &self,
-        request: Request<UpdateIsBadFundamentalByCodeRequest>,
-    ) -> Result<Response<UpdateIsBadFundamentalByCodeResponse>, Status> {
+        request: Request<UpdateFundamentalAssesmentByCodeRequest>,
+    ) -> Result<Response<UpdateFundamentalAssesmentByCodeResponse>, Status> {
         let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
         let inner = request.into_inner();
         let code = inner.code.trim().to_ascii_uppercase();
 
-        let result: Result<Response<UpdateIsBadFundamentalByCodeResponse>, Status> = async {
+        let result: Result<Response<UpdateFundamentalAssesmentByCodeResponse>, Status> = async {
             if code.is_empty() {
                 return Err(Status::invalid_argument("code wajib diisi"));
             }
 
-            crate::repository::update_is_bad_fundamental(
+            let value = i8::try_from(inner.fundamental_assesment).map_err(|_| {
+                Status::invalid_argument("fundamental_assesment harus antara -128 dan 127")
+            })?;
+
+            crate::repository::update_fundamental_assesment(
                 self.session.as_ref(),
                 &code,
-                inner.is_bad_fundamental,
+                value,
             )
             .await
             .map_err(|e| {
@@ -2544,18 +2544,17 @@ impl StockList for StockListService {
                 }
             })?;
 
-            Ok(Response::new(UpdateIsBadFundamentalByCodeResponse {
+            Ok(Response::new(UpdateFundamentalAssesmentByCodeResponse {
                 success: true,
                 message: format!(
-                    "is_bad_fundamental code={code}={}",
-                    inner.is_bad_fundamental
+                    "fundamental_assesment code={code}={value}"
                 ),
             }))
         }
         .await;
 
         eprintln!(
-            "UpdateIsBadFundamentalByCode {user_name} {code} {}ms",
+            "UpdateFundamentalAssesmentByCode {user_name} {}ms",
             started.elapsed().as_millis()
         );
         result

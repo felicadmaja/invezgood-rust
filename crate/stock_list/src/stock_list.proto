@@ -101,10 +101,10 @@ service StockList {
   rpc DeleteTakeProfitWyckoffByCode(DeleteTakeProfitWyckoffByCodeRequest)
       returns (DeleteTakeProfitWyckoffByCodeResponse);
 
-  // Update kolom is_bad_fundamental di invezgood.stock_list by PK code.
+  // Update kolom fundamental_assesment (tinyint: -1=bad fund, 0=normal) di invezgood.stock_list by PK code.
   // Wajib Bearer login. success=false + message bila code tidak ada atau DB gagal.
-  rpc UpdateIsBadFundamentalByCode(UpdateIsBadFundamentalByCodeRequest)
-      returns (UpdateIsBadFundamentalByCodeResponse);
+  rpc UpdateFundamentalAssesmentByCode(UpdateFundamentalAssesmentByCodeRequest)
+      returns (UpdateFundamentalAssesmentByCodeResponse);
 
   // GET api.invezgo.com/analysis/notation → upsert kolom notation (list UDT) per code di invezgood.stock_list.
   // Bearer dari INVEZGO_BEARER_TOKEN. Request kosong. Code tidak ada di DB → dilewati (skipped_count).
@@ -563,11 +563,9 @@ message StockByCodeResponse {
   repeated int32 horizontal_line = 19;
   string sub_sector = 20;
   map<string, double> takeprofit_wyckoff = 21;
-  bool is_bad_fundamental = 22;
+  int32 fundamental_assesment = 22;
   repeated NotationEntry notation = 23;
-  bool is_idx_30 = 24;
-  bool is_lq_45 = 25;
-  bool is_idx_80 = 26;
+  repeated string index_family = 24;
 }
 
 message NotationEntry {
@@ -719,12 +717,12 @@ message UpdateIsPlanToTradeResponse {
   bool is_plan_to_trade = 2;
 }
 
-message UpdateIsBadFundamentalByCodeRequest {
+message UpdateFundamentalAssesmentByCodeRequest {
   string code = 1;
-  bool is_bad_fundamental = 2;
+  int32 fundamental_assesment = 2;
 }
 
-message UpdateIsBadFundamentalByCodeResponse {
+message UpdateFundamentalAssesmentByCodeResponse {
   bool success = 1;
   string message = 2;
 }
@@ -935,12 +933,10 @@ message StockListRow {
   bool is_konglomerasi = 9;
   string sub_sector = 10;
   map<string, double> takeprofit_wyckoff = 11;
-  bool is_bad_fundamental = 12;
+  int32 fundamental_assesment = 12;
   // Notasi BEI per emiten (E, X, M, dll.) — kolom frozen list UDT invezgood.stock_list.notation, sumber GET Invezgo /analysis/notation.
   repeated NotationEntry notation = 13;
-  bool is_idx_30 = 14;
-  bool is_lq_45 = 15;
-  bool is_idx_80 = 16;
+  repeated string index_family = 14;
 }
 
 message GetAllStocksResponse {
