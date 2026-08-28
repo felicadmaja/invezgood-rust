@@ -527,9 +527,9 @@ async fn run_portofolio_history_scrape(
     result
 }
 
-/// Dipanggil dari readiness poller setelah tiap tick: paralel Invezgo emiten_trending (HTTP)
-/// + serial Chrome portofolio → pending_order — Senin–Kamis 09:00–12:00 & 13:30–16:00;
-/// Jumat 09:00–11:30 & 14:00–16:00, bila `ready`.
+/// Dipanggil dari readiness poller setelah tiap tick: serial Chrome
+/// GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit
+/// — Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00, bila `ready`.
 /// `None` = selesai scrape Chrome (Yahoo spike tidak di sini).
 pub async fn run_poller_stockbit_scrapes(
     session: Arc<Session>,
@@ -553,16 +553,8 @@ pub async fn run_poller_stockbit_scrapes(
     }
 
     println!(
-        "Poller scrapes: paralel GetLatestEmitenTrendingFromInvezgo (HTTP) + serial Chrome GetAllPortofolioFromStockbit → GetAllPendingOrderFromStockbit"
+        "Poller scrapes: serial Chrome GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit"
     );
-
-    let session_invezgo = Arc::clone(&session);
-    let invezgo_handle = tokio::spawn(async move {
-        match crate::emiten_trending_invezgo::fetch_and_save(session_invezgo).await {
-            Ok(n) => println!("Poller GetLatestEmitenTrendingFromInvezgo OK: {n} baris di-upsert"),
-            Err(e) => eprintln!("Poller GetLatestEmitenTrendingFromInvezgo skip/fail: {e}"),
-        }
-    });
 
     match run_portofolio_all_scrape(
         Arc::clone(&session),
@@ -575,13 +567,16 @@ pub async fn run_poller_stockbit_scrapes(
         Err(e) => eprintln!("Poller GetAllPortofolioFromStockbit skip/fail: {e}"),
     }
 
+    match run_emiten_trending_movers_scrape(session.clone(), BrowserLockClass::Background).await {
+        Ok((gainer, loser)) => println!(
+            "Poller GetLatestEmitenTrendingFromStockbit OK: gainer={gainer} loser={loser}"
+        ),
+        Err(e) => eprintln!("Poller GetLatestEmitenTrendingFromStockbit skip/fail: {e}"),
+    }
+
     match run_pending_order_all_scrape(session, BrowserLockClass::Background).await {
         Ok(n) => println!("Poller GetAllPendingOrderFromStockbit OK: {n} baris"),
         Err(e) => eprintln!("Poller GetAllPendingOrderFromStockbit skip/fail: {e}"),
-    }
-
-    if let Err(e) = invezgo_handle.await {
-        eprintln!("Poller GetLatestEmitenTrendingFromInvezgo task join fail: {e}");
     }
 
     None
