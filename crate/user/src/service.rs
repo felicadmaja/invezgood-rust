@@ -34,6 +34,24 @@ fn anonymous_is_stockbit_ready_response() -> IsStockbitReadyResponse {
     }
 }
 
+fn need_login_status() -> Status {
+    Status::unauthenticated("login diperlukan")
+}
+
+fn anonymous_price_spike_response() -> PriceSpikeResponse {
+    PriceSpikeResponse {
+        success: false,
+        message: "Login diperlukan".to_string(),
+        data: Vec::new(),
+        is_need_login: true,
+    }
+}
+
+async fn push_anonymous_need_login<T>(tx: &mpsc::Sender<Result<T, Status>>, ok_message: T) {
+    let _ = tx.send(Ok(ok_message)).await;
+    let _ = tx.send(Err(need_login_status())).await;
+}
+
 pub struct UserService {
     session: Arc<Session>,
     auth_sessions: SessionStore,
@@ -166,21 +184,21 @@ impl User for UserService {
                 Ok(auth) => auth.nama,
                 Err(_) => {
                     eprintln!(
-                        "{rpc_name} anonymous {}ms — abaikan (session invalid, is_need_login=true)",
+                        "{rpc_name} anonymous {}ms — session invalid (is_need_login=true, UNAUTHENTICATED)",
                         started.elapsed().as_millis()
                     );
-                    let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(1);
-                    let _ = tx.send(Ok(anonymous_is_stockbit_ready_response())).await;
+                    let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(2);
+                    push_anonymous_need_login(&tx, anonymous_is_stockbit_ready_response()).await;
                     return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
                 }
             },
             Err(_) => {
                 eprintln!(
-                    "{rpc_name} anonymous {}ms — abaikan (tanpa auth, is_need_login=true)",
+                    "{rpc_name} anonymous {}ms — tanpa auth (is_need_login=true, UNAUTHENTICATED)",
                     started.elapsed().as_millis()
                 );
-                let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(1);
-                let _ = tx.send(Ok(anonymous_is_stockbit_ready_response())).await;
+                let (tx, rx) = mpsc::channel::<Result<IsStockbitReadyResponse, Status>>(2);
+                push_anonymous_need_login(&tx, anonymous_is_stockbit_ready_response()).await;
                 return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
             }
         };
@@ -275,21 +293,21 @@ impl User for UserService {
                 Ok(auth) => auth.nama,
                 Err(_) => {
                     eprintln!(
-                        "{rpc_name} anonymous {}ms — abaikan (session invalid, tidak subscribe Yahoo poller)",
+                        "{rpc_name} anonymous {}ms — session invalid (is_need_login=true, UNAUTHENTICATED)",
                         started.elapsed().as_millis()
                     );
-                    let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(1);
-                    drop(tx);
+                    let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(2);
+                    push_anonymous_need_login(&tx, anonymous_price_spike_response()).await;
                     return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
                 }
             },
             Err(_) => {
                 eprintln!(
-                    "{rpc_name} anonymous {}ms — abaikan (tanpa auth, tidak subscribe Yahoo poller)",
+                    "{rpc_name} anonymous {}ms — tanpa auth (is_need_login=true, UNAUTHENTICATED)",
                     started.elapsed().as_millis()
                 );
-                let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(1);
-                drop(tx);
+                let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(2);
+                push_anonymous_need_login(&tx, anonymous_price_spike_response()).await;
                 return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
             }
         };
@@ -339,6 +357,7 @@ impl User for UserService {
                             success: snap.success,
                             message: snap.message.clone(),
                             data,
+                            is_need_login: false,
                         }),
                     )
                     .await;
@@ -387,21 +406,21 @@ impl User for UserService {
                 Ok(auth) => auth.nama,
                 Err(_) => {
                     eprintln!(
-                        "{rpc_name} anonymous {}ms — abaikan (session invalid, tidak subscribe Invezgo poller)",
+                        "{rpc_name} anonymous {}ms — session invalid (is_need_login=true, UNAUTHENTICATED)",
                         started.elapsed().as_millis()
                     );
-                    let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(1);
-                    drop(tx);
+                    let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(2);
+                    push_anonymous_need_login(&tx, anonymous_price_spike_response()).await;
                     return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
                 }
             },
             Err(_) => {
                 eprintln!(
-                    "{rpc_name} anonymous {}ms — abaikan (tanpa auth, tidak subscribe Invezgo poller)",
+                    "{rpc_name} anonymous {}ms — tanpa auth (is_need_login=true, UNAUTHENTICATED)",
                     started.elapsed().as_millis()
                 );
-                let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(1);
-                drop(tx);
+                let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(2);
+                push_anonymous_need_login(&tx, anonymous_price_spike_response()).await;
                 return Ok(Response::new(Box::pin(ReceiverStream::new(rx))));
             }
         };
@@ -451,6 +470,7 @@ impl User for UserService {
                             success: snap.success,
                             message: snap.message.clone(),
                             data,
+                            is_need_login: false,
                         }),
                     )
                     .await;

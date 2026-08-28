@@ -3,11 +3,12 @@ syntax = "proto3";
 package user;
 
 service User {
-  // Cek email+password (bcrypt) di invezgood.user; bila valid buat session token in-memory (256-bit CSPRNG, 64 hex).
-  // Response: token, nama, role, email, expires_at (Unix detik, sesi 12 jam). Error via gRPC status.
+  // Cek email+password (bcrypt) di invezgood.user; bila valid terbit JWT HS256 (JWT_SECRET).
+  // Sesi aktif di-track in-memory by jti; masa berlaku JWT_EXPIRY_SECS (.env, default 30 hari).
+  // Response: token (JWT), nama, role, email, expires_at (Unix detik). Error via gRPC status.
   rpc Login(LoginRequest) returns (LoginResponse);
 
-  // Hapus session token dari store in-memory; idempotent bila token tidak ada.
+  // Revoke JWT: hapus jti dari store in-memory sehingga token tidak valid meski belum expired; idempotent bila sudah logout.
   rpc Logout(LogoutRequest) returns (LogoutResponse);
 
   // Token ring scan invezgood.user; baca semua baris user, read-only.
@@ -23,7 +24,7 @@ service User {
   //     2. GetLatestEmitenTrendingFromStockbit
   //     3. GetAllPendingOrderFromStockbit
   // Subscribe stream: server push saat status berubah + heartbeat ~30s.
-  // Wajib Bearer login valid. Tanpa auth / session invalid: push 1x is_need_login=true lalu stream ditutup.
+  // Wajib Bearer login valid. Tanpa auth / session invalid: push 1x is_need_login=true lalu UNAUTHENTICATED, stream ditutup.
   // success=true bila sesi Stockbit sudah login/ready.
   rpc IsStockbitReady(IsStockbitReadyRequest) returns (stream IsStockbitReadyResponse);
 
@@ -45,8 +46,7 @@ service User {
   // ganti hari → key baru (cache lama invalid). SET `...spike_reported:{YYYY-MM-DD}`
   // untuk skip GET Yahoo emiten yang sudah di-cache hari itu.
   // Stream ke client selalu isi cache Redis (bukan hanya hasil tick Yahoo terbaru).
-  // Wajib Bearer login valid. Tanpa auth / session invalid: stream langsung ditutup (tidak
-  // subscribe poller Yahoo, tidak hit API). Request kosong. Push: success, message, data.
+  // Wajib Bearer login valid. Tanpa auth / session invalid: push 1x is_need_login=true lalu UNAUTHENTICATED (tidak subscribe poller Yahoo).
   // Subscribe: push saat data berubah + heartbeat ~30s. Banyak subscriber tidak menambah frekuensi poll.
   rpc GetPriceSpikeFromYahooFinance(GetPriceSpikeFromYahooFinanceRequest) returns (stream PriceSpikeResponse);
 
@@ -62,7 +62,7 @@ service User {
   //   opening 09:00–09:05 — `invezgood:invezgo:spike_opening_today:{date}` + `spike_opening_reported:{date}`;
   //   intraday di luar jam itu — `invezgood:invezgo:spike_intraday_today:{date}` + `spike_intraday_reported:{date}`.
   // Stream ke client: merge kedua JSON; skip GET Invezgo hanya cache mode yang sedang aktif.
-  // Wajib Bearer login; tanpa auth stream ditutup tanpa hit Invezgo.
+  // Wajib Bearer login; tanpa auth / session invalid: push 1x is_need_login=true lalu UNAUTHENTICATED (tidak subscribe poller Invezgo).
   rpc GetPriceSpikeFromInvezGo(GetPriceSpikeFromInvezGoRequest) returns (stream PriceSpikeResponse);
 
 
@@ -145,6 +145,8 @@ message PriceSpikeResponse {
   bool success = 1;
   string message = 2;
   repeated PriceSpikeRow data = 3;
+  // true bila request anonymous (tanpa auth / session invalid).
+  bool is_need_login = 4;
 }
 
 message CekUsageRequest {}

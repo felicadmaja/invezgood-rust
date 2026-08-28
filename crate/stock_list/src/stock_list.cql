@@ -50,6 +50,13 @@
 -- | takeprofit_wyckoff                  | regular        | map<text, double>                       |
 -- | is_bad_fundamental                    | regular        | boolean                                 |
 -- | notation                              | regular        | frozen<list<frozen<notation_entry>>>    |
+-- | is_idx_30                             | regular        | boolean                                 |
+-- | is_lq_45                              | regular        | boolean                                 |
+-- | is_idx_80                             | regular        | boolean                                 |
+--
+
+
+
 --
 -- UDT notation_entry:
 --   notation text, description text

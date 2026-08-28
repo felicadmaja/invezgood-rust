@@ -975,6 +975,12 @@ pub struct StockListRow {
     pub is_bad_fundamental: Option<bool>,
     #[scylla(default_when_null)]
     pub notation: NotationDb,
+    #[scylla(default_when_null)]
+    pub is_idx_30: Option<bool>,
+    #[scylla(default_when_null)]
+    pub is_lq_45: Option<bool>,
+    #[scylla(default_when_null)]
+    pub is_idx_80: Option<bool>,
 }
 
 /// Subset kolom untuk `GetWyckoffChartByCode`.
@@ -1039,6 +1045,12 @@ pub struct StockListSummaryRow {
     pub is_bad_fundamental: Option<bool>,
     #[scylla(default_when_null)]
     pub notation: NotationDb,
+    #[scylla(default_when_null)]
+    pub is_idx_30: Option<bool>,
+    #[scylla(default_when_null)]
+    pub is_lq_45: Option<bool>,
+    #[scylla(default_when_null)]
+    pub is_idx_80: Option<bool>,
 }
 
 #[derive(Debug, Clone)]

@@ -283,6 +283,9 @@ impl StockListService {
                     description: e.description,
                 })
                 .collect(),
+            is_idx_30: row.is_idx_30.unwrap_or(false),
+            is_lq_45: row.is_lq_45.unwrap_or(false),
+            is_idx_80: row.is_idx_80.unwrap_or(false),
         }
     }
 
@@ -375,6 +378,9 @@ impl StockListService {
                     description: e.description,
                 })
                 .collect(),
+            is_idx_30: row.is_idx_30.unwrap_or(false),
+            is_lq_45: row.is_lq_45.unwrap_or(false),
+            is_idx_80: row.is_idx_80.unwrap_or(false),
         }
     }
 

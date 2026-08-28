@@ -565,6 +565,9 @@ message StockByCodeResponse {
   map<string, double> takeprofit_wyckoff = 21;
   bool is_bad_fundamental = 22;
   repeated NotationEntry notation = 23;
+  bool is_idx_30 = 24;
+  bool is_lq_45 = 25;
+  bool is_idx_80 = 26;
 }
 
 message NotationEntry {
@@ -935,6 +938,9 @@ message StockListRow {
   bool is_bad_fundamental = 12;
   // Notasi BEI per emiten (E, X, M, dll.) — kolom frozen list UDT invezgood.stock_list.notation, sumber GET Invezgo /analysis/notation.
   repeated NotationEntry notation = 13;
+  bool is_idx_30 = 14;
+  bool is_lq_45 = 15;
+  bool is_idx_80 = 16;
 }
 
 message GetAllStocksResponse {
