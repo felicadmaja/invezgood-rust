@@ -25,6 +25,13 @@ service Chart {
   // GET Invezgo analysis/chart/stock/{code}?from=&to= bila cache miss.
   rpc GetHistoryChartFromInvezgo(GetHistoryChartFromInvezgoRequest)
       returns (GetHistoryChartFromInvezgoResponse);
+
+  // Memerlukan user login valid. Tanpa auth / session invalid: response default (tidak GET Invezgo).
+  // Cache 2 lapis (Moka → Redis → Invezgo API). Key: COMPOSITE + from_date + to_date.
+  // GET api.invezgo.com/analysis/chart/index/COMPOSITE?from={from_date}&to={to_date} bila cache miss.
+  // Response: array bar OHLCV IHSG (COMPOSITE), field volume string dari API.
+  rpc GetHistoryIHSGFromInvezgo(GetHistoryIHSGFromInvezgoRequest)
+      returns (GetHistoryIHSGFromInvezgoResponse);
 }
 
 message GetCurrentDayChartFromInvezgoRequest {
@@ -70,6 +77,17 @@ message ChartBar {
 }
 
 message GetHistoryChartFromInvezgoResponse {
+  repeated ChartBar items = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message GetHistoryIHSGFromInvezgoRequest {
+  string from_date = 1;
+  string to_date = 2;
+}
+
+message GetHistoryIHSGFromInvezgoResponse {
   repeated ChartBar items = 1;
   bool success = 2;
   string message = 3;

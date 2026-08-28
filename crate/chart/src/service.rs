@@ -9,6 +9,7 @@ use crate::pb::chart_server::Chart;
 use crate::pb::{
     GetCurrentDayChartFromInvezgoRequest, GetCurrentDayChartFromInvezgoResponse,
     GetHistoryChartFromInvezgoRequest, GetHistoryChartFromInvezgoResponse,
+    GetHistoryIhsgFromInvezgoRequest, GetHistoryIhsgFromInvezgoResponse,
 };
 
 enum CurrentDayMode {
@@ -296,6 +297,58 @@ impl Chart for ChartService {
         } else {
             eprintln!(
                 "\x1b[32mGetHistoryChartFromInvezgo {user_name} {elapsed}ms - {cache_detail}\x1b[0m"
+            );
+        }
+        result
+    }
+
+    async fn get_history_ihsg_from_invezgo(
+        &self,
+        request: Request<GetHistoryIhsgFromInvezgoRequest>,
+    ) -> Result<Response<GetHistoryIhsgFromInvezgoResponse>, Status> {
+        let started = std::time::Instant::now();
+        let Some(user_name) = self
+            .resolve_user_name("GetHistoryIHSGFromInvezgo", started, &request)
+            .await
+        else {
+            return Ok(Response::new(GetHistoryIhsgFromInvezgoResponse::default()));
+        };
+
+        let mut cache_detail = String::new();
+
+        let result: Result<Response<GetHistoryIhsgFromInvezgoResponse>, Status> = async {
+            let req = request.into_inner();
+            let from_date = Self::normalize_date("from_date", &req.from_date)?;
+            let to_date = Self::normalize_date("to_date", &req.to_date)?;
+
+            match self.cache.get_ihsg_chart(&from_date, &to_date).await {
+                Ok((items, detail)) => {
+                    cache_detail = detail;
+                    Ok(Response::new(GetHistoryIhsgFromInvezgoResponse {
+                        success: true,
+                        message: format!("{} baris", items.len()),
+                        items,
+                    }))
+                }
+                Err(error) => {
+                    cache_detail = format!("ihsg chart error: {error}");
+                    Ok(Response::new(GetHistoryIhsgFromInvezgoResponse {
+                        success: false,
+                        message: error,
+                        items: vec![],
+                    }))
+                }
+            }
+        }
+        .await;
+
+        let elapsed = started.elapsed().as_millis();
+        let is_cache_hit = cache_detail.contains("HIT moka") || cache_detail.contains("HIT redis");
+        if is_cache_hit {
+            eprintln!("GetHistoryIHSGFromInvezgo {user_name} {elapsed}ms - {cache_detail}");
+        } else {
+            eprintln!(
+                "\x1b[32mGetHistoryIHSGFromInvezgo {user_name} {elapsed}ms - {cache_detail}\x1b[0m"
             );
         }
         result

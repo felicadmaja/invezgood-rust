@@ -4,7 +4,9 @@ use serde::Deserialize;
 use crate::pb::{ChartBar, GetCurrentDayChartFromInvezgoResponse};
 
 const INVEZGO_CHART_STOCK_URL: &str = "https://api.invezgo.com/analysis/chart/stock";
+const INVEZGO_CHART_INDEX_URL: &str = "https://api.invezgo.com/analysis/chart/index";
 const INVEZGO_INTRADAY_DATA_URL: &str = "https://api.invezgo.com/analysis/intraday-data";
+const IHSG_INDEX_CODE: &str = "COMPOSITE";
 
 #[derive(Debug, Deserialize)]
 struct ApiChartBar {
@@ -76,9 +78,21 @@ pub async fn fetch_from_api(
     to_date: &str,
 ) -> Result<Vec<ChartBar>, String> {
     let url = format!("{INVEZGO_CHART_STOCK_URL}/{code}?from={from_date}&to={to_date}");
-    let body = invezgo_http::get(&url).await?;
+    fetch_chart_bars_from_url(&url).await
+}
+
+/// GET index COMPOSITE (IHSG) — `analysis/chart/index/COMPOSITE?from=&to=`.
+pub async fn fetch_ihsg_from_api(from_date: &str, to_date: &str) -> Result<Vec<ChartBar>, String> {
+    let url = format!(
+        "{INVEZGO_CHART_INDEX_URL}/{IHSG_INDEX_CODE}?from={from_date}&to={to_date}"
+    );
+    fetch_chart_bars_from_url(&url).await
+}
+
+async fn fetch_chart_bars_from_url(url: &str) -> Result<Vec<ChartBar>, String> {
+    let body = invezgo_http::get(url).await?;
     let parsed: Vec<ApiChartBar> = serde_json::from_str(&body)
-        .map_err(|e| format!("parse JSON Invezgo chart/stock gagal: {e}"))?;
+        .map_err(|e| format!("parse JSON Invezgo chart gagal: {e}"))?;
     parsed.into_iter().map(api_bar_to_proto).collect()
 }
 

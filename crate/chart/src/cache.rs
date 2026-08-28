@@ -252,6 +252,40 @@ impl ChartCache {
         from_date: &str,
         to_date: &str,
     ) -> Result<(Vec<ChartBar>, String), String> {
+        self.get_chart_cached(
+            code,
+            from_date,
+            to_date,
+            invezgo::fetch_from_api(code, from_date, to_date),
+        )
+        .await
+    }
+
+    /// Cache history IHSG (index COMPOSITE) — pola sama `get_chart`.
+    pub async fn get_ihsg_chart(
+        &self,
+        from_date: &str,
+        to_date: &str,
+    ) -> Result<(Vec<ChartBar>, String), String> {
+        self.get_chart_cached(
+            "COMPOSITE",
+            from_date,
+            to_date,
+            invezgo::fetch_ihsg_from_api(from_date, to_date),
+        )
+        .await
+    }
+
+    async fn get_chart_cached<F>(
+        &self,
+        code: &str,
+        from_date: &str,
+        to_date: &str,
+        fetch: F,
+    ) -> Result<(Vec<ChartBar>, String), String>
+    where
+        F: std::future::Future<Output = Result<Vec<ChartBar>, String>>,
+    {
         let key = Self::cache_key(code, from_date, to_date);
 
         if let Some(cached) = self.moka.get(&key).await {
@@ -269,7 +303,7 @@ impl ChartCache {
             ));
         }
 
-        let items = invezgo::fetch_from_api(code, from_date, to_date).await?;
+        let items = fetch.await?;
         let cached: Vec<CachedChartBar> = items.iter().map(CachedChartBar::from).collect();
         self.moka.insert(key.clone(), cached.clone()).await;
         self.redis_set(&key, &cached).await?;
