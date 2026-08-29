@@ -75,7 +75,8 @@ use crate::pb::{
     UpdateWyckoffChartByCodeResponse, WyckoffChartData,
 };
 
-const CACHE_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
+const INVEZGO_DATA_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
+const SHARE_HOLDER_DATA_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
 const KEYSTATS_FROM_STOCKBIT_COOLDOWN: Duration = Duration::from_secs(5);
 
 type GetStockbitProfileByCodeStream =
@@ -198,11 +199,11 @@ impl StockListService {
         );
     }
 
-    fn should_refresh(updated_at: Option<DateTime<Utc>>) -> bool {
+    fn should_refresh(updated_at: Option<DateTime<Utc>>, max_age_secs: i64) -> bool {
         let Some(updated_at) = updated_at else {
             return true;
         };
-        Utc::now().timestamp() - updated_at.timestamp() > CACHE_MAX_AGE_SECS
+        Utc::now().timestamp() - updated_at.timestamp() > max_age_secs
     }
 
     fn stock_by_code_from_db_row(row: &DbStockListRow) -> StockByCodeResponse {
@@ -2000,7 +2001,7 @@ impl StockList for StockListService {
                             "Stockbit profile di-upsert ke stock_list"
                         } else {
                             eprintln!(
-                                "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<30 hari, data ada)"
+                                "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<7 hari, data ada)"
                             );
                             "Stockbit profile dari Scylla"
                         };
@@ -2159,7 +2160,9 @@ impl StockList for StockListService {
             for kind in ALL_STATEMENT_KINDS {
                 let refresh = existing
                     .as_ref()
-                    .map(|row| Self::should_refresh(kind.updated_at(row)))
+                    .map(|row| {
+                        Self::should_refresh(kind.updated_at(row), INVEZGO_DATA_MAX_AGE_SECS)
+                    })
                     .unwrap_or(true);
 
                 if refresh {
@@ -2271,7 +2274,12 @@ impl StockList for StockListService {
                 for kind in ALL_SHARE_HOLDER_KINDS {
                     let refresh = existing
                         .as_ref()
-                        .map(|row| Self::should_refresh(kind.updated_at(row)))
+                        .map(|row| {
+                            Self::should_refresh(
+                                kind.updated_at(row),
+                                SHARE_HOLDER_DATA_MAX_AGE_SECS,
+                            )
+                        })
                         .unwrap_or(true);
 
                     if refresh {
@@ -2285,7 +2293,12 @@ impl StockList for StockListService {
 
                 let refresh_company_information = existing
                     .as_ref()
-                    .map(|row| Self::should_refresh(row.company_information_updated_at))
+                    .map(|row| {
+                        Self::should_refresh(
+                            row.company_information_updated_at,
+                            SHARE_HOLDER_DATA_MAX_AGE_SECS,
+                        )
+                    })
                     .unwrap_or(true);
 
                 if refresh_company_information {
@@ -2331,7 +2344,12 @@ impl StockList for StockListService {
 
             let refresh = existing
                 .as_ref()
-                .map(|row| Self::should_refresh(row.corporate_action_updated_at))
+                .map(|row| {
+                    Self::should_refresh(
+                        row.corporate_action_updated_at,
+                        INVEZGO_DATA_MAX_AGE_SECS,
+                    )
+                })
                 .unwrap_or(true);
 
             if refresh {

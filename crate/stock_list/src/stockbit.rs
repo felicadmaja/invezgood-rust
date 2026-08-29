@@ -17,7 +17,7 @@ use crate::model::{
 
 const KEYSTATS_RATIO_URL: &str = "https://exodus.stockbit.com/keystats/ratio/v1";
 const KEYSTATS_YEAR_LIMIT: u32 = 10;
-const STOCKBIT_KEYSTATS_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
+const STOCKBIT_KEYSTATS_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
 
 #[derive(Debug, Deserialize)]
 struct ApiResponse {
@@ -184,7 +184,7 @@ fn is_updated_at_stale(updated_at: Option<DateTime<Utc>>) -> bool {
         > STOCKBIT_KEYSTATS_MAX_AGE_SECS
 }
 
-/// Perlu GET Stockbit API bila salah satu kolom null/[] atau *_updated_at >30 hari.
+/// Perlu GET Stockbit API bila salah satu kolom null/[] atau *_updated_at >7 hari.
 pub fn needs_stockbit_keystats_refresh(row: &KeyStatsFromStockbitRow) -> bool {
     is_closure_empty(&row.closure_fin_items_results_stockbit)
         || is_updated_at_stale(row.closure_fin_items_results_stockbit_updated_at)

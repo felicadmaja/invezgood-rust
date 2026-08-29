@@ -19,12 +19,12 @@ service StockList {
       returns (stream GetStockByRepeatedCodeResponse);
 
   // Stream: push KeyStatsFromStockbitResponse per bagian (stats, closure group, fin year group, dividend).
-  // GET Stockbit API bila kolom kosong atau *_updated_at >30 hari. Rate limit 1× / 5 detik saat GET API.
+  // GET Stockbit API bila kolom kosong atau *_updated_at >7 hari. Rate limit 1× / 5 detik saat GET API.
   rpc GetKeyStatsFromStockbit(GetKeyStatsFromStockbitRequest)
       returns (stream KeyStatsFromStockbitResponse);
 
   // Stream: push StockbitProfileResponse (meta + tiap item repeated) per code.
-  // GET Stockbit API bila stockbit_profile kosong atau stockbit_profile_updated_at ≥ 30 hari.
+  // GET Stockbit API bila stockbit_profile kosong atau stockbit_profile_updated_at ≥ 7 hari.
   rpc GetStockbitProfileByCode(GetStockbitProfileByCodeRequest)
       returns (stream StockbitProfileResponse);
 
@@ -34,7 +34,7 @@ service StockList {
       returns (stream StockbitReportsRow);
 
   // GET Invezgo per jenis → upsert keystats, balance_statement, income_statement, cash_flow + *_updated_at.
-  // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >7 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Request: code wajib. Response: FinancialStatementResponse (keystats, balance_statement, income_statement, cash_flow).
   rpc GetFinancialStatementByCode(GetFinancialStatementByCodeRequest) returns (FinancialStatementResponse);
 
@@ -48,7 +48,7 @@ service StockList {
   rpc GetShareHolderAndCompanyInformationByCode(GetShareHolderAndCompanyInformationByCodeRequest) returns (ShareHolderAndCompanyInformationByCodeResponse);
 
   // GET api.invezgo.com/analysis/calendar?code={code} → upsert corporate_action + corporate_action_updated_at.
-  // Baca Scylla by PK code; refresh API bila corporate_action_updated_at kosong atau >30 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Baca Scylla by PK code; refresh API bila corporate_action_updated_at kosong atau >7 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Request: code wajib. Response: CorporateActionByCodeResponse.
   rpc GetCorporateActionByCode(GetCorporateActionByCodeRequest) returns (CorporateActionByCodeResponse);
 
