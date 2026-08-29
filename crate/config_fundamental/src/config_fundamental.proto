@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package config_fundamental;
+
+service ConfigFundamental {}
+
+message ConfigFundamentalRow {
+  string key = 1;
+  double value = 2;
+  string description = 3;
+}
