@@ -31,7 +31,7 @@
 -- | cash_from_investment     | regular        | double    |
 -- | cash_from_financing      | regular        | double    |
 -- | capital_expenditure      | regular        | double    |
--- | free_cash_flow           | regular        | double    | CFO - CapEx (standalone)
+-- | free_cash_flow           | regular        | double    | CFO + CapEx (CapEx negatif, standalone)
 -- | net_income               | regular        | double    |
 -- | uploaded_at              | regular        | timestamp |
 -- | source_zip_hash          | regular        | text      |

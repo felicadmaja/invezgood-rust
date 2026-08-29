@@ -53,7 +53,7 @@ pub struct StandaloneMetrics {
 
 impl StandaloneMetrics {
     pub fn free_cash_flow(&self) -> f64 {
-        self.cash_from_operation - self.capital_expenditure
+        self.cash_from_operation + self.capital_expenditure
     }
 }
 

@@ -31,6 +31,15 @@ const CONCEPT_CAPEX_CANDIDATES: &[&str] = &[
 
 const CONTEXT_YTD: &str = "CurrentYearDuration";
 
+/// Cara interpretasi tanda dari tag inline XBRL.
+#[derive(Debug, Clone, Copy)]
+enum IxAmountKind {
+    /// Net cash flow / laba: hormati `sign="-"` pada tag.
+    Signed,
+    /// CapEx / pengeluaran: simpan selalu negatif.
+    NegativeOutflow,
+}
+
 struct ZipHtmlCorpus {
     entries: Vec<(String, String)>,
 }
@@ -110,23 +119,31 @@ pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
             &is_order,
             &[CONCEPT_NET_INCOME],
             "net income (ProfitLoss)",
+            IxAmountKind::Signed,
         )?,
         cash_from_operation: extract_required_from_htmls(
             &cf_order,
             &[CONCEPT_CFO],
             "cash from operation",
+            IxAmountKind::Signed,
         )?,
         cash_from_investment: extract_required_from_htmls(
             &cf_order,
             &[CONCEPT_CFI],
             "cash from investment",
+            IxAmountKind::Signed,
         )?,
         cash_from_financing: extract_required_from_htmls(
             &cf_order,
             &[CONCEPT_CFF],
             "cash from financing",
+            IxAmountKind::Signed,
         )?,
-        capital_expenditure: extract_optional_from_htmls(&cf_order, CONCEPT_CAPEX_CANDIDATES),
+        capital_expenditure: extract_optional_from_htmls(
+            &cf_order,
+            CONCEPT_CAPEX_CANDIDATES,
+            IxAmountKind::NegativeOutflow,
+        ),
     };
 
     Ok(ParsedXlbrZip {
@@ -140,8 +157,9 @@ fn extract_required_from_htmls(
     htmls: &[&str],
     concepts: &[&str],
     label: &str,
+    kind: IxAmountKind,
 ) -> Result<f64, String> {
-    extract_from_htmls(htmls, concepts).ok_or_else(|| {
+    extract_from_htmls(htmls, concepts, kind).ok_or_else(|| {
         let concepts = concepts
             .iter()
             .map(|c| format!("'{c}'"))
@@ -151,14 +169,14 @@ fn extract_required_from_htmls(
     })
 }
 
-fn extract_optional_from_htmls(htmls: &[&str], concepts: &[&str]) -> f64 {
-    extract_from_htmls(htmls, concepts).unwrap_or(0.0)
+fn extract_optional_from_htmls(htmls: &[&str], concepts: &[&str], kind: IxAmountKind) -> f64 {
+    extract_from_htmls(htmls, concepts, kind).unwrap_or(0.0)
 }
 
-fn extract_from_htmls(htmls: &[&str], concepts: &[&str]) -> Option<f64> {
+fn extract_from_htmls(htmls: &[&str], concepts: &[&str], kind: IxAmountKind) -> Option<f64> {
     for concept in concepts {
         for html in htmls {
-            if let Some(value) = extract_non_fraction_if_present(html, concept, CONTEXT_YTD) {
+            if let Some(value) = extract_non_fraction_if_present(html, concept, CONTEXT_YTD, kind) {
                 return Some(value);
             }
         }
@@ -288,7 +306,12 @@ fn extract_non_numeric(html: &str, concept: &str, context: &str) -> Result<Strin
     extract_ix_non_numeric_value(&html[start..])
 }
 
-fn extract_non_fraction_if_present(html: &str, concept: &str, context: &str) -> Option<f64> {
+fn extract_non_fraction_if_present(
+    html: &str,
+    concept: &str,
+    context: &str,
+    kind: IxAmountKind,
+) -> Option<f64> {
     let pattern = format!(r#"name="{concept}" contextRef="{context}""#);
     let start = html.find(&pattern)?;
     let tag_end = html[start..].find('>')? + start + 1;
@@ -302,18 +325,19 @@ fn extract_non_fraction_if_present(html: &str, concept: &str, context: &str) -> 
     }
     let close = inner.find("</ix:nonFraction>")?;
     let display = inner[..close].trim();
-    let scale = parse_attr_i32(tag, "scale").unwrap_or(0);
-    let value = parse_display_amount(display).ok()?;
-    let _ = scale;
-    Some(value)
+    parse_ix_non_fraction(tag, display, kind)
 }
 
-fn parse_attr_i32(tag: &str, name: &str) -> Option<i32> {
-    let needle = format!("{name}=\"");
-    let start = tag.find(&needle)? + needle.len();
-    let rest = &tag[start..];
-    let end = rest.find('"')?;
-    rest[..end].parse().ok()
+fn parse_ix_non_fraction(tag: &str, display: &str, kind: IxAmountKind) -> Option<f64> {
+    let mut value = parse_display_amount(display).ok()?;
+    // IDX inline XBRL: outflow ditandai sign="-" di tag, angka di dalam tag tetap positif.
+    if tag.contains("sign=\"-\"") && value > 0.0 {
+        value = -value;
+    }
+    Some(match kind {
+        IxAmountKind::Signed => value,
+        IxAmountKind::NegativeOutflow => -value.abs(),
+    })
 }
 
 fn parse_display_amount(display: &str) -> Result<f64, String> {
@@ -369,6 +393,24 @@ mod tests {
     }
 
     #[test]
+    fn ix_sign_negative_investing_outflow() {
+        let tag = r#"<ix:nonFraction name="idx-cor:NetCashFlowsReceivedFromUsedInInvestingActivities" contextRef="CurrentYearDuration" unitRef="USD" sign="-""#;
+        let value = parse_ix_non_fraction(tag, "68,293", IxAmountKind::Signed).unwrap();
+        assert_eq!(value, -68_293.0);
+    }
+
+    #[test]
+    fn ix_sign_capex_negative_outflow() {
+        let tag = r#"<ix:nonFraction name="idx-cor:PaymentsForAcquisitionOfPropertyPlantAndEquipment" contextRef="CurrentYearDuration" sign="-""#;
+        let value = parse_ix_non_fraction(tag, "76,165", IxAmountKind::NegativeOutflow).unwrap();
+        assert_eq!(value, -76_165.0);
+        let tag_plain = r#"<ix:nonFraction name="idx-cor:PaymentsForAcquisitionOfPropertyAndEquipment" contextRef="CurrentYearDuration""#;
+        let value_plain =
+            parse_ix_non_fraction(tag_plain, "7,603,050,439", IxAmountKind::NegativeOutflow).unwrap();
+        assert_eq!(value_plain, -7_603_050_439.0);
+    }
+
+    #[test]
     fn parse_sample_zip() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/inlineXBRL.zip");
         let bytes = fs::read(path).expect("inlineXBRL.zip");
@@ -378,6 +420,8 @@ mod tests {
         assert_eq!(parsed.meta.fiscal_year, 2026);
         assert!(parsed.ytd.net_income > 0.0);
         assert!(parsed.ytd.cash_from_operation > 0.0);
+        assert_eq!(parsed.ytd.cash_from_investment, -68_293.0);
+        assert_eq!(parsed.ytd.capital_expenditure, -76_165.0);
     }
 
     #[test]
@@ -388,6 +432,7 @@ mod tests {
         assert_eq!(parsed.meta.code, "DMAS");
         assert!(parsed.ytd.net_income > 0.0);
         assert!(parsed.ytd.cash_from_operation > 0.0);
-        assert!(parsed.ytd.capital_expenditure > 0.0);
+        assert_eq!(parsed.ytd.cash_from_investment, -4_977_368_831.0);
+        assert!(parsed.ytd.capital_expenditure < 0.0);
     }
 }
