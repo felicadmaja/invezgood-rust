@@ -16,6 +16,7 @@ use stock_list::{connect, spawn_daily_notation_sync, StockListServer, StockListS
 use stockbit_browser::ReadinessPoller;
 use worker_scrapping::invezgo_spike_poller::InvezgoSpikePoller;
 use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
+use config_fundamental::{ConfigFundamentalServer, ConfigFundamentalService};
 use shareholder_composition::{
     ShareholderCompositionServer, ShareholderCompositionService,
 };
@@ -137,6 +138,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let hari_libur = HariLiburService::new(session.clone(), auth_sessions.clone());
     let wyckoff_glossary =
         WyckoffGlossaryService::new(session.clone(), auth_sessions.clone());
+    let config_fundamental =
+        ConfigFundamentalService::new(session.clone(), auth_sessions.clone());
 
     let readiness_poller = ReadinessPoller::new();
     {
@@ -195,6 +198,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(ftse::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(hari_libur::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(wyckoff_glossary::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(config_fundamental::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
         enable_compression
@@ -239,6 +243,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         maybe_compressed!(HariLiburServer::new(hari_libur), enable_compression);
     let wyckoff_glossary_svc =
         maybe_compressed!(WyckoffGlossaryServer::new(wyckoff_glossary), enable_compression);
+    let config_fundamental_svc = maybe_compressed!(
+        ConfigFundamentalServer::new(config_fundamental),
+        enable_compression
+    );
 
     let mut builder = apply_grpc_transport(Server::builder());
 
@@ -275,6 +283,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(ftse_svc)
         .add_service(hari_libur_svc)
         .add_service(wyckoff_glossary_svc)
+        .add_service(config_fundamental_svc)
         .serve(addr)
         .await?;
 

@@ -2,10 +2,39 @@ syntax = "proto3";
 
 package config_fundamental;
 
-service ConfigFundamental {}
+service ConfigFundamental {
+  // Scan semua baris Scylla `invezgood.config_fundamental` (PK key, kolom value/description).
+  // Read-only; wajib Authorization: Bearer JWT valid — UNAUTHENTICATED bila token invalid.
+  // Response: repeated ConfigFundamentalRow; error internal bila query Scylla gagal.
+  rpc GetAllConfigFundamental(GetAllConfigFundamentalRequest)
+      returns (GetAllConfigFundamentalResponse);
+
+  // Update kolom value/description Scylla `invezgood.config_fundamental` untuk PK key (key tidak diubah).
+  // Wajib Authorization: Bearer JWT valid; `success=false` bila key kosong atau tidak ditemukan.
+  // Side effect: UPDATE Scylla; error internal bila query gagal.
+  rpc UpdateConfigFundamental(UpdateConfigFundamentalRequest)
+      returns (UpdateConfigFundamentalResponse);
+}
 
 message ConfigFundamentalRow {
   string key = 1;
   double value = 2;
   string description = 3;
+}
+
+message GetAllConfigFundamentalRequest {}
+
+message GetAllConfigFundamentalResponse {
+  repeated ConfigFundamentalRow rows = 1;
+}
+
+message UpdateConfigFundamentalRequest {
+  string key = 1;
+  double value = 2;
+  string description = 3;
+}
+
+message UpdateConfigFundamentalResponse {
+  bool success = 1;
+  string message = 2;
 }

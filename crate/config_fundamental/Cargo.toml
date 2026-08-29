@@ -3,10 +3,17 @@ name = "config_fundamental"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
-scylla = { version = "1.5", features = ["chrono-04"] }
-tonic = "0.12"
+futures = "0.3"
 prost = "0.13"
+scylla = { version = "1.5", features = ["chrono-04"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+tonic = "0.12"
+user = { path = "../user" }
 
 [build-dependencies]
+protoc-bin-vendored = "3"
 tonic-build = "0.12"

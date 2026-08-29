@@ -436,10 +436,14 @@ dependencies = [
 name = "config_fundamental"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "prost",
+ "protoc-bin-vendored",
  "scylla",
+ "tokio",
  "tonic",
  "tonic-build",
+ "user",
 ]
 
 [[package]]
@@ -1273,6 +1277,7 @@ dependencies = [
  "bandarmology",
  "broker",
  "chart",
+ "config_fundamental",
  "dotenvy",
  "emiten_trending",
  "ftse",
