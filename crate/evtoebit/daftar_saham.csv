@@ -1,0 +1,977 @@
+Kode,Sektor,Sub Sektor
+MARI,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+CNKO,Energi,Energi
+MRAT,Barang Konsumen Primer,Barang Konsumen Primer
+CNTX,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+LPKR,Properti & Real Estat,Properti
+POLY,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+FUTR,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BBNI,Keuangan,Keuangan
+SCMA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+KINO,Barang Konsumen Primer,Barang Konsumen Primer
+LFLO,Barang Konsumen Non-Primer,Furniture
+SMAR,Barang Konsumen Primer,Barang Konsumen Primer
+KPIG,Barang Konsumen Non-Primer,Properti
+BMAS,Keuangan,Keuangan
+OILS,Barang Konsumen Primer,Barang Konsumen Primer
+BSWD,Keuangan,Keuangan
+AKKU,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+MKNT,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+TOSK,Teknologi,Teknologi
+WEGE,Infrastruktur,Infrastruktur
+ARII,Energi,Energi
+HERO,Barang Konsumen Primer,Barang Konsumen Primer
+HGII,Infrastruktur,Energi Baru Terbarukan
+MYTX,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+ADMG,Barang Baku,Barang Baku
+DAYA,Barang Konsumen Primer,Barang Konsumen Primer
+ASRM,Keuangan,Keuangan
+NAIK,Perindustrian,Perindustrian
+CBPE,Properti & Real Estat,Properti & Real Estat
+FIMP,Infrastruktur,Infrastruktur
+PNIN,Keuangan,Keuangan
+ASBI,Keuangan,Keuangan
+ASRI,Properti & Real Estat,Properti & Real Estat
+INTA,Perindustrian,Perindustrian
+CANI,Energi,Energi
+BBYB,Keuangan,Keuangan
+CBMF,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+PPRI,Barang Baku,Retail kertas
+INOV,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+CASS,Infrastruktur,Infrastruktur
+POOL,Keuangan,Keuangan
+SMKL,Barang Baku,Barang Baku
+GRPH,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+PRDA,Kesehatan,Laboratorium Kesehatan
+DUCK,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BSDE,Properti & Real Estat,Properti & Real Estat
+TGKA,Barang Konsumen Primer,Barang Konsumen Primer
+JKON,Infrastruktur,Infrastruktur
+ALDO,Barang Baku,Barang Baku
+TRJA,Transportasi & Logistik,Vehicle Rental
+NUSA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SMMA,Keuangan,Keuangan
+HAIS,Transportasi & Logistik,Transportasi & Logistik
+LIFE,Keuangan,Keuangan
+PNSE,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BBSI,Keuangan,Keuangan
+AHAP,Keuangan,Keuangan
+HEXA,Perindustrian,Perindustrian
+CTBN,Barang Baku,Barang Baku
+DIGI,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+KSIX,Properti & Real Estat,Properti & Real Estat
+STAA,Barang Konsumen Primer,Perkebunan Sawit
+BACA,Keuangan,Keuangan
+CSRA,Barang Konsumen Primer,Perkebunan Sawit
+BLTZ,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+TIRT,Barang Baku,Barang Baku
+HDFA,Keuangan,Keuangan
+DSFI,Barang Konsumen Primer,Barang Konsumen Primer
+PPRE,Infrastruktur,Konstruksi sipil
+BWPT,Barang Konsumen Primer,Perkebunan Sawit
+KKES,Barang Baku,Barang Baku
+DCII,Teknologi,Data center
+SUPA,Keuangan,Keuangan
+OBMD,Barang Baku,Barang Baku
+TOTL,Infrastruktur,Infrastruktur
+STAR,Keuangan,Petrokimia
+SGER,Energi,Energi
+MCOR,Keuangan,Keuangan
+BULL,Energi,Logistik pertambangan
+ASLC,Barang Konsumen Non-Primer,Retail Otomotif
+SMBR,Barang Baku,Barang Baku
+SDPC,Barang Konsumen Primer,Barang Konsumen Primer
+AGII,Barang Baku,Barang Baku
+MAXI,Barang Konsumen Primer,Barang Konsumen Primer
+ARTO,Keuangan,Bank
+LOPI,Transportasi & Logistik,Transportasi & Logistik
+IPOL,Barang Baku,Barang Baku
+UNIT,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+FREN,Infrastruktur,Infrastruktur
+AVIA,Barang Baku,Barang Baku
+HOKI,Barang Konsumen Primer,Barang Konsumen Primer
+INDX,Perindustrian,Perindustrian
+JMAS,Keuangan,Keuangan
+TFCO,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+HRUM,Energi,Tambang Batu bara
+ALII,Energi,Energi
+PGLI,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BCIP,Properti & Real Estat,Properti & Real Estat
+CAMP,Barang Konsumen Primer,Produsen Pangan / pakan
+EPMT,Barang Konsumen Primer,Barang Konsumen Primer
+META,Infrastruktur,Infrastruktur
+LABA,Perindustrian,Trading Tambang
+KONI,Perindustrian,Perindustrian
+LUCY,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+WBSA,Transportasi & Logistik,Logistik darat
+LMAS,Teknologi,Teknologi
+ERAL,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+PURA,Transportasi & Logistik,Transportasi & Logistik
+MDIY,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+PMMP,Barang Konsumen Primer,Barang Konsumen Primer
+SHID,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+ACST,Infrastruktur,Infrastruktur
+BHIT,Perindustrian,Perindustrian
+BRPT,Barang Baku,Energi Baru Terbarukan
+SOUL,Barang Konsumen Primer,Barang Konsumen Primer
+RCCC,Transportasi & Logistik,Transportasi & Logistik
+INDF,Barang Konsumen Primer,Barang Konsumen Primer
+SIMA,Barang Baku,Barang Baku
+BNBA,Keuangan,Keuangan
+MTWI,Keuangan,Asuransi
+SKLT,Barang Konsumen Primer,Barang Konsumen Primer
+PSAT,Transportasi & Logistik,Transportasi & Logistik
+JELI,Barang Konsumen Primer,Barang Konsumen Primer
+IPTV,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BYAN,Energi,Energi
+BVIC,Keuangan,Bank
+TUGU,Keuangan,Keuangan
+IFSH,Barang Baku,Barang Baku
+TRGU,Barang Konsumen Primer,Barang Konsumen Primer
+APLN,Properti & Real Estat,Properti & Real Estat
+PTMR,Barang Baku,Barang Baku
+GOOD,Barang Konsumen Primer,Barang Konsumen Primer
+SBMA,Barang Baku,Produsen bahan kimia
+HALO,Kesehatan,Kesehatan
+SUPR,Infrastruktur,Infrastruktur
+BLOG,Transportasi & Logistik,Transportasi & Logistik
+SHIP,Energi,Logistik pertambangan
+BEEF,Barang Konsumen Primer,Barang Konsumen Primer
+NICK,Keuangan,Keuangan
+APLI,Barang Baku,Barang Baku
+AMAG,Keuangan,Keuangan
+CSAP,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+ALTO,Barang Konsumen Primer,Barang Konsumen Primer
+PANR,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BFIN,Keuangan,Keuangan
+TDPM,Barang Baku,Barang Baku
+ZYRX,Teknologi,Teknologi
+HBAT,Properti & Real Estat,Properti & Real Estat
+AREA,Teknologi,Data center
+PTDU,Infrastruktur,Infrastruktur
+TKIM,Barang Baku,Barang Baku
+JRPT,Properti & Real Estat,Properti & Real Estat
+BNGA,Keuangan,Bank
+TEBE,Energi,Infrastruktur pertambangan
+HYGN,Perindustrian,Perindustrian
+VOKS,Perindustrian,Perindustrian
+INDY,Energi,Infrastruktur pertambangan
+KLIN,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+HEAL,Kesehatan,Rumah Sakit
+ZATA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+GWSA,Barang Konsumen Non-Primer,Properti
+GTRA,Transportasi & Logistik,Transportasi & Logistik
+RDTX,Properti & Real Estat,Properti & Real Estat
+AWAN,Teknologi,Teknologi
+GGRP,Barang Baku,Barang Baku
+MINE,Barang Baku,Konstruksi tambang
+LION,Perindustrian,Pengolahan baja
+ISAP,Barang Konsumen Non-Primer,Produsen Suku Cadang Otomotif
+WEHA,Transportasi & Logistik,Transportasi & Logistik
+MEJA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SURE,Energi,Energi
+RALS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+AIMS,Energi,Energi
+PART,Barang Konsumen Non-Primer,Produsen Otomotif
+GDYR,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BUKA,Teknologi,Teknologi
+NINE,Teknologi,Teknologi
+INTP,Barang Baku,Barang Baku
+INRU,Barang Baku,Barang Baku
+PORT,Infrastruktur,Infrastruktur
+AEGS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+UNSP,Barang Konsumen Primer,Barang Konsumen Primer
+CMNP,Infrastruktur,Infrastruktur
+MPPA,Barang Konsumen Primer,Barang Konsumen Primer
+MIDI,Barang Konsumen Primer,Barang Konsumen Primer
+PTPW,Infrastruktur,Infrastruktur
+BIPI,Energi,Infrastruktur pertambangan
+SILO,Kesehatan,Kesehatan
+PRAS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+HRTA,Barang Konsumen Non-Primer,Trading Tambang
+CITA,Barang Baku,Barang Baku
+MTEL,Infrastruktur,Infrastruktur
+KIJA,Properti & Real Estat,Properti
+DRMA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+IKAN,Barang Konsumen Primer,Barang Konsumen Primer
+ARKO,Infrastruktur,Energi Baru Terbarukan
+RELF,Properti & Real Estat,Properti
+BIPP,Properti & Real Estat,Properti & Real Estat
+DATA,Infrastruktur,Infrastruktur
+IATA,Energi,Energi
+RICY,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+KBLV,Infrastruktur,Telekomunikasi
+FIRE,Energi,Energi
+BAIK,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SNLK,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BHAT,Keuangan,Keuangan
+DMAS,Properti & Real Estat,Properti
+MTPS,Infrastruktur,Infrastruktur
+FILM,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+ASPI,Properti & Real Estat,Properti & Real Estat
+PLAN,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+GSMF,Keuangan,Keuangan
+YULE,Keuangan,Keuangan
+TMPO,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+JSMR,Infrastruktur,Infrastruktur
+PGUN,Barang Konsumen Primer,Perkebunan Sawit
+MYRX,Properti & Real Estat,Properti & Real Estat
+JIHD,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+WSBP,Barang Baku,Barang Baku
+DEWI,Barang Konsumen Primer,Barang Konsumen Primer
+FUJI,Keuangan,Multifinance
+HELI,Transportasi & Logistik,Logistik udara
+KBLM,Perindustrian,Perindustrian
+TELE,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+ABBA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+EMMI,Kesehatan,Kesehatan
+IRRA,Kesehatan,Kesehatan
+LPLI,Properti & Real Estat,Media
+HILL,Energi,Energi
+WOMF,Keuangan,Keuangan
+IFII,Barang Baku,Barang Baku
+MTRA,Infrastruktur,Infrastruktur
+MSKY,Barang Konsumen Non-Primer,Media
+FOOD,Barang Konsumen Primer,Barang Konsumen Primer
+BEER,Barang Konsumen Primer,Produsen miras
+JKSW,Barang Baku,Barang Baku
+GRPM,Barang Konsumen Primer,Barang Konsumen Primer
+REAL,Properti & Real Estat,Properti & Real Estat
+FMII,Properti & Real Estat,Properti & Real Estat
+ELSA,Energi,Energi
+STRK,Barang Konsumen Primer,Barang Konsumen Primer
+HKMU,Barang Baku,Barang Baku
+AGAR,Barang Konsumen Primer,Barang Konsumen Primer
+TIFA,Keuangan,Multifinance
+POLA,Keuangan,Keuangan
+TPMA,Energi,Energi
+APEX,Energi,Tambang Minyak & Gas
+CRAB,Barang Konsumen Primer,Barang Konsumen Primer
+CGAS,Energi,Pengolahan Gas & Minyak
+INPC,Keuangan,Bank
+PSDN,Barang Konsumen Primer,Barang Konsumen Primer
+BBRM,Energi,Energi
+ENVY,Teknologi,Teknologi
+TMAS,Transportasi & Logistik,Transportasi & Logistik
+CITY,Properti & Real Estat,Properti & Real Estat
+PEHA,Kesehatan,Kesehatan
+JAWA,Barang Konsumen Primer,Barang Konsumen Primer
+JATI,Teknologi,Teknologi
+MFMI,Perindustrian,Perindustrian
+GOTO,Teknologi,Teknologi
+LTLS,Barang Baku,Produsen bahan kimia
+NZIA,Properti & Real Estat,Properti
+MAPA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+WINR,Properti & Real Estat,Properti & Real Estat
+PJHB,Transportasi & Logistik,Transportasi & Logistik
+BTON,Barang Baku,Barang Baku
+KPAL,Perindustrian,Perindustrian
+CASA,Keuangan,Keuangan
+WMPP,Barang Konsumen Primer,Barang Konsumen Primer
+KEEN,Infrastruktur,Infrastruktur
+SMRA,Properti & Real Estat,Properti & Real Estat
+OMED,Kesehatan,Kesehatan
+ASMI,Keuangan,Keuangan
+SMKM,Infrastruktur,Infrastruktur
+EDGE,Teknologi,Teknologi
+WINS,Energi,Energi
+SCCO,Perindustrian,Perindustrian
+JAST,Infrastruktur,Infrastruktur
+TOYS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+UCID,Barang Konsumen Primer,Barang Konsumen Primer
+GPRA,Properti & Real Estat,Properti & Real Estat
+UVCR,Teknologi,Pulsa dan Voucher
+MBTO,Barang Konsumen Primer,Barang Konsumen Primer
+SPMA,Barang Baku,Barang Baku
+DFAM,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+AXIO,Teknologi,Teknologi
+ASGR,Perindustrian,Perindustrian
+OLIV,Barang Konsumen Non-Primer,Furniture
+BLES,Barang Baku,Barang Baku
+CMPP,Transportasi & Logistik,Transportasi & Logistik
+GJTL,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+NCKL,Barang Baku,Tambang Nikel
+CSMI,Barang Konsumen Non-Primer,Retail Kebutuhan Primer
+DOSS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+PLAS,Keuangan,Keuangan
+LUCK,Teknologi,Teknologi
+KICI,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BPII,Keuangan,Keuangan
+HOME,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BBMD,Keuangan,Keuangan
+HADE,Infrastruktur,Infrastruktur
+PDPP,Barang Baku,Barang Baku
+HITS,Energi,Energi
+LPPS,Keuangan,Keuangan
+ZINC,Barang Baku,Barang Baku
+DMMX,Teknologi,Teknologi
+SDRA,Keuangan,Keuangan
+DEPO,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+GMTD,Properti & Real Estat,Properti & Real Estat
+PTMP,Perindustrian,Perindustrian
+ENRG,Energi,Energi
+KAEF,Kesehatan,Kesehatan
+MAMI,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+MASB,Keuangan,Keuangan
+HAJJ,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+EPAC,Barang Baku,Barang Baku
+MHKI,Perindustrian,Perindustrian
+CMRY,Barang Konsumen Primer,Barang Konsumen Primer
+TRON,Teknologi,Teknologi
+RMKO,Energi,Energi
+SRSN,Barang Baku,Barang Baku
+BEKS,Keuangan,Keuangan
+TBMS,Barang Baku,Pengolahan tembaga
+BTEK,Barang Konsumen Primer,Barang Konsumen Primer
+AISA,Barang Konsumen Primer,Barang Konsumen Primer
+BREN,Infrastruktur,Energi Baru Terbarukan
+TRAM,Energi,Energi
+PUDP,Properti & Real Estat,Properti
+KIOS,Teknologi,Teknologi
+GZCO,Barang Konsumen Primer,Perkebunan Sawit
+ATLA,Energi,Energi
+SWID,Properti & Real Estat,Properti
+BBKP,Keuangan,Bank
+SSIA,Infrastruktur,Konstruksi
+RBMS,Properti & Real Estat,Properti & Real Estat
+YELO,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BRIS,Keuangan,Bank
+NRCA,Infrastruktur,Infrastruktur
+MAPI,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+KOKA,Infrastruktur,Infrastruktur
+HATM,Transportasi & Logistik,Transportasi & Logistik
+POSA,Properti & Real Estat,Properti & Real Estat
+NFCX,Teknologi,Teknologi
+TAMU,Energi,Energi
+RAFI,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+AMOR,Keuangan,Keuangan
+DSNG,Barang Konsumen Primer,Perkebunan Sawit
+BOGA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+ELIT,Teknologi,Data center
+HUMI,Energi,Energi
+BEBS,Barang Baku,Barang Baku
+INDR,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+KOPI,Energi,Energi
+PKPK,Energi,Energi
+BMRI,Keuangan,Bank
+VKTR,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+DUTI,Properti & Real Estat,Properti & Real Estat
+PEGE,Keuangan,Keuangan
+DYAN,Perindustrian,Perindustrian
+AMRT,Barang Konsumen Primer,Retail Kebutuhan Primer
+MEGA,Keuangan,Keuangan
+CBDK,Properti & Real Estat,Properti
+MKAP,Energi,Energi
+ROCK,Properti & Real Estat,Properti & Real Estat
+GIAA,Transportasi & Logistik,Transportasi & Logistik
+KLBF,Kesehatan,Kesehatan
+SRTG,Keuangan,Keuangan
+MYOH,Energi,Energi
+ARNA,Perindustrian,Perindustrian
+INKP,Barang Baku,Produsen kayu & kertas
+IPCM,Infrastruktur,Infrastruktur
+INPP,Properti & Real Estat,Properti & Real Estat
+MICE,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SIDO,Kesehatan,Farmasi
+TYRE,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BRAM,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+MPIX,Teknologi,Teknologi
+LPPF,Barang Konsumen Non-Primer,Retail Kebutuhan Primer
+TLDN,Barang Konsumen Primer,Perkebunan Sawit
+PDES,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+CLAY,Barang Konsumen Non-Primer,Akomodasi Villa & Hotel
+ADMF,Keuangan,Keuangan
+RMKE,Energi,Logistik pertambangan
+BKSW,Keuangan,Keuangan
+IMJS,Transportasi & Logistik,Transportasi & Logistik
+MAGP,Barang Konsumen Primer,Barang Konsumen Primer
+MGNA,Keuangan,Investasi
+COCO,Barang Konsumen Primer,Barang Konsumen Primer
+RUNS,Teknologi,Teknologi
+GEMS,Energi,Energi
+MLPT,Teknologi,Teknologi
+MPXL,Transportasi & Logistik,Transportasi & Logistik
+IBST,Infrastruktur,Infrastruktur
+VICI,Barang Konsumen Primer,Barang Konsumen Primer
+ASPR,Perindustrian,Produsen plastik
+TECH,Teknologi,Teknologi
+BAJA,Barang Baku,Barang Baku
+MABA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+MASA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+ASII,Perindustrian,Produsen Otomotif
+MDKI,Barang Baku,Barang Baku
+MERI,Properti & Real Estat,Properti & Real Estat
+ASDM,Keuangan,Keuangan
+BINA,Keuangan,Keuangan
+VICO,Keuangan,Keuangan
+ZONE,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SULI,Barang Baku,Barang Baku
+MBMA,Barang Baku,Tambang Nikel
+PANS,Keuangan,Keuangan
+LRNA,Transportasi & Logistik,Logistik darat
+SMCB,Barang Baku,Barang Baku
+RSGK,Kesehatan,Kesehatan
+ADES,Barang Konsumen Primer,Barang Konsumen Primer
+IDEA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+AALI,Barang Konsumen Primer,Perkebunan Sawit
+BRMS,Barang Baku,Tambang Emas & Tembaga
+PSKT,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+GLVA,Teknologi,Teknologi
+RGAS,Energi,Energi
+BKSL,Properti & Real Estat,Properti
+PTIS,Energi,Energi
+SMMT,Energi,Energi
+MDLN,Properti & Real Estat,Properti & Real Estat
+SONA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BATA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+FLMC,Barang Konsumen Primer,Barang Konsumen Primer
+ISSP,Barang Baku,Barang Baku
+LCGP,Properti & Real Estat,Properti & Real Estat
+LEAD,Energi,Energi
+SAME,Kesehatan,Kesehatan
+ADCP,Properti & Real Estat,Properti & Real Estat
+MMIX,Kesehatan,Kesehatan
+VISI,Perindustrian,Media
+ARTI,Energi,Energi
+CBUT,Barang Konsumen Primer,Barang Konsumen Primer
+AKPI,Barang Baku,Barang Baku
+SOLA,Barang Baku,Bahan baku aspal
+ARCI,Barang Baku,Tambang Emas & Tembaga
+PNLF,Keuangan,Multifinance
+TOTO,Perindustrian,Perindustrian
+TRIL,Perindustrian,Perindustrian
+EMAS,Barang Baku,Tambang Emas & Tembaga
+EXCL,Infrastruktur,Telekomunikasi
+NANO,Barang Konsumen Primer,Farmasi
+UNTR,Perindustrian,Konstruksi tambang
+SIMP,Barang Konsumen Primer,Perkebunan Sawit
+TRIS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BANK,Keuangan,Keuangan
+CENT,Infrastruktur,Infrastruktur
+AKRA,Energi,Logistik pertambangan
+FASW,Barang Baku,Barang Baku
+PTSP,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+MANG,Infrastruktur,Infrastruktur
+NICL,Barang Baku,Tambang Nikel
+CCSI,Perindustrian,Perindustrian
+CUAN,Energi,Tambang Batu bara
+BESS,Energi,Logistik Laut
+SIPD,Barang Konsumen Primer,Barang Konsumen Primer
+MSIN,Barang Konsumen Non-Primer,Entertainment
+LABS,Kesehatan,Kesehatan
+PBSA,Infrastruktur,Konstruksi sipil
+ULTJ,Barang Konsumen Primer,Barang Konsumen Primer
+WGSH,Teknologi,Teknologi
+ZBRA,Perindustrian,Perindustrian
+SMDM,Properti & Real Estat,Properti & Real Estat
+MDKA,Barang Baku,Tambang Emas & Tembaga
+ADRO,Energi,Energi
+RANC,Barang Konsumen Primer,Barang Konsumen Primer
+UNIC,Barang Baku,Barang Baku
+ITMG,Energi,Tambang Batu bara
+TRUE,Properti & Real Estat,Properti & Real Estat
+TOWR,Infrastruktur,Infrastruktur Telekomunikasi
+CRSN,Perindustrian,Perindustrian
+PJAA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+FWCT,Barang Baku,Barang Baku
+SMLE,Barang Baku,Produsen bahan kimia
+POWR,Infrastruktur,Infrastruktur
+BSBK,Properti & Real Estat,Properti & Real Estat
+MITI,Transportasi & Logistik,Transportasi & Logistik
+MENN,Teknologi,Teknologi
+ASSA,Transportasi & Logistik,Transportasi & Logistik
+ERTX,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SMGA,Barang Baku,Trading Tambang
+BNLI,Keuangan,Keuangan
+EAST,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+COAL,Energi,Energi
+BMTR,Barang Konsumen Non-Primer,Media
+HOPE,Perindustrian,Perindustrian
+PAMG,Properti & Real Estat,Properti & Real Estat
+AMMN,Barang Baku,Tambang Emas & Tembaga
+CTRA,Properti & Real Estat,Properti & Real Estat
+VINS,Keuangan,Asuransi
+ECII,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+TRUS,Keuangan,Keuangan
+KOIN,Perindustrian,Perindustrian
+MUTU,Perindustrian,Perindustrian
+TFAS,Teknologi,Media
+ETWA,Barang Baku,Barang Baku
+MAHA,Energi,Energi
+TRIM,Keuangan,Investasi
+IBOS,Barang Konsumen Primer,Barang Konsumen Primer
+CSIS,Properti & Real Estat,Properti & Real Estat
+GOLF,Barang Konsumen Non-Primer,Properti
+RELI,Keuangan,Keuangan
+BOBA,Barang Konsumen Primer,Barang Konsumen Primer
+MDRN,Perindustrian,Perindustrian
+MKTR,Barang Konsumen Primer,Barang Konsumen Primer
+CHEM,Barang Baku,Barang Baku
+LMPI,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+DWGL,Energi,Energi
+BUVA,Barang Konsumen Non-Primer,Akomodasi Villa & Hotel
+DEWA,Energi,Infrastruktur pertambangan
+RIGS,Energi,Energi
+BDKR,Infrastruktur,Infrastruktur
+MGLV,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+KING,Perindustrian,Perindustrian
+ESTA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+STTP,Barang Konsumen Primer,Barang Konsumen Primer
+TNCA,Transportasi & Logistik,Transportasi & Logistik
+ENAK,Barang Konsumen Non-Primer,Restoran & Catering
+RAJA,Energi,Infrastruktur pertambangan
+WIIM,Barang Konsumen Primer,Barang Konsumen Primer
+MEDS,Kesehatan,Kesehatan
+INPS,Energi,Energi
+KARW,Infrastruktur,Infrastruktur
+FORE,Barang Konsumen Primer,Barang Konsumen Primer
+VERN,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BSML,Energi,Energi
+OPMS,Barang Baku,Barang Baku
+RATU,Energi,Tambang Gas & Minyak
+LPIN,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+PTRO,Energi,Infrastruktur pertambangan
+HOMI,Properti & Real Estat,Properti & Real Estat
+WAPO,Barang Konsumen Primer,Agrobisnis
+DMND,Barang Konsumen Primer,Barang Konsumen Primer
+MKPI,Properti & Real Estat,Properti & Real Estat
+ANDI,Barang Konsumen Primer,Barang Konsumen Primer
+JPFA,Barang Konsumen Primer,Barang Konsumen Primer
+AMIN,Perindustrian,Produsen alat industri
+DKFT,Barang Baku,Tambang Nikel
+MAYA,Keuangan,Keuangan
+BUMI,Energi,Tambang Batu bara
+ACES,Barang Konsumen Non-Primer,Retail kebutuhan non primer
+SFAN,Keuangan,Keuangan
+TGRA,Infrastruktur,Infrastruktur
+JTPE,Perindustrian,Perindustrian
+DADA,Properti & Real Estat,Properti
+TSPC,Kesehatan,Kesehatan
+WICO,Barang Konsumen Primer,Barang Konsumen Primer
+OBAT,Kesehatan,Farmasi
+KUAS,Perindustrian,Alat bangunan
+SOTS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SICO,Energi,Energi
+MTMH,Kesehatan,Kesehatan
+SRIL,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+TCPI,Energi,Logistik Laut
+IPAC,Properti & Real Estat,Properti & Real Estat
+BALI,Infrastruktur,Infrastruktur
+PANI,Properti & Real Estat,Properti
+ATAP,Properti & Real Estat,Properti & Real Estat
+BTPS,Keuangan,Keuangan
+ADMR,Energi,Tambang Batu bara
+POLI,Properti & Real Estat,Properti & Real Estat
+WIDI,Perindustrian,Perindustrian
+KOCI,Properti & Real Estat,Properti & Real Estat
+TRUK,Transportasi & Logistik,Transportasi & Logistik
+ESTI,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+NEST,Barang Konsumen Primer,Barang Konsumen Primer
+SLIS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+GMFI,Infrastruktur,Infrastruktur
+PNGO,Barang Baku,Barang Baku
+LCKM,Infrastruktur,Infrastruktur Telekomunikasi
+PURI,Properti & Real Estat,Properti & Real Estat
+SBAT,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+LINK,Infrastruktur,Telekomunikasi
+BAUT,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+RIMO,Properti & Real Estat,Properti & Real Estat
+PSGO,Barang Konsumen Primer,Barang Konsumen Primer
+AMAN,Properti & Real Estat,Properti & Real Estat
+MBSS,Energi,Energi
+TINS,Barang Baku,Tambang Timah
+YUPI,Barang Konsumen Primer,Barang Konsumen Primer
+PGAS,Energi,Trading Tambang
+BKDP,Properti & Real Estat,Properti & Real Estat
+BBCA,Keuangan,Bank
+BUDI,Barang Konsumen Primer,Barang Konsumen Primer
+OASA,Infrastruktur,Infrastruktur
+PIPA,Perindustrian,Bahan bangunan
+FOLK,Perindustrian,Distributor Produk Kesehatan
+BJTM,Keuangan,Keuangan
+DPUM,Barang Konsumen Primer,Barang Konsumen Primer
+BAPI,Properti & Real Estat,Properti & Real Estat
+BJBR,Keuangan,Keuangan
+GOLD,Infrastruktur,Infrastruktur
+CARS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+LPCK,Properti & Real Estat,Properti & Real Estat
+CMNT,Barang Baku,Barang Baku
+GUNA,Barang Konsumen Primer,Barang Konsumen Primer
+BPFI,Keuangan,Multifinance
+MCAS,Teknologi,Pulsa dan Voucher
+UFOE,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+MOLI,Barang Baku,Barang Baku
+INTD,Barang Baku,Barang Baku
+BBSS,Properti & Real Estat,Properti & Real Estat
+BDMN,Keuangan,Keuangan
+NSSS,Barang Konsumen Primer,Barang Konsumen Primer
+BGTG,Keuangan,Bank
+DGNS,Kesehatan,Laboratorium Kesehatan
+YPAS,Barang Baku,Barang Baku
+PPGL,Transportasi & Logistik,Logistik darat
+BLTA,Transportasi & Logistik,Transportasi & Logistik
+GTBO,Energi,Energi
+MGRO,Barang Konsumen Primer,Barang Konsumen Primer
+PMJS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+TAYS,Barang Konsumen Primer,Barang Konsumen Primer
+CPRO,Barang Konsumen Primer,Barang Konsumen Primer
+BIKA,Properti & Real Estat,Properti & Real Estat
+MTDL,Teknologi,Retail Elektronik
+YOII,Keuangan,Keuangan
+TPIA,Barang Baku,Petrokimia
+PADA,Perindustrian,Perindustrian
+AYLS,Barang Baku,Barang Baku
+POLU,Barang Konsumen Non-Primer,Garment
+OKAS,Barang Baku,Barang Baku
+FAPA,Barang Konsumen Primer,Barang Konsumen Primer
+BUAH,Barang Konsumen Primer,Barang Konsumen Primer
+BNII,Keuangan,Keuangan
+GLOB,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SOCI,Energi,Energi
+DEAL,Transportasi & Logistik,Transportasi & Logistik
+NETV,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+ELPI,Transportasi & Logistik,Transportasi & Logistik
+DGIK,Infrastruktur,Infrastruktur
+LPGI,Keuangan,Keuangan
+MAPB,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+MREI,Keuangan,Keuangan
+IBFN,Perindustrian,Perindustrian
+PURE,Barang Baku,Barang Baku
+BELL,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+PEVE,Kesehatan,Distributor Produk Kesehatan
+ESIP,Barang Baku,Barang Baku
+ENZO,Barang Konsumen Primer,Pengolahan ikan
+ARMY,Properti & Real Estat,Properti & Real Estat
+MYOR,Barang Konsumen Primer,Produsen Pangan / pakan
+PADI,Keuangan,Investasi
+KBLI,Perindustrian,Perindustrian
+TOOL,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SSTM,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BMBL,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+HDTX,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+GPSO,Perindustrian,Perindustrian
+CPRI,Properti & Real Estat,Properti & Real Estat
+KDTN,Barang Konsumen Non-Primer,Akomodasi Villa & Hotel
+CLEO,Barang Konsumen Primer,Barang Konsumen Primer
+KRYA,Infrastruktur,Infrastruktur
+SSMS,Barang Konsumen Primer,Barang Konsumen Primer
+SAPX,Transportasi & Logistik,Logistik darat
+MCOL,Energi,Energi
+GAMA,Properti & Real Estat,Properti & Real Estat
+BTEL,Infrastruktur,Infrastruktur
+TRST,Barang Baku,Barang Baku
+BINO,Perindustrian,Perindustrian
+FITT,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+NELY,Transportasi & Logistik,Transportasi & Logistik
+BBRI,Keuangan,Bank
+IPCC,Infrastruktur,Produsen alat industri
+UANG,Properti & Real Estat,Properti & Real Estat
+INCO,Barang Baku,Tambang Nikel
+UNIQ,Energi,Energi
+SAFE,Transportasi & Logistik,Transportasi & Logistik
+WOWS,Energi,Infrastruktur pertambangan
+PTSN,Teknologi,Teknologi
+BACH,Perindustrian,Perindustrian
+GTSI,Energi,Energi
+WIKA,Infrastruktur,Infrastruktur
+KJEN,Transportasi & Logistik,Transportasi & Logistik
+CHEK,Kesehatan,Produsen alat kesehatan
+MLPL,Barang Konsumen Primer,Barang Konsumen Primer
+MARK,Perindustrian,Perindustrian
+WIRG,Teknologi,Teknologi
+MSJA,Barang Konsumen Primer,Barang Konsumen Primer
+LAJU,Transportasi & Logistik,Transportasi & Logistik
+INAF,Kesehatan,Kesehatan
+IOTF,Teknologi,Teknologi
+WIFI,Teknologi,Telekomunikasi
+HOTL,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+DOID,Energi,Energi
+ABDA,Keuangan,Keuangan
+SATU,Properti & Real Estat,Properti & Real Estat
+RSCH,Kesehatan,Kesehatan
+JGLE,Barang Konsumen Non-Primer,Properti
+MIKA,Kesehatan,Kesehatan
+VTNY,Keuangan,Media
+KOBX,Perindustrian,Perindustrian
+TRIN,Properti & Real Estat,Properti
+DEFI,Keuangan,Keuangan
+TAPG,Barang Konsumen Primer,Barang Konsumen Primer
+KBAG,Properti & Real Estat,Properti & Real Estat
+IMAS,Barang Konsumen Non-Primer,Distributor Otomotif
+AMFG,Perindustrian,Perindustrian
+VRNA,Keuangan,Keuangan
+AYAM,Barang Konsumen Primer,Barang Konsumen Primer
+KMDS,Barang Konsumen Primer,Barang Konsumen Primer
+MORA,Infrastruktur,Infrastruktur Telekomunikasi
+RLCO,Barang Konsumen Primer,Barang Konsumen Primer
+IRSX,Teknologi,Teknologi
+BBTN,Keuangan,Keuangan
+VIVA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+MTSM,Properti & Real Estat,Properti & Real Estat
+HDIT,Teknologi,Teknologi
+PGEO,Infrastruktur,Energi Baru Terbarukan
+DOOH,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+KAYU,Barang Baku,Barang Baku
+ICON,Perindustrian,Perindustrian
+NASA,Properti & Real Estat,Properti & Real Estat
+KOTA,Barang Konsumen Non-Primer,Properti
+WOOD,Barang Konsumen Non-Primer,Produsen kayu & kertas
+NISP,Keuangan,Bank
+PLIN,Properti & Real Estat,Properti & Real Estat
+MMLP,Properti & Real Estat,Properti & Real Estat
+BOSS,Energi,Energi
+PZZA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BOAT,Energi,Energi
+BELI,Teknologi,Teknologi
+OCAP,Keuangan,Keuangan
+MFIN,Keuangan,Keuangan
+ANTM,Barang Baku,Trading Tambang
+MPMX,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+PBID,Barang Baku,Barang Baku
+JARR,Barang Konsumen Primer,Perkebunan Sawit
+BRNA,Barang Baku,Farmasi
+TBLA,Barang Konsumen Primer,Barang Konsumen Primer
+ITIC,Barang Konsumen Primer,Barang Konsumen Primer
+KLAS,Transportasi & Logistik,Transportasi & Logistik
+PTPS,Barang Konsumen Primer,Perkebunan Sawit
+PWON,Properti & Real Estat,Properti
+MLBI,Barang Konsumen Primer,Barang Konsumen Primer
+PMUI,Barang Konsumen Non-Primer,Pulsa dan Voucher
+EURO,Barang Konsumen Primer,Produsen bahan kimia
+WMUU,Barang Konsumen Primer,Barang Konsumen Primer
+INAI,Barang Baku,Barang Baku
+TGUK,Barang Konsumen Primer,Barang Konsumen Primer
+NIPS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+AADI,Energi,Tambang Batu bara
+SPRE,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+KPAS,Barang Konsumen Primer,Barang Konsumen Primer
+IGAR,Barang Baku,Barang Baku
+EMDE,Properti & Real Estat,Properti
+MSIE,Properti & Real Estat,Persewaan properti
+NIRO,Properti & Real Estat,Properti & Real Estat
+SMSM,Barang Konsumen Non-Primer,Produsen Suku Cadang Otomotif
+BLUE,Perindustrian,Retail Elektronik
+PBRX,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SUGI,Energi,Energi
+SDMU,Transportasi & Logistik,Logistik darat
+GOLL,Barang Konsumen Primer,Barang Konsumen Primer
+ALKA,Barang Baku,Barang Baku
+AGRS,Keuangan,Keuangan
+TARA,Properti & Real Estat,Properti & Real Estat
+RONY,Infrastruktur,Konstruksi & Utilitas
+PCAR,Barang Konsumen Primer,Barang Konsumen Primer
+KKGI,Energi,Energi
+BISI,Barang Konsumen Primer,Barang Konsumen Primer
+ROTI,Barang Konsumen Primer,Barang Konsumen Primer
+KEJU,Barang Konsumen Primer,Barang Konsumen Primer
+ARGO,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+RANS,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+BCAP,Keuangan,Keuangan
+CBRE,Energi,Logistik Laut
+MPOW,Infrastruktur,Infrastruktur
+SMDR,Transportasi & Logistik,Logistik Laut
+IIKP,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+DIVA,Teknologi,Teknologi
+ASLI,Infrastruktur,Infrastruktur
+MERK,Kesehatan,Kesehatan
+RODA,Properti & Real Estat,Properti & Real Estat
+ARKA,Perindustrian,Perindustrian
+CASH,Teknologi,Fintech
+AGRO,Keuangan,Keuangan
+DART,Properti & Real Estat,Properti & Real Estat
+COWL,Properti & Real Estat,Properti & Real Estat
+IMPC,Perindustrian,Bahan bangunan
+INCI,Barang Baku,Produsen bahan kimia
+GEMA,Barang Konsumen Non-Primer,Furniture
+WTON,Barang Baku,Konstruksi
+SAGE,Properti & Real Estat,Properti & Real Estat
+EKAD,Barang Baku,Barang Baku
+CDIA,Barang Baku,Logistik Laut
+OMRE,Properti & Real Estat,Properti & Real Estat
+DKHH,Kesehatan,Kesehatan
+ATIC,Teknologi,Teknologi
+SMIL,Perindustrian,Perindustrian
+PPRO,Properti & Real Estat,Properti & Real Estat
+CNMA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SRAJ,Kesehatan,Kesehatan
+JSKY,Energi,Energi
+VAST,Properti & Real Estat,Persewaan properti
+SWAT,Barang Baku,Barang Baku
+TOBA,Energi,Energi
+KAQI,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+AKSI,Transportasi & Logistik,Transportasi & Logistik
+DLTA,Barang Konsumen Primer,Barang Konsumen Primer
+CEKA,Barang Konsumen Primer,Barang Konsumen Primer
+SKBM,Barang Konsumen Primer,Barang Konsumen Primer
+NASI,Barang Konsumen Primer,Barang Konsumen Primer
+LAPD,Infrastruktur,Infrastruktur
+GRIA,Properti & Real Estat,Properti & Real Estat
+PICO,Barang Baku,Produsen alat industri
+BIMA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+APIC,Keuangan,Keuangan
+DVLA,Kesehatan,Kesehatan
+NIKL,Barang Baku,Pengolahan timah
+PTBA,Energi,Energi
+NOBU,Keuangan,Keuangan
+UNTD,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+MPRO,Properti & Real Estat,Properti
+ISAT,Infrastruktur,Telekomunikasi
+AMAR,Keuangan,Keuangan
+CINT,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+KETR,Infrastruktur,Infrastruktur
+SGRO,Keuangan,Keuangan
+LSIP,Barang Konsumen Primer,Perkebunan Sawit
+BPTR,Transportasi & Logistik,Transportasi & Logistik
+JECX,Kesehatan,Kesehatan
+IDPR,Infrastruktur,Infrastruktur
+MIRA,Transportasi & Logistik,Transportasi & Logistik
+BMHS,Kesehatan,Kesehatan
+TOPS,Infrastruktur,Infrastruktur
+CHIP,Teknologi,Teknologi
+SOFA,Barang Konsumen Non-Primer,Furniture
+IKPM,Kesehatan,Kesehatan
+COIN,Keuangan,Fintech
+SPTO,Perindustrian,Perindustrian
+KIAS,Perindustrian,Perindustrian
+BTPN,Keuangan,Keuangan
+JECC,Perindustrian,Perindustrian
+SMGR,Barang Baku,Barang Baku
+KMTR,Barang Baku,Barang Baku
+CARE,Kesehatan,Kesehatan
+BABY,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+POLL,Properti & Real Estat,Properti & Real Estat
+GULA,Barang Konsumen Primer,Barang Konsumen Primer
+IKAI,Perindustrian,Perindustrian
+BBLD,Keuangan,Keuangan
+BSIM,Keuangan,Keuangan
+KRAS,Barang Baku,Barang Baku
+BCIC,Keuangan,Keuangan
+MDIA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+INET,Infrastruktur,Data center
+TIRA,Perindustrian,Perindustrian
+PYFA,Kesehatan,Kesehatan
+KDSI,Barang Baku,Barang Baku
+INCF,Barang Baku,Barang Baku
+MSTI,Teknologi,Teknologi
+SEMA,Energi,Energi
+RAAM,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SCNP,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SKYB,Teknologi,Teknologi
+JAYA,Transportasi & Logistik,Transportasi & Logistik
+WINE,Barang Konsumen Primer,Produsen miras
+BOLA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+ACRO,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+TBIG,Infrastruktur,Infrastruktur Telekomunikasi
+FORU,Barang Konsumen Non-Primer,Media
+CPIN,Barang Konsumen Primer,Produsen Pangan / pakan
+GHON,Infrastruktur,Infrastruktur
+SINI,Perindustrian,Perindustrian
+MLIA,Perindustrian,Perindustrian
+WSKT,Infrastruktur,Infrastruktur
+BAYU,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+DSSA,Energi,Data center
+ASHA,Barang Konsumen Primer,Barang Konsumen Primer
+ASJT,Keuangan,Keuangan
+SQMI,Barang Baku,Barang Baku
+KRAH,Perindustrian,Perindustrian
+HRME,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+FISH,Barang Konsumen Primer,Pengolahan ikan
+CAKK,Perindustrian,Perindustrian
+PTPP,Infrastruktur,Konstruksi
+GGRM,Barang Konsumen Primer,Barang Konsumen Primer
+NICE,Barang Baku,Tambang Nikel
+BEST,Properti & Real Estat,Properti
+MNCN,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+TAMA,Infrastruktur,Konstruksi sipil
+INDS,Barang Konsumen Non-Primer,Produsen Suku Cadang Otomotif
+NAYZ,Barang Konsumen Primer,Barang Konsumen Primer
+DPNS,Barang Baku,Barang Baku
+SCPI,Kesehatan,Kesehatan
+SMRU,Energi,Energi
+SOSS,Perindustrian,Perindustrian
+UNVR,Barang Konsumen Primer,Barang Konsumen Primer
+ARTA,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+KBRI,Barang Baku,Barang Baku
+BSSR,Energi,Energi
+EMTK,Teknologi,Media
+MTLA,Properti & Real Estat,Properti & Real Estat
+LMAX,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+JSPT,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+SKRN,Perindustrian,Perindustrian
+CYBR,Teknologi,Teknologi
+FAST,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+NTBK,Perindustrian,Perindustrian
+FPNI,Barang Baku,Barang Baku
+PGJO,Teknologi,Teknologi
+TALF,Barang Baku,Barang Baku
+HMSP,Barang Konsumen Primer,Barang Konsumen Primer
+SURI,Kesehatan,Kesehatan
+DNAR,Keuangan,Keuangan
+BABP,Keuangan,Keuangan
+PACK,Barang Baku,Tambang Nikel
+CTTH,Perindustrian,Bahan bangunan
+NATO,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+NPGF,Barang Baku,Barang Baku
+SOHO,Kesehatan,Kesehatan
+TRIO,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+PRAY,Kesehatan,Kesehatan
+MDLA,Kesehatan,Kesehatan
+TLKM,Infrastruktur,Telekomunikasi
+APII,Perindustrian,Perindustrian
+TAXI,Transportasi & Logistik,Transportasi & Logistik
+RUIS,Energi,Energi
+SAMF,Barang Baku,Barang Baku
+BMSR,Barang Baku,Barang Baku
+TCID,Barang Konsumen Primer,Barang Konsumen Primer
+BNBR,Perindustrian,Konstruksi
+ESSA,Barang Baku,Pengolahan Gas & Minyak
+ALMI,Barang Baku,Barang Baku
+DNET,Keuangan,Keuangan
+MINA,Barang Konsumen Non-Primer,Akomodasi Villa & Hotel
+MEDC,Energi,Energi
+IPPE,Barang Konsumen Primer,Barang Konsumen Primer
+BBHI,Keuangan,Keuangan
+PALM,Keuangan,Keuangan
+ABMM,Energi,Energi
+BAPA,Properti & Real Estat,Properti & Real Estat
+ELTY,Properti & Real Estat,Properti & Real Estat
+DILD,Properti & Real Estat,Properti
+UDNG,Barang Konsumen Primer,Barang Konsumen Primer
+BOLT,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+RISE,Properti & Real Estat,Properti
+PNBS,Keuangan,Keuangan
+PSSI,Energi,Energi
+LMSH,Barang Baku,Barang Baku
+ISEA,Barang Konsumen Primer,Pengolahan ikan
+IKBI,Perindustrian,Perindustrian
+BUKK,Infrastruktur,Konstruksi
+FORZ,Properti & Real Estat,Properti & Real Estat
+ICBP,Barang Konsumen Primer,Barang Konsumen Primer
+LAND,Properti & Real Estat,Properti & Real Estat
+PRIM,Kesehatan,Kesehatan
+BIRD,Transportasi & Logistik,Transportasi & Logistik
+BRRC,Barang Konsumen Primer,Retail Kebutuhan Primer
+MAIN,Barang Konsumen Primer,Produsen Pangan / pakan
+KREN,Teknologi,Teknologi
+LIVE,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+MTFN,Energi,Energi
+MBAP,Energi,Energi
+CFIN,Keuangan,Keuangan
+SUNI,Energi,Energi
+PRDL,Kesehatan,Kesehatan
+BATR,Barang Baku,Barang Baku
+DGWG,Barang Baku,Barang Baku
+ERAA,Barang Konsumen Non-Primer,Retail Elektronik
+AUTO,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
+URBN,Properti & Real Estat,Properti & Real Estat
+ADHI,Infrastruktur,Infrastruktur
+ANJT,Barang Konsumen Primer,Perkebunan Sawit
+DAAZ,Barang Baku,Trading Tambang
+AMMS,Barang Konsumen Primer,Barang Konsumen Primer
+ITMA,Energi,Infrastruktur pertambangan
+INDO,Properti & Real Estat,Properti & Real Estat
+CLPI,Barang Baku,Barang Baku
+GDST,Barang Baku,Barang Baku
+PNBN,Keuangan,Keuangan
+PSAB,Barang Baku,Trading Tambang
+BIKE,Barang Konsumen Non-Primer,Barang Konsumen Non-Primer
