@@ -1,4 +1,7 @@
 //! Parse inline XBRL ZIP IDX → metadata + metrik YTD.
+//!
+//! Tidak bergantung pada satu nama file HTML: baca semua `*.html` di zip, cari concept
+//! XBRL `CurrentYearDuration` dengan urutan preferensi file + fallback concept.
 
 use std::io::Read;
 
@@ -9,37 +12,121 @@ use zip::ZipArchive;
 use crate::model::{ParsedReportMeta, ParsedXlbrZip, YtdMetrics};
 
 const FILE_DEI: &str = "1000000.html";
-const FILE_IS_GENERAL: &str = "1321000.html";
-const FILE_IS_BANKING: &str = "2311000.html";
-const FILE_IS_CANDIDATES: &[&str] = &[FILE_IS_GENERAL, FILE_IS_BANKING];
-const FILE_CF: &str = "1510000.html";
+
+const PREFERRED_IS: &[&str] = &["1321000.html", "2311000.html", "2321000.html"];
+const PREFERRED_CF: &[&str] = &["1510000.html", "2510000.html"];
 
 const LABEL_PERIOD_SUBMISSION: &str = "Periode penyampaian laporan keuangan";
 
 const CONCEPT_CFO: &str = "idx-cor:NetCashFlowsReceivedFromUsedInOperatingActivities";
 const CONCEPT_CFI: &str = "idx-cor:NetCashFlowsReceivedFromUsedInInvestingActivities";
 const CONCEPT_CFF: &str = "idx-cor:NetCashFlowsReceivedFromUsedInFinancingActivities";
-const CONCEPT_CAPEX: &str = "idx-cor:PaymentsForAcquisitionOfPropertyPlantAndEquipment";
 const CONCEPT_NET_INCOME: &str = "idx-cor:ProfitLoss";
+const CONCEPT_CAPEX_CANDIDATES: &[&str] = &[
+    "idx-cor:PaymentsForAcquisitionOfPropertyPlantAndEquipment",
+    "idx-cor:PaymentsForAcquisitionOfPropertyAndEquipment",
+    "idx-cor:PaymentsForAcquisitionOfInvestmentProperties",
+    "idx-cor:PaymentsForAcquisitionOfLandForDevelopment",
+];
 
 const CONTEXT_YTD: &str = "CurrentYearDuration";
+
+struct ZipHtmlCorpus {
+    entries: Vec<(String, String)>,
+}
+
+impl ZipHtmlCorpus {
+    fn from_archive(archive: &mut ZipArchive<std::io::Cursor<&[u8]>>) -> Result<Self, String> {
+        let mut entries = Vec::new();
+        for i in 0..archive.len() {
+            let mut file = archive
+                .by_index(i)
+                .map_err(|e| format!("baca entry zip index {i}: {e}"))?;
+            let name = file.name().to_string();
+            if !name.ends_with(".html") || file.is_dir() {
+                continue;
+            }
+            let mut buf = String::new();
+            file.read_to_string(&mut buf)
+                .map_err(|e| format!("baca {name} gagal: {e}"))?;
+            entries.push((name, buf));
+        }
+        if entries.is_empty() {
+            return Err("zip tidak berisi file .html".into());
+        }
+        Ok(Self { entries })
+    }
+
+    fn html(&self, name: &str) -> Option<&str> {
+        self.entries
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(name))
+            .map(|(_, h)| h.as_str())
+    }
+
+    fn search_order<'a>(&'a self, preferred: &[&str]) -> Vec<&'a str> {
+        let mut order = Vec::new();
+        for name in preferred {
+            if self.html(name).is_some() {
+                order.push(self.html(name).expect("checked"));
+            }
+        }
+        for (_, html) in &self.entries {
+            if !order.iter().any(|h| std::ptr::eq(*h, html.as_str())) {
+                order.push(html.as_str());
+            }
+        }
+        order
+    }
+
+    fn find_dei_html(&self) -> Result<&str, String> {
+        if let Some(html) = self.html(FILE_DEI) {
+            return Ok(html);
+        }
+        self.entries
+            .iter()
+            .find(|(_, html)| {
+                html.contains("idx-dei:EntityCode") && html.contains(LABEL_PERIOD_SUBMISSION)
+            })
+            .map(|(_, html)| html.as_str())
+            .ok_or_else(|| format!("file {FILE_DEI} atau DEI lain tidak ditemukan di zip"))
+    }
+}
 
 pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
     let source_zip_hash = hex_sha256(bytes);
     let mut archive =
         ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| format!("buka zip gagal: {e}"))?;
 
-    let dei_html = read_zip_entry(&mut archive, FILE_DEI)?;
-    let is_html = read_zip_entry_any(&mut archive, FILE_IS_CANDIDATES)?;
-    let cf_html = read_zip_entry(&mut archive, FILE_CF)?;
+    let corpus = ZipHtmlCorpus::from_archive(&mut archive)?;
+    let dei_html = corpus.find_dei_html()?;
+    let meta = parse_dei(dei_html)?;
 
-    let meta = parse_dei(&dei_html)?;
+    let is_order = corpus.search_order(PREFERRED_IS);
+    let cf_order = corpus.search_order(PREFERRED_CF);
+
     let ytd = YtdMetrics {
-        net_income: extract_non_fraction(&is_html, CONCEPT_NET_INCOME, CONTEXT_YTD)?,
-        cash_from_operation: extract_non_fraction(&cf_html, CONCEPT_CFO, CONTEXT_YTD)?,
-        cash_from_investment: extract_non_fraction(&cf_html, CONCEPT_CFI, CONTEXT_YTD)?,
-        cash_from_financing: extract_non_fraction(&cf_html, CONCEPT_CFF, CONTEXT_YTD)?,
-        capital_expenditure: extract_non_fraction(&cf_html, CONCEPT_CAPEX, CONTEXT_YTD)?,
+        net_income: extract_required_from_htmls(
+            &is_order,
+            &[CONCEPT_NET_INCOME],
+            "net income (ProfitLoss)",
+        )?,
+        cash_from_operation: extract_required_from_htmls(
+            &cf_order,
+            &[CONCEPT_CFO],
+            "cash from operation",
+        )?,
+        cash_from_investment: extract_required_from_htmls(
+            &cf_order,
+            &[CONCEPT_CFI],
+            "cash from investment",
+        )?,
+        cash_from_financing: extract_required_from_htmls(
+            &cf_order,
+            &[CONCEPT_CFF],
+            "cash from financing",
+        )?,
+        capital_expenditure: extract_optional_from_htmls(&cf_order, CONCEPT_CAPEX_CANDIDATES),
     };
 
     Ok(ParsedXlbrZip {
@@ -49,31 +136,34 @@ pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
     })
 }
 
-fn read_zip_entry(archive: &mut ZipArchive<std::io::Cursor<&[u8]>>, name: &str) -> Result<String, String> {
-    let mut file = archive
-        .by_name(name)
-        .map_err(|_| format!("file {name} tidak ditemukan di zip"))?;
-    let mut buf = String::new();
-    file.read_to_string(&mut buf)
-        .map_err(|e| format!("baca {name} gagal: {e}"))?;
-    Ok(buf)
+fn extract_required_from_htmls(
+    htmls: &[&str],
+    concepts: &[&str],
+    label: &str,
+) -> Result<f64, String> {
+    extract_from_htmls(htmls, concepts).ok_or_else(|| {
+        let concepts = concepts
+            .iter()
+            .map(|c| format!("'{c}'"))
+            .collect::<Vec<_>>()
+            .join(" atau ");
+        format!("{label} ({concepts} context={CONTEXT_YTD}) tidak ditemukan di zip")
+    })
 }
 
-fn read_zip_entry_any(
-    archive: &mut ZipArchive<std::io::Cursor<&[u8]>>,
-    names: &[&str],
-) -> Result<String, String> {
-    for name in names {
-        if let Ok(html) = read_zip_entry(archive, name) {
-            return Ok(html);
+fn extract_optional_from_htmls(htmls: &[&str], concepts: &[&str]) -> f64 {
+    extract_from_htmls(htmls, concepts).unwrap_or(0.0)
+}
+
+fn extract_from_htmls(htmls: &[&str], concepts: &[&str]) -> Option<f64> {
+    for concept in concepts {
+        for html in htmls {
+            if let Some(value) = extract_non_fraction_if_present(html, concept, CONTEXT_YTD) {
+                return Some(value);
+            }
         }
     }
-    let listed = names
-        .iter()
-        .map(|n| format!("'{n}'"))
-        .collect::<Vec<_>>()
-        .join(" atau ");
-    Err(format!("file {listed} tidak ditemukan di zip"))
+    None
 }
 
 fn parse_dei(html: &str) -> Result<ParsedReportMeta, String> {
@@ -198,29 +288,24 @@ fn extract_non_numeric(html: &str, concept: &str, context: &str) -> Result<Strin
     extract_ix_non_numeric_value(&html[start..])
 }
 
-fn extract_non_fraction(html: &str, concept: &str, context: &str) -> Result<f64, String> {
+fn extract_non_fraction_if_present(html: &str, concept: &str, context: &str) -> Option<f64> {
     let pattern = format!(r#"name="{concept}" contextRef="{context}""#);
-    let start = html
-        .find(&pattern)
-        .ok_or_else(|| format!("{concept} context={context} tidak ditemukan"))?;
-    let tag_end = html[start..]
-        .find('>')
-        .ok_or_else(|| format!("tag {concept} tidak lengkap"))? + start
-        + 1;
+    let start = html.find(&pattern)?;
+    let tag_end = html[start..].find('>')? + start + 1;
     let tag = &html[start..tag_end];
     if tag.contains("xsi:nil=\"true\"") {
-        return Ok(0.0);
+        return Some(0.0);
     }
     let inner = &html[tag_end..];
     if inner.starts_with("</") {
-        return Ok(0.0);
+        return Some(0.0);
     }
-    let close = inner
-        .find("</ix:nonFraction>")
-        .ok_or_else(|| format!("penutup {concept} tidak ditemukan"))?;
+    let close = inner.find("</ix:nonFraction>")?;
     let display = inner[..close].trim();
     let scale = parse_attr_i32(tag, "scale").unwrap_or(0);
-    parse_display_amount(display, scale)
+    let value = parse_display_amount(display).ok()?;
+    let _ = scale;
+    Some(value)
 }
 
 fn parse_attr_i32(tag: &str, name: &str) -> Option<i32> {
@@ -231,7 +316,7 @@ fn parse_attr_i32(tag: &str, name: &str) -> Option<i32> {
     rest[..end].parse().ok()
 }
 
-fn parse_display_amount(display: &str, _scale: i32) -> Result<f64, String> {
+fn parse_display_amount(display: &str) -> Result<f64, String> {
     let cleaned: String = display
         .chars()
         .filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-')
@@ -293,5 +378,16 @@ mod tests {
         assert_eq!(parsed.meta.fiscal_year, 2026);
         assert!(parsed.ytd.net_income > 0.0);
         assert!(parsed.ytd.cash_from_operation > 0.0);
+    }
+
+    #[test]
+    fn parse_properti_zip() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/inlineXBRL-properti.zip");
+        let bytes = fs::read(path).expect("inlineXBRL-properti.zip");
+        let parsed = parse_zip_bytes(&bytes).expect("parse properti");
+        assert_eq!(parsed.meta.code, "DMAS");
+        assert!(parsed.ytd.net_income > 0.0);
+        assert!(parsed.ytd.cash_from_operation > 0.0);
+        assert!(parsed.ytd.capital_expenditure > 0.0);
     }
 }
