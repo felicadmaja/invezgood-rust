@@ -9,22 +9,22 @@ service ConfigFundamental {
   rpc GetAllConfigFundamental(GetAllConfigFundamentalRequest)
       returns (GetAllConfigFundamentalResponse);
 
-  // Insert baris baru Scylla `invezgood.config_fundamental` (PK key unik).
-  // Wajib Authorization: Bearer JWT valid; `success=false` bila key kosong atau sudah ada.
+  // Insert baris baru Scylla `invezgood.config_fundamental` (PK key unik; key di-trim).
+  // Wajib Authorization: Bearer JWT valid; `success=false` bila key kosong/setelah trim atau sudah ada.
   // Side effect: INSERT Scylla; error internal bila query gagal.
   rpc InsertConfigFundamental(InsertConfigFundamentalRequest)
       returns (InsertConfigFundamentalResponse);
 
-  // Update kolom value/description Scylla `invezgood.config_fundamental` untuk PK key (key tidak diubah).
-  // Wajib Authorization: Bearer JWT valid; `success=false` bila key kosong atau tidak ditemukan.
+  // Update kolom value/description Scylla `invezgood.config_fundamental` untuk PK key (key di-trim, tidak diubah).
+  // Wajib Authorization: Bearer JWT valid; `success=false` bila key kosong/setelah trim atau tidak ditemukan.
   // Side effect: UPDATE Scylla; error internal bila query gagal.
   rpc UpdateConfigFundamental(UpdateConfigFundamentalRequest)
       returns (UpdateConfigFundamentalResponse);
 
   
 
-  // Hapus baris Scylla `invezgood.config_fundamental` by PK key.
-  // Wajib Authorization: Bearer JWT valid; `success=false` bila key kosong atau tidak ditemukan.
+  // Hapus baris Scylla `invezgood.config_fundamental` by PK key (key di-trim).
+  // Wajib Authorization: Bearer JWT valid; `success=false` bila key kosong/setelah trim atau tidak ditemukan.
   // Side effect: DELETE Scylla; error internal bila query gagal.
   rpc DeleteConfigFundamental(DeleteConfigFundamentalRequest)
       returns (DeleteConfigFundamentalResponse);
@@ -43,7 +43,7 @@ message GetAllConfigFundamentalResponse {
 }
 
 message UpdateConfigFundamentalRequest {
-  string key = 1;
+  string key = 1; // di-trim di server
   double value = 2;
   string description = 3;
 }
@@ -54,7 +54,7 @@ message UpdateConfigFundamentalResponse {
 }
 
 message InsertConfigFundamentalRequest {
-  string key = 1;
+  string key = 1; // di-trim di server
   double value = 2;
   string description = 3;
 }
@@ -65,7 +65,7 @@ message InsertConfigFundamentalResponse {
 }
 
 message DeleteConfigFundamentalRequest {
-  string key = 1;
+  string key = 1; // di-trim di server
 }
 
 message DeleteConfigFundamentalResponse {

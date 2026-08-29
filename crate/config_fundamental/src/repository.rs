@@ -3,6 +3,10 @@ use scylla::client::session::Session;
 
 use crate::model::{ConfigFundamentalRow, KEYSPACE, TABLE};
 
+fn normalize_key(key: &str) -> String {
+    key.trim().to_string()
+}
+
 const FIND_ALL: &str = "SELECT key, value, description FROM invezgood.config_fundamental";
 
 const FIND_BY_KEY: &str =
@@ -32,8 +36,9 @@ pub async fn find_by_key(
     session: &Session,
     key: &str,
 ) -> Result<Option<ConfigFundamentalRow>, String> {
+    let key = normalize_key(key);
     let mut rows = session
-        .query_iter(FIND_BY_KEY, (key,))
+        .query_iter(FIND_BY_KEY, (&key,))
         .await
         .map_err(|e| format!("find_by_key {KEYSPACE}.{TABLE} key={key}: {e}"))?
         .rows_stream::<ConfigFundamentalRow>()
@@ -51,12 +56,13 @@ pub async fn update(
     value: f64,
     description: &str,
 ) -> Result<bool, String> {
-    if find_by_key(session, key).await?.is_none() {
+    let key = normalize_key(key);
+    if find_by_key(session, &key).await?.is_none() {
         return Ok(false);
     }
 
     session
-        .query_unpaged(UPDATE, (value, description, key))
+        .query_unpaged(UPDATE, (value, description, &key))
         .await
         .map_err(|e| format!("update {KEYSPACE}.{TABLE} key={key}: {e}"))?;
     Ok(true)
@@ -69,12 +75,13 @@ pub async fn insert(
     value: f64,
     description: &str,
 ) -> Result<bool, String> {
-    if find_by_key(session, key).await?.is_some() {
+    let key = normalize_key(key);
+    if find_by_key(session, &key).await?.is_some() {
         return Ok(false);
     }
 
     session
-        .query_unpaged(INSERT, (key, value, description))
+        .query_unpaged(INSERT, (&key, value, description))
         .await
         .map_err(|e| format!("insert {KEYSPACE}.{TABLE} key={key}: {e}"))?;
     Ok(true)
@@ -82,12 +89,13 @@ pub async fn insert(
 
 /// Hapus baris by key. `Ok(false)` bila key tidak ada.
 pub async fn delete(session: &Session, key: &str) -> Result<bool, String> {
-    if find_by_key(session, key).await?.is_none() {
+    let key = normalize_key(key);
+    if find_by_key(session, &key).await?.is_none() {
         return Ok(false);
     }
 
     session
-        .query_unpaged(DELETE, (key,))
+        .query_unpaged(DELETE, (&key,))
         .await
         .map_err(|e| format!("delete {KEYSPACE}.{TABLE} key={key}: {e}"))?;
     Ok(true)

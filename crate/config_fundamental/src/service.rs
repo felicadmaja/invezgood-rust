@@ -40,9 +40,13 @@ impl ConfigFundamentalService {
         );
     }
 
+    fn normalize_key(key: &str) -> String {
+        key.trim().to_string()
+    }
+
     fn row_to_proto(row: DbConfigFundamentalRow) -> ConfigFundamentalRow {
         ConfigFundamentalRow {
-            key: row.key,
+            key: Self::normalize_key(&row.key),
             value: row.value,
             description: row.description.unwrap_or_default(),
         }
@@ -99,7 +103,7 @@ impl ConfigFundamental for ConfigFundamentalService {
 
         let result: Result<Response<UpdateConfigFundamentalResponse>, Status> = async {
             let req = request.into_inner();
-            let key = req.key.trim().to_string();
+            let key = Self::normalize_key(&req.key);
             if key.is_empty() {
                 return Ok(Response::new(UpdateConfigFundamentalResponse {
                     success: false,
@@ -157,7 +161,7 @@ impl ConfigFundamental for ConfigFundamentalService {
 
         let result: Result<Response<InsertConfigFundamentalResponse>, Status> = async {
             let req = request.into_inner();
-            let key = req.key.trim().to_string();
+            let key = Self::normalize_key(&req.key);
             if key.is_empty() {
                 return Ok(Response::new(InsertConfigFundamentalResponse {
                     success: false,
@@ -214,7 +218,7 @@ impl ConfigFundamental for ConfigFundamentalService {
         };
 
         let result: Result<Response<DeleteConfigFundamentalResponse>, Status> = async {
-            let key = request.into_inner().key.trim().to_string();
+            let key = Self::normalize_key(&request.into_inner().key);
             if key.is_empty() {
                 return Ok(Response::new(DeleteConfigFundamentalResponse {
                     success: false,
