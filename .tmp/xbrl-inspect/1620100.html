@@ -1,0 +1,564 @@
+<?xml version="1.0"?>
+<!--?xml version="1.0"?--><!-- All Rights Reserved, Copyright (c) FUJITSU 2012 --><html xmlns="http://www.w3.org/1999/xhtml" xmlns:rpi="http://www.fujitsu.com/raportado/ixbrl" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:ix="http://www.xbrl.org/2008/inlineXBRL" xmlns:ixt="http://www.xbrl.org/inlineXBRL/transformation/2010-04-20" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:ref="http://www.xbrl.org/2006/ref" xmlns:num="http://www.xbrl.org/dtr/type/numeric" xmlns:nonnum="http://www.xbrl.org/dtr/type/non-numeric" xmlns:xbrldt="http://xbrl.org/2005/xbrldt" xmlns:negated="http://www.xbrl.org/2009/role/negated" xmlns:idx-cor="http://www.idx.co.id/xbrl/taxonomy/2020-01-01/cor" xmlns:idx-dei="http://www.idx.co.id/xbrl/taxonomy/2020-01-01/dei" xmlns:xbrldi="http://xbrl.org/2006/xbrldi" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:xlink="http://www.w3.org/1999/xlink"> 
+ <!--1620100.html--> 
+ <head> 
+  <title>Interstage XWand WebForm</title> 
+  <!-- following style tag will be converted to be inline styling HTML --> 
+  <!-- following style tag will not be converted to be inline styling HTML --> 
+  <style type="text/css"> @page { size: 43in 27in; margin: 0.15in; padding: 1em; } .ix_negated { background-color: yellow; } input[type='radio'][name^='IX'] { width: auto; } input[name^='IX'] { width: 80%; } select[name^='IX'] { width: 80%; } </style> 
+  <script type="text/javascript"> // var specialKeys = new Array(); specialKeys.push(8); // backspace //specialKeys.push(44); // comma (,) //specialKeys.push(46); // dot (.) var IsNumeric = function IsNumeric(e) { var keyCode = e.which ? e.which : e.keyCode; var allow = (keyCode &gt;= 48 &amp;&amp; keyCode &lt;= 57) || specialKeys.indexOf(keyCode) != -1; if (!allow) { e.preventDefault(); } }; function onBodyLoaded() { var moneteryItemTypeInputs = document.getElementsByClassName( "ix_monetary" ); var formatNumber = function (e) { let value = e.srcElement.value; if (value == '') return; value = value.replace(/\D/g, ''); value = new Number(value).toLocaleString('en-US'); e.srcElement.value = value; } for (var i = 0; i &lt; moneteryItemTypeInputs.length; i++) { var monetaryItemTypeInput = moneteryItemTypeInputs.item(i); monetaryItemTypeInput.addEventListener("keypress", IsNumeric); monetaryItemTypeInput.addEventListener('keyup', formatNumber); monetaryItemTypeInput.value = monetaryItemTypeInput.value.replace(/\.0*/, ''); } } // </script> 
+ </head> 
+ <body onload="onBodyLoaded()"> 
+  <p class="titleLeft" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">[1620100_BD] Notes to the financial statements - Trade receivables, by currency (breakdown) - General Industry </p> 
+  <div name="FORM_CONTAINER_DIMENSIONAL_SIDE_BY_SIDE" class="prepareTemplateFormContainer" href="http://www.idx.co.id/role/IDX-rt_role-2020-01-01_1620100_BD"> 
+   <table> 
+    <tbody> 
+     <tr> 
+      <td> <p class="titleLeft" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">  </p> </td> 
+      <td> <p class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;">  </p> </td> 
+     </tr> 
+     <tr> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="2" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan mata uang </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="3">Trade receivables by currency </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="13">Pihak ketiga </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">IDR </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_IDRMember_ThirdPartyMember" unitRef="USD" id="IXF1620100E02_1374_00025_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">136,301</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">IDR </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="13">Third party </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">AUD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_AUDMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00013_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">AUD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CAD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_CADMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00015_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CAD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CNY </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_CNYMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00017_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CNY </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">EUR </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_EURMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00019_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">EUR </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">HKD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_HKDMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00023_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">HKD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">GBP </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_GBPMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00021_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">GBP </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">JPY </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_JPYMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00027_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">JPY </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">SGD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_SGDMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00032_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">SGD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">THB </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_THBMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00034_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">THB </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">USD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_USDMember_ThirdPartyMember" unitRef="USD" id="IXF1620100E02_1374_00037_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">226,633</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">USD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Mata uang lainnya </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_OtherCurrencyMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00029_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Other currency </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Mata uang </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_ThirdPartyMember" unitRef="USD" id="IXF1620100E02_1374_00009_01_0002" format="ixt:numcommadot" decimals="-3" scale="3">362,934</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Currency </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="13">Pihak berelasi </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">IDR </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_IDRMember_RelatedPartyMember" unitRef="USD" id="IXF1620100E02_1374_00024_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">129,947</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">IDR </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="13">Related party </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">AUD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_AUDMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00012_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">AUD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CAD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_CADMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00014_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CAD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CNY </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_CNYMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00016_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CNY </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">EUR </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_EURMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00018_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">EUR </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">HKD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_HKDMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00022_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">HKD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">GBP </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_GBPMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00020_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">GBP </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">JPY </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_JPYMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00026_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">JPY </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">SGD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_SGDMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00031_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">SGD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">THB </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_THBMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00033_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">THB </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">USD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_USDMember_RelatedPartyMember" unitRef="USD" id="IXF1620100E02_1374_00036_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">1,598</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">USD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Mata uang lainnya </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_OtherCurrencyMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00028_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Other currency </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Mata uang </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_RelatedPartyMember" unitRef="USD" id="IXF1620100E02_1374_00008_01_0002" format="ixt:numcommadot" decimals="-3" scale="3">131,545</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Currency </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="2" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan mata uang </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="3">Trade receivables by currency </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="13">Pihak ketiga </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">IDR </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_IDRMember_ThirdPartyMember" unitRef="USD" id="IXF1620100E02_1374_00051_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">123,943</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">IDR </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="13">Third party </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">AUD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_AUDMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00039_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">AUD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CAD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_CADMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00041_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CAD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CNY </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_CNYMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00043_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CNY </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">EUR </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_EURMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00045_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">EUR </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">HKD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_HKDMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00049_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">HKD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">GBP </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_GBPMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00047_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">GBP </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">JPY </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_JPYMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00053_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">JPY </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">SGD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_SGDMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00058_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">SGD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">THB </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_THBMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00060_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">THB </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">USD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_USDMember_ThirdPartyMember" unitRef="USD" id="IXF1620100E02_1374_00063_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">266,393</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">USD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Mata uang lainnya </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_OtherCurrencyMember_ThirdPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00055_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Other currency </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Mata uang </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_ThirdPartyMember" unitRef="USD" id="IXF1620100E02_1374_00011_01_0002" format="ixt:numcommadot" decimals="-3" scale="3">390,336</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Currency </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="13">Pihak berelasi </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">IDR </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_IDRMember_RelatedPartyMember" unitRef="USD" id="IXF1620100E02_1374_00050_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">123,762</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">IDR </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="13">Related party </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">AUD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_AUDMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00038_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">AUD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CAD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_CADMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00040_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CAD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CNY </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_CNYMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00042_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">CNY </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">EUR </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_EURMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00044_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">EUR </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">HKD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_HKDMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00048_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">HKD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">GBP </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_GBPMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00046_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">GBP </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">JPY </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_JPYMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00052_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">JPY </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">SGD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_SGDMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00057_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">SGD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">THB </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_THBMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00059_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">THB </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">USD </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_USDMember_RelatedPartyMember" unitRef="USD" id="IXF1620100E02_1374_00062_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">2,371</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">USD </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Mata uang lainnya </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_OtherCurrencyMember_RelatedPartyMember" unitRef="USD" xsi:nil="true" id="IXF1620100E02_1374_00054_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Other currency </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Mata uang </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_RelatedPartyMember" unitRef="USD" id="IXF1620100E02_1374_00010_01_0002" format="ixt:numcommadot" decimals="-3" scale="3">126,133</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Currency </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+     </tr> 
+    </tbody> 
+   </table> 
+  </div> 
+  <div name="FORM_CONTAINER_DIMENSIONAL_SIDE_BY_SIDE" class="prepareTemplateFormContainer" href="http://www.idx.co.id/role/IDX-rt_role-2020-01-01_1620100_TTL"> 
+   <table> 
+    <tbody> 
+     <tr> 
+      <td> <p class="titleLeft" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">  </p> </td> 
+      <td> <p class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;">  </p> </td> 
+     </tr> 
+     <tr> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="3" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan mata uang </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="4">Trade receivables by currency </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;" colspan="3">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Penyisihan penurunan nilai piutang usaha</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Pihak ketiga </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Mata uang </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_ThirdPartyMember" unitRef="USD" id="IXF1620100E02_1374_00009_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">362,934</ix:nonFraction> </td> 
+             <td class="valueCell negatedValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              (<ix:nonFraction name="idx-cor:AllowanceForImpairmentOfTradeReceivables" contextRef="CurrentYearInstant_1620100_ThirdPartyMember_1" unitRef="USD" id="IXF1620100E02_1369_00035_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">895</ix:nonFraction>) </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesNet" contextRef="CurrentYearInstant_1620100_ThirdPartyMember_1" unitRef="USD" id="IXF1620100E02_1373_00035_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">362,039</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Third party </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Currency </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="3" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan mata uang </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="4">Trade receivables by currency </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;" colspan="3">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Penyisihan penurunan nilai piutang usaha</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Pihak ketiga </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Mata uang </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_ThirdPartyMember" unitRef="USD" id="IXF1620100E02_1374_00011_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">390,336</ix:nonFraction> </td> 
+             <td class="valueCell negatedValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              (<ix:nonFraction name="idx-cor:AllowanceForImpairmentOfTradeReceivables" contextRef="PriorEndYearInstant_1620100_ThirdPartyMember_1" unitRef="USD" id="IXF1620100E02_1369_00061_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">1,109</ix:nonFraction>) </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesNet" contextRef="PriorEndYearInstant_1620100_ThirdPartyMember_1" unitRef="USD" id="IXF1620100E02_1373_00061_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">389,227</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Third party </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Currency </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+     </tr> 
+    </tbody> 
+   </table> 
+  </div> 
+  <div name="FORM_CONTAINER_DIMENSIONAL_SIDE_BY_SIDE" class="prepareTemplateFormContainer" href="http://www.idx.co.id/role/IDX-rt_role-2020-01-01_1620100_TTL2"> 
+   <table> 
+    <tbody> 
+     <tr> 
+      <td> <p class="titleLeft" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">  </p> </td> 
+      <td> <p class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;">  </p> </td> 
+     </tr> 
+     <tr> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="3" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan mata uang </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="4">Trade receivables by currency </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;" colspan="3">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Penyisihan penurunan nilai piutang usaha</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Pihak berelasi </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Mata uang </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620100_RelatedPartyMember" unitRef="USD" id="IXF1620100E02_1374_00008_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">131,545</ix:nonFraction> </td> 
+             <td class="valueCell negatedValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              (<ix:nonFraction name="idx-cor:AllowanceForImpairmentOfTradeReceivables" contextRef="CurrentYearInstant_1620100_RelatedPartyMember_1" unitRef="USD" id="IXF1620100E02_1369_00030_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">13,129</ix:nonFraction>) </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesNet" contextRef="CurrentYearInstant_1620100_RelatedPartyMember_1" unitRef="USD" id="IXF1620100E02_1373_00030_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">118,416</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Related party </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Currency </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="3" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan mata uang </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="4">Trade receivables by currency </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;" colspan="3">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Penyisihan penurunan nilai piutang usaha</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Pihak berelasi </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Mata uang </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620100_RelatedPartyMember" unitRef="USD" id="IXF1620100E02_1374_00010_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">126,133</ix:nonFraction> </td> 
+             <td class="valueCell negatedValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              (<ix:nonFraction name="idx-cor:AllowanceForImpairmentOfTradeReceivables" contextRef="PriorEndYearInstant_1620100_RelatedPartyMember_1" unitRef="USD" id="IXF1620100E02_1369_00056_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">13,293</ix:nonFraction>) </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesNet" contextRef="PriorEndYearInstant_1620100_RelatedPartyMember_1" unitRef="USD" id="IXF1620100E02_1373_00056_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">112,840</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Related party </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Currency </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+     </tr> 
+    </tbody> 
+   </table> 
+  </div> 
+ </body> 
+</html>

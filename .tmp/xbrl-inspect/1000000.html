@@ -1,0 +1,285 @@
+<?xml version="1.0"?>
+<!--?xml version="1.0"?--><!-- All Rights Reserved, Copyright (c) FUJITSU 2012 --><html xmlns="http://www.w3.org/1999/xhtml" xmlns:rpi="http://www.fujitsu.com/raportado/ixbrl" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:ix="http://www.xbrl.org/2008/inlineXBRL" xmlns:ixt="http://www.xbrl.org/inlineXBRL/transformation/2010-04-20" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:ref="http://www.xbrl.org/2006/ref" xmlns:num="http://www.xbrl.org/dtr/type/numeric" xmlns:nonnum="http://www.xbrl.org/dtr/type/non-numeric" xmlns:xbrldt="http://xbrl.org/2005/xbrldt" xmlns:negated="http://www.xbrl.org/2009/role/negated" xmlns:idx-cor="http://www.idx.co.id/xbrl/taxonomy/2020-01-01/cor" xmlns:idx-dei="http://www.idx.co.id/xbrl/taxonomy/2020-01-01/dei" xmlns:xbrldi="http://xbrl.org/2006/xbrldi" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:xlink="http://www.w3.org/1999/xlink"> 
+ <!--1000000.html--> 
+ <head> 
+  <title>Interstage XWand WebForm</title> 
+  <!-- following style tag will be converted to be inline styling HTML --> 
+  <!-- following style tag will not be converted to be inline styling HTML --> 
+  <style type="text/css"> @page { size: 43in 27in; margin: 0.15in; padding: 1em; } .ix_negated { background-color: yellow; } input[type='radio'][name^='IX'] { width: auto; } input[name^='IX'] { width: 80%; } select[name^='IX'] { width: 80%; } </style> 
+  <script type="text/javascript"> // var specialKeys = new Array(); specialKeys.push(8); // backspace //specialKeys.push(44); // comma (,) //specialKeys.push(46); // dot (.) var IsNumeric = function IsNumeric(e) { var keyCode = e.which ? e.which : e.keyCode; var allow = (keyCode &gt;= 48 &amp;&amp; keyCode &lt;= 57) || specialKeys.indexOf(keyCode) != -1; if (!allow) { e.preventDefault(); } }; function onBodyLoaded() { var moneteryItemTypeInputs = document.getElementsByClassName( "ix_monetary" ); var formatNumber = function (e) { let value = e.srcElement.value; if (value == '') return; value = value.replace(/\D/g, ''); value = new Number(value).toLocaleString('en-US'); e.srcElement.value = value; } for (var i = 0; i &lt; moneteryItemTypeInputs.length; i++) { var monetaryItemTypeInput = moneteryItemTypeInputs.item(i); monetaryItemTypeInput.addEventListener("keypress", IsNumeric); monetaryItemTypeInput.addEventListener('keyup', formatNumber); monetaryItemTypeInput.value = monetaryItemTypeInput.value.replace(/\.0*/, ''); } } // </script> 
+ </head> 
+ <body onload="onBodyLoaded()"> 
+  <p class="titleLeft" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">[1000000] General information</p> 
+  <div name="FORM_CONTAINER_FIXED" class="prepareTemplateFormContainer" href="http://www.idx.co.id/role/IDX-rt_role-2020-01-01_1000000"> 
+   <div> 
+    <div> 
+     <div> 
+      <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:100%;"> 
+       <tbody> 
+        <tr> 
+         <td class="titleLeft" colspan="1" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Informasi umum </td> 
+         <td class="titleRight" colspan="2" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;">General information </td> 
+        </tr> 
+        <tr> 
+         <td/> 
+         <td class="colHeader01" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;width:20%;">  2026-03-31</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;word-wrap:break-word;">Informasi umum </td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"/> 
+         <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;word-wrap:break-word;">General information </td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Nama entitas</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:EntityName" contextRef="CurrentYearInstant" id="IXF1000000E01_0011_00001_00_0001" escape="false">PT Adaro Andalan Indonesia Tbk</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Entity name</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Penjelasan perubahan nama dari akhir periode laporan sebelumnya</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:ExplanationOfChangeInNameFromTheEndOfThePrecedingReportingPeriod" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0012_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Explanation of change in name from the end of the preceding reporting period</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Kode entitas</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:EntityCode" contextRef="CurrentYearInstant" id="IXF1000000E01_0008_00001_00_0001" escape="false">AADI</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Entity code</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Nomor identifikasi entitas</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:EntityIdentificationNumber" contextRef="CurrentYearInstant" id="IXF1000000E01_0009_00001_00_0001" escape="false">AB271</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Entity identification number</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Industri utama entitas</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:EntityMainIndustry" contextRef="CurrentYearInstant" id="IXF1000000E01_0010_00001_00_0001" escape="false">Umum / General</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Entity main industry</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Standar akutansi yang dipilih</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:SelectedAccountingStandards" contextRef="CurrentYearInstant" id="IXF1000000E01_0032_00001_00_0001" escape="false">PSAK</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Selected accounting standards</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Sektor</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:Sector" contextRef="CurrentYearInstant" id="IXF1000000E01_0027_00001_00_0001" escape="false">A. Energy</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Sector</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Subsektor</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:Subsector" contextRef="CurrentYearInstant" id="IXF1000000E01_0028_00001_00_0001" escape="false">A1. Oil, Gas &amp; Coal</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Subsector</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Industri</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:Industry" contextRef="CurrentYearInstant" id="IXF1000000E01_0029_00001_00_0001" escape="false">A12. Coal</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Industry</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Subindustri</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:Subindustry" contextRef="CurrentYearInstant" id="IXF1000000E01_0030_00001_00_0001" escape="false">A121. Coal Production</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Subindustry</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Informasi pemegang saham pengendali</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:ControllingShareholderInformation" contextRef="CurrentYearInstant" id="IXF1000000E01_0001_00001_00_0001" escape="false">National Corporation</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Controlling shareholder information</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Jenis entitas</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:TypeOfEntity" contextRef="CurrentYearInstant" id="IXF1000000E01_0035_00001_00_0001" escape="false">Local Company - Indonesia Jurisdiction</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Type of entity</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Jenis efek yang dicatatkan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:TypeOfListedSecurities" contextRef="CurrentYearInstant" id="IXF1000000E01_0036_00001_00_0001" escape="false">Saham / Stock</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Type of listed securities</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Jenis papan perdagangan tempat entitas tercatat</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:TypeOfBoardOnWhichTheEntityIsListed" contextRef="CurrentYearInstant" id="IXF1000000E01_0034_00001_00_0001" escape="false">Utama / Main</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Type of board on which the entity is listed</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Apakah merupakan laporan keuangan satu entitas atau suatu kelompok entitas</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:WhetherTheFinancialStatementsAreOfAnIndividualEntityOrAGroupOfEntities" contextRef="CurrentYearInstant" id="IXF1000000E01_0040_00001_00_0001" escape="false">Entitas grup / Group entity</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Whether the financial statements are of an individual entity or a group of entities</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Periode penyampaian laporan keuangan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:PeriodOfFinancialStatementsSubmissions" contextRef="CurrentYearInstant" id="IXF1000000E01_0020_00001_00_0001" escape="false">Kuartal I / First Quarter</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Period of financial statements submissions</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Tanggal Surat Pernyataan Direksi</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:DateOfBoardOfDirectorsStatementLetter" contextRef="CurrentYearInstant" id="IXF1000000E01_0041_00001_00_0001" escape="false" format="ixt:datelongus">April 30, 2026</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Date Of Board Of Directors' Statement Letter</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Tanggal awal periode berjalan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:CurrentPeriodStartDate" contextRef="CurrentYearInstant" id="IXF1000000E01_0004_00001_00_0001" escape="false" format="ixt:datelongus">January 01, 2026</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Current period start date</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Tanggal akhir periode berjalan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:CurrentPeriodEndDate" contextRef="CurrentYearInstant" id="IXF1000000E01_0003_00001_00_0001" escape="false" format="ixt:datelongus">March 31, 2026</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Current period end date</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Tanggal akhir tahun sebelumnya</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:PriorYearEndDate" contextRef="CurrentYearInstant" id="IXF1000000E01_0025_00001_00_0001" escape="false" format="ixt:datelongus">December 31, 2025</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Prior year end date</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Tanggal awal periode sebelumnya</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:PriorPeriodStartDate" contextRef="CurrentYearInstant" id="IXF1000000E01_0023_00001_00_0001" escape="false" format="ixt:datelongus">January 01, 2025</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Prior period start date</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Tanggal akhir periode sebelumnya</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:PriorPeriodEndDate" contextRef="CurrentYearInstant" id="IXF1000000E01_0021_00001_00_0001" escape="false" format="ixt:datelongus">March 31, 2025</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Prior period end date</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Tanggal akhir 2 tahun sebelumnya</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:Prior2YearEndDate" contextRef="CurrentYearInstant" id="IXF1000000E01_0022_00001_00_0001" escape="false" format="ixt:datelongus">December 31, 2024</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Prior 2 year end date</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Mata uang pelaporan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:DescriptionOfPresentationCurrency" contextRef="CurrentYearInstant" id="IXF1000000E01_0007_00001_00_0001" escape="false">Dollar Amerika / USD</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Description of presentation currency</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Kurs konversi pada tanggal pelaporan jika mata uang penyajian selain rupiah</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonFraction name="idx-dei:ConversionRateAtReportingDateIfPresentationCurrencyIsOtherThanRupiah" contextRef="CurrentYearInstant" unitRef="USD" xsi:nil="true" id="IXF1000000E01_0002_00001_01_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Conversion rate at reporting date if presentation currency is other than rupiah</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Pembulatan yang digunakan dalam penyajian jumlah dalam laporan keuangan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:LevelOfRoundingUsedInFinancialStatements" contextRef="CurrentYearInstant" id="IXF1000000E01_0013_00001_00_0001" escape="false">Ribuan / In Thousand</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Level of rounding used in financial statements</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Jenis laporan atas laporan keuangan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:TypeOfReportOnFinancialStatements" contextRef="CurrentYearInstant" id="IXF1000000E01_0037_00001_00_0001" escape="false">Tidak Diaudit / Unaudit</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Type of report on financial statements</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Jenis opini auditor</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:TypeOfAuditorsOpinion" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0033_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Type of auditor's opinion</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Hal yang diungkapkan dalam paragraf pendapat untuk penekanan atas suatu masalah atau paragraf penjelasan lainnya, jika ada</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:MattersDisclosedInEmphasisOfMAtterOrOtherMatterParagraphIfAny" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0014_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Matters disclosed in emphasis-of-matter or other-matter paragraph, if any</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Hasil penugasan review</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:ResultOfReviewEngagement" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0026_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Result of review engagement</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Opini Hal Audit Utama</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:AnyKeyAuditMattersOpinion" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0017_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Any Key Audit Matters Opinion</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Jumlah Hal Audit Utama</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:TotalKeyAuditMatters" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0031_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Total Key Audit Matters</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Paragraf Hal Audit Utama</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:KeyAuditMattersParagraph" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0016_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Key Audit Matters Paragraph</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Tanggal laporan audit atau hasil laporan review</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:DateOfAuditorsOpinionOrResultOfReviewReport" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0006_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Date of auditor's opinion or result of review report</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Auditor tahun berjalan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:CurrentYearAuditor" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0005_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Current year auditor</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Nama partner audit tahun berjalan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:NameOfCurrentYearAuditSigningPartner" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0015_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Name of current year audit signing partner</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Lama tahun penugasan partner yang menandatangani</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:NumberOfYearsServedAsAuditSigningPartner" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0019_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Number of years served as audit signing partner</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Auditor tahun sebelumnya</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:PriorYearAuditor" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0024_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Prior year auditor</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Nama partner audit tahun sebelumnya</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:NameofPriorYearAuditSigningPartner" contextRef="CurrentYearInstant" xsi:nil="true" escape="false" id="IXF1000000E01_0018_00001_00_0001"/> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Name of prior year audit signing partner</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Kepatuhan terhadap pemenuhan peraturan OJK Nomor: 75/POJK.04/2017 tentang Tanggung Jawab Direksi Atas Laporan Keuangan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:WhetherInComplianceWithBAPEPAMLKVIIIG11RulesConcerningResponsibilitiesOfBoardOfDirectorsOnFinancialStatements" contextRef="CurrentYearInstant" id="IXF1000000E01_0039_00001_00_0001" escape="false">Ya / Yes</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Whether in compliance with OJK rules No. 75/POJK.04/2017 concerning responsibilities of board of directors on financial statements</td> 
+        </tr> 
+        <tr> 
+         <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-left:1.5em;word-wrap:break-word;">Kepatuhan terhadap pemenuhan independensi akuntan yang memberikan jasa audit di pasar modal sesuai dengan POJK Nomor 13/POJK.03/2017 tentang Penggunaan Jasa Akuntan Publik dalam Kegiatan Jasa Keuangan</td> 
+         <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+          <ix:nonNumeric name="idx-dei:WhetherInComplianceWithBAPEPAMLKVIIIATwoRulesConcerningIndependenceOfAccountantProvidingAuditServicesInCapitalMarket" contextRef="CurrentYearInstant" id="IXF1000000E01_0038_00001_00_0001" escape="false">Ya / Yes</ix:nonNumeric> </td> 
+         <td class="rowHeaderRight fixedFormRowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;width:30%;;padding-right:1.5em;word-wrap:break-word;">Compliance to the independency of Accountant that provide services in Capital Market as regulated in OJK rules No. 13/POJK.03/2017 concerning The Use of Public Accountant and Auditing Firm in Financial Services Activities.</td> 
+        </tr> 
+       </tbody> 
+      </table> 
+     </div> 
+    </div> 
+   </div> 
+  </div> 
+ </body> 
+</html>

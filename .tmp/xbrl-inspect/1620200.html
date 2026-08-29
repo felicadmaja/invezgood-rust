@@ -1,0 +1,608 @@
+<?xml version="1.0"?>
+<!--?xml version="1.0"?--><!-- All Rights Reserved, Copyright (c) FUJITSU 2012 --><html xmlns="http://www.w3.org/1999/xhtml" xmlns:rpi="http://www.fujitsu.com/raportado/ixbrl" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:ix="http://www.xbrl.org/2008/inlineXBRL" xmlns:ixt="http://www.xbrl.org/inlineXBRL/transformation/2010-04-20" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:ref="http://www.xbrl.org/2006/ref" xmlns:num="http://www.xbrl.org/dtr/type/numeric" xmlns:nonnum="http://www.xbrl.org/dtr/type/non-numeric" xmlns:xbrldt="http://xbrl.org/2005/xbrldt" xmlns:negated="http://www.xbrl.org/2009/role/negated" xmlns:idx-cor="http://www.idx.co.id/xbrl/taxonomy/2020-01-01/cor" xmlns:idx-dei="http://www.idx.co.id/xbrl/taxonomy/2020-01-01/dei" xmlns:xbrldi="http://xbrl.org/2006/xbrldi" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:xlink="http://www.w3.org/1999/xlink"> 
+ <!--1620200.html--> 
+ <head> 
+  <title>Interstage XWand WebForm</title> 
+  <!-- following style tag will be converted to be inline styling HTML --> 
+  <!-- following style tag will not be converted to be inline styling HTML --> 
+  <style type="text/css"> @page { size: 43in 27in; margin: 0.15in; padding: 1em; } .ix_negated { background-color: yellow; } input[type='radio'][name^='IX'] { width: auto; } input[name^='IX'] { width: 80%; } select[name^='IX'] { width: 80%; } </style> 
+  <script type="text/javascript"> // var specialKeys = new Array(); specialKeys.push(8); // backspace //specialKeys.push(44); // comma (,) //specialKeys.push(46); // dot (.) var IsNumeric = function IsNumeric(e) { var keyCode = e.which ? e.which : e.keyCode; var allow = (keyCode &gt;= 48 &amp;&amp; keyCode &lt;= 57) || specialKeys.indexOf(keyCode) != -1; if (!allow) { e.preventDefault(); } }; function onBodyLoaded() { var moneteryItemTypeInputs = document.getElementsByClassName( "ix_monetary" ); var formatNumber = function (e) { let value = e.srcElement.value; if (value == '') return; value = value.replace(/\D/g, ''); value = new Number(value).toLocaleString('en-US'); e.srcElement.value = value; } for (var i = 0; i &lt; moneteryItemTypeInputs.length; i++) { var monetaryItemTypeInput = moneteryItemTypeInputs.item(i); monetaryItemTypeInput.addEventListener("keypress", IsNumeric); monetaryItemTypeInput.addEventListener('keyup', formatNumber); monetaryItemTypeInput.value = monetaryItemTypeInput.value.replace(/\.0*/, ''); } } // </script> 
+ </head> 
+ <body onload="onBodyLoaded()"> 
+  <p class="titleLeft" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">[1620200_BD] Notes to the financial statements - Trade receivables, by aging (breakdown) - General Industry </p> 
+  <div name="FORM_CONTAINER_DIMENSIONAL_SIDE_BY_SIDE" class="prepareTemplateFormContainer" href="http://www.idx.co.id/role/IDX-rt_role-2020-01-01_1620200_TTL"> 
+   <table> 
+    <tbody> 
+     <tr> 
+      <td> <p class="titleLeft" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">  2026-03-31</p> </td> 
+      <td> <p class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;">  2025-12-31</p> </td> 
+     </tr> 
+     <tr> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="2" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan umur </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="3">Trade receivables by aging </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Belum jatuh tempo </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Umur </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_NotYetDueMember" unitRef="USD" id="IXF1620200E02_1374_00008_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">463,126</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Aging </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Not yet due </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="2" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan umur </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="3">Trade receivables by aging </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Belum jatuh tempo </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Umur </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_NotYetDueMember" unitRef="USD" id="IXF1620200E02_1374_00010_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">479,408</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Aging </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Not yet due </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+     </tr> 
+    </tbody> 
+   </table> 
+  </div> 
+  <div name="FORM_CONTAINER_DIMENSIONAL_SIDE_BY_SIDE" class="prepareTemplateFormContainer" href="http://www.idx.co.id/role/IDX-rt_role-2020-01-01_1620200_BD"> 
+   <table> 
+    <tbody> 
+     <tr> 
+      <td> <p class="titleLeft" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">  2026-03-31</p> </td> 
+      <td> <p class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;">  2025-12-31</p> </td> 
+     </tr> 
+     <tr> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="2" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan umur </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="3">Trade receivables by aging </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="31">Telah jatuh tempo </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 30 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OneToThirtyDaysMember_OverdueMember" unitRef="USD" id="IXF1620200E02_1374_00033_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">5,620</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 30 days </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="31">Overdue </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 60 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OneToSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00032_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 60 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 90 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OneToNinetyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00030_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 90 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 180 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OneToOneHundredEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00031_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 180 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 360 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OneToThreeHundredSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00034_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 360 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">31 - 60 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_ThirtyOneToSixtyDaysMember_OverdueMember" unitRef="USD" id="IXF1620200E02_1374_00038_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">5,400</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">31 - 60 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">61 - 90 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_SixtyOneToNinetyDaysMember_OverdueMember" unitRef="USD" id="IXF1620200E02_1374_00036_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">2,728</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">61 - 90 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">61 - 120 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_SixtyOneToOneHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00037_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">61 - 120 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">91 - 120 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_NinetyOneToOneHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00024_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">91 - 120 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">91 - 180 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_NinetyOneToOneHundredEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00023_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">91 - 180 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">121 - 150 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OneHundredTwentyOneToOneHundredFiftyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00029_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">121 - 150 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">121 - 180 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OneHundredTwentyOneToOneHundredEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00028_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">121 - 180 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">151 - 180 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OneHundredFiftyOneToOneHundredEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00027_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">151 - 180 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">181 - 270 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OneHundredEightyOneToTwoHundredSeventyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00026_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">181 - 270 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">181 - 360 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OneHundredEightyOneToThreeHundredSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00025_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">181 - 360 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">271 - 360 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_TwoHundredSeventyOneToThreeHundredSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00041_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">271 - 360 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">361 - 540 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_ThreeHundredSixtyOneToFiveHundredFourtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00039_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">361 - 540 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">361 - 720 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_ThreeHundredSixtyOneToSevenHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00040_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">361 - 720 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">541 - 720 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_FiveHundredFourtyOneToSevenHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00012_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">541 - 720 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">721 - 1.080 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_SevenHundredTwentyOneToOneThousandEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00035_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">721 - 1.080 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 30 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_MoreThanThirtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00020_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 30 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 60 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_MoreThanSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00019_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 60 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 90 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_MoreThanNinetyDaysMember_OverdueMember" unitRef="USD" id="IXF1620200E02_1374_00014_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">17,605</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 90 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 120 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_MoreThanOneHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00017_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 120 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 150 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_MoreThanOneHundredFiftyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00016_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 150 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 180 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_MoreThanOneHundredEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00015_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 180 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 270 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_MoreThanTwoHundredSeventyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00022_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 270 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 360 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_MoreThanThreeHundredSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00021_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 360 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 540 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_MoreThanFiveHundredFourtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00013_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 540 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 720 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_MoreThanSevenHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00018_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 720 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Umur </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant_1620200_OverdueMember" unitRef="USD" id="IXF1620200E02_1374_00009_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">31,353</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Aging </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="2" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan umur </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="3">Trade receivables by aging </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="31">Telah jatuh tempo </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 30 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OneToThirtyDaysMember_OverdueMember" unitRef="USD" id="IXF1620200E02_1374_00063_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">14,076</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 30 days </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;" rowspan="31">Overdue </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 60 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OneToSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00062_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 60 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 90 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OneToNinetyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00060_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 90 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 180 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OneToOneHundredEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00061_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 180 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 360 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OneToThreeHundredSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00064_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">1 - 360 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">31 - 60 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_ThirtyOneToSixtyDaysMember_OverdueMember" unitRef="USD" id="IXF1620200E02_1374_00068_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">5,286</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">31 - 60 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">61 - 90 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_SixtyOneToNinetyDaysMember_OverdueMember" unitRef="USD" id="IXF1620200E02_1374_00066_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">515</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">61 - 90 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">61 - 120 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_SixtyOneToOneHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00067_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">61 - 120 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">91 - 120 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_NinetyOneToOneHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00054_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">91 - 120 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">91 - 180 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_NinetyOneToOneHundredEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00053_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">91 - 180 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">121 - 150 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OneHundredTwentyOneToOneHundredFiftyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00059_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">121 - 150 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">121 - 180 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OneHundredTwentyOneToOneHundredEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00058_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">121 - 180 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">151 - 180 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OneHundredFiftyOneToOneHundredEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00057_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">151 - 180 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">181 - 270 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OneHundredEightyOneToTwoHundredSeventyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00056_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">181 - 270 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">181 - 360 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OneHundredEightyOneToThreeHundredSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00055_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">181 - 360 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">271 - 360 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_TwoHundredSeventyOneToThreeHundredSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00071_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">271 - 360 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">361 - 540 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_ThreeHundredSixtyOneToFiveHundredFourtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00069_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">361 - 540 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">361 - 720 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_ThreeHundredSixtyOneToSevenHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00070_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">361 - 720 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">541 - 720 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_FiveHundredFourtyOneToSevenHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00042_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">541 - 720 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">721 - 1.080 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_SevenHundredTwentyOneToOneThousandEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00065_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">721 - 1.080 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 30 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_MoreThanThirtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00050_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 30 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 60 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_MoreThanSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00049_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 60 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 90 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_MoreThanNinetyDaysMember_OverdueMember" unitRef="USD" id="IXF1620200E02_1374_00044_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">17,184</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 90 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 120 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_MoreThanOneHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00047_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 120 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 150 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_MoreThanOneHundredFiftyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00046_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 150 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 180 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_MoreThanOneHundredEightyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00045_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 180 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 270 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_MoreThanTwoHundredSeventyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00052_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 270 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 360 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_MoreThanThreeHundredSixtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00051_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 360 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 540 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_MoreThanFiveHundredFourtyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00043_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 540 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Lebih dari 720 hari </td> 
+             <td class="valueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_MoreThanSevenHundredTwentyDaysMember_OverdueMember" unitRef="USD" xsi:nil="true" id="IXF1620200E02_1374_00048_01_0001"/> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">More than 720 days </td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Umur </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant_1620200_OverdueMember" unitRef="USD" id="IXF1620200E02_1374_00011_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">37,061</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Aging </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+     </tr> 
+    </tbody> 
+   </table> 
+  </div> 
+  <div name="FORM_CONTAINER_DIMENSIONAL_SIDE_BY_SIDE" class="prepareTemplateFormContainer" href="http://www.idx.co.id/role/IDX-rt_role-2020-01-01_1620200_TTL2"> 
+   <table> 
+    <tbody> 
+     <tr> 
+      <td> <p class="titleLeft" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">  2026-03-31</p> </td> 
+      <td> <p class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;">  2025-12-31</p> </td> 
+     </tr> 
+     <tr> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="3" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan umur </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="4">Trade receivables by aging </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;" colspan="3">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Penyisihan penurunan nilai piutang usaha</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Jatuh tempo </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Umur </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="CurrentYearInstant" unitRef="USD" id="IXF1620200E02_1374_00001_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">494,479</ix:nonFraction> </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:AllowanceForImpairmentOfTradeReceivables" contextRef="CurrentYearInstant" unitRef="USD" id="IXF1620200E02_1369_00001_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">14,024</ix:nonFraction> </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesNet" contextRef="CurrentYearInstant" unitRef="USD" id="IXF1620200E02_1373_00001_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">480,455</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Aging </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Due status </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+      <td> 
+       <div> 
+        <div> 
+         <div> 
+          <table class="table01" style="font-family: Arial, Helvetica, sans-serif;font-size: 10pt;padding: 5px;border-spacing: 0px;text-align: center;width:auto;"> 
+           <tbody> 
+            <tr> 
+             <td class="titleLeft" colspan="3" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: left;">Piutang usaha berdasarkan umur </td> 
+             <td class="titleRight" style="font-family: Arial, Helvetica, sans-serif;font-size: 13.5pt;font-weight: bold;color: #000000;padding: 5px;border-spacing: 0px;vertical-align: top;text-align: right;text-align:right;" colspan="4">Trade receivables by aging </td> 
+            </tr> 
+            <tr> 
+             <td rowspan="2" colspan="2"/> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;" colspan="3">Piutang usaha [baris komponen]</td> 
+             <td rowspan="2" colspan="2"/> 
+            </tr> 
+            <tr> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha, kotor</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Penyisihan penurunan nilai piutang usaha</td> 
+             <td class="colHeader01 dimensionalFormColumnHeader" style="width: 200px !important;padding: 1px;background-color: #b2bec9;color: #000000;text-decoration: underline;font-weight: bold;text-align: center;/* border-bottom: 1px solid #4e4d4d;*/            font-size: 8pt;min-width:200px;max-width:200px;">Piutang usaha</td> 
+            </tr> 
+            <tr> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Jatuh tempo </td> 
+             <td class="rowHeaderLeft" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: left;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Umur </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesGross" contextRef="PriorEndYearInstant" unitRef="USD" id="IXF1620200E02_1374_00003_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">516,469</ix:nonFraction> </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:AllowanceForImpairmentOfTradeReceivables" contextRef="PriorEndYearInstant" unitRef="USD" id="IXF1620200E02_1369_00003_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">14,402</ix:nonFraction> </td> 
+             <td class="valueCell totalValueCell" style="min-width: 200px;padding: 1px;border-bottom: 1px solid #cccccc;text-align: right;vertical-align: top;font-size: 10pt;background-color: #caecfd;border-left: 3px solid white;border-right: 3px solid white;text-align:center;;background-color:#00B0F0"> 
+              <ix:nonFraction name="idx-cor:TradeReceivablesNet" contextRef="PriorEndYearInstant" unitRef="USD" id="IXF1620200E02_1373_00003_01_0001" format="ixt:numcommadot" decimals="-3" scale="3">502,067</ix:nonFraction> </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;font-weight:bold;;word-wrap:break-word;">Aging </td> 
+             <td class="rowHeaderRight" style="padding: 1px;padding-right: 5px;padding-left: 5px;border-bottom: 1px solid #cccccc;text-align: right;color: #000000;vertical-align: top;font-size: 10pt;word-wrap:break-word;">Due status </td> 
+            </tr> 
+           </tbody> 
+          </table> 
+         </div> 
+        </div> 
+       </div> </td> 
+     </tr> 
+    </tbody> 
+   </table> 
+  </div> 
+ </body> 
+</html>
