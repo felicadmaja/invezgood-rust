@@ -31,7 +31,7 @@ pub async fn upload_from_url(session: Arc<Session>, url: &str) -> Result<Row, St
         .build()
         .map_err(|e| format!("reqwest client: {e}"))?;
 
-    let response = client
+    let mut req = client
         .get(url.trim())
         .header(
             "User-Agent",
@@ -39,7 +39,18 @@ pub async fn upload_from_url(session: Arc<Session>, url: &str) -> Result<Row, St
         )
         .header("Accept", "*/*")
         .header("Accept-Language", "en-US,en;q=0.9,id;q=0.8")
-        .header("Referer", "https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan")
+        .header(
+            "Referer",
+            "https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan",
+        );
+
+    if let Ok(cookie) = std::env::var("IDX_COOKIE") {
+        if !cookie.trim().is_empty() {
+            req = req.header("Cookie", cookie.trim());
+        }
+    }
+
+    let response = req
         .send()
         .await
         .map_err(|e| format!("curl {url} gagal: {e}"))?;
