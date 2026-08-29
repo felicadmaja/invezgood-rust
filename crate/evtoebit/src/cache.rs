@@ -37,6 +37,16 @@ impl MedianCache {
             .await
             .map_err(|e| e.to_string())
     }
+
+    pub async fn invalidate(&self) {
+        self.inner.invalidate(CACHE_KEY).await;
+    }
+
+    pub async fn store(&self, resp: GetMedianEvToEbitdaFromYahooFinanceResponse) {
+        self.inner
+            .insert(CACHE_KEY.to_string(), Arc::new(resp))
+            .await;
+    }
 }
 
 pub fn new_shared_median_cache(yahoo: Arc<YahooClient>) -> Arc<MedianCache> {

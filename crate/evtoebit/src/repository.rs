@@ -10,6 +10,8 @@ const FIND_ALL: &str =
 
 const UPSERT: &str = "INSERT INTO invezgood.evtoebit (sektor, n, median_ev_ebit, p25_ev_ebit, p75_ev_ebit, median_ev_ebitda, flag, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
+const TRUNCATE: &str = "TRUNCATE invezgood.evtoebit";
+
 const DROP_TABLE: &str = "DROP TABLE IF EXISTS invezgood.evtoebit";
 
 const CREATE_TABLE: &str = r#"
@@ -53,6 +55,14 @@ pub fn row_from_pb(row: &MedianEvMultipleRow, updated_at: DateTime<Utc>) -> EvTo
         },
         updated_at,
     }
+}
+
+pub async fn truncate_all(session: &Session) -> Result<(), String> {
+    session
+        .query_unpaged(TRUNCATE, &[])
+        .await
+        .map_err(|e| format!("truncate {KEYSPACE}.{TABLE}: {e}"))?;
+    Ok(())
 }
 
 pub async fn recreate_table(session: &Session) -> Result<(), String> {

@@ -84,14 +84,7 @@ impl EvToEbit for EvToEbitService {
     ) -> Result<Response<GetMedianEvToEbitdaFromScyllaResponse>, Status> {
         let started = std::time::Instant::now();
         let rpc_name = "GetMedianEVToEbitdaFromScylla";
-
-        let user_name = match self.require_auth(&request).await {
-            Ok(auth) => auth.nama,
-            Err(e) => {
-                eprintln!("{rpc_name} anonymous {}ms", started.elapsed().as_millis());
-                return Err(e);
-            }
-        };
+        let user_name = "anonymous";
 
         let result: Result<Response<GetMedianEvToEbitdaFromScyllaResponse>, Status> = async {
             let _inner = request.into_inner();
@@ -107,7 +100,7 @@ impl EvToEbit for EvToEbitService {
         }
         .await;
 
-        Self::log_rpc_debug(rpc_name, &user_name, started);
+        Self::log_rpc_debug(rpc_name, user_name, started);
         result
     }
 }

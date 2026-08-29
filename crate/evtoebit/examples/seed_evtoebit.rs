@@ -3,8 +3,7 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
-use evtoebit::{compute_median, new_yahoo_client, repository, YahooClient};
+use evtoebit::{new_yahoo_client, repository, sync_median_from_yahoo_to_scylla, YahooClient};
 use stock_list::connect;
 
 #[tokio::main]
@@ -14,12 +13,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let session = connect().await?;
     let yahoo: Arc<YahooClient> = new_yahoo_client()?;
     repository::recreate_table(session.as_ref()).await?;
-    let resp = compute_median(session.clone(), yahoo).await?;
-    let updated_at = Utc::now();
-    let n = repository::upsert_all(session.as_ref(), &resp.rows, updated_at).await?;
+    let (n, message) = sync_median_from_yahoo_to_scylla(session, yahoo, None).await?;
 
-    println!("success: {}", resp.success);
-    println!("message: {}", resp.message);
-    println!("upserted: {n} baris ke invezgood.evtoebit @ {updated_at}");
+    println!("success: true");
+    println!("message: {message}");
+    println!("upserted: {n} baris ke invezgood.evtoebit");
     Ok(())
 }
