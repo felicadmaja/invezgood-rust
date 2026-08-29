@@ -566,6 +566,8 @@ message StockByCodeResponse {
   int32 fundamental_assesment = 22;
   repeated NotationEntry notation = 23;
   repeated string index_family = 24;
+  int32 valuation_assesment = 25;
+  string catatan_bidang_usaha = 26;
 }
 
 message NotationEntry {
@@ -937,6 +939,8 @@ message StockListRow {
   // Notasi BEI per emiten (E, X, M, dll.) — kolom frozen list UDT invezgood.stock_list.notation, sumber GET Invezgo /analysis/notation.
   repeated NotationEntry notation = 13;
   repeated string index_family = 14;
+  int32 valuation_assesment = 15;
+  string catatan_bidang_usaha = 16;
 }
 
 message GetAllStocksResponse {

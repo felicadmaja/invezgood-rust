@@ -10,9 +10,13 @@ pub const FILE_DESCRIPTOR_SET: &[u8] =
 mod aggregate;
 mod cache;
 mod compute;
+mod model;
+pub mod repository;
 mod service;
 mod universe;
 mod yahoo;
+
+pub use model::{EvToEbitRow, KEYSPACE, TABLE};
 
 pub use cache::{new_shared_median_cache, MedianCache};
 pub use compute::{cache_ttl, compute_median};

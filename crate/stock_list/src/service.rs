@@ -285,6 +285,8 @@ impl StockListService {
                 })
                 .collect(),
             index_family: row.index_family.clone().unwrap_or_default(),
+            valuation_assesment: i32::from(row.valuation_assesment.unwrap_or(0)),
+            catatan_bidang_usaha: row.catatan_bidang_usaha.clone().unwrap_or_default(),
         }
     }
 
@@ -378,6 +380,8 @@ impl StockListService {
                 })
                 .collect(),
             index_family: row.index_family.unwrap_or_default(),
+            valuation_assesment: i32::from(row.valuation_assesment.unwrap_or(0)),
+            catatan_bidang_usaha: row.catatan_bidang_usaha.unwrap_or_default(),
         }
     }
 

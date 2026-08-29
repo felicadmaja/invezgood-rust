@@ -1,7 +1,5 @@
-//! Contoh invoke `GetMedianEVToEbitda` — jalankan compute langsung (tanpa gRPC auth).
-//! Untuk RPC penuh: login dulu lalu grpcurl dengan Bearer token.
-//!
-//! EVTOEBIT_MAX_CODES=10 cargo run -p evtoebit --example invoke_median
+//! Invoke logic sama dengan RPC `GetMedianEVToEbitda` (tanpa gRPC auth).
+//! Full universe: `cargo run -p evtoebit --example invoke_median`
 
 use std::sync::Arc;
 
@@ -11,9 +9,6 @@ use stock_list::connect;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let _ = dotenvy::dotenv_override();
-    if std::env::var("EVTOEBIT_MAX_CODES").is_err() {
-        std::env::set_var("EVTOEBIT_MAX_CODES", "200");
-    }
 
     let session = connect().await?;
     let yahoo: Arc<YahooClient> = new_yahoo_client()?;

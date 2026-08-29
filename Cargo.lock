@@ -709,6 +709,7 @@ dependencies = [
 name = "evtoebit"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "dotenvy",
  "futures",
  "moka",

@@ -974,9 +974,13 @@ pub struct StockListRow {
     #[scylla(default_when_null)]
     pub fundamental_assesment: Option<i8>,
     #[scylla(default_when_null)]
+    pub valuation_assesment: Option<i8>,
+    #[scylla(default_when_null)]
     pub notation: NotationDb,
     #[scylla(default_when_null)]
     pub index_family: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub catatan_bidang_usaha: Option<String>,
 }
 
 /// Subset kolom untuk `GetWyckoffChartByCode`.
@@ -1040,9 +1044,13 @@ pub struct StockListSummaryRow {
     #[scylla(default_when_null)]
     pub fundamental_assesment: Option<i8>,
     #[scylla(default_when_null)]
+    pub valuation_assesment: Option<i8>,
+    #[scylla(default_when_null)]
     pub notation: NotationDb,
     #[scylla(default_when_null)]
     pub index_family: Option<Vec<String>>,
+    #[scylla(default_when_null)]
+    pub catatan_bidang_usaha: Option<String>,
 }
 
 #[derive(Debug, Clone)]

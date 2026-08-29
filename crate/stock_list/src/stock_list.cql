@@ -49,8 +49,14 @@
 -- | horizontal_line                     | regular        | list<int>                               |
 -- | takeprofit_wyckoff                  | regular        | map<text, double>                       |
 -- | fundamental_assesment                 | regular        | tinyint (-1=bad fund, 0=normal)         |
+-- | valuation_assesment                   | regular        | tinyint                                 |
 -- | notation                              | regular        | frozen<list<frozen<notation_entry>>>    |
 -- | index_family                          | regular        | list<text> (IDX30, LQ45, IDX80, ...)    |
+-- | catatan_bidang_usaha                  | regular        | text                                    |
+--
+-- Migrasi valuation_assesment + catatan_bidang_usaha (2026-08-29):
+-- ALTER TABLE invezgood.stock_list ADD valuation_assesment tinyint;
+-- ALTER TABLE invezgood.stock_list ADD catatan_bidang_usaha text;
 --
 -- Migrasi is_bad_fundamental (boolean) → fundamental_assesment (tinyint):
 -- ALTER TABLE invezgood.stock_list ADD fundamental_assesment tinyint;

@@ -19,7 +19,7 @@ const ROW_SELECT: &str = "code, name, sector, sub_sector, logo, keystats, keysta
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
     company_information, company_information_updated_at, corporate_action, corporate_action_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff, fundamental_assesment, notation, index_family";
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff, fundamental_assesment, valuation_assesment, notation, index_family, catatan_bidang_usaha";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -123,7 +123,7 @@ const UPDATE_SUB_SECTOR: &str =
 const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?";
 
 const LIST_ALL: &str = "SELECT code, name, sector, sub_sector, logo, keystats_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, takeprofit_wyckoff, fundamental_assesment, notation, index_family \
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, takeprofit_wyckoff, fundamental_assesment, valuation_assesment, notation, index_family, catatan_bidang_usaha \
     FROM invezgood.stock_list";
 
 const LIST_ALL_KEYSTATS: &str =

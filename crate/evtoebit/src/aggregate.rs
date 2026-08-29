@@ -90,6 +90,7 @@ fn row_from_group(
         } else {
             String::new()
         },
+        updated_at: None,
     }
 }
 
@@ -118,7 +119,7 @@ pub fn min_valid_n() -> i32 {
     std::env::var("EVTOEBIT_MIN_VALID_N")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(20)
+        .unwrap_or(5)
 }
 
 pub fn max_multiple() -> f64 {
