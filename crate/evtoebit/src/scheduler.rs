@@ -117,8 +117,6 @@ pub fn spawn_monthly_evtoebit_sync(
                      {hour:02}:{min:02} bulan ini)"
                 );
                 run_sync(session.clone(), yahoo.clone(), cache.clone()).await;
-                let now = Local::now();
-                last_sync_month = Some((now.year(), now.month()));
             }
 
             let now = Local::now();
