@@ -4,6 +4,7 @@ package xlbr_laporan_keuangan;
 
 service XlbrLaporanKeuangan {
   // Client stream inlineXBRL.zip (chunk bytes). Server parse 1000000/1321000/1510000.html.
+  // quarter dari baris "Periode penyampaian laporan keuangan" di 1000000.html → TW1..TW4.
   // Nilai XBRL kuartal YTD kumulatif → dekumulasi vs jumlah kuartal sebelumnya di DB.
   // TW2+ butuh kuartal sebelumnya sudah ada untuk dekumulasi; baris sama di-upsert (overwrite).
   // Tidak simpan zip ke disk; buffer in-memory lalu upsert invezgood.xlbr_laporan_keuangan. Bearer login.

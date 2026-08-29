@@ -12,6 +12,8 @@ const FILE_DEI: &str = "1000000.html";
 const FILE_IS: &str = "1321000.html";
 const FILE_CF: &str = "1510000.html";
 
+const LABEL_PERIOD_SUBMISSION: &str = "Periode penyampaian laporan keuangan";
+
 const CONCEPT_CFO: &str = "idx-cor:NetCashFlowsReceivedFromUsedInOperatingActivities";
 const CONCEPT_CFI: &str = "idx-cor:NetCashFlowsReceivedFromUsedInInvestingActivities";
 const CONCEPT_CFF: &str = "idx-cor:NetCashFlowsReceivedFromUsedInFinancingActivities";
@@ -63,8 +65,7 @@ fn parse_dei(html: &str) -> Result<ParsedReportMeta, String> {
         return Err("idx-dei:EntityCode kosong".into());
     }
 
-    let quarter_raw =
-        extract_non_numeric(html, "idx-dei:PeriodOfFinancialStatementsSubmissions", "CurrentYearInstant")?;
+    let quarter_raw = extract_non_numeric_by_row_label(html, LABEL_PERIOD_SUBMISSION)?;
     let quarter = normalize_quarter(&quarter_raw)?;
 
     let period_end_raw =
@@ -97,16 +98,19 @@ fn parse_dei(html: &str) -> Result<ParsedReportMeta, String> {
 
 fn normalize_quarter(raw: &str) -> Result<String, String> {
     let lower = raw.to_ascii_lowercase();
-    if lower.contains("first") || lower.contains("kuartal i") || lower.contains("quarter i") {
-        Ok("TW1".into())
-    } else if lower.contains("second") || lower.contains("kuartal ii") || lower.contains("quarter ii") {
-        Ok("TW2".into())
+    // Urut TW4→TW1: "kuartal ii/iii/iv" mengandung substring "kuartal i".
+    if lower.contains("fourth") || lower.contains("kuartal iv") || lower.contains("quarter iv") {
+        Ok("TW4".into())
     } else if lower.contains("third") || lower.contains("kuartal iii") || lower.contains("quarter iii") {
         Ok("TW3".into())
-    } else if lower.contains("fourth") || lower.contains("kuartal iv") || lower.contains("quarter iv") {
-        Ok("TW4".into())
+    } else if lower.contains("second") || lower.contains("kuartal ii") || lower.contains("quarter ii") {
+        Ok("TW2".into())
+    } else if lower.contains("first") || lower.contains("kuartal i") || lower.contains("quarter i") {
+        Ok("TW1".into())
     } else {
-        Err(format!("quarter tidak dikenali dari DEI: {raw}"))
+        Err(format!(
+            "quarter tidak dikenali dari '{LABEL_PERIOD_SUBMISSION}': {raw}"
+        ))
     }
 }
 
@@ -133,22 +137,41 @@ fn parse_dei_date(raw: &str) -> Result<chrono::DateTime<Utc>, String> {
     Err(format!("format tanggal DEI tidak dikenali: {raw}"))
 }
 
-fn extract_non_numeric(html: &str, concept: &str, context: &str) -> Result<String, String> {
-    let pattern = format!(r#"name="{concept}" contextRef="{context}""#);
-    let start = html
-        .find(&pattern)
-        .ok_or_else(|| format!("{concept} context={context} tidak ditemukan"))?;
-    let tail = &html[start..];
-    let open_end = tail.find('>').ok_or_else(|| format!("tag {concept} tidak lengkap"))?;
-    let inner = &tail[open_end + 1..];
+fn extract_non_numeric_by_row_label(html: &str, label: &str) -> Result<String, String> {
+    let label_pos = html
+        .find(label)
+        .ok_or_else(|| format!("label '{label}' tidak ditemukan di {FILE_DEI}"))?;
+    let after_label = &html[label_pos..];
+    let rel = after_label
+        .find("<ix:nonNumeric")
+        .ok_or_else(|| format!("ix:nonNumeric untuk '{label}' tidak ditemukan di {FILE_DEI}"))?;
+    extract_ix_non_numeric_value(&after_label[rel..])
+}
+
+fn extract_ix_non_numeric_value(tag_and_inner: &str) -> Result<String, String> {
+    let open_end = tag_and_inner
+        .find('>')
+        .ok_or_else(|| "tag ix:nonNumeric tidak lengkap".to_string())?;
+    let tag = &tag_and_inner[..open_end + 1];
+    if tag.contains("xsi:nil=\"true\"") {
+        return Ok(String::new());
+    }
+    let inner = &tag_and_inner[open_end + 1..];
     if inner.starts_with("</") {
         return Ok(String::new());
     }
     let close = inner
         .find("</ix:nonNumeric>")
-        .ok_or_else(|| format!("penutup {concept} tidak ditemukan"))?;
-    let value = inner[..close].trim();
-    Ok(decode_entities(value))
+        .ok_or_else(|| "penutup ix:nonNumeric tidak ditemukan".to_string())?;
+    Ok(decode_entities(inner[..close].trim()))
+}
+
+fn extract_non_numeric(html: &str, concept: &str, context: &str) -> Result<String, String> {
+    let pattern = format!(r#"name="{concept}" contextRef="{context}""#);
+    let start = html
+        .find(&pattern)
+        .ok_or_else(|| format!("{concept} context={context} tidak ditemukan"))?;
+    extract_ix_non_numeric_value(&html[start..])
 }
 
 fn extract_non_fraction(html: &str, concept: &str, context: &str) -> Result<f64, String> {
@@ -211,6 +234,26 @@ fn hex_sha256(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn normalize_quarter_roman_substrings() {
+        assert_eq!(
+            normalize_quarter("Kuartal II / Second Quarter").unwrap(),
+            "TW2"
+        );
+        assert_eq!(
+            normalize_quarter("Kuartal III / Third Quarter").unwrap(),
+            "TW3"
+        );
+        assert_eq!(
+            normalize_quarter("Kuartal IV / Fourth Quarter").unwrap(),
+            "TW4"
+        );
+        assert_eq!(
+            normalize_quarter("Kuartal I / First Quarter").unwrap(),
+            "TW1"
+        );
+    }
 
     #[test]
     fn parse_sample_zip() {
