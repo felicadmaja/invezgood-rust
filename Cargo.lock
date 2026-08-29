@@ -709,6 +709,7 @@ dependencies = [
 name = "evtoebit"
 version = "0.1.0"
 dependencies = [
+ "dotenvy",
  "futures",
  "moka",
  "prost",
@@ -716,6 +717,7 @@ dependencies = [
  "reqwest 0.12.28",
  "scylla",
  "serde_json",
+ "stock_list",
  "tokio",
  "tonic",
  "tonic-build",

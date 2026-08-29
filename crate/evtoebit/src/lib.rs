@@ -15,6 +15,7 @@ mod universe;
 mod yahoo;
 
 pub use cache::{new_shared_median_cache, MedianCache};
+pub use compute::{cache_ttl, compute_median};
 pub use pb::ev_to_ebit_server::{EvToEbit, EvToEbitServer};
 pub use service::EvToEbitService;
 pub use yahoo::YahooClient;

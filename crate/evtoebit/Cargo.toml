@@ -16,6 +16,8 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 tonic = "0.12"
 prost = "0.13"
 user = { path = "../user" }
+stock_list = { path = "../stock_list" }
+dotenvy = "0.15"
 
 [build-dependencies]
 protoc-bin-vendored = "3"
