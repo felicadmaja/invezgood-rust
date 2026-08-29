@@ -27,6 +27,7 @@ members = [
     "crate/tls",
     "crate/grpc_stream",
     "crate/grpc_server",
+    "crate/xlbr_laporan_keuangan",
     "worker_scrapping",
 ]
 resolver = "2"

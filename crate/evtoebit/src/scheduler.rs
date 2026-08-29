@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use chrono::{DateTime, Datelike, Local, NaiveDate, TimeZone, Timelike};
+use chrono::{DateTime, Datelike, Local, NaiveDate, TimeZone};
 use scylla::client::session::Session;
 
 use crate::cache::MedianCache;
@@ -64,29 +64,6 @@ fn next_monthly_sync_at(now: DateTime<Local>, day: u32, hour: u32, min: u32) -> 
     month_slot_at(ny, nm, day, hour, min)
 }
 
-fn missed_monthly_sync(
-    now: DateTime<Local>,
-    day: u32,
-    hour: u32,
-    min: u32,
-    last_sync_month: Option<(i32, u32)>,
-) -> bool {
-    let y = now.year();
-    let m = now.month();
-    if last_sync_month == Some((y, m)) {
-        return false;
-    }
-    if now.day() > day {
-        return true;
-    }
-    if now.day() == day {
-        let now_mins = now.hour() * 60 + now.minute();
-        let target_mins = hour * 60 + min;
-        return now_mins >= target_mins;
-    }
-    false
-}
-
 async fn run_sync(session: Arc<Session>, yahoo: Arc<YahooClient>, cache: Arc<MedianCache>) {
     match sync_median_from_yahoo_to_scylla(session, yahoo, Some(cache)).await {
         Ok((n, message)) => {
@@ -97,6 +74,7 @@ async fn run_sync(session: Arc<Session>, yahoo: Arc<YahooClient>, cache: Arc<Med
 }
 
 /// Loop background: sync Yahoo → Scylla setiap tanggal 1 jam 00:00 lokal.
+/// Tidak ada catch-up saat restart — hanya jadwal bulanan atau invoke RPC user.
 pub fn spawn_monthly_evtoebit_sync(
     session: Arc<Session>,
     yahoo: Arc<YahooClient>,
@@ -106,19 +84,8 @@ pub fn spawn_monthly_evtoebit_sync(
         let day = sync_day_from_env();
         let hour = sync_hour_from_env();
         let min = sync_minute_from_env();
-        let mut last_sync_month: Option<(i32, u32)> = None;
 
         loop {
-            let now = Local::now();
-
-            if missed_monthly_sync(now, day, hour, min, last_sync_month) {
-                eprintln!(
-                    "GetMedianEVToEbitdaFromYahooFinance scheduler: catch-up (terlewat {day} \
-                     {hour:02}:{min:02} bulan ini)"
-                );
-                run_sync(session.clone(), yahoo.clone(), cache.clone()).await;
-            }
-
             let now = Local::now();
             let target = next_monthly_sync_at(now, day, hour, min);
             let wait_secs = (target - now).num_seconds().max(1) as u64;
@@ -129,8 +96,6 @@ pub fn spawn_monthly_evtoebit_sync(
             tokio::time::sleep(tokio::time::Duration::from_secs(wait_secs)).await;
 
             run_sync(session.clone(), yahoo.clone(), cache.clone()).await;
-            let now = Local::now();
-            last_sync_month = Some((now.year(), now.month()));
         }
     });
 }

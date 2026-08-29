@@ -1,0 +1,37 @@
+-- Keyspace: invezgood
+-- Tabel laporan keuangan kuartalan (nilai standalone setelah dekumulasi YTD).
+
+-- CREATE TABLE IF NOT EXISTS invezgood.xlbr_laporan_keuangan (
+--     code text,
+--     fiscal_year int,
+--     quarter text,
+--     period_end timestamp,
+--     presentation_currency text,
+--     unit_scale int,
+--     cash_from_operation double,
+--     cash_from_investment double,
+--     cash_from_financing double,
+--     capital_expenditure double,
+--     free_cash_flow double,
+--     net_income double,
+--     uploaded_at timestamp,
+--     source_zip_hash text,
+--     PRIMARY KEY ((code), fiscal_year, quarter)
+-- ) WITH CLUSTERING ORDER BY (fiscal_year DESC, quarter DESC);
+
+-- | column_name              | kind           | type      |
+-- |--------------------------|----------------|-----------|
+-- | code                     | partition_key  | text      |
+-- | fiscal_year              | clustering     | int       |
+-- | quarter                  | clustering     | text      | TW1..TW4
+-- | period_end               | regular        | timestamp |
+-- | presentation_currency    | regular        | text      |
+-- | unit_scale               | regular        | int       | 3 = ribuan
+-- | cash_from_operation      | regular        | double    |
+-- | cash_from_investment     | regular        | double    |
+-- | cash_from_financing      | regular        | double    |
+-- | capital_expenditure      | regular        | double    |
+-- | free_cash_flow           | regular        | double    | CFO - CapEx (standalone)
+-- | net_income               | regular        | double    |
+-- | uploaded_at              | regular        | timestamp |
+-- | source_zip_hash          | regular        | text      |

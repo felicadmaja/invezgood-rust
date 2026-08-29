@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package xlbr_laporan_keuangan;
+
+service XlbrLaporanKeuangan {
+  // Download inlineXBRL.zip dari URL (curl server-side), parse 1000000/1321000/1510000.html.
+  // Nilai XBRL kuartal bersifat YTD kumulatif → dekumulasi vs jumlah kuartal sebelumnya di DB.
+  // Wajib upload serial TW1→TW4 per (code, fiscal_year); TW2 butuh TW1 sudah ada, dst.
+  // File zip dihapus setelah parse. Bearer login. Upsert invezgood.xlbr_laporan_keuangan.
+  rpc UploadFromUrl(UploadXlbrFromUrlRequest) returns (UploadXlbrFromUrlResponse);
+
+  // Baca hingga 20 baris (5 tahun × 4 kuartal) per code untuk grafik client. Bearer login.
+  rpc GetChartByCode(GetXlbrChartByCodeRequest) returns (GetXlbrChartByCodeResponse);
+}
+
+message UploadXlbrFromUrlRequest {
+  string url = 1;
+}
+
+message UploadXlbrFromUrlResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  int32 fiscal_year = 4;
+  string quarter = 5;
+}
+
+message GetXlbrChartByCodeRequest {
+  string code = 1;
+}
+
+message XlbrChartPoint {
+  int32 fiscal_year = 1;
+  string quarter = 2;
+  int64 period_end = 3;
+  double cash_from_operation = 4;
+  double cash_from_investment = 5;
+  double cash_from_financing = 6;
+  double capital_expenditure = 7;
+  double free_cash_flow = 8;
+  double net_income = 9;
+  string presentation_currency = 10;
+  int32 unit_scale = 11;
+}
+
+message GetXlbrChartByCodeResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  repeated XlbrChartPoint points = 4;
+}

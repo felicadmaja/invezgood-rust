@@ -16,6 +16,7 @@ top_foreign_flow = { path = "../crate/top_foreign_flow" }
 shareholder_composition = { path = "../crate/shareholder_composition" }
 config_fundamental = { path = "../crate/config_fundamental" }
 evtoebit = { path = "../crate/evtoebit" }
+xlbr_laporan_keuangan = { path = "../crate/xlbr_laporan_keuangan" }
 bandarmology = { path = "../crate/bandarmology" }
 broker = { path = "../crate/broker" }
 portofolio = { path = "../crate/portofolio" }

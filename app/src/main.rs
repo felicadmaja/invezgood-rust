@@ -25,6 +25,7 @@ use top_foreign_flow::{spawn_daily_top_foreign_flow_sync, TopForeignFlowServer, 
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{new_session_store, UserServer, UserService};
 use wyckoff_glossary::{WyckoffGlossaryServer, WyckoffGlossaryService};
+use xlbr_laporan_keuangan::{XlbrLaporanKeuanganServer, XlbrLaporanKeuanganService};
 
 use grpc_server::apply_grpc_transport;
 use tonic::codec::CompressionEncoding;
@@ -149,6 +150,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         auth_sessions.clone(),
         evtoebit_cache.clone(),
     );
+    let xlbr_laporan_keuangan =
+        XlbrLaporanKeuanganService::new(session.clone(), auth_sessions.clone());
 
     let readiness_poller = ReadinessPoller::new();
     {
@@ -210,6 +213,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(wyckoff_glossary::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(config_fundamental::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(evtoebit::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(xlbr_laporan_keuangan::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
         enable_compression
@@ -260,6 +264,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
     let evtoebit_svc =
         maybe_compressed!(EvToEbitServer::new(evtoebit), enable_compression);
+    let xlbr_laporan_keuangan_svc = maybe_compressed!(
+        XlbrLaporanKeuanganServer::new(xlbr_laporan_keuangan),
+        enable_compression
+    );
 
     let mut builder = apply_grpc_transport(Server::builder());
 
@@ -298,6 +306,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(wyckoff_glossary_svc)
         .add_service(config_fundamental_svc)
         .add_service(evtoebit_svc)
+        .add_service(xlbr_laporan_keuangan_svc)
         .serve(addr)
         .await?;
 

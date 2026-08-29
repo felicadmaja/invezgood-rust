@@ -1,0 +1,21 @@
+[package]
+name = "xlbr_laporan_keuangan"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4"
+futures = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+scylla = { version = "1.5", features = ["chrono-04"] }
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["macros", "rt", "fs"] }
+tonic = "0.12"
+prost = "0.13"
+dotenvy = "0.15"
+user = { path = "../user" }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[build-dependencies]
+tonic-build = "0.12"
