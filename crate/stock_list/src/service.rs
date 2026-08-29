@@ -69,7 +69,9 @@ use crate::pb::{
     UpdateIsKonglomerasiRequest, UpdateIsKonglomerasiResponse, UpdateIsPlanToTradeRequest,
     UpdateIsPlanToTradeResponse, UpdateFundamentalAssesmentByCodeRequest,
     UpdateFundamentalAssesmentByCodeResponse, UpdateNotationInvezgoRequest,
-    UpdateNotationInvezgoResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
+    UpdateNotationInvezgoResponse, UpdateValuationAssesmentRequest,
+    UpdateValuationAssesmentResponse, UpdateCatatanBidangUsahaRequest,
+    UpdateCatatanBidangUsahaResponse, UpdateCatatanOwnerRequest, UpdateCatatanOwnerResponse,
     UpdateCatatanPribadiRequest, UpdateCatatanPribadiResponse, UpdateSubSectorRequest,
     UpdateSubSectorResponse, UpdateWyckoffChartByCodeRequest,
     UpdateWyckoffChartByCodeResponse, WyckoffChartData,
@@ -2609,6 +2611,90 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("UpdateNotationInvezgo", &user_name, started);
+        result
+    }
+
+    async fn update_valuation_assesment(
+        &self,
+        request: Request<UpdateValuationAssesmentRequest>,
+    ) -> Result<Response<UpdateValuationAssesmentResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+        let inner = request.into_inner();
+        let code = inner.code.trim().to_ascii_uppercase();
+
+        let result: Result<Response<UpdateValuationAssesmentResponse>, Status> = async {
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            let value = i8::try_from(inner.valuation_assesment).map_err(|_| {
+                Status::invalid_argument("valuation_assesment harus antara -128 dan 127")
+            })?;
+
+            crate::repository::update_valuation_assesment(
+                self.session.as_ref(),
+                &code,
+                value,
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpdateValuationAssesmentResponse {
+                success: true,
+                message: format!("valuation_assesment code={code}={value}"),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateValuationAssesment", &user_name, started);
+        result
+    }
+
+    async fn update_catatan_bidang_usaha(
+        &self,
+        request: Request<UpdateCatatanBidangUsahaRequest>,
+    ) -> Result<Response<UpdateCatatanBidangUsahaResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<UpdateCatatanBidangUsahaResponse>, Status> = async {
+            let inner = request.into_inner();
+            let code = inner.code.trim().to_ascii_uppercase();
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            crate::repository::update_catatan_bidang_usaha(
+                self.session.as_ref(),
+                &code,
+                inner.catatan_bidang_usaha.as_str(),
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpdateCatatanBidangUsahaResponse {
+                success: true,
+                message: format!("catatan_bidang_usaha code={code} diupdate"),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug("UpdateCatatanBidangUsaha", &user_name, started);
         result
     }
 

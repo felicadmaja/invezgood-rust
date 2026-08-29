@@ -96,11 +96,17 @@ const UPDATE_IS_PLAN_TO_TRADE: &str =
 const UPDATE_FUNDAMENTAL_ASSESMENT: &str =
     "UPDATE invezgood.stock_list SET fundamental_assesment = ? WHERE code = ?";
 
+const UPDATE_VALUATION_ASSESMENT: &str =
+    "UPDATE invezgood.stock_list SET valuation_assesment = ? WHERE code = ?";
+
 const UPDATE_NOTATION: &str =
     "UPDATE invezgood.stock_list SET notation = ? WHERE code = ?";
 
 const UPDATE_CATATAN_OWNER: &str =
     "UPDATE invezgood.stock_list SET catatan_owner = ? WHERE code = ?";
+
+const UPDATE_CATATAN_BIDANG_USAHA: &str =
+    "UPDATE invezgood.stock_list SET catatan_bidang_usaha = ? WHERE code = ?";
 
 const UPDATE_CATATAN_PRIBADI: &str =
     "UPDATE invezgood.stock_list SET catatan_pribadi = ? WHERE code = ?";
@@ -512,6 +518,27 @@ pub async fn update_fundamental_assesment(
     Ok(())
 }
 
+pub async fn update_valuation_assesment(
+    session: &Session,
+    code: &str,
+    valuation_assesment: i8,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(
+            UPDATE_VALUATION_ASSESMENT,
+            (valuation_assesment, code),
+        )
+        .await
+        .map_err(|e| {
+            format!("update valuation_assesment {KEYSPACE}.{TABLE} code={code}: {e}")
+        })?;
+    Ok(())
+}
+
 pub async fn update_notation(
     session: &Session,
     code: &str,
@@ -541,6 +568,24 @@ pub async fn update_catatan_owner(
         .query_unpaged(UPDATE_CATATAN_OWNER, (catatan_owner, code))
         .await
         .map_err(|e| format!("update catatan_owner {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_catatan_bidang_usaha(
+    session: &Session,
+    code: &str,
+    catatan_bidang_usaha: &str,
+) -> Result<(), String> {
+    if !code_exists(session, code).await? {
+        return Err(format!("stock_list code={code} tidak ditemukan"));
+    }
+
+    session
+        .query_unpaged(UPDATE_CATATAN_BIDANG_USAHA, (catatan_bidang_usaha, code))
+        .await
+        .map_err(|e| {
+            format!("update catatan_bidang_usaha {KEYSPACE}.{TABLE} code={code}: {e}")
+        })?;
     Ok(())
 }
 

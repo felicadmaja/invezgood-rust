@@ -6,7 +6,11 @@ use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
 use crate::cache::MedianCache;
 use crate::pb::ev_to_ebit_server::EvToEbit;
-use crate::pb::{GetMedianEvToEbitdaRequest, GetMedianEvToEbitdaResponse};
+use crate::pb::{
+    GetMedianEvToEbitdaFromScyllaRequest, GetMedianEvToEbitdaFromScyllaResponse,
+    GetMedianEvToEbitdaFromYahooFinanceRequest, GetMedianEvToEbitdaFromYahooFinanceResponse,
+};
+use crate::repository;
 
 pub struct EvToEbitService {
     session: Arc<Session>,
@@ -44,12 +48,12 @@ impl EvToEbitService {
 
 #[tonic::async_trait]
 impl EvToEbit for EvToEbitService {
-    async fn get_median_ev_to_ebitda(
+    async fn get_median_ev_to_ebitda_from_yahoo_finance(
         &self,
-        request: Request<GetMedianEvToEbitdaRequest>,
-    ) -> Result<Response<GetMedianEvToEbitdaResponse>, Status> {
+        request: Request<GetMedianEvToEbitdaFromYahooFinanceRequest>,
+    ) -> Result<Response<GetMedianEvToEbitdaFromYahooFinanceResponse>, Status> {
         let started = std::time::Instant::now();
-        let rpc_name = "GetMedianEVToEbitda";
+        let rpc_name = "GetMedianEVToEbitdaFromYahooFinance";
 
         let user_name = match self.require_auth(&request).await {
             Ok(auth) => auth.nama,
@@ -59,7 +63,7 @@ impl EvToEbit for EvToEbitService {
             }
         };
 
-        let result: Result<Response<GetMedianEvToEbitdaResponse>, Status> = async {
+        let result: Result<Response<GetMedianEvToEbitdaFromYahooFinanceResponse>, Status> = async {
             let _inner = request.into_inner();
             let cached = self
                 .cache
@@ -67,6 +71,39 @@ impl EvToEbit for EvToEbitService {
                 .await
                 .map_err(Status::internal)?;
             Ok(Response::new((*cached).clone()))
+        }
+        .await;
+
+        Self::log_rpc_debug(rpc_name, &user_name, started);
+        result
+    }
+
+    async fn get_median_ev_to_ebitda_from_scylla(
+        &self,
+        request: Request<GetMedianEvToEbitdaFromScyllaRequest>,
+    ) -> Result<Response<GetMedianEvToEbitdaFromScyllaResponse>, Status> {
+        let started = std::time::Instant::now();
+        let rpc_name = "GetMedianEVToEbitdaFromScylla";
+
+        let user_name = match self.require_auth(&request).await {
+            Ok(auth) => auth.nama,
+            Err(e) => {
+                eprintln!("{rpc_name} anonymous {}ms", started.elapsed().as_millis());
+                return Err(e);
+            }
+        };
+
+        let result: Result<Response<GetMedianEvToEbitdaFromScyllaResponse>, Status> = async {
+            let _inner = request.into_inner();
+            let db_rows = repository::find_all(self.session.as_ref())
+                .await
+                .map_err(Status::internal)?;
+            let rows: Vec<_> = db_rows.iter().map(repository::row_to_pb).collect();
+            Ok(Response::new(GetMedianEvToEbitdaFromScyllaResponse {
+                success: true,
+                message: format!("{} baris dari invezgood.evtoebit", rows.len()),
+                rows,
+            }))
         }
         .await;
 

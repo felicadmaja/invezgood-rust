@@ -1,4 +1,4 @@
-//! Invoke logic sama dengan RPC `GetMedianEVToEbitda` (tanpa gRPC auth).
+//! Invoke logic sama dengan RPC `GetMedianEVToEbitdaFromYahooFinance` (tanpa gRPC auth).
 //! Full universe: `cargo run -p evtoebit --example invoke_median`
 
 use std::sync::Arc;

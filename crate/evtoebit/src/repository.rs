@@ -10,6 +10,20 @@ const FIND_ALL: &str =
 
 const UPSERT: &str = "INSERT INTO invezgood.evtoebit (sektor, sub_sektor, n, median_ev_ebit, p25_ev_ebit, p75_ev_ebit, median_ev_ebitda, flag, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
+pub fn row_to_pb(row: &EvToEbitRow) -> MedianEvMultipleRow {
+    MedianEvMultipleRow {
+        sektor: row.sektor.clone(),
+        sub_sektor: row.sub_sektor.clone(),
+        n: row.n,
+        median_ev_ebit: row.median_ev_ebit,
+        p25_ev_ebit: row.p25_ev_ebit,
+        p75_ev_ebit: row.p75_ev_ebit,
+        median_ev_ebitda: row.median_ev_ebitda,
+        flag: row.flag.clone().unwrap_or_default(),
+        updated_at: Some(row.updated_at.timestamp()),
+    }
+}
+
 pub fn row_from_pb(row: &MedianEvMultipleRow, updated_at: DateTime<Utc>) -> EvToEbitRow {
     EvToEbitRow {
         sektor: row.sektor.clone(),

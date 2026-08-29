@@ -4,13 +4,13 @@ use moka::future::Cache;
 use scylla::client::session::Session;
 
 use crate::compute::{cache_ttl, compute_median};
-use crate::pb::GetMedianEvToEbitdaResponse;
+use crate::pb::GetMedianEvToEbitdaFromYahooFinanceResponse;
 use crate::yahoo::YahooClient;
 
 const CACHE_KEY: &str = "median";
 
 pub struct MedianCache {
-    inner: Cache<String, Arc<GetMedianEvToEbitdaResponse>>,
+    inner: Cache<String, Arc<GetMedianEvToEbitdaFromYahooFinanceResponse>>,
     yahoo: Arc<YahooClient>,
 }
 
@@ -25,7 +25,7 @@ impl MedianCache {
     pub async fn get_or_compute(
         &self,
         session: Arc<Session>,
-    ) -> Result<Arc<GetMedianEvToEbitdaResponse>, String> {
+    ) -> Result<Arc<GetMedianEvToEbitdaFromYahooFinanceResponse>, String> {
         let yahoo = Arc::clone(&self.yahoo);
         self.inner
             .try_get_with(CACHE_KEY.to_string(), async move {

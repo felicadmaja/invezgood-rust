@@ -9,7 +9,11 @@ service EvToEbit {
   // winsorize multiple >100×. Flag `n<5` bila emiten valid < 5; agregat per sektor + sub-sektor.
   // Hasil compute di-upsert ke invezgood.evtoebit (kolom updated_at = waktu upsert).
   // Response: repeated MedianEvMultipleRow; error internal bila fetch/parse gagal.
-  rpc GetMedianEVToEbitda(GetMedianEVToEbitdaRequest) returns (GetMedianEVToEbitdaResponse);
+  rpc GetMedianEVToEbitdaFromYahooFinance(GetMedianEVToEbitdaFromYahooFinanceRequest) returns (GetMedianEVToEbitdaFromYahooFinanceResponse);
+
+  // Baca agregat median dari invezgood.evtoebit (read-only, tanpa fetch/parse Yahoo Finance).
+  // Response: repeated MedianEvMultipleRow + updated_at per baris; internal bila query Scylla gagal.
+  rpc GetMedianEVToEbitdaFromScylla(GetMedianEVToEbitdaFromScyllaRequest) returns (GetMedianEVToEbitdaFromScyllaResponse);
 }
 
 // Satu baris agregat median multiple per pasangan sektor + sub-sektor BEI.
@@ -25,9 +29,17 @@ message MedianEvMultipleRow {
   optional int64 updated_at = 9; // Unix seconds UTC; diisi saat baca dari Scylla
 }
 
-message GetMedianEVToEbitdaRequest {}
+message GetMedianEVToEbitdaFromYahooFinanceRequest {}
 
-message GetMedianEVToEbitdaResponse {
+message GetMedianEVToEbitdaFromYahooFinanceResponse {
+  bool success = 1;
+  string message = 2;
+  repeated MedianEvMultipleRow rows = 3;
+}
+
+message GetMedianEVToEbitdaFromScyllaRequest {}
+
+message GetMedianEVToEbitdaFromScyllaResponse {
   bool success = 1;
   string message = 2;
   repeated MedianEvMultipleRow rows = 3;

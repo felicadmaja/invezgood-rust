@@ -49,7 +49,7 @@
 -- | horizontal_line                     | regular        | list<int>                               |
 -- | takeprofit_wyckoff                  | regular        | map<text, double>                       |
 -- | fundamental_assesment                 | regular        | tinyint (-1=bad fund, 0=normal)         |
--- | valuation_assesment                   | regular        | tinyint                                 |
+-- | valuation_assesment                   | regular        | tinyint (-1=murah 0=normal 1=mahal)     |
 -- | notation                              | regular        | frozen<list<frozen<notation_entry>>>    |
 -- | index_family                          | regular        | list<text> (IDX30, LQ45, IDX80, ...)    |
 -- | catatan_bidang_usaha                  | regular        | text                                    |

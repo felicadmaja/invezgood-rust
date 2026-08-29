@@ -4,7 +4,7 @@ use std::time::Duration;
 use scylla::client::session::Session;
 
 use crate::aggregate::{aggregate_median, max_multiple};
-use crate::pb::GetMedianEvToEbitdaResponse;
+use crate::pb::GetMedianEvToEbitdaFromYahooFinanceResponse;
 use crate::universe::load_universe;
 use crate::yahoo::{YahooClient, throttle};
 
@@ -18,7 +18,7 @@ fn max_codes() -> Option<usize> {
 pub async fn compute_median(
     session: Arc<Session>,
     yahoo: Arc<YahooClient>,
-) -> Result<GetMedianEvToEbitdaResponse, String> {
+) -> Result<GetMedianEvToEbitdaFromYahooFinanceResponse, String> {
     let mut universe = load_universe(session.as_ref()).await?;
     if universe.is_empty() {
         return Err("universe kosong dari invezgood.stock_list".into());
@@ -28,7 +28,7 @@ pub async fn compute_median(
     }
 
     eprintln!(
-        "GetMedianEVToEbitda compute {} emiten via Yahoo Finance (Rust)",
+        "GetMedianEVToEbitdaFromYahooFinance compute {} emiten via Yahoo Finance (Rust)",
         universe.len()
     );
 
@@ -45,7 +45,7 @@ pub async fn compute_median(
     }
 
     let rows = aggregate_median(&universe, &metrics, max_multiple());
-    Ok(GetMedianEvToEbitdaResponse {
+    Ok(GetMedianEvToEbitdaFromYahooFinanceResponse {
         success: true,
         message: format!(
             "median EV/EBIT dari {} emiten BEI (Yahoo Finance), {} baris sektor/sub-sektor",

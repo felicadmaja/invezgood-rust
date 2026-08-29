@@ -110,6 +110,16 @@ service StockList {
   // Bearer dari INVEZGO_BEARER_TOKEN. Request kosong. Code tidak ada di DB → dilewati (skipped_count).
   // Response: success + pesan jumlah updated/skipped.
   rpc UpdateNotationInvezgo(UpdateNotationInvezgoRequest) returns (UpdateNotationInvezgoResponse);
+
+  // Update kolom valuation_assesment (tinyint) di invezgood.stock_list by PK code.
+  // Wajib Bearer login. Request: code + valuation_assesment. success=false + message bila code tidak ada atau DB gagal.
+  rpc UpdateValuationAssesment(UpdateValuationAssesmentRequest)
+      returns (UpdateValuationAssesmentResponse);
+
+  // Update kolom catatan_bidang_usaha (text) di invezgood.stock_list by PK code.
+  // Wajib Bearer login. Request: code + catatan_bidang_usaha. success=false + message bila code tidak ada atau DB gagal.
+  rpc UpdateCatatanBidangUsaha(UpdateCatatanBidangUsahaRequest)
+      returns (UpdateCatatanBidangUsahaResponse);
 }
 
 message GetAllStocksRequest {}
@@ -725,6 +735,26 @@ message UpdateFundamentalAssesmentByCodeRequest {
 }
 
 message UpdateFundamentalAssesmentByCodeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateValuationAssesmentRequest {
+  string code = 1;
+  int32 valuation_assesment = 2;
+}
+
+message UpdateValuationAssesmentResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateCatatanBidangUsahaRequest {
+  string code = 1;
+  string catatan_bidang_usaha = 2;
+}
+
+message UpdateCatatanBidangUsahaResponse {
   bool success = 1;
   string message = 2;
 }
