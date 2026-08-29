@@ -3,21 +3,21 @@ syntax = "proto3";
 package xlbr_laporan_keuangan;
 
 service XlbrLaporanKeuangan {
-  // Download inlineXBRL.zip dari URL (curl server-side), parse 1000000/1321000/1510000.html.
-  // Nilai XBRL kuartal bersifat YTD kumulatif → dekumulasi vs jumlah kuartal sebelumnya di DB.
-  // Wajib upload serial TW1→TW4 per (code, fiscal_year); TW2 butuh TW1 sudah ada, dst.
-  // File zip dihapus setelah parse. Bearer login. Upsert invezgood.xlbr_laporan_keuangan.
-  rpc UploadFromUrl(UploadXlbrFromUrlRequest) returns (UploadXlbrFromUrlResponse);
+  // Client stream inlineXBRL.zip (chunk bytes). Server parse 1000000/1321000/1510000.html.
+  // Nilai XBRL kuartal YTD kumulatif → dekumulasi vs jumlah kuartal sebelumnya di DB.
+  // TW2+ butuh kuartal sebelumnya sudah ada untuk dekumulasi; baris sama di-upsert (overwrite).
+  // Tidak simpan zip ke disk; buffer in-memory lalu upsert invezgood.xlbr_laporan_keuangan. Bearer login.
+  rpc UploadZip(stream UploadZipChunk) returns (UploadZipResponse);
 
   // Baca hingga 20 baris (5 tahun × 4 kuartal) per code untuk grafik client. Bearer login.
   rpc GetChartByCode(GetXlbrChartByCodeRequest) returns (GetXlbrChartByCodeResponse);
 }
 
-message UploadXlbrFromUrlRequest {
-  string url = 1;
+message UploadZipChunk {
+  bytes data = 1;
 }
 
-message UploadXlbrFromUrlResponse {
+message UploadZipResponse {
   bool success = 1;
   string message = 2;
   string code = 3;

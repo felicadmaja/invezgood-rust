@@ -1,12 +1,13 @@
 use std::sync::Arc;
+
 use scylla::client::session::Session;
-use tonic::{Request, Response, Status};
+use tonic::{Request, Response, Status, Streaming};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
 use crate::pb::xlbr_laporan_keuangan_server::XlbrLaporanKeuangan;
 use crate::pb::{
-    GetXlbrChartByCodeRequest, GetXlbrChartByCodeResponse, UploadXlbrFromUrlRequest,
-    UploadXlbrFromUrlResponse, XlbrChartPoint,
+    GetXlbrChartByCodeRequest, GetXlbrChartByCodeResponse, UploadZipChunk, UploadZipResponse,
+    XlbrChartPoint,
 };
 use crate::repository;
 
@@ -29,33 +30,51 @@ impl XlbrLaporanKeuanganService {
         let token = extract_bearer_token(request)?;
         validate_session(&self.auth_sessions, &token)
             .await
-            .map_err(|e| Status::unauthenticated(e))
+            .map_err(Status::unauthenticated)
+    }
+
+    fn map_upload_error(e: String) -> Status {
+        if e.contains("membutuhkan") {
+            Status::failed_precondition(e)
+        } else {
+            Status::invalid_argument(e)
+        }
     }
 }
 
 #[tonic::async_trait]
 impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
-    async fn upload_from_url(
+    async fn upload_zip(
         &self,
-        request: Request<UploadXlbrFromUrlRequest>,
-    ) -> Result<Response<UploadXlbrFromUrlResponse>, Status> {
+        request: Request<Streaming<UploadZipChunk>>,
+    ) -> Result<Response<UploadZipResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let token = extract_bearer_token(&request)?;
+        let auth = validate_session(&self.auth_sessions, &token)
+            .await
+            .map_err(Status::unauthenticated)?;
         let user_name = auth.nama;
-        let url = request.into_inner().url;
 
-        let result: Result<Response<UploadXlbrFromUrlResponse>, Status> = async {
-            let row = crate::upload_from_url(self.session.clone(), &url)
+        let result: Result<Response<UploadZipResponse>, Status> = async {
+            let mut stream = request.into_inner();
+            let mut zip_bytes = Vec::new();
+
+            while let Some(chunk) = stream
+                .message()
                 .await
-                .map_err(|e| {
-                    if e.contains("membutuhkan") || e.contains("serial") || e.contains("sudah ada") {
-                        Status::failed_precondition(e)
-                    } else {
-                        Status::invalid_argument(e)
-                    }
-                })?;
+                .map_err(|e| Status::internal(format!("stream chunk: {e}")))?
+            {
+                if chunk.data.is_empty() {
+                    continue;
+                }
+                zip_bytes.extend_from_slice(&chunk.data);
+            }
 
-            Ok(Response::new(UploadXlbrFromUrlResponse {
+            let row = crate::upload_from_zip_bytes(self.session.clone(), &zip_bytes)
+                .await
+                .map_err(Self::map_upload_error)?;
+
+            Ok(Response::new(UploadZipResponse {
                 success: true,
                 message: format!(
                     "upload {} {} {} standalone CFO={:.0} net_income={:.0}",
@@ -69,7 +88,7 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         .await;
 
         eprintln!(
-            "UploadFromUrl {user_name} {}ms",
+            "UploadZip {user_name} {}ms",
             started.elapsed().as_millis()
         );
         result

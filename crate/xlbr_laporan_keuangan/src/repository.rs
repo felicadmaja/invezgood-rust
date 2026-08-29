@@ -3,7 +3,8 @@ use futures::TryStreamExt;
 use scylla::client::session::Session;
 
 use crate::model::{
-    StandaloneMetrics, XlbrLaporanKeuanganRow, YtdMetrics, KEYSPACE, TABLE,
+    required_prior_quarters, StandaloneMetrics, XlbrLaporanKeuanganRow, YtdMetrics, KEYSPACE,
+    TABLE,
 };
 
 const SELECT_PRIOR_FOR_YEAR: &str =
@@ -98,16 +99,24 @@ pub async fn upsert(
     Ok(())
 }
 
-pub fn standalone_sum(rows: &[XlbrLaporanKeuanganRow]) -> YtdMetrics {
+pub fn standalone_sum_prior_to(rows: &[XlbrLaporanKeuanganRow], quarter: &str) -> YtdMetrics {
+    let Ok(prior) = required_prior_quarters(quarter) else {
+        return YtdMetrics::default();
+    };
     let mut sum = YtdMetrics::default();
     for row in rows {
-        sum += YtdMetrics {
-            cash_from_operation: row.cash_from_operation,
-            cash_from_investment: row.cash_from_investment,
-            cash_from_financing: row.cash_from_financing,
-            capital_expenditure: row.capital_expenditure,
-            net_income: row.net_income,
-        };
+        if prior
+            .iter()
+            .any(|q| q.eq_ignore_ascii_case(&row.quarter))
+        {
+            sum += YtdMetrics {
+                cash_from_operation: row.cash_from_operation,
+                cash_from_investment: row.cash_from_investment,
+                cash_from_financing: row.cash_from_financing,
+                capital_expenditure: row.capital_expenditure,
+                net_income: row.net_income,
+            };
+        }
     }
     sum
 }

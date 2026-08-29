@@ -6,16 +6,28 @@ edition = "2021"
 [dependencies]
 chrono = "0.4"
 futures = "0.3"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
 scylla = { version = "1.5", features = ["chrono-04"] }
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
-tokio = { version = "1", features = ["macros", "rt", "fs"] }
+tokio = { version = "1", features = ["macros", "rt", "fs", "sync"] }
+tokio-stream = "0.1"
 tonic = { version = "0.12", features = ["transport", "tls", "tls-roots"] }
 prost = "0.13"
-dotenvy = "0.15"
 user = { path = "../user" }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [build-dependencies]
 tonic-build = "0.12"
+
+[dev-dependencies]
+dotenvy = "0.15"
+futures = "0.3"
+tokio-stream = "0.1"
+
+[[example]]
+name = "upload_from_file"
+required-features = []
+
+[[example]]
+name = "grpc_upload_zip"
+required-features = []
