@@ -1,7 +1,7 @@
 -- Keyspace: invezgood
 -- Median EV/EBIT & EV/EBITDA per sektor/sub-sektor BEI (IDX-IC).
 -- Sumber compute: Yahoo Finance (.JK) + pemetaan sektor dari invezgood.stock_list.
--- Hanya baris dengan n >= EVTOEBIT_MIN_VALID_N (default 5) yang di-upsert.
+-- Hanya baris dengan n >= EVTOEBIT_MIN_VALID_N (default 3) yang di-upsert.
 -- Tabel dibuat via MCP Scylla (2026-08-29).
 
 CREATE KEYSPACE IF NOT EXISTS invezgood
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS invezgood.evtoebit (
 -- | p25_ev_ebit      | regular         | double    | persentil 25 EV/EBIT
 -- | p75_ev_ebit      | regular         | double    | persentil 75 EV/EBIT
 -- | median_ev_ebitda | regular         | double    | median EV/EBITDA
--- | flag             | regular         | text      | "n<5" bila n < min valid; kosong bila cukup
+-- | flag             | regular         | text      | "n<3" bila n < min valid; kosong bila cukup
 -- | updated_at       | regular         | timestamp | waktu upsert/compute terakhir (UTC)
 --
 -- Query satu baris:
