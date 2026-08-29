@@ -3,7 +3,7 @@ syntax = "proto3";
 package xlbr_laporan_keuangan;
 
 service XlbrLaporanKeuangan {
-  // Client stream inlineXBRL.zip (chunk bytes). Server parse 1000000/1321000/1510000.html.
+  // Client stream inlineXBRL.zip (chunk bytes). Server parse 1000000.html, laba rugi 1321000/2311000, arus kas 1510000.
   // quarter dari baris "Periode penyampaian laporan keuangan" di 1000000.html → TW1..TW4.
   // Nilai XBRL kuartal YTD kumulatif → dekumulasi vs jumlah kuartal sebelumnya di DB.
   // TW2+ butuh kuartal sebelumnya sudah ada untuk dekumulasi; baris sama di-upsert (overwrite).

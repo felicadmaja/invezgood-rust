@@ -9,7 +9,9 @@ use zip::ZipArchive;
 use crate::model::{ParsedReportMeta, ParsedXlbrZip, YtdMetrics};
 
 const FILE_DEI: &str = "1000000.html";
-const FILE_IS: &str = "1321000.html";
+const FILE_IS_GENERAL: &str = "1321000.html";
+const FILE_IS_BANKING: &str = "2311000.html";
+const FILE_IS_CANDIDATES: &[&str] = &[FILE_IS_GENERAL, FILE_IS_BANKING];
 const FILE_CF: &str = "1510000.html";
 
 const LABEL_PERIOD_SUBMISSION: &str = "Periode penyampaian laporan keuangan";
@@ -28,7 +30,7 @@ pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
         ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| format!("buka zip gagal: {e}"))?;
 
     let dei_html = read_zip_entry(&mut archive, FILE_DEI)?;
-    let is_html = read_zip_entry(&mut archive, FILE_IS)?;
+    let is_html = read_zip_entry_any(&mut archive, FILE_IS_CANDIDATES)?;
     let cf_html = read_zip_entry(&mut archive, FILE_CF)?;
 
     let meta = parse_dei(&dei_html)?;
@@ -55,6 +57,23 @@ fn read_zip_entry(archive: &mut ZipArchive<std::io::Cursor<&[u8]>>, name: &str) 
     file.read_to_string(&mut buf)
         .map_err(|e| format!("baca {name} gagal: {e}"))?;
     Ok(buf)
+}
+
+fn read_zip_entry_any(
+    archive: &mut ZipArchive<std::io::Cursor<&[u8]>>,
+    names: &[&str],
+) -> Result<String, String> {
+    for name in names {
+        if let Ok(html) = read_zip_entry(archive, name) {
+            return Ok(html);
+        }
+    }
+    let listed = names
+        .iter()
+        .map(|n| format!("'{n}'"))
+        .collect::<Vec<_>>()
+        .join(" atau ");
+    Err(format!("file {listed} tidak ditemukan di zip"))
 }
 
 fn parse_dei(html: &str) -> Result<ParsedReportMeta, String> {
