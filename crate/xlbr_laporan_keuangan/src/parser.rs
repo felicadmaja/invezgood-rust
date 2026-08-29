@@ -99,7 +99,12 @@ fn parse_dei(html: &str) -> Result<ParsedReportMeta, String> {
 fn normalize_quarter(raw: &str) -> Result<String, String> {
     let lower = raw.to_ascii_lowercase();
     // Urut TW4→TW1: "kuartal ii/iii/iv" mengandung substring "kuartal i".
-    if lower.contains("fourth") || lower.contains("kuartal iv") || lower.contains("quarter iv") {
+    if lower.contains("annual")
+        || lower.contains("tahunan")
+        || lower.contains("fourth")
+        || lower.contains("kuartal iv")
+        || lower.contains("quarter iv")
+    {
         Ok("TW4".into())
     } else if lower.contains("third") || lower.contains("kuartal iii") || lower.contains("quarter iii") {
         Ok("TW3".into())
@@ -252,6 +257,10 @@ mod tests {
         assert_eq!(
             normalize_quarter("Kuartal I / First Quarter").unwrap(),
             "TW1"
+        );
+        assert_eq!(
+            normalize_quarter("Tahunan / Annual").unwrap(),
+            "TW4"
         );
     }
 
