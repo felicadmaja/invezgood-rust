@@ -20,6 +20,7 @@ members = [
     "crate/market_holiday",
     "crate/hari_libur",
     "crate/config_fundamental",
+    "crate/evtoebit",
     "crate/shareholder_composition",
     "crate/stockbit_browser",
     "crate/wyckoff_glosary",

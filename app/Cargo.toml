@@ -15,6 +15,7 @@ top_gainer_loser = { path = "../crate/top_gainer_loser" }
 top_foreign_flow = { path = "../crate/top_foreign_flow" }
 shareholder_composition = { path = "../crate/shareholder_composition" }
 config_fundamental = { path = "../crate/config_fundamental" }
+evtoebit = { path = "../crate/evtoebit" }
 bandarmology = { path = "../crate/bandarmology" }
 broker = { path = "../crate/broker" }
 portofolio = { path = "../crate/portofolio" }

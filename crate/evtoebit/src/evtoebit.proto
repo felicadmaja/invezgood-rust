@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package evtoebit;
+
+service EvToEbit {
+  // Agregat median EV/EBIT (dan EV/EBITDA) per sektor/sub-sektor emiten BEI (IDX-IC).
+  // Sumber: daftar saham idx.co.id (pemetaan kode → sektor/sub-sektor) + Yahoo Finance (.JK)
+  // untuk market cap, neraca, laba rugi TTM via Rust reqwest (Yahoo crumb + timeseries).
+  // winsorize multiple >100×. Sub-sektor n<3 ditandai flag. Read-only; wajib Authorization Bearer JWT.
+  // Response: repeated MedianEvMultipleRow; error internal bila fetch/parse gagal.
+  rpc GetMedianEVToEbitda(GetMedianEVToEbitdaRequest) returns (GetMedianEVToEbitdaResponse);
+}
+
+// Satu baris agregat median multiple per pasangan sektor + sub-sektor BEI.
+message MedianEvMultipleRow {
+  string sektor = 1;
+  string sub_sektor = 2;
+  int32 n = 3;
+  double median_ev_ebit = 4;
+  double p25_ev_ebit = 5;
+  double p75_ev_ebit = 6;
+  double median_ev_ebitda = 7;
+  string flag = 8; // "n<3" bila jumlah emiten valid < 3 (median kurang andal)
+}
+
+message GetMedianEVToEbitdaRequest {}
+
+message GetMedianEVToEbitdaResponse {
+  bool success = 1;
+  string message = 2;
+  repeated MedianEvMultipleRow rows = 3;
+}

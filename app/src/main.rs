@@ -17,6 +17,7 @@ use stockbit_browser::ReadinessPoller;
 use worker_scrapping::invezgo_spike_poller::InvezgoSpikePoller;
 use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
 use config_fundamental::{ConfigFundamentalServer, ConfigFundamentalService};
+use evtoebit::{new_shared_median_cache, new_yahoo_client, EvToEbitServer, EvToEbitService};
 use shareholder_composition::{
     ShareholderCompositionServer, ShareholderCompositionService,
 };
@@ -140,6 +141,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         WyckoffGlossaryService::new(session.clone(), auth_sessions.clone());
     let config_fundamental =
         ConfigFundamentalService::new(session.clone(), auth_sessions.clone());
+    let evtoebit_yahoo = new_yahoo_client()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let evtoebit = EvToEbitService::new(
+        session.clone(),
+        auth_sessions.clone(),
+        new_shared_median_cache(evtoebit_yahoo),
+    );
 
     let readiness_poller = ReadinessPoller::new();
     {
@@ -199,6 +207,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .register_encoded_file_descriptor_set(hari_libur::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(wyckoff_glossary::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(config_fundamental::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(evtoebit::FILE_DESCRIPTOR_SET)
             .register_encoded_file_descriptor_set(pb::FILE_DESCRIPTOR_SET)
             .build_v1()?,
         enable_compression
@@ -247,6 +256,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         ConfigFundamentalServer::new(config_fundamental),
         enable_compression
     );
+    let evtoebit_svc =
+        maybe_compressed!(EvToEbitServer::new(evtoebit), enable_compression);
 
     let mut builder = apply_grpc_transport(Server::builder());
 
@@ -284,6 +295,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .add_service(hari_libur_svc)
         .add_service(wyckoff_glossary_svc)
         .add_service(config_fundamental_svc)
+        .add_service(evtoebit_svc)
         .serve(addr)
         .await?;
 
