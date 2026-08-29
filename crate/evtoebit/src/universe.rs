@@ -1,12 +1,13 @@
+use std::collections::BTreeSet;
+
 use futures::TryStreamExt;
 use scylla::client::session::Session;
 use scylla::DeserializeRow;
 
-const LIST_UNIVERSE: &str =
-    "SELECT code, sector, sub_sector FROM invezgood.stock_list";
+const LIST_UNIVERSE: &str = "SELECT code, sector FROM invezgood.stock_list";
 
 const FINANCIAL_KEYWORDS: &[&str] = &[
-    "bank", "asuransi", "insurance", "pembiayaan", "financ", "sekuritas",
+    "bank", "asuransi", "insurance", "pembiayaan", "financ", "sekuritas", "keuangan",
 ];
 
 #[derive(Debug, Clone, DeserializeRow)]
@@ -14,25 +15,61 @@ struct UniverseDbRow {
     code: String,
     #[scylla(default_when_null)]
     sector: Option<String>,
-    #[scylla(default_when_null)]
-    sub_sector: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UniverseRow {
     pub kode: String,
     pub sektor: String,
-    pub sub_sektor: String,
 }
 
-fn is_financial_subsector(sub_sektor: &str) -> bool {
-    let lower = sub_sektor.to_ascii_lowercase();
+fn is_financial_sector(sektor: &str) -> bool {
+    let lower = sektor.to_ascii_lowercase();
     FINANCIAL_KEYWORDS
         .iter()
         .any(|kw| lower.contains(kw))
 }
 
+fn normalize_sector(sector: Option<String>) -> Option<String> {
+    let sektor = sector?.trim().to_string();
+    if sektor.is_empty() {
+        None
+    } else {
+        Some(sektor)
+    }
+}
+
+/// Daftar sektor unik non-keuangan dari kolom `sector` invezgood.stock_list.
+pub async fn load_sectors(session: &Session) -> Result<Vec<String>, String> {
+    let rows = session
+        .query_iter(LIST_UNIVERSE, &[])
+        .await
+        .map_err(|e| format!("load_sectors invezgood.stock_list: {e}"))?
+        .rows_stream::<UniverseDbRow>()
+        .map_err(|e| format!("load_sectors stream: {e}"))?;
+
+    let mut sectors = BTreeSet::new();
+    let mut stream = rows;
+    while let Some(row) = stream
+        .try_next()
+        .await
+        .map_err(|e| format!("load_sectors row: {e}"))?
+    {
+        let Some(sektor) = normalize_sector(row.sector) else {
+            continue;
+        };
+        if is_financial_sector(&sektor) {
+            continue;
+        }
+        sectors.insert(sektor);
+    }
+    Ok(sectors.into_iter().collect())
+}
+
+/// Emiten BEI dengan sektor valid dari invezgood.stock_list (non-keuangan, bukan warrant).
 pub async fn load_universe(session: &Session) -> Result<Vec<UniverseRow>, String> {
+    let allowed_sectors: BTreeSet<String> = load_sectors(session).await?.into_iter().collect();
+
     let rows = session
         .query_iter(LIST_UNIVERSE, &[])
         .await
@@ -51,19 +88,13 @@ pub async fn load_universe(session: &Session) -> Result<Vec<UniverseRow>, String
         if kode.is_empty() || kode.contains('-') {
             continue;
         }
-        let sektor = row.sector.unwrap_or_default().trim().to_string();
-        let sub_sektor = row
-            .sub_sector
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| sektor.clone());
-        if is_financial_subsector(&sub_sektor) {
+        let Some(sektor) = normalize_sector(row.sector) else {
+            continue;
+        };
+        if is_financial_sector(&sektor) || !allowed_sectors.contains(&sektor) {
             continue;
         }
-        out.push(UniverseRow {
-            kode,
-            sektor,
-            sub_sektor,
-        });
+        out.push(UniverseRow { kode, sektor });
     }
     Ok(out)
 }

@@ -6,14 +6,28 @@ use crate::model::{EvToEbitRow, KEYSPACE, TABLE};
 use crate::pb::MedianEvMultipleRow;
 
 const FIND_ALL: &str =
-    "SELECT sektor, sub_sektor, n, median_ev_ebit, p25_ev_ebit, p75_ev_ebit, median_ev_ebitda, flag, updated_at FROM invezgood.evtoebit";
+    "SELECT sektor, n, median_ev_ebit, p25_ev_ebit, p75_ev_ebit, median_ev_ebitda, flag, updated_at FROM invezgood.evtoebit";
 
-const UPSERT: &str = "INSERT INTO invezgood.evtoebit (sektor, sub_sektor, n, median_ev_ebit, p25_ev_ebit, p75_ev_ebit, median_ev_ebitda, flag, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+const UPSERT: &str = "INSERT INTO invezgood.evtoebit (sektor, n, median_ev_ebit, p25_ev_ebit, p75_ev_ebit, median_ev_ebitda, flag, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
+const DROP_TABLE: &str = "DROP TABLE IF EXISTS invezgood.evtoebit";
+
+const CREATE_TABLE: &str = r#"
+CREATE TABLE invezgood.evtoebit (
+    sektor           text PRIMARY KEY,
+    n                int,
+    median_ev_ebit   double,
+    p25_ev_ebit      double,
+    p75_ev_ebit      double,
+    median_ev_ebitda double,
+    flag             text,
+    updated_at       timestamp
+)
+"#;
 
 pub fn row_to_pb(row: &EvToEbitRow) -> MedianEvMultipleRow {
     MedianEvMultipleRow {
         sektor: row.sektor.clone(),
-        sub_sektor: row.sub_sektor.clone(),
         n: row.n,
         median_ev_ebit: row.median_ev_ebit,
         p25_ev_ebit: row.p25_ev_ebit,
@@ -27,7 +41,6 @@ pub fn row_to_pb(row: &EvToEbitRow) -> MedianEvMultipleRow {
 pub fn row_from_pb(row: &MedianEvMultipleRow, updated_at: DateTime<Utc>) -> EvToEbitRow {
     EvToEbitRow {
         sektor: row.sektor.clone(),
-        sub_sektor: row.sub_sektor.clone(),
         n: row.n,
         median_ev_ebit: row.median_ev_ebit,
         p25_ev_ebit: row.p25_ev_ebit,
@@ -40,6 +53,18 @@ pub fn row_from_pb(row: &MedianEvMultipleRow, updated_at: DateTime<Utc>) -> EvTo
         },
         updated_at,
     }
+}
+
+pub async fn recreate_table(session: &Session) -> Result<(), String> {
+    session
+        .query_unpaged(DROP_TABLE, &[])
+        .await
+        .map_err(|e| format!("drop {KEYSPACE}.{TABLE}: {e}"))?;
+    session
+        .query_unpaged(CREATE_TABLE, &[])
+        .await
+        .map_err(|e| format!("create {KEYSPACE}.{TABLE}: {e}"))?;
+    Ok(())
 }
 
 pub async fn find_all(session: &Session) -> Result<Vec<EvToEbitRow>, String> {
@@ -55,7 +80,6 @@ pub async fn find_all(session: &Session) -> Result<Vec<EvToEbitRow>, String> {
         .map_err(|e| format!("find_all rows {KEYSPACE}.{TABLE}: {e}"))
 }
 
-/// Upsert semua baris agregat; `updated_at` sama untuk seluruh batch.
 pub async fn upsert_all(
     session: &Session,
     rows: &[MedianEvMultipleRow],
@@ -69,7 +93,6 @@ pub async fn upsert_all(
                 UPSERT,
                 (
                     &db_row.sektor,
-                    &db_row.sub_sektor,
                     db_row.n,
                     db_row.median_ev_ebit,
                     db_row.p25_ev_ebit,
@@ -80,12 +103,7 @@ pub async fn upsert_all(
                 ),
             )
             .await
-            .map_err(|e| {
-                format!(
-                    "upsert {KEYSPACE}.{TABLE} sektor={} sub_sektor={}: {e}",
-                    db_row.sektor, db_row.sub_sektor
-                )
-            })?;
+            .map_err(|e| format!("upsert {KEYSPACE}.{TABLE} sektor={}: {e}", db_row.sektor))?;
         count += 1;
     }
     Ok(count)

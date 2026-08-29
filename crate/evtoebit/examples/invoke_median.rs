@@ -18,15 +18,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("message: {}", resp.message);
     println!();
     println!(
-        "{:<35} {:<30} {:>4} {:>12} {:>12} {:>12} {:>12} {:>4}",
-        "sektor", "sub_sektor", "n", "med_ebit", "p25", "p75", "med_ebitda", "flag"
+        "{:<35} {:>4} {:>12} {:>12} {:>12} {:>12} {:>4}",
+        "sektor", "n", "med_ebit", "p25", "p75", "med_ebitda", "flag"
     );
-    println!("{}", "-".repeat(130));
+    println!("{}", "-".repeat(100));
     for row in &resp.rows {
         println!(
-            "{:<35} {:<30} {:>4} {:>12.2} {:>12.2} {:>12.2} {:>12.2} {:>4}",
+            "{:<35} {:>4} {:>12.2} {:>12.2} {:>12.2} {:>12.2} {:>4}",
             row.sektor,
-            row.sub_sektor,
             row.n,
             row.median_ev_ebit,
             row.p25_ev_ebit,

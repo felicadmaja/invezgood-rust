@@ -13,8 +13,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let session = connect().await?;
     let yahoo: Arc<YahooClient> = new_yahoo_client()?;
+    repository::recreate_table(session.as_ref()).await?;
     let resp = compute_median(session.clone(), yahoo).await?;
-
     let updated_at = Utc::now();
     let n = repository::upsert_all(session.as_ref(), &resp.rows, updated_at).await?;
 

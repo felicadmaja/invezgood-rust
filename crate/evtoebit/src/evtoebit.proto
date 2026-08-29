@@ -3,10 +3,10 @@ syntax = "proto3";
 package evtoebit;
 
 service EvToEbit {
-  // Agregat median EV/EBIT (dan EV/EBITDA) per sektor/sub-sektor emiten BEI (IDX-IC).
-  // Sumber: daftar saham idx.co.id (pemetaan kode → sektor/sub-sektor) + Yahoo Finance (.JK)
-  // untuk market cap, neraca, laba rugi TTM via Rust reqwest (Yahoo crumb + timeseries).
-  // winsorize multiple >100×. Flag `n<3` bila emiten valid < 3; agregat per sektor + sub-sektor.
+  // Agregat median EV/EBIT (dan EV/EBITDA) per sektor emiten BEI (IDX-IC).
+  // Sumber: kolom sector invezgood.stock_list + Yahoo Finance (.JK) untuk market cap,
+  // neraca, laba rugi TTM via Rust reqwest (Yahoo crumb + timeseries).
+  // winsorize multiple >100×. Flag `n<3` bila emiten valid < 3; agregat per sektor saja.
   // Hasil compute di-upsert ke invezgood.evtoebit (kolom updated_at = waktu upsert).
   // Response: repeated MedianEvMultipleRow; error internal bila fetch/parse gagal.
   rpc GetMedianEVToEbitdaFromYahooFinance(GetMedianEVToEbitdaFromYahooFinanceRequest) returns (GetMedianEVToEbitdaFromYahooFinanceResponse);
@@ -16,10 +16,11 @@ service EvToEbit {
   rpc GetMedianEVToEbitdaFromScylla(GetMedianEVToEbitdaFromScyllaRequest) returns (GetMedianEVToEbitdaFromScyllaResponse);
 }
 
-// Satu baris agregat median multiple per pasangan sektor + sub-sektor BEI.
+// Satu baris agregat median multiple per sektor BEI.
 message MedianEvMultipleRow {
   string sektor = 1;
-  string sub_sektor = 2;
+  reserved 2;
+  reserved "sub_sektor";
   int32 n = 3;
   double median_ev_ebit = 4;
   double p25_ev_ebit = 5;

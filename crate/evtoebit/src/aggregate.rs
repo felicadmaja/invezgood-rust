@@ -4,12 +4,9 @@ use crate::pb::MedianEvMultipleRow;
 use crate::universe::UniverseRow;
 use crate::yahoo::EmitenMetrics;
 
-const SECTOR_ROLLUP_LABEL: &str = "(agregat sektor)";
-
 #[derive(Debug, Clone)]
 struct DetailRow {
     sektor: String,
-    sub_sektor: String,
     ev_ebit: f64,
     ev_ebitda: f64,
 }
@@ -23,10 +20,12 @@ pub fn aggregate_median(
 
     for (row, result) in universe.iter().zip(metrics.iter()) {
         let Ok(m) = &result.1 else { continue };
+        if row.sektor.is_empty() {
+            continue;
+        }
         if let Some(ev_ebit) = m.ev_ebit.filter(|v| *v > 0.0 && *v <= max_multiple) {
             details.push(DetailRow {
                 sektor: row.sektor.clone(),
-                sub_sektor: row.sub_sektor.clone(),
                 ev_ebit,
                 ev_ebitda: m.ev_ebitda.filter(|v| *v > 0.0 && *v <= max_multiple).unwrap_or(0.0),
             });
@@ -34,36 +33,24 @@ pub fn aggregate_median(
     }
 
     let min_valid_n = min_valid_n();
-    let mut groups: HashMap<(String, String), Vec<DetailRow>> = HashMap::new();
+    let mut groups: HashMap<String, Vec<DetailRow>> = HashMap::new();
 
     for row in details {
-        groups
-            .entry((row.sektor.clone(), row.sub_sektor.clone()))
-            .or_default()
-            .push(row.clone());
-        groups
-            .entry((row.sektor.clone(), SECTOR_ROLLUP_LABEL.to_string()))
-            .or_default()
-            .push(row);
+        groups.entry(row.sektor.clone()).or_default().push(row);
     }
 
     let mut out: Vec<MedianEvMultipleRow> = groups
         .into_iter()
-        .map(|((sektor, sub_sektor), rows)| row_from_group(sektor, sub_sektor, &rows, min_valid_n))
+        .map(|(sektor, rows)| row_from_group(sektor, &rows, min_valid_n))
         .filter(|row| row.n >= min_valid_n)
         .collect();
 
-    out.sort_by(|a, b| {
-        a.sektor
-            .cmp(&b.sektor)
-            .then_with(|| a.sub_sektor.cmp(&b.sub_sektor))
-    });
+    out.sort_by(|a, b| a.sektor.cmp(&b.sektor));
     out
 }
 
 fn row_from_group(
     sektor: String,
-    sub_sektor: String,
     rows: &[DetailRow],
     min_valid_n: i32,
 ) -> MedianEvMultipleRow {
@@ -79,7 +66,6 @@ fn row_from_group(
     let n = ebit_vals.len() as i32;
     MedianEvMultipleRow {
         sektor,
-        sub_sektor,
         n,
         median_ev_ebit: round2(quantile(&ebit_vals, 0.5)),
         p25_ev_ebit: round2(quantile(&ebit_vals, 0.25)),

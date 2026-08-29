@@ -48,7 +48,7 @@ pub async fn compute_median(
     Ok(GetMedianEvToEbitdaFromYahooFinanceResponse {
         success: true,
         message: format!(
-            "median EV/EBIT dari {} emiten BEI (Yahoo Finance), {} baris sektor/sub-sektor",
+            "median EV/EBIT dari {} emiten BEI (Yahoo Finance), {} sektor",
             universe.len(),
             rows.len()
         ),
