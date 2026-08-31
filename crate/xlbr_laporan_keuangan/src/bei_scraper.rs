@@ -1,6 +1,7 @@
 //! Scrape inlineXBRL.zip dari idx.co.id via Chrome (pool Stockbit).
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -11,9 +12,32 @@ use stockbit_browser::{
     acquire_browser_session, apply_desktop_viewport, evaluate_resilient, launch_page,
     BrowserLockClass,
 };
-use tokio::time::sleep;
+use tokio::time::{sleep, timeout};
 
 use crate::model::XlbrLaporanKeuanganRow;
+
+static SCRAP_JOB_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// Invoke RPC baru: invalidasi scrap background sebelumnya agar Chrome lock lepas.
+pub fn begin_scrap_job() -> u64 {
+    SCRAP_JOB_GENERATION.fetch_add(1, Ordering::SeqCst) + 1
+}
+
+fn scrap_job_cancelled(job_gen: u64) -> bool {
+    job_gen != SCRAP_JOB_GENERATION.load(Ordering::SeqCst)
+}
+
+fn scrap_cancelled_err() -> String {
+    "scrap dibatalkan (invoke ScrapZipFromBei baru)".into()
+}
+
+fn check_scrap_job(job_gen: u64) -> Result<(), String> {
+    if scrap_job_cancelled(job_gen) {
+        Err(scrap_cancelled_err())
+    } else {
+        Ok(())
+    }
+}
 
 const IDX_URL: &str = "https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan";
 const IDX_HOME: &str = "https://www.idx.co.id/id/";
@@ -35,6 +59,7 @@ pub struct ScrapOutcome {
 pub async fn scrap_and_upload(
     db: Arc<Session>,
     code: &str,
+    job_gen: u64,
 ) -> Result<ScrapOutcome, String> {
     let code = code.trim().to_ascii_uppercase();
     if code.is_empty() {
@@ -52,6 +77,7 @@ pub async fn scrap_and_upload(
 
     cleanup_screenshot_dir(&screenshot_dir).await;
     cleanup_code_zips(&download_dir, &code).await;
+    check_scrap_job(job_gen)?;
 
     let _lock = acquire_browser_session(BrowserLockClass::Interactive)
         .await
@@ -68,6 +94,7 @@ pub async fn scrap_and_upload(
         .await
         .map_err(|e| format!("viewport desktop setelah goto IDX: {e}"))?;
     save_screenshot(&page, &screenshot_dir, &format!("{code}-01-open")).await;
+    check_scrap_job(job_gen)?;
 
     if page_idx_error(&page).await? {
         save_screenshot(&page, &screenshot_dir, &format!("{code}-01-error")).await;
@@ -80,7 +107,7 @@ pub async fn scrap_and_upload(
         );
     }
 
-    search_company(&page, &code).await?;
+    search_company(&page, &code, job_gen).await?;
     apply_desktop_viewport(&page)
         .await
         .map_err(|e| format!("viewport desktop setelah pilih emiten: {e}"))?;
@@ -94,6 +121,7 @@ pub async fn scrap_and_upload(
 
     for year_id in YEAR_IDS {
         for period_id in PERIOD_IDS {
+            check_scrap_job(job_gen)?;
             let label = format!("{code}-{slot:02}-{year_id}-{period_id}");
             save_screenshot(&page, &screenshot_dir, &format!("{label}-before")).await;
 
@@ -273,13 +301,14 @@ async fn page_idx_ready(page: &Page) -> Result<bool, String> {
     .await
 }
 
-async fn search_company(page: &Page, code: &str) -> Result<(), String> {
+async fn search_company(page: &Page, code: &str, job_gen: u64) -> Result<(), String> {
     const SELECTOR: &str = r#"input[placeholder="Search Company Code"]"#;
+    check_scrap_job(job_gen)?;
     clear_company_selection(page).await?;
 
-    let element = page
-        .find_element(SELECTOR)
+    let element = timeout(Duration::from_secs(30), page.find_element(SELECTOR))
         .await
+        .map_err(|_| "timeout cari input Search Company Code".to_string())?
         .map_err(|_| "input Search Company Code tidak ditemukan".to_string())?;
 
     element
@@ -310,6 +339,7 @@ async fn search_company(page: &Page, code: &str) -> Result<(), String> {
     }
 
     for ch in code.chars() {
+        check_scrap_job(job_gen)?;
         element
             .type_str(&ch.to_string())
             .await
@@ -321,6 +351,7 @@ async fn search_company(page: &Page, code: &str) -> Result<(), String> {
     let started = Instant::now();
     let timeout = Duration::from_millis(SEARCH_DROPDOWN_WAIT_MS);
     loop {
+        check_scrap_job(job_gen)?;
         let state = eval_string(
             page,
             &format!(

@@ -91,36 +91,57 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         let user_name = "anonymous";
         let code = request.into_inner().code.trim().to_ascii_uppercase();
 
-        let result: Result<Response<UploadZipResponse>, Status> = async {
-            if code.is_empty() {
-                return Err(Status::invalid_argument("code wajib diisi"));
-            }
-
-            let outcome = crate::bei_scraper::scrap_and_upload(self.session.clone(), &code)
-                .await
-                .map_err(Status::internal)?;
-
-            let last = outcome.last_row.as_ref();
-            Ok(Response::new(UploadZipResponse {
-                success: outcome.uploaded > 0,
-                message: format!(
-                    "scrap {}: uploaded {} skipped {} failed {}",
-                    code, outcome.uploaded, outcome.skipped, outcome.failed
-                ),
-                code: last.map(|r| r.code.clone()).unwrap_or(code),
-                fiscal_year: last.map(|r| r.fiscal_year).unwrap_or(0),
-                quarter: last
-                    .map(|r| r.quarter.clone())
-                    .unwrap_or_default(),
-            }))
+        if code.is_empty() {
+            eprintln!(
+                "ScrapZipFromBei {user_name} {}ms",
+                started.elapsed().as_millis()
+            );
+            return Err(Status::invalid_argument("code wajib diisi"));
         }
-        .await;
+
+        let job_gen = crate::bei_scraper::begin_scrap_job();
+        let session = self.session.clone();
+        let code_bg = code.clone();
+
+        tokio::spawn(async move {
+            let bg_started = std::time::Instant::now();
+            eprintln!("ScrapZipFromBei background {code_bg} dimulai (gen {job_gen})");
+            let result = crate::bei_scraper::scrap_and_upload(session, &code_bg, job_gen).await;
+            match &result {
+                Ok(outcome) => {
+                    let tail = outcome
+                        .last_row
+                        .as_ref()
+                        .map(|r| format!(" last_upload={} {} {}", r.code, r.fiscal_year, r.quarter))
+                        .unwrap_or_default();
+                    eprintln!(
+                        "ScrapZipFromBei background {code_bg} uploaded {} skipped {} failed {}{tail} {}ms",
+                        outcome.uploaded,
+                        outcome.skipped,
+                        outcome.failed,
+                        bg_started.elapsed().as_millis()
+                    );
+                }
+                Err(e) => eprintln!(
+                    "ScrapZipFromBei background {code_bg} gagal: {e} {}ms",
+                    bg_started.elapsed().as_millis()
+                ),
+            }
+        });
 
         eprintln!(
             "ScrapZipFromBei {user_name} {}ms",
             started.elapsed().as_millis()
         );
-        result
+        Ok(Response::new(UploadZipResponse {
+            success: true,
+            message: format!(
+                "scrap {code} dimulai di background — pantau log ScrapZipFromBei background; invoke baru membatalkan scrap sebelumnya"
+            ),
+            code,
+            fiscal_year: 0,
+            quarter: String::new(),
+        }))
     }
 
     async fn get_chart_by_code(
