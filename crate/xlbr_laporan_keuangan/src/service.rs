@@ -88,11 +88,7 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         request: Request<ScrapZipFromBeiRequest>,
     ) -> Result<Response<UploadZipResponse>, Status> {
         let started = std::time::Instant::now();
-        let token = extract_bearer_token(&request)?;
-        let auth = validate_session(&self.auth_sessions, &token)
-            .await
-            .map_err(Status::unauthenticated)?;
-        let user_name = auth.nama;
+        let user_name = "anonymous";
         let code = request.into_inner().code.trim().to_ascii_uppercase();
 
         let result: Result<Response<UploadZipResponse>, Status> = async {

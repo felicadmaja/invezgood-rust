@@ -17,6 +17,8 @@ const IDX_HOME: &str = "https://www.idx.co.id/id/";
 const YEAR_IDS: [&str; 5] = ["year4", "year3", "year2", "year1", "year0"];
 const PERIOD_IDS: [&str; 4] = ["period0", "period1", "period2", "period3"];
 const WAIT_TABLE_MS: u64 = 45_000;
+const SEARCH_DROPDOWN_WAIT_MS: u64 = 30_000;
+const SEARCH_TYPE_DELAY_MS: u64 = 80;
 const POLL_MS: u64 = 500;
 const IDX_GOTO_MAX_ATTEMPTS: u32 = 6;
 
@@ -262,15 +264,28 @@ async fn page_idx_ready(page: &Page) -> Result<bool, String> {
 }
 
 async fn search_company(page: &Page, code: &str) -> Result<(), String> {
-    let code_js = js_str(code);
-    let filled = eval_bool(
+    const SELECTOR: &str = r#"input[placeholder="Search Company Code"]"#;
+    let element = page
+        .find_element(SELECTOR)
+        .await
+        .map_err(|_| "input Search Company Code tidak ditemukan".to_string())?;
+
+    element
+        .click()
+        .await
+        .map_err(|e| format!("klik search input: {e}"))?;
+    sleep(Duration::from_millis(300)).await;
+
+    let selector_js = js_str(SELECTOR);
+    let cleared = eval_bool(
         page,
         &format!(
             r#"(() => {{
-  const input = document.querySelector('input[placeholder="Search Company Code"]');
+  const input = document.querySelector({selector_js});
   if (!input) return false;
   input.focus();
-  input.value = {code_js};
+  if (typeof input.select === 'function') input.select();
+  input.value = '';
   input.dispatchEvent(new Event('input', {{ bubbles: true }}));
   input.dispatchEvent(new Event('change', {{ bubbles: true }}));
   return true;
@@ -278,42 +293,69 @@ async fn search_company(page: &Page, code: &str) -> Result<(), String> {
         ),
     )
     .await?;
-    if !filled {
+    if !cleared {
         return Err("input Search Company Code tidak ditemukan".into());
     }
 
-    let started = Instant::now();
-    while started.elapsed() < Duration::from_secs(20) {
-        if eval_bool(
-            page,
-            "(() => !!document.querySelector('#vs3__listbox'))()",
-        )
-        .await?
-        {
-            break;
-        }
-        sleep(Duration::from_millis(POLL_MS)).await;
+    for ch in code.chars() {
+        element
+            .type_str(&ch.to_string())
+            .await
+            .map_err(|e| format!("ketik search code: {e}"))?;
+        sleep(Duration::from_millis(SEARCH_TYPE_DELAY_MS)).await;
     }
 
-    let clicked = eval_bool(
-        page,
-        &format!(
-            r#"(() => {{
+    let code_js = js_str(code);
+    let started = Instant::now();
+    let timeout = Duration::from_millis(SEARCH_DROPDOWN_WAIT_MS);
+    loop {
+        let state = eval_string(
+            page,
+            &format!(
+                r#"(() => {{
+  function listItems() {{
+    const box = document.querySelector('#vs3__listbox')
+      || document.querySelector('.vs__dropdown-menu');
+    if (!box) return [];
+    return [...box.querySelectorAll('li')].filter(li => (li.textContent || '').trim());
+  }}
   const code = {code_js};
-  const items = [...document.querySelectorAll('#vs3__listbox li')];
-  const hit = items.find(li => li.textContent && li.textContent.toUpperCase().includes(code));
-  if (!hit) return false;
+  const items = listItems();
+  if (items.length === 0) return 'waiting';
+  const hit = items.find(li => li.textContent.toUpperCase().includes(code));
+  if (!hit) return 'pending';
   hit.click();
-  return true;
+  return 'clicked';
 }})()"#
-        ),
-    )
-    .await?;
-    if !clicked {
-        return Err(format!("emiten {code} tidak ada di dropdown IDX"));
+            ),
+        )
+        .await?;
+
+        if state == "clicked" {
+            sleep(Duration::from_secs(2)).await;
+            return Ok(());
+        }
+
+        if started.elapsed() >= timeout {
+            let has_items = eval_bool(
+                page,
+                r#"(() => {
+  const box = document.querySelector('#vs3__listbox')
+    || document.querySelector('.vs__dropdown-menu');
+  if (!box) return false;
+  return box.querySelectorAll('li').length > 0;
+})()"#,
+            )
+            .await?;
+            return Err(if has_items {
+                format!("emiten {code} tidak ada di dropdown IDX")
+            } else {
+                format!("timeout menunggu dropdown emiten {code} (li belum muncul)")
+            });
+        }
+
+        sleep(Duration::from_millis(POLL_MS)).await;
     }
-    sleep(Duration::from_secs(2)).await;
-    Ok(())
 }
 
 async fn select_filters(page: &Page, year_id: &str, period_id: &str) -> Result<(), String> {
