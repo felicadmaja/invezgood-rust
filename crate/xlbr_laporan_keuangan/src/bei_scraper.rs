@@ -7,7 +7,10 @@ use std::time::{Duration, Instant};
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
 use chromiumoxide::page::{Page, ScreenshotParams};
 use scylla::client::session::Session;
-use stockbit_browser::{acquire_browser_session, evaluate_resilient, launch_page, BrowserLockClass};
+use stockbit_browser::{
+    acquire_browser_session, apply_desktop_viewport, evaluate_resilient, launch_page,
+    BrowserLockClass,
+};
 use tokio::time::sleep;
 
 use crate::model::XlbrLaporanKeuanganRow;
@@ -56,8 +59,14 @@ pub async fn scrap_and_upload(
     let (_browser, page) = launch_page()
         .await
         .map_err(|e| format!("launch Chrome: {e}"))?;
+    apply_desktop_viewport(&page)
+        .await
+        .map_err(|e| format!("viewport desktop: {e}"))?;
 
     goto_idx(&page).await?;
+    apply_desktop_viewport(&page)
+        .await
+        .map_err(|e| format!("viewport desktop setelah goto IDX: {e}"))?;
     save_screenshot(&page, &screenshot_dir, &format!("{code}-01-open")).await;
 
     if page_idx_error(&page).await? {
@@ -72,6 +81,9 @@ pub async fn scrap_and_upload(
     }
 
     search_company(&page, &code).await?;
+    apply_desktop_viewport(&page)
+        .await
+        .map_err(|e| format!("viewport desktop setelah pilih emiten: {e}"))?;
     save_screenshot(&page, &screenshot_dir, &format!("{code}-02-selected")).await;
 
     let mut uploaded = 0usize;
@@ -87,6 +99,9 @@ pub async fn scrap_and_upload(
 
             select_filters(&page, year_id, period_id).await?;
             click_terapkan(&page).await?;
+            apply_desktop_viewport(&page)
+                .await
+                .map_err(|e| format!("viewport desktop setelah Terapkan: {e}"))?;
 
             match wait_table(&page).await? {
                 TableState::NotFound => {
@@ -260,6 +275,8 @@ async fn page_idx_ready(page: &Page) -> Result<bool, String> {
 
 async fn search_company(page: &Page, code: &str) -> Result<(), String> {
     const SELECTOR: &str = r#"input[placeholder="Search Company Code"]"#;
+    clear_company_selection(page).await?;
+
     let element = page
         .find_element(SELECTOR)
         .await
@@ -314,10 +331,15 @@ async fn search_company(page: &Page, code: &str) -> Result<(), String> {
     if (!box) return [];
     return [...box.querySelectorAll('li')].filter(li => (li.textContent || '').trim());
   }}
+  function itemTicker(li) {{
+    const text = (li.textContent || '').trim().toUpperCase();
+    const m = text.match(/^([A-Z0-9]{{1,5}})\b/);
+    return m ? m[1] : text.split(/\s+/)[0];
+  }}
   const code = {code_js};
   const items = listItems();
   if (items.length === 0) return 'waiting';
-  const hit = items.find(li => li.textContent.toUpperCase().includes(code));
+  const hit = items.find(li => itemTicker(li) === code);
   if (!hit) return 'pending';
   hit.click();
   return 'clicked';
@@ -327,8 +349,14 @@ async fn search_company(page: &Page, code: &str) -> Result<(), String> {
         .await?;
 
         if state == "clicked" {
-            sleep(Duration::from_secs(2)).await;
-            return Ok(());
+            sleep(Duration::from_millis(800)).await;
+            if company_selection_matches(page, code).await? {
+                sleep(Duration::from_secs(1)).await;
+                return Ok(());
+            }
+            return Err(format!(
+                "emiten terpilih bukan {code} (cek dropdown IDX — mungkin pilihan salah)"
+            ));
         }
 
         if started.elapsed() >= timeout {
@@ -351,6 +379,50 @@ async fn search_company(page: &Page, code: &str) -> Result<(), String> {
 
         sleep(Duration::from_millis(POLL_MS)).await;
     }
+}
+
+async fn clear_company_selection(page: &Page) -> Result<(), String> {
+    eval_bool(
+        page,
+        r#"(() => {
+  const clears = [
+    ...document.querySelectorAll('#vs3 .vs__clear, #vs3 .vs__deselect, .vs__clear'),
+  ];
+  for (const btn of clears) {
+    btn.click();
+  }
+  const input = document.querySelector('input[placeholder="Search Company Code"]');
+  if (input) {
+    input.focus();
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  return true;
+})()"#,
+    )
+    .await?;
+    sleep(Duration::from_millis(300)).await;
+    Ok(())
+}
+
+async fn company_selection_matches(page: &Page, code: &str) -> Result<bool, String> {
+    let code_js = js_str(code);
+    eval_bool(
+        page,
+        &format!(
+            r#"(() => {{
+  function readTicker() {{
+    const selected = document.querySelector('#vs3 .vs__selected, .vs__selected-options');
+    const text = (selected && selected.textContent ? selected.textContent : '').trim().toUpperCase();
+    if (!text) return '';
+    const m = text.match(/^([A-Z0-9]{{1,5}})\b/);
+    return m ? m[1] : text.split(/\s+/)[0];
+  }}
+  return readTicker() === {code_js};
+}})()"#
+        ),
+    )
+    .await
 }
 
 async fn select_filters(page: &Page, year_id: &str, period_id: &str) -> Result<(), String> {
@@ -628,7 +700,7 @@ async fn save_screenshot(page: &Page, dir: &Path, name: &str) -> Option<PathBuf>
         .save_screenshot(
             ScreenshotParams::builder()
                 .format(CaptureScreenshotFormat::Png)
-                .full_page(true)
+                .full_page(false)
                 .build(),
             &path,
         )

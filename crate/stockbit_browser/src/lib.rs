@@ -22,7 +22,10 @@ mod redis_readiness;
 
 use chrono::{DateTime, Datelike, Duration as ChronoDuration, Local, NaiveDate, TimeZone, Timelike};
 use chromiumoxide::browser::{Browser, BrowserConfig};
-use chromiumoxide::cdp::browser_protocol::emulation::SetDeviceMetricsOverrideParams;
+use chromiumoxide::cdp::browser_protocol::emulation::{
+    ScreenOrientation, ScreenOrientationType, SetDeviceMetricsOverrideParams,
+    SetTouchEmulationEnabledParams,
+};
 use chromiumoxide::handler::viewport::Viewport;
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
 use chromiumoxide::page::{Page, ScreenshotParams};
@@ -518,14 +521,26 @@ fn chrome_viewport_size() -> (u32, u32) {
 
 async fn apply_page_viewport(page: &Page) -> Result<(), StockbitError> {
     let (width, height) = chrome_viewport_size();
-    page.execute(SetDeviceMetricsOverrideParams::new(
-        width as i64,
-        height as i64,
-        1.,
-        false,
-    ))
-    .await?;
+    let orientation = ScreenOrientation::new(ScreenOrientationType::LandscapePrimary, 90);
+    let metrics = SetDeviceMetricsOverrideParams::builder()
+        .width(width as i64)
+        .height(height as i64)
+        .device_scale_factor(1.0)
+        .mobile(false)
+        .screen_width(width as i64)
+        .screen_height(height as i64)
+        .screen_orientation(orientation)
+        .build()
+        .map_err(|e| format!("SetDeviceMetricsOverride build: {e}"))?;
+    page.execute(metrics).await?;
+    page.execute(SetTouchEmulationEnabledParams::new(false))
+        .await?;
     Ok(())
+}
+
+/// Paksa viewport desktop (landscape, non-mobile) — panggil ulang setelah navigasi bila layout masih mobile.
+pub async fn apply_desktop_viewport(page: &Page) -> Result<(), StockbitError> {
+    apply_page_viewport(page).await
 }
 
 pub fn browser_data_dir() -> PathBuf {
@@ -570,6 +585,7 @@ fn browser_config_inner(kill_stale: bool) -> Result<BrowserConfig, StockbitError
             "--disable-dev-shm-usage",
             "--disable-gpu",
             "--disable-blink-features=AutomationControlled",
+            "--force-device-scale-factor=1",
             window_size.as_str(),
             "--no-first-run",
             "--no-default-browser-check",
