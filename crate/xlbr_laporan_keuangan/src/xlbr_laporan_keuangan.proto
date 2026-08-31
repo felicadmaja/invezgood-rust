@@ -14,8 +14,8 @@ service XlbrLaporanKeuangan {
   // unduh inlineXBRL.zip bila ada, parse+upsert invezgood.xlbr_laporan_keuangan, hapus zip temp.
   // Awal RPC: hapus semua file di src/screenshot/; screenshot langkah ke {code}-*.png; zip temp downloaded_xbrl/{code}-N.zip.
   // Retry goto IDX bila 503 Varnish (env XLBR_IDX_GOTO_RETRIES, XLBR_IDX_RETRY_SECS). Publik — tanpa JWT.
-  // Scrape di background task terpisah — RPC langsung return; client boleh disconnect/logout.
-  // Invoke baru membatalkan scrap sebelumnya (lepaskan Chrome lock). Log: ScrapZipFromBei background.
+  // RPC menunggu scrape selesai lalu kirim uploaded/skipped/failed + fiscal_year/quarter terakhir.
+  // Scrape di task terpisah — bila client disconnect, scrape tetap jalan; invoke code sama gabung tunggu hasil.
   rpc ScrapZipFromBei(ScrapZipFromBeiRequest) returns (UploadZipResponse);
 
   // Baca hingga 20 baris (5 tahun × 4 kuartal) per code untuk grafik client. Publik — tanpa JWT.

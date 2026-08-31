@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
@@ -12,15 +12,84 @@ use stockbit_browser::{
     acquire_browser_session, apply_desktop_viewport, evaluate_resilient, launch_page,
     BrowserLockClass,
 };
+use tokio::sync::{Mutex, watch};
 use tokio::time::{sleep, timeout};
 
 use crate::model::XlbrLaporanKeuanganRow;
 
 static SCRAP_JOB_GENERATION: AtomicU64 = AtomicU64::new(0);
 
-/// Invoke RPC baru: invalidasi scrap background sebelumnya agar Chrome lock lepas.
-pub fn begin_scrap_job() -> u64 {
-    SCRAP_JOB_GENERATION.fetch_add(1, Ordering::SeqCst) + 1
+struct InflightScrap {
+    code: String,
+    generation: u64,
+    status: watch::Sender<ScrapJobStatus>,
+}
+
+#[derive(Clone)]
+pub enum ScrapJobStatus {
+    Running,
+    Finished(Result<ScrapOutcome, String>),
+}
+
+static SCRAP_INFLIGHT: OnceLock<Mutex<Option<InflightScrap>>> = OnceLock::new();
+
+fn scrap_inflight() -> &'static Mutex<Option<InflightScrap>> {
+    SCRAP_INFLIGHT.get_or_init(|| Mutex::new(None))
+}
+
+pub enum ScrapStart {
+    Started { job_gen: u64, watch: watch::Receiver<ScrapJobStatus> },
+    JoinExisting(watch::Receiver<ScrapJobStatus>),
+}
+
+/// Mulai scrap baru atau gabung tunggu scrap code sama yang masih jalan.
+pub async fn try_begin_scrap_job(code: &str) -> ScrapStart {
+    let code = code.trim().to_ascii_uppercase();
+    let mut slot = scrap_inflight().lock().await;
+    if let Some(active) = slot.as_ref() {
+        if active.code == code {
+            return ScrapStart::JoinExisting(active.status.subscribe());
+        }
+    }
+    let generation = SCRAP_JOB_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    let (status_tx, status_rx) = watch::channel(ScrapJobStatus::Running);
+    *slot = Some(InflightScrap {
+        code,
+        generation,
+        status: status_tx,
+    });
+    ScrapStart::Started {
+        job_gen: generation,
+        watch: status_rx,
+    }
+}
+
+pub async fn wait_scrap_outcome(
+    mut watch: watch::Receiver<ScrapJobStatus>,
+) -> Result<ScrapOutcome, String> {
+    loop {
+        if let ScrapJobStatus::Finished(result) = watch.borrow().clone() {
+            return result;
+        }
+        watch
+            .changed()
+            .await
+            .map_err(|_| "scrap task terminated unexpectedly".to_string())?;
+    }
+}
+
+pub async fn finish_scrap_job(generation: u64, result: Result<ScrapOutcome, String>) {
+    let mut slot = scrap_inflight().lock().await;
+    if let Some(active) = slot.as_ref() {
+        if active.generation == generation {
+            let _ = active
+                .status
+                .send(ScrapJobStatus::Finished(result.clone()));
+        }
+    }
+    if slot.as_ref().is_some_and(|s| s.generation == generation) {
+        *slot = None;
+    }
 }
 
 fn scrap_job_cancelled(job_gen: u64) -> bool {
@@ -45,10 +114,10 @@ const YEAR_IDS: [&str; 5] = ["year4", "year3", "year2", "year1", "year0"];
 const PERIOD_IDS: [&str; 4] = ["period0", "period1", "period2", "period3"];
 const WAIT_TABLE_MS: u64 = 45_000;
 const SEARCH_DROPDOWN_WAIT_MS: u64 = 30_000;
-const SEARCH_TYPE_DELAY_MS: u64 = 80;
 const POLL_MS: u64 = 500;
 const IDX_GOTO_MAX_ATTEMPTS: u32 = 6;
 
+#[derive(Clone)]
 pub struct ScrapOutcome {
     pub uploaded: usize,
     pub skipped: usize,
@@ -302,158 +371,109 @@ async fn page_idx_ready(page: &Page) -> Result<bool, String> {
 }
 
 async fn search_company(page: &Page, code: &str, job_gen: u64) -> Result<(), String> {
-    const SELECTOR: &str = r#"input[placeholder="Search Company Code"]"#;
     check_scrap_job(job_gen)?;
-    clear_company_selection(page).await?;
-
-    let element = timeout(Duration::from_secs(30), page.find_element(SELECTOR))
-        .await
-        .map_err(|_| "timeout cari input Search Company Code".to_string())?
-        .map_err(|_| "input Search Company Code tidak ditemukan".to_string())?;
-
-    element
-        .click()
-        .await
-        .map_err(|e| format!("klik search input: {e}"))?;
-    sleep(Duration::from_millis(300)).await;
-
-    let selector_js = js_str(SELECTOR);
-    let cleared = eval_bool(
-        page,
-        &format!(
-            r#"(() => {{
-  const input = document.querySelector({selector_js});
-  if (!input) return false;
-  input.focus();
-  if (typeof input.select === 'function') input.select();
-  input.value = '';
-  input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-  input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-  return true;
-}})()"#
-        ),
-    )
-    .await?;
-    if !cleared {
-        return Err("input Search Company Code tidak ditemukan".into());
-    }
-
-    for ch in code.chars() {
-        check_scrap_job(job_gen)?;
-        element
-            .type_str(&ch.to_string())
-            .await
-            .map_err(|e| format!("ketik search code: {e}"))?;
-        sleep(Duration::from_millis(SEARCH_TYPE_DELAY_MS)).await;
-    }
-
     let code_js = js_str(code);
-    let started = Instant::now();
-    let timeout = Duration::from_millis(SEARCH_DROPDOWN_WAIT_MS);
-    loop {
-        check_scrap_job(job_gen)?;
-        let state = eval_string(
-            page,
-            &format!(
-                r#"(() => {{
-  function listItems() {{
+    eprintln!("ScrapZipFromBei: cari emiten {code} di dropdown IDX");
+
+    let eval = timeout(
+        Duration::from_millis(SEARCH_DROPDOWN_WAIT_MS + 15_000),
+        page.evaluate_function(format!(
+            r#"async () => {{
+  const code = {code_js};
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const itemTicker = (li) => {{
+    const text = (li.textContent || '').trim().toUpperCase();
+    const m = text.match(/^([A-Z0-9]{{1,5}})\b/);
+    return m ? m[1] : text.split(/\s+/)[0];
+  }};
+  const readSelected = () => {{
+    const sel = document.querySelector('#vs3 .vs__selected, .vs__selected-options');
+    const text = (sel && sel.textContent ? sel.textContent : '').trim().toUpperCase();
+    if (!text) return '';
+    const m = text.match(/^([A-Z0-9]{{1,5}})\b/);
+    return m ? m[1] : text.split(/\s+/)[0];
+  }};
+  const listItems = () => {{
     const box = document.querySelector('#vs3__listbox')
       || document.querySelector('.vs__dropdown-menu');
     if (!box) return [];
     return [...box.querySelectorAll('li')].filter(li => (li.textContent || '').trim());
-  }}
-  function itemTicker(li) {{
-    const text = (li.textContent || '').trim().toUpperCase();
-    const m = text.match(/^([A-Z0-9]{{1,5}})\b/);
-    return m ? m[1] : text.split(/\s+/)[0];
-  }}
-  const code = {code_js};
-  const items = listItems();
-  if (items.length === 0) return 'waiting';
-  const hit = items.find(li => itemTicker(li) === code);
-  if (!hit) return 'pending';
-  hit.click();
-  return 'clicked';
-}})()"#
-            ),
-        )
-        .await?;
+  }};
 
-        if state == "clicked" {
-            sleep(Duration::from_millis(800)).await;
-            if company_selection_matches(page, code).await? {
-                sleep(Duration::from_secs(1)).await;
-                return Ok(());
-            }
-            return Err(format!(
-                "emiten terpilih bukan {code} (cek dropdown IDX — mungkin pilihan salah)"
-            ));
-        }
-
-        if started.elapsed() >= timeout {
-            let has_items = eval_bool(
-                page,
-                r#"(() => {
-  const box = document.querySelector('#vs3__listbox')
-    || document.querySelector('.vs__dropdown-menu');
-  if (!box) return false;
-  return box.querySelectorAll('li').length > 0;
-})()"#,
-            )
-            .await?;
-            return Err(if has_items {
-                format!("emiten {code} tidak ada di dropdown IDX")
-            } else {
-                format!("timeout menunggu dropdown emiten {code} (li belum muncul)")
-            });
-        }
-
-        sleep(Duration::from_millis(POLL_MS)).await;
-    }
-}
-
-async fn clear_company_selection(page: &Page) -> Result<(), String> {
-    eval_bool(
-        page,
-        r#"(() => {
-  const clears = [
-    ...document.querySelectorAll('#vs3 .vs__clear, #vs3 .vs__deselect, .vs__clear'),
-  ];
-  for (const btn of clears) {
+  for (const btn of document.querySelectorAll('#vs3 .vs__clear, #vs3 .vs__deselect, .vs__clear')) {{
     btn.click();
-  }
-  const input = document.querySelector('input[placeholder="Search Company Code"]');
-  if (input) {
-    input.focus();
-    input.value = '';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-  return true;
-})()"#,
-    )
-    .await?;
-    sleep(Duration::from_millis(300)).await;
-    Ok(())
-}
-
-async fn company_selection_matches(page: &Page, code: &str) -> Result<bool, String> {
-    let code_js = js_str(code);
-    eval_bool(
-        page,
-        &format!(
-            r#"(() => {{
-  function readTicker() {{
-    const selected = document.querySelector('#vs3 .vs__selected, .vs__selected-options');
-    const text = (selected && selected.textContent ? selected.textContent : '').trim().toUpperCase();
-    if (!text) return '';
-    const m = text.match(/^([A-Z0-9]{{1,5}})\b/);
-    return m ? m[1] : text.split(/\s+/)[0];
   }}
-  return readTicker() === {code_js};
-}})()"#
-        ),
+  await sleep(250);
+
+  const combobox = document.querySelector('#vs3__combobox')
+    || document.querySelector('#vs3 .vs__dropdown-toggle');
+  if (combobox) combobox.click();
+  await sleep(200);
+
+  const input = document.querySelector('input[placeholder="Search Company Code"]');
+  if (!input) return {{ ok: false, step: 'no_input', got: '' }};
+
+  input.focus();
+  input.click();
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  if (setter) setter.call(input, code);
+  else input.value = code;
+  input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+  input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+
+  const polls = Math.ceil({SEARCH_DROPDOWN_WAIT_MS} / {POLL_MS});
+  for (let i = 0; i < polls; i++) {{
+    await sleep({POLL_MS});
+    const items = listItems();
+    const hit = items.find(li => itemTicker(li) === code);
+    if (!hit) continue;
+    hit.click();
+    await sleep(600);
+    const got = readSelected();
+    if (got === code) return {{ ok: true, step: 'selected', got }};
+    return {{ ok: false, step: 'wrong_selection', got }};
+  }}
+
+  const items = listItems();
+  return {{
+    ok: false,
+    step: items.length > 0 ? 'no_exact_match' : 'timeout_dropdown',
+    got: readSelected(),
+  }};
+}}"#,
+        )),
     )
     .await
+    .map_err(|_| format!("timeout cari emiten {code} di dropdown IDX"))?
+    .map_err(|e| format!("evaluate search_company: {e}"))?;
+
+    check_scrap_job(job_gen)?;
+
+    let val = eval
+        .value()
+        .ok_or_else(|| format!("search {code}: tidak ada return value"))?;
+    let ok = val.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    if ok {
+        eprintln!("ScrapZipFromBei: emiten {code} terpilih");
+        sleep(Duration::from_millis(500)).await;
+        return Ok(());
+    }
+
+    let step = val
+        .get("step")
+        .and_then(|x| x.as_str())
+        .unwrap_or("unknown");
+    let got = val
+        .get("got")
+        .and_then(|x| x.as_str())
+        .unwrap_or("");
+    Err(match step {
+        "no_input" => "input Search Company Code tidak ditemukan".into(),
+        "wrong_selection" => format!("emiten terpilih bukan {code} (got {got})"),
+        "no_exact_match" => format!("emiten {code} tidak ada di dropdown IDX"),
+        "timeout_dropdown" => format!("timeout menunggu dropdown emiten {code} (li belum muncul)"),
+        _ => format!("gagal pilih emiten {code} ({step})"),
+    })
 }
 
 async fn select_filters(page: &Page, year_id: &str, period_id: &str) -> Result<(), String> {
