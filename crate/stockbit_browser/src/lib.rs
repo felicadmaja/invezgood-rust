@@ -18,7 +18,13 @@
 //!
 //! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
 
+mod idx_browser;
 mod redis_readiness;
+
+pub use idx_browser::{
+    acquire_idx_browser_session, idx_browser_data_dir, launch_idx_page, reset_idx_browser_state,
+    shutdown_idx_browser, IdxBrowserSession,
+};
 
 use chrono::{DateTime, Datelike, Duration as ChronoDuration, Local, NaiveDate, TimeZone, Timelike};
 use chromiumoxide::browser::{Browser, BrowserConfig};
@@ -496,7 +502,7 @@ fn is_2fa_pending_url(url: &str) -> bool {
     url.contains("/trusted-device") || url.contains("/two-factor") || url.contains("/2fa")
 }
 
-fn workspace_root() -> PathBuf {
+pub(crate) fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..")
@@ -550,16 +556,16 @@ pub fn browser_data_dir() -> PathBuf {
 }
 
 pub fn browser_config() -> Result<BrowserConfig, StockbitError> {
-    browser_config_inner(true)
+    browser_config_for_dir(&browser_data_dir(), true)
 }
 
-fn browser_config_inner(kill_stale: bool) -> Result<BrowserConfig, StockbitError> {
-    let data_dir = browser_data_dir();
-    std::fs::create_dir_all(&data_dir)?;
+/// Konfigurasi Chrome headless untuk profil `data_dir` (Stockbit, BEI, dll.).
+pub fn browser_config_for_dir(data_dir: &Path, kill_stale: bool) -> Result<BrowserConfig, StockbitError> {
+    std::fs::create_dir_all(data_dir)?;
     if kill_stale {
         // Soft-kill dulu (SIGTERM), baru SIGKILL bila masih hidup — agar cookie sempat flush.
-        terminate_stale_chrome_processes(&data_dir);
-        clear_stale_chrome_locks(&data_dir);
+        terminate_stale_chrome_processes(data_dir);
+        clear_stale_chrome_locks(data_dir);
     }
 
     let (width, height) = chrome_viewport_size();
@@ -574,7 +580,7 @@ fn browser_config_inner(kill_stale: bool) -> Result<BrowserConfig, StockbitError
 
     let window_size = format!("--window-size={width},{height}");
     let mut builder = BrowserConfig::builder()
-        .user_data_dir(&data_dir)
+        .user_data_dir(data_dir)
         .request_timeout(Duration::from_secs(120))
         .launch_timeout(Duration::from_secs(60))
         .viewport(viewport)
@@ -601,7 +607,7 @@ fn browser_config_inner(kill_stale: bool) -> Result<BrowserConfig, StockbitError
 }
 
 /// Soft-kill proses Chrome yang memegang profil, lalu hard-kill bila perlu.
-fn terminate_stale_chrome_processes(data_dir: &Path) {
+pub(crate) fn terminate_stale_chrome_processes(data_dir: &Path) {
     let lock = data_dir.join("SingletonLock");
     let mut pids = Vec::new();
     if let Ok(target) = std::fs::read_link(&lock) {
@@ -656,7 +662,7 @@ fn signal_pid(pid: i32, force: bool) {
         .status();
 }
 
-fn clear_stale_chrome_locks(data_dir: &Path) {
+pub(crate) fn clear_stale_chrome_locks(data_dir: &Path) {
     for name in ["SingletonLock", "SingletonSocket", "SingletonCookie"] {
         let p = data_dir.join(name);
         if p.exists() || std::fs::symlink_metadata(&p).is_ok() {
@@ -709,7 +715,7 @@ pub async fn evaluate_resilient(
 }
 
 async fn launch_fresh_browser() -> Result<(Browser, Page), StockbitError> {
-    let config = browser_config_inner(true)?;
+    let config = browser_config_for_dir(&browser_data_dir(), true)?;
     let (browser, mut handler) = Browser::launch(config).await?;
     tokio::task::spawn(async move { while handler.next().await.is_some() {} });
 

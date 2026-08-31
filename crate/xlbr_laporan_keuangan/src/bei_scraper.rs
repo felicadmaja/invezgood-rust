@@ -1,4 +1,4 @@
-//! Scrape inlineXBRL.zip dari idx.co.id via Chrome (pool Stockbit).
+//! Scrape inlineXBRL.zip dari idx.co.id via Chrome BEI (profil terpisah dari Stockbit).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,8 +9,8 @@ use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
 use chromiumoxide::page::{Page, ScreenshotParams};
 use scylla::client::session::Session;
 use stockbit_browser::{
-    acquire_browser_session, apply_desktop_viewport, evaluate_resilient, launch_page,
-    BrowserLockClass,
+    acquire_idx_browser_session, apply_desktop_viewport, evaluate_resilient, launch_idx_page,
+    reset_idx_browser_state,
 };
 use tokio::sync::{Mutex, watch};
 use tokio::time::{sleep, timeout};
@@ -39,18 +39,41 @@ fn scrap_inflight() -> &'static Mutex<Option<InflightScrap>> {
 
 pub enum ScrapStart {
     Started { job_gen: u64, watch: watch::Receiver<ScrapJobStatus> },
-    JoinExisting(watch::Receiver<ScrapJobStatus>),
 }
 
-/// Mulai scrap baru atau gabung tunggu scrap code sama yang masih jalan.
+async fn cancel_previous_scrap_and_wait() {
+    let prev_code = {
+        let slot = scrap_inflight().lock().await;
+        slot.as_ref().map(|s| s.code.clone())
+    };
+    let Some(prev_code) = prev_code else {
+        return;
+    };
+
+    SCRAP_JOB_GENERATION.fetch_add(1, Ordering::SeqCst);
+    eprintln!("ScrapZipFromBei: batalkan scrap {prev_code} sebelumnya — tunggu BEI Chrome lock lepas");
+
+    let deadline = Instant::now() + Duration::from_millis(SCRAP_CANCEL_WAIT_MS);
+    while Instant::now() < deadline {
+        if scrap_inflight().lock().await.is_none() {
+            eprintln!("ScrapZipFromBei: BEI Chrome lock scrap sebelumnya lepas");
+            sleep(Duration::from_millis(400)).await;
+            return;
+        }
+        sleep(Duration::from_millis(200)).await;
+    }
+
+    eprintln!(
+        "ScrapZipFromBei: WARNING scrap sebelumnya belum selesai setelah {SCRAP_CANCEL_WAIT_MS}ms — lanjut acquire lock"
+    );
+}
+
+/// Invoke baru: batalkan scrap/Chrome lock sebelumnya (mis. client logout), lalu mulai scrap fresh.
 pub async fn try_begin_scrap_job(code: &str) -> ScrapStart {
+    cancel_previous_scrap_and_wait().await;
+
     let code = code.trim().to_ascii_uppercase();
     let mut slot = scrap_inflight().lock().await;
-    if let Some(active) = slot.as_ref() {
-        if active.code == code {
-            return ScrapStart::JoinExisting(active.status.subscribe());
-        }
-    }
     let generation = SCRAP_JOB_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let (status_tx, status_rx) = watch::channel(ScrapJobStatus::Running);
     *slot = Some(InflightScrap {
@@ -112,7 +135,9 @@ const IDX_URL: &str = "https://www.idx.co.id/id/perusahaan-tercatat/laporan-keua
 const IDX_HOME: &str = "https://www.idx.co.id/id/";
 const YEAR_IDS: [&str; 5] = ["year4", "year3", "year2", "year1", "year0"];
 const PERIOD_IDS: [&str; 4] = ["period0", "period1", "period2", "period3"];
+const SCRAP_CANCEL_WAIT_MS: u64 = 15_000;
 const WAIT_TABLE_MS: u64 = 45_000;
+const WAIT_SETTLE_MS: u64 = 60_000;
 const SEARCH_DROPDOWN_WAIT_MS: u64 = 30_000;
 const POLL_MS: u64 = 500;
 const IDX_GOTO_MAX_ATTEMPTS: u32 = 6;
@@ -148,17 +173,20 @@ pub async fn scrap_and_upload(
     cleanup_code_zips(&download_dir, &code).await;
     check_scrap_job(job_gen)?;
 
-    let _lock = acquire_browser_session(BrowserLockClass::Interactive)
+    let _lock = acquire_idx_browser_session()
         .await
-        .map_err(|e| format!("Chrome lock: {e}"))?;
-    let (_browser, page) = launch_page()
+        .map_err(|e| format!("Chrome BEI lock: {e}"))?;
+    let (_browser, page) = launch_idx_page()
         .await
-        .map_err(|e| format!("launch Chrome: {e}"))?;
+        .map_err(|e| format!("launch Chrome BEI: {e}"))?;
+    reset_idx_browser_state(&page)
+        .await
+        .map_err(|e| format!("reset cookie BEI: {e}"))?;
     apply_desktop_viewport(&page)
         .await
         .map_err(|e| format!("viewport desktop: {e}"))?;
 
-    goto_idx(&page).await?;
+    goto_idx(&page, job_gen).await?;
     apply_desktop_viewport(&page)
         .await
         .map_err(|e| format!("viewport desktop setelah goto IDX: {e}"))?;
@@ -182,6 +210,12 @@ pub async fn scrap_and_upload(
         .map_err(|e| format!("viewport desktop setelah pilih emiten: {e}"))?;
     save_screenshot(&page, &screenshot_dir, &format!("{code}-02-selected")).await;
 
+    eprintln!("ScrapZipFromBei: tunggu auto-load IDX setelah pilih emiten");
+    if wait_idx_settled(&page, job_gen).await.is_err() {
+        eprintln!("ScrapZipFromBei: auto-load spinner — reload & pilih ulang emiten");
+        let _ = recover_idx_after_select(&page, &code, job_gen).await;
+    }
+
     let mut uploaded = 0usize;
     let mut skipped = 0usize;
     let mut failed = 0usize;
@@ -194,13 +228,14 @@ pub async fn scrap_and_upload(
             let label = format!("{code}-{slot:02}-{year_id}-{period_id}");
             save_screenshot(&page, &screenshot_dir, &format!("{label}-before")).await;
 
+            reset_filters(&page).await?;
             select_filters(&page, year_id, period_id).await?;
             click_terapkan(&page).await?;
             apply_desktop_viewport(&page)
                 .await
                 .map_err(|e| format!("viewport desktop setelah Terapkan: {e}"))?;
 
-            match wait_table(&page).await? {
+            match wait_table(&page, job_gen).await? {
                 TableState::NotFound => {
                     skipped += 1;
                     save_screenshot(&page, &screenshot_dir, &format!("{label}-not-found")).await;
@@ -291,7 +326,7 @@ async fn cleanup_code_zips(dir: &Path, code: &str) {
     }
 }
 
-async fn goto_idx(page: &Page) -> Result<(), String> {
+async fn goto_idx(page: &Page, job_gen: u64) -> Result<(), String> {
     let max_attempts = std::env::var("XLBR_IDX_GOTO_RETRIES")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -302,6 +337,7 @@ async fn goto_idx(page: &Page) -> Result<(), String> {
         .unwrap_or(8u64);
 
     for attempt in 1..=max_attempts {
+        check_scrap_job(job_gen)?;
         if attempt == 1 {
             let _ = page.goto(IDX_HOME).await;
             sleep(Duration::from_secs(2)).await;
@@ -313,6 +349,7 @@ async fn goto_idx(page: &Page) -> Result<(), String> {
 
         let started = Instant::now();
         while started.elapsed() < Duration::from_secs(20) {
+            check_scrap_job(job_gen)?;
             if page_idx_ready(page).await? {
                 eprintln!("ScrapZipFromBei: halaman IDX siap (attempt {attempt})");
                 return Ok(());
@@ -329,6 +366,7 @@ async fn goto_idx(page: &Page) -> Result<(), String> {
              retry dalam {wait_secs}s"
         );
         if attempt < max_attempts {
+            check_scrap_job(job_gen)?;
             sleep(Duration::from_secs(wait_secs)).await;
             let _ = page.reload().await;
             sleep(Duration::from_secs(2)).await;
@@ -476,9 +514,54 @@ async fn search_company(page: &Page, code: &str, job_gen: u64) -> Result<(), Str
     })
 }
 
+async fn reset_filters(page: &Page) -> Result<(), String> {
+    let clicked = eval_bool(
+        page,
+        r#"(() => {
+  const buttons = [...document.querySelectorAll('button')];
+  const btn = buttons.find(b => b.textContent && b.textContent.trim() === 'RESET');
+  if (!btn) return false;
+  btn.click();
+  return true;
+})()"#,
+    )
+    .await?;
+    if clicked {
+        sleep(Duration::from_millis(500)).await;
+    }
+    Ok(())
+}
+
 async fn select_filters(page: &Page, year_id: &str, period_id: &str) -> Result<(), String> {
-    click_by_id(page, year_id).await?;
-    click_by_id(page, period_id).await?;
+    let year_js = js_str(year_id);
+    let period_js = js_str(period_id);
+    let ok = eval_bool(
+        page,
+        &format!(
+            r#"(() => {{
+  function clickFilter(id) {{
+    const el = document.getElementById(id);
+    if (!el) return false;
+    const label = document.querySelector('label[for="' + id + '"]');
+    if (label) label.click();
+    el.click();
+    if (el.tagName === 'INPUT') {{
+      el.checked = true;
+      el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+    }}
+    return true;
+  }}
+  return clickFilter({year_js}) && clickFilter({period_js});
+}})()"#
+        ),
+    )
+    .await?;
+    if !ok {
+        return Err(format!(
+            "filter tahun/periode tidak ditemukan ({year_id}, {period_id})"
+        ));
+    }
+    sleep(Duration::from_millis(400)).await;
     Ok(())
 }
 
@@ -501,32 +584,109 @@ async fn click_terapkan(page: &Page) -> Result<(), String> {
     Ok(())
 }
 
+const TABLE_POLL_JS: &str = r#"(() => {
+  const text = document.body ? document.body.innerText : '';
+  if (text.includes('Data tidak ditemukan')) return 'not_found';
+  const tds = [...document.querySelectorAll('td')];
+  if (tds.some(td => td.textContent && td.textContent.trim() === 'inlineXBRL.zip')) return 'found';
+
+  const spinnerSel = '[class*="spinner"], [class*="Spinner"], [class*="loading"], [class*="Loading"], [role="progressbar"]';
+  for (const el of document.querySelectorAll(spinnerSel)) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 8 && r.height > 8 && r.bottom > 0 && r.top < window.innerHeight) {
+      return 'loading';
+    }
+  }
+
+  if (/\d+\s+dari\s+\d+/i.test(text) && tds.length < 4 && !text.includes('Data tidak ditemukan')) {
+    return 'loading';
+  }
+
+  return 'waiting';
+})()"#;
+
+async fn table_poll_state(page: &Page) -> Result<String, String> {
+    eval_string(page, TABLE_POLL_JS).await
+}
+
+async fn wait_idx_settled(page: &Page, job_gen: u64) -> Result<(), String> {
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_millis(WAIT_SETTLE_MS) {
+        check_scrap_job(job_gen)?;
+        match table_poll_state(page).await?.as_str() {
+            "found" | "not_found" => return Ok(()),
+            "loading" | "waiting" => sleep(Duration::from_millis(POLL_MS)).await,
+            _ => sleep(Duration::from_millis(POLL_MS)).await,
+        }
+    }
+    Err("auto-load IDX masih spinner".into())
+}
+
+async fn recover_idx_after_select(page: &Page, code: &str, job_gen: u64) -> Result<(), String> {
+    check_scrap_job(job_gen)?;
+    page.reload()
+        .await
+        .map_err(|e| format!("reload IDX: {e}"))?;
+    sleep(Duration::from_secs(3)).await;
+    apply_desktop_viewport(page)
+        .await
+        .map_err(|e| format!("viewport desktop setelah reload: {e}"))?;
+    if !page_idx_ready(page).await? {
+        goto_idx(page, job_gen).await?;
+    }
+    search_company(page, code, job_gen).await?;
+    let _ = wait_idx_settled(page, job_gen).await;
+    Ok(())
+}
+
 enum TableState {
     Found,
     NotFound,
 }
 
-async fn wait_table(page: &Page) -> Result<TableState, String> {
+async fn wait_table(page: &Page, job_gen: u64) -> Result<TableState, String> {
     let started = Instant::now();
+    let mut retried_terapkan = false;
+    let mut last_state = String::from("waiting");
     while started.elapsed() < Duration::from_millis(WAIT_TABLE_MS) {
-        let state = eval_string(
-            page,
-            r#"(() => {
-  const text = document.body ? document.body.innerText : '';
-  if (text.includes('Data tidak ditemukan')) return 'not_found';
-  const tds = [...document.querySelectorAll('td')];
-  if (tds.some(td => td.textContent && td.textContent.trim() === 'inlineXBRL.zip')) return 'found';
-  return 'waiting';
-})()"#,
-        )
-        .await?;
+        check_scrap_job(job_gen)?;
+        let state = table_poll_state(page).await?;
+        last_state = state.clone();
         match state.as_str() {
             "found" => return Ok(TableState::Found),
             "not_found" => return Ok(TableState::NotFound),
+            "loading" => {
+                if !retried_terapkan && started.elapsed() > Duration::from_secs(25) {
+                    eprintln!("ScrapZipFromBei: loading lama — klik Terapkan ulang");
+                    let _ = click_terapkan(page).await;
+                    retried_terapkan = true;
+                }
+                sleep(Duration::from_millis(POLL_MS)).await;
+            }
             _ => sleep(Duration::from_millis(POLL_MS)).await,
         }
     }
-    Err("timeout menunggu tabel laporan IDX".into())
+    save_screenshot_stuck(page).await;
+    eprintln!(
+        "ScrapZipFromBei: timeout tabel (state={last_state}) — anggap tidak ada data, lanjut slot berikutnya"
+    );
+    Ok(TableState::NotFound)
+}
+
+async fn save_screenshot_stuck(page: &Page) {
+    let dir = screenshot_dir();
+    let _ = tokio::fs::create_dir_all(&dir).await;
+    let path = dir.join("STUCK-table-timeout.png");
+    let _ = page
+        .save_screenshot(
+            ScreenshotParams::builder()
+                .format(CaptureScreenshotFormat::Png)
+                .full_page(false)
+                .build(),
+            &path,
+        )
+        .await;
+    eprintln!("ScrapZipFromBei screenshot: {}", path.display());
 }
 
 async fn download_inline_zip(page: &Page, dest: &Path) -> Result<(), String> {
@@ -722,27 +882,6 @@ async fn upload_zip_file(
         .await
         .map_err(|e| format!("baca {}: {e}", path.display()))?;
     crate::upload_from_zip_bytes(db, &bytes).await
-}
-
-async fn click_by_id(page: &Page, id: &str) -> Result<(), String> {
-    let id_js = js_str(id);
-    let ok = eval_bool(
-        page,
-        &format!(
-            r#"(() => {{
-  const el = document.getElementById({id_js});
-  if (!el) return false;
-  el.click();
-  return true;
-}})()"#
-        ),
-    )
-    .await?;
-    if !ok {
-        return Err(format!("element #{id} tidak ditemukan"));
-    }
-    sleep(Duration::from_millis(200)).await;
-    Ok(())
 }
 
 async fn save_screenshot(page: &Page, dir: &Path, name: &str) -> Option<PathBuf> {

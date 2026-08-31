@@ -100,7 +100,6 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         }
 
         let watch = match crate::bei_scraper::try_begin_scrap_job(&code).await {
-            crate::bei_scraper::ScrapStart::JoinExisting(watch) => watch,
             crate::bei_scraper::ScrapStart::Started { job_gen, watch } => {
                 let session = self.session.clone();
                 let code_bg = code.clone();
