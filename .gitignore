@@ -8,3 +8,5 @@ logs/
 worker_scrapping/browser_data/
 *.log
 backup_database/
+crate/xlbr_laporan_keuangan/src/downloaded_lbrl/
+crate/xlbr_laporan_keuangan/src/screenshot/

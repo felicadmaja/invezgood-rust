@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status, Streaming};
-use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
+use user::{extract_bearer_token, validate_session, SessionStore};
 
 use crate::pb::xlbr_laporan_keuangan_server::XlbrLaporanKeuangan;
 use crate::pb::{
-    GetXlbrChartByCodeRequest, GetXlbrChartByCodeResponse, UploadZipChunk, UploadZipResponse,
-    XlbrChartPoint,
+    GetXlbrChartByCodeRequest, GetXlbrChartByCodeResponse, ScrapZipFromBeiRequest,
+    UploadZipChunk, UploadZipResponse, XlbrChartPoint,
 };
 use crate::repository;
 
@@ -26,19 +26,8 @@ impl XlbrLaporanKeuanganService {
         }
     }
 
-    async fn require_auth<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
-        let token = extract_bearer_token(request)?;
-        validate_session(&self.auth_sessions, &token)
-            .await
-            .map_err(Status::unauthenticated)
-    }
-
     fn map_upload_error(e: String) -> Status {
-        if e.contains("membutuhkan") {
-            Status::failed_precondition(e)
-        } else {
-            Status::invalid_argument(e)
-        }
+        Status::invalid_argument(e)
     }
 }
 
@@ -94,13 +83,56 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         result
     }
 
+    async fn scrap_zip_from_bei(
+        &self,
+        request: Request<ScrapZipFromBeiRequest>,
+    ) -> Result<Response<UploadZipResponse>, Status> {
+        let started = std::time::Instant::now();
+        let token = extract_bearer_token(&request)?;
+        let auth = validate_session(&self.auth_sessions, &token)
+            .await
+            .map_err(Status::unauthenticated)?;
+        let user_name = auth.nama;
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+
+        let result: Result<Response<UploadZipResponse>, Status> = async {
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            let outcome = crate::bei_scraper::scrap_and_upload(self.session.clone(), &code)
+                .await
+                .map_err(Status::internal)?;
+
+            let last = outcome.last_row.as_ref();
+            Ok(Response::new(UploadZipResponse {
+                success: outcome.uploaded > 0,
+                message: format!(
+                    "scrap {}: uploaded {} skipped {} failed {}",
+                    code, outcome.uploaded, outcome.skipped, outcome.failed
+                ),
+                code: last.map(|r| r.code.clone()).unwrap_or(code),
+                fiscal_year: last.map(|r| r.fiscal_year).unwrap_or(0),
+                quarter: last
+                    .map(|r| r.quarter.clone())
+                    .unwrap_or_default(),
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "ScrapZipFromBei {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
+        result
+    }
+
     async fn get_chart_by_code(
         &self,
         request: Request<GetXlbrChartByCodeRequest>,
     ) -> Result<Response<GetXlbrChartByCodeResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
-        let user_name = auth.nama;
+        let user_name = "anonymous";
         let code = request.into_inner().code.trim().to_ascii_uppercase();
 
         let result: Result<Response<GetXlbrChartByCodeResponse>, Status> = async {

@@ -3539,13 +3539,17 @@ dependencies = [
 name = "xlbr_laporan_keuangan"
 version = "0.1.0"
 dependencies = [
+ "chromiumoxide",
  "chrono",
  "dotenvy",
  "futures",
  "prost",
+ "reqwest 0.12.28",
  "scylla",
  "serde",
+ "serde_json",
  "sha2",
+ "stockbit_browser",
  "tokio",
  "tokio-stream",
  "tonic",

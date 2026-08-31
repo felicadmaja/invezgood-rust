@@ -6,12 +6,16 @@ service XlbrLaporanKeuangan {
   // Client stream inlineXBRL.zip (chunk bytes). Server baca semua *.html di zip; cari concept XBRL CurrentYearDuration.
   // Prefer laba rugi 1321000/2311000, arus kas 1510000/2510000; CapEx fallback beberapa concept PPE/properti.
   // quarter dari baris "Periode penyampaian laporan keuangan" di 1000000.html → TW1..TW4.
-  // Nilai XBRL kuartal YTD kumulatif → dekumulasi vs jumlah kuartal sebelumnya di DB.
-  // TW2+ butuh kuartal sebelumnya sudah ada untuk dekumulasi; baris sama di-upsert (overwrite).
-  // Tidak simpan zip ke disk; buffer in-memory lalu upsert invezgood.xlbr_laporan_keuangan. Bearer login.
+  // Nilai XBRL YTD kumulatif → dekumulasi hanya vs kuartal sebelumnya yang sudah ada di DB; bila tidak ada, YTD = standalone.
+  // Baris sama di-upsert (overwrite). Tidak simpan zip ke disk; buffer in-memory lalu upsert invezgood.xlbr_laporan_keuangan. Bearer login.
   rpc UploadZip(stream UploadZipChunk) returns (UploadZipResponse);
 
-  // Baca hingga 20 baris (5 tahun × 4 kuartal) per code untuk grafik client. Bearer login.
+  // Scrape idx.co.id laporan keuangan (Chrome pool Stockbit): cari emiten, loop year4..year0 × period0..3,
+  // unduh inlineXBRL.zip bila ada, parse+upsert invezgood.xlbr_laporan_keuangan, hapus zip temp.
+  // Screenshot langkah ke src/screenshot/{code}-*.png; zip temp src/downloaded_lbrl/{code}-N.zip. Bearer login.
+  rpc ScrapZipFromBei(ScrapZipFromBeiRequest) returns (UploadZipResponse);
+
+  // Baca hingga 20 baris (5 tahun × 4 kuartal) per code untuk grafik client. Publik — tanpa JWT.
   rpc GetChartByCode(GetXlbrChartByCodeRequest) returns (GetXlbrChartByCodeResponse);
 }
 
@@ -25,6 +29,10 @@ message UploadZipResponse {
   string code = 3;
   int32 fiscal_year = 4;
   string quarter = 5;
+}
+
+message ScrapZipFromBeiRequest {
+  string code = 1; // uppercase emiten BEI
 }
 
 message GetXlbrChartByCodeRequest {
