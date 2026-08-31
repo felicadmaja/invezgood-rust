@@ -136,11 +136,16 @@ const YEAR_IDS: [&str; 5] = ["year4", "year3", "year2", "year1", "year0"];
 const PERIOD_IDS: [&str; 4] = ["period0", "period1", "period2", "period3"];
 const SCRAP_CANCEL_WAIT_MS: u64 = 15_000;
 const WAIT_TABLE_MS: u64 = 25_000;
-const SEARCH_DROPDOWN_WAIT_MS: u64 = 45_000;
 const SEARCH_TYPE_CHAR_MS: u64 = 100;
+const SEARCH_ENTER_DELAY_MS: u64 = 300;
 const SEARCH_POLL_MS: u64 = 250;
 const POLL_MS: u64 = 400;
 const IDX_GOTO_MAX_ATTEMPTS: u32 = 6;
+const VS_SEARCH_SELECTOR: &str = r#"input[type="search"].vs__search"#;
+const CLEAR_SELECTED_SELECTOR: &str =
+    r#"button.vs__clear[title="Clear Selected"], button.vs__clear[aria-label="Clear Selected"]"#;
+const WAIT_VS_SEARCH_MS: u64 = 30_000;
+const WAIT_COMPANY_SELECTED_MS: u64 = 45_000;
 
 #[derive(Clone)]
 pub struct ScrapOutcome {
@@ -197,7 +202,7 @@ pub async fn scrap_and_upload(
     if !page_idx_ready(&page).await? {
         save_screenshot(&page, &screenshot_dir, &format!("{code}-01-not-ready")).await;
         return Err(
-            "halaman IDX belum siap (Search Company Code tidak muncul); coba lagi nanti".into(),
+            "halaman IDX belum siap (input[type=search].vs__search tidak muncul); coba lagi nanti".into(),
         );
     }
 
@@ -388,11 +393,27 @@ async fn page_idx_error(page: &Page) -> Result<bool, String> {
 }
 
 async fn page_idx_ready(page: &Page) -> Result<bool, String> {
-    eval_bool(
-        page,
-        r#"(() => !!document.querySelector('input[placeholder="Search Company Code"]'))()"#,
-    )
-    .await
+    Ok(page.find_element(VS_SEARCH_SELECTOR).await.is_ok())
+}
+
+async fn wait_vs_search_input(page: &Page, job_gen: u64) -> Result<Element, String> {
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_millis(WAIT_VS_SEARCH_MS) {
+        check_scrap_job(job_gen)?;
+        if let Ok(input) = page.find_element(VS_SEARCH_SELECTOR).await {
+            eprintln!("ScrapZipFromBei: input vs__search siap");
+            return Ok(input);
+        }
+        sleep(Duration::from_millis(POLL_MS)).await;
+    }
+    Err(format!(
+        "timeout menunggu {VS_SEARCH_SELECTOR} di halaman IDX ({}ms)",
+        WAIT_VS_SEARCH_MS
+    ))
+}
+
+async fn company_clear_selected_visible(page: &Page) -> bool {
+    page.find_element(CLEAR_SELECTED_SELECTOR).await.is_ok()
 }
 
 async fn search_company(
@@ -402,101 +423,45 @@ async fn search_company(
     job_gen: u64,
 ) -> Result<(), String> {
     check_scrap_job(job_gen)?;
-    eprintln!("ScrapZipFromBei: cari emiten {code} di dropdown IDX");
+    eprintln!("ScrapZipFromBei: cari emiten {code} via vs__search + Enter");
 
-    open_company_dropdown(page).await?;
-    sleep(Duration::from_millis(250)).await;
-    check_scrap_job(job_gen)?;
-
-    let input = page
-        .find_element("#vs3 input.vs__search, input[placeholder=\"Search Company Code\"]")
-        .await
-        .map_err(|_| "elemen input dropdown emiten tidak ditemukan".to_string())?;
+    let input = wait_vs_search_input(page, job_gen).await?;
     input
         .click()
         .await
-        .map_err(|e| format!("klik input emiten: {e}"))?;
+        .map_err(|e| format!("klik input vs__search: {e}"))?;
     sleep(Duration::from_millis(150)).await;
 
-    eprintln!("ScrapZipFromBei: ketik manual kode emiten {code} (tunggu #vs3__listbox)");
+    eprintln!("ScrapZipFromBei: ketik manual {code} lalu Enter");
     type_into_element(&input, code, job_gen).await?;
+    sleep(Duration::from_millis(SEARCH_ENTER_DELAY_MS)).await;
+    input
+        .press_key("Enter")
+        .await
+        .map_err(|e| format!("tekan Enter pada vs__search: {e}"))?;
 
     let started = Instant::now();
-    let mut last_hint = String::from("menunggu listbox");
-    let mut listbox_screenshot_taken = false;
-    while started.elapsed() < Duration::from_millis(SEARCH_DROPDOWN_WAIT_MS) {
+    while started.elapsed() < Duration::from_millis(WAIT_COMPANY_SELECTED_MS) {
         check_scrap_job(job_gen)?;
-
-        let items = page
-            .find_elements("#vs3__listbox li[role=\"option\"], #vs3__listbox li.vs__dropdown-option")
-            .await
-            .unwrap_or_default();
-        let count = items.len();
-
-        if count > 0 && !listbox_screenshot_taken {
-            listbox_screenshot_taken = true;
+        if company_clear_selected_visible(page).await {
             save_screenshot(
                 page,
                 screenshot_dir,
-                &format!("{code}-02-listbox-{count}li"),
+                &format!("{code}-02-clear-selected"),
             )
             .await;
+            eprintln!("ScrapZipFromBei: emiten {code} terpilih (tombol Clear Selected muncul)");
+            sleep(Duration::from_millis(300)).await;
+            return Ok(());
         }
-
-        let mut matched = false;
-        for item in &items {
-            let Some(ticker) = listbox_option_ticker(item).await else {
-                continue;
-            };
-            if ticker != code {
-                continue;
-            }
-            item.click()
-                .await
-                .map_err(|e| format!("klik opsi emiten {code}: {e}"))?;
-            matched = true;
-            break;
-        }
-
-        if matched {
-            sleep(Duration::from_millis(400)).await;
-            let got = read_selected_company_code(page).await.unwrap_or_default();
-            if got == code {
-                eprintln!("ScrapZipFromBei: emiten {code} terpilih");
-                sleep(Duration::from_millis(300)).await;
-                return Ok(());
-            }
-            last_hint = format!("klik OK tapi terpilih={got}");
-        } else if count > 0 {
-            last_hint = format!("no_exact_match (li={count})");
-        } else if page.find_element("#vs3__listbox").await.is_ok() {
-            last_hint = "listbox_empty".into();
-        } else {
-            last_hint = "no_listbox".into();
-        }
-
         sleep(Duration::from_millis(SEARCH_POLL_MS)).await;
     }
 
-    save_screenshot(page, screenshot_dir, &format!("{code}-02-listbox-timeout")).await;
+    save_screenshot(page, screenshot_dir, &format!("{code}-02-no-clear-selected")).await;
     Err(format!(
-        "timeout dropdown emiten {code} setelah {}ms — terakhir: {last_hint}",
+        "emiten {code} tidak terpilih — tombol Clear Selected tidak muncul setelah {}ms",
         started.elapsed().as_millis()
     ))
-}
-
-async fn open_company_dropdown(page: &Page) -> Result<(), String> {
-    for sel in ["#vs3 .vs__clear", "#vs3 .vs__deselect"] {
-        if let Ok(btn) = page.find_element(sel).await {
-            let _ = btn.click().await;
-            sleep(Duration::from_millis(100)).await;
-        }
-    }
-    click_element(page, "#vs3 .vs__dropdown-toggle, #vs3__combobox").await?;
-    page.find_element("#vs3 input.vs__search, input[placeholder=\"Search Company Code\"]")
-        .await
-        .map_err(|_| "input Search Company Code (#vs3) tidak ditemukan".to_string())?;
-    Ok(())
 }
 
 async fn type_into_element(element: &Element, text: &str, job_gen: u64) -> Result<(), String> {
@@ -509,52 +474,6 @@ async fn type_into_element(element: &Element, text: &str, job_gen: u64) -> Resul
         sleep(Duration::from_millis(SEARCH_TYPE_CHAR_MS)).await;
     }
     Ok(())
-}
-
-async fn listbox_option_ticker(item: &Element) -> Option<String> {
-    if let Ok(strong) = item.find_element("strong").await {
-        if let Ok(Some(text)) = strong.inner_text().await {
-            let t = text.trim().to_ascii_uppercase();
-            if !t.is_empty() {
-                return Some(t);
-            }
-        }
-    }
-    let text = item.inner_text().await.ok().flatten()?;
-    parse_ticker_token(&text)
-}
-
-fn parse_ticker_token(text: &str) -> Option<String> {
-    let t = text.trim().to_ascii_uppercase();
-    if t.is_empty() {
-        return None;
-    }
-    if let Some(head) = t.split('-').next() {
-        let tok = head.trim();
-        if (1..=5).contains(&tok.len()) && tok.chars().all(|c| c.is_ascii_alphanumeric()) {
-            return Some(tok.to_string());
-        }
-    }
-    t.split_whitespace().next().map(|s| s.to_string())
-}
-
-async fn read_selected_company_code(page: &Page) -> Result<String, String> {
-    let sel = page
-        .find_element("#vs3 .vs__selected-options, #vs3 .vs__selected")
-        .await
-        .map_err(|e| format!("elemen emiten terpilih: {e}"))?;
-    if let Ok(strong) = sel.find_element("strong").await {
-        if let Ok(Some(text)) = strong.inner_text().await {
-            return Ok(text.trim().to_ascii_uppercase());
-        }
-    }
-    Ok(sel
-        .inner_text()
-        .await
-        .map_err(|e| format!("baca emiten terpilih: {e}"))?
-        .unwrap_or_default()
-        .trim()
-        .to_ascii_uppercase())
 }
 
 async fn click_element(page: &Page, selector: &str) -> Result<(), String> {
@@ -914,13 +833,6 @@ async fn save_screenshot(page: &Page, dir: &Path, name: &str) -> Option<PathBuf>
 
 fn js_str(s: &str) -> String {
     serde_json::to_string(s).unwrap_or_else(|_| format!("\"{s}\""))
-}
-
-async fn eval_bool(page: &Page, js: &str) -> Result<bool, String> {
-    let v = evaluate_resilient(page, js)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(v.value().and_then(|x| x.as_bool()).unwrap_or(false))
 }
 
 async fn eval_string(page: &Page, js: &str) -> Result<String, String> {
