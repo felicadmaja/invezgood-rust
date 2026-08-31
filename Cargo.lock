@@ -3539,6 +3539,7 @@ dependencies = [
 name = "xlbr_laporan_keuangan"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "chromiumoxide",
  "chrono",
  "dotenvy",

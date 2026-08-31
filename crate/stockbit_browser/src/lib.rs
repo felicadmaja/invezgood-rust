@@ -11,6 +11,7 @@
 //! jendela cek readiness di `/stream`; default **2** untuk worker/on-demand),
 //! `STOCKBIT_BEARER_CACHE_SECS` (default 300 — cache JWT antar scrape),
 //! `STOCKBIT_BROWSER_DATA_DIR`,
+//! `CHROME_VIEWPORT_WIDTH` / `CHROME_VIEWPORT_HEIGHT` (default 1920×1028),
 //! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 540–600 —
 //! interval poller readiness setelah cek pertama Senin–Jumat 09:00:00–09:00:59),
 //! `REDIS_URL` (state readiness).
@@ -21,6 +22,7 @@ mod redis_readiness;
 
 use chrono::{DateTime, Datelike, Duration as ChronoDuration, Local, NaiveDate, TimeZone, Timelike};
 use chromiumoxide::browser::{Browser, BrowserConfig};
+use chromiumoxide::cdp::browser_protocol::emulation::SetDeviceMetricsOverrideParams;
 use chromiumoxide::handler::viewport::Viewport;
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
 use chromiumoxide::page::{Page, ScreenshotParams};
@@ -499,6 +501,33 @@ fn workspace_root() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join(".."))
 }
 
+const DEFAULT_VIEWPORT_WIDTH: u32 = 1920;
+const DEFAULT_VIEWPORT_HEIGHT: u32 = 1028;
+
+fn chrome_viewport_size() -> (u32, u32) {
+    let width = std::env::var("CHROME_VIEWPORT_WIDTH")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_VIEWPORT_WIDTH);
+    let height = std::env::var("CHROME_VIEWPORT_HEIGHT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_VIEWPORT_HEIGHT);
+    (width, height)
+}
+
+async fn apply_page_viewport(page: &Page) -> Result<(), StockbitError> {
+    let (width, height) = chrome_viewport_size();
+    page.execute(SetDeviceMetricsOverrideParams::new(
+        width as i64,
+        height as i64,
+        1.,
+        false,
+    ))
+    .await?;
+    Ok(())
+}
+
 pub fn browser_data_dir() -> PathBuf {
     std::env::var("STOCKBIT_BROWSER_DATA_DIR")
         .map(PathBuf::from)
@@ -518,15 +547,17 @@ fn browser_config_inner(kill_stale: bool) -> Result<BrowserConfig, StockbitError
         clear_stale_chrome_locks(&data_dir);
     }
 
+    let (width, height) = chrome_viewport_size();
     let viewport = Viewport {
-        width: 1366,
-        height: 900,
+        width,
+        height,
         device_scale_factor: Some(1.0),
         emulating_mobile: false,
         is_landscape: true,
         has_touch: false,
     };
 
+    let window_size = format!("--window-size={width},{height}");
     let mut builder = BrowserConfig::builder()
         .user_data_dir(&data_dir)
         .request_timeout(Duration::from_secs(120))
@@ -539,7 +570,7 @@ fn browser_config_inner(kill_stale: bool) -> Result<BrowserConfig, StockbitError
             "--disable-dev-shm-usage",
             "--disable-gpu",
             "--disable-blink-features=AutomationControlled",
-            "--window-size=1366,900",
+            window_size.as_str(),
             "--no-first-run",
             "--no-default-browser-check",
         ]);
@@ -668,6 +699,7 @@ async fn launch_fresh_browser() -> Result<(Browser, Page), StockbitError> {
 
     let page = browser.new_page("about:blank").await?;
     page.set_user_agent(USER_AGENT).await?;
+    apply_page_viewport(&page).await?;
     page.evaluate_on_new_document(
         r#"
         Object.defineProperty(navigator, 'webdriver', {
@@ -732,6 +764,7 @@ pub async fn launch_page() -> Result<(BrowserSession, Page), StockbitError> {
     if let Some(existing) = slot.as_ref() {
         if page_is_alive(&existing.page).await {
             println!("Chrome session: reuse (sesi tetap hidup, tanpa kill/relaunch)");
+            apply_page_viewport(&existing.page).await?;
             return Ok((BrowserSession, existing.page.clone()));
         }
         println!("Chrome session: page tidak responsif — graceful relaunch...");

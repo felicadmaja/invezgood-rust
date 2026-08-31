@@ -74,11 +74,6 @@ pub async fn scrap_and_upload(
     search_company(&page, &code).await?;
     save_screenshot(&page, &screenshot_dir, &format!("{code}-02-selected")).await;
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(120))
-        .build()
-        .map_err(|e| e.to_string())?;
-
     let mut uploaded = 0usize;
     let mut skipped = 0usize;
     let mut failed = 0usize;
@@ -106,7 +101,7 @@ pub async fn scrap_and_upload(
             save_screenshot(&page, &screenshot_dir, &format!("{label}-found")).await;
 
             let zip_path = download_dir.join(format!("{code}-{slot}.zip"));
-            match download_inline_zip(&page, &client, &zip_path).await {
+            match download_inline_zip(&page, &zip_path).await {
                 Ok(()) => {
                     save_screenshot(&page, &screenshot_dir, &format!("{label}-downloaded")).await;
                     match upload_zip_file(db.clone(), &zip_path).await {
@@ -411,7 +406,7 @@ async fn wait_table(page: &Page) -> Result<TableState, String> {
     Err("timeout menunggu tabel laporan IDX".into())
 }
 
-async fn download_inline_zip(page: &Page, client: &reqwest::Client, dest: &Path) -> Result<(), String> {
+async fn download_inline_zip(page: &Page, dest: &Path) -> Result<(), String> {
     let href = eval_string(
         page,
         r#"(() => {
@@ -434,22 +429,142 @@ async fn download_inline_zip(page: &Page, client: &reqwest::Client, dest: &Path)
     }
 
     let url = resolve_url(page, &href).await?;
-    let bytes = client
-        .get(&url)
-        .send()
+    let bytes = match download_via_browser_fetch(page, &url).await {
+        Ok(bytes) => bytes,
+        Err(browser_err) => {
+            eprintln!(
+                "ScrapZipFromBei: browser fetch gagal ({browser_err}) — coba reqwest+cookie"
+            );
+            download_via_reqwest_cookies(page, &url).await?
+        }
+    };
+
+    write_zip_bytes(dest, &url, &bytes).await
+}
+
+async fn download_via_browser_fetch(page: &Page, url: &str) -> Result<Vec<u8>, String> {
+    let url_js = js_str(url);
+    let eval = page
+        .evaluate_function(format!(
+            r#"async () => {{
+  const url = {url_js};
+  const resp = await fetch(url, {{ credentials: 'include' }});
+  if (!resp.ok) {{
+    return {{ ok: false, status: resp.status, b64: '', len: 0 }};
+  }}
+  const buf = await resp.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {{
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }}
+  return {{ ok: true, status: resp.status, b64: btoa(bin), len: bytes.length }};
+}}"#,
+        ))
         .await
-        .map_err(|e| format!("GET {url}: {e}"))?
+        .map_err(|e| format!("browser fetch evaluate: {e}"))?;
+
+    let val = eval
+        .value()
+        .ok_or_else(|| "browser fetch: tidak ada return value".to_string())?;
+    let ok = val.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+    let status = val.get("status").and_then(|x| x.as_u64()).unwrap_or(0);
+    if !ok {
+        return Err(format!("browser fetch {url} HTTP {status}"));
+    }
+    let b64 = val
+        .get("b64")
+        .and_then(|x| x.as_str())
+        .unwrap_or_default();
+    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
+        .map_err(|e| format!("browser fetch decode base64: {e}"))
+}
+
+async fn download_via_reqwest_cookies(page: &Page, url: &str) -> Result<Vec<u8>, String> {
+    let cookie_header = browser_cookie_header(page).await?;
+    let referer = page
+        .url()
+        .await
+        .map_err(|e| format!("url page: {e}"))?
+        .unwrap_or_else(|| IDX_URL.to_string());
+    let user_agent = page
+        .user_agent()
+        .await
+        .unwrap_or_else(|_| DEFAULT_DOWNLOAD_USER_AGENT.to_string());
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let encoded_url = encode_download_url(url);
+    let mut req = client
+        .get(&encoded_url)
+        .header("Accept", "application/zip,application/octet-stream,*/*")
+        .header("Accept-Language", "en-US,en;q=0.9")
+        .header("Referer", referer)
+        .header("User-Agent", user_agent);
+    if !cookie_header.is_empty() {
+        req = req.header("Cookie", cookie_header);
+    }
+
+    req.send()
+        .await
+        .map_err(|e| format!("GET {encoded_url}: {e}"))?
         .error_for_status()
-        .map_err(|e| format!("GET {url} status: {e}"))?
+        .map_err(|e| format!("GET {encoded_url} status: {e}"))?
         .bytes()
         .await
-        .map_err(|e| format!("baca body {url}: {e}"))?;
+        .map(|b| b.to_vec())
+        .map_err(|e| format!("baca body {encoded_url}: {e}"))
+}
 
+async fn browser_cookie_header(page: &Page) -> Result<String, String> {
+    let cookies = page
+        .get_cookies()
+        .await
+        .map_err(|e| format!("get_cookies: {e}"))?;
+    Ok(cookies
+        .iter()
+        .map(|c| format!("{}={}", c.name, c.value))
+        .collect::<Vec<_>>()
+        .join("; "))
+}
+
+fn encode_download_url(url: &str) -> String {
+    let Some((base, path)) = url.split_once("://") else {
+        return url.replace(' ', "%20");
+    };
+    let Some((authority, path)) = path.split_once('/') else {
+        return url.replace(' ', "%20");
+    };
+    let encoded_path = path
+        .split('/')
+        .map(|seg| {
+            seg.chars()
+                .map(|ch| {
+                    if ch.is_ascii_alphanumeric() || "-._~".contains(ch) {
+                        ch.to_string()
+                    } else {
+                        format!("%{:02X}", ch as u8)
+                    }
+                })
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("/");
+    format!("{base}://{authority}/{encoded_path}")
+}
+
+const DEFAULT_DOWNLOAD_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+async fn write_zip_bytes(dest: &Path, url: &str, bytes: &[u8]) -> Result<(), String> {
     if bytes.len() < 4 || bytes[0] != b'P' || bytes[1] != b'K' {
         return Err(format!("unduhan bukan zip valid dari {url}"));
     }
 
-    tokio::fs::write(dest, &bytes)
+    tokio::fs::write(dest, bytes)
         .await
         .map_err(|e| format!("tulis {}: {e}", dest.display()))?;
     Ok(())
