@@ -13,10 +13,12 @@ use tokio::time::sleep;
 use crate::model::XlbrLaporanKeuanganRow;
 
 const IDX_URL: &str = "https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan";
+const IDX_HOME: &str = "https://www.idx.co.id/id/";
 const YEAR_IDS: [&str; 5] = ["year4", "year3", "year2", "year1", "year0"];
 const PERIOD_IDS: [&str; 4] = ["period0", "period1", "period2", "period3"];
 const WAIT_TABLE_MS: u64 = 45_000;
 const POLL_MS: u64 = 500;
+const IDX_GOTO_MAX_ATTEMPTS: u32 = 6;
 
 pub struct ScrapOutcome {
     pub uploaded: usize,
@@ -43,6 +45,7 @@ pub async fn scrap_and_upload(
         .await
         .map_err(|e| format!("mkdir {}: {e}", screenshot_dir.display()))?;
 
+    cleanup_screenshot_dir(&screenshot_dir).await;
     cleanup_code_zips(&download_dir, &code).await;
 
     let _lock = acquire_browser_session(BrowserLockClass::Interactive)
@@ -54,6 +57,17 @@ pub async fn scrap_and_upload(
 
     goto_idx(&page).await?;
     save_screenshot(&page, &screenshot_dir, &format!("{code}-01-open")).await;
+
+    if page_idx_error(&page).await? {
+        save_screenshot(&page, &screenshot_dir, &format!("{code}-01-error")).await;
+        return Err(idx_unreachable_message().into());
+    }
+    if !page_idx_ready(&page).await? {
+        save_screenshot(&page, &screenshot_dir, &format!("{code}-01-not-ready")).await;
+        return Err(
+            "halaman IDX belum siap (Search Company Code tidak muncul); coba lagi nanti".into(),
+        );
+    }
 
     search_company(&page, &code).await?;
     save_screenshot(&page, &screenshot_dir, &format!("{code}-02-selected")).await;
@@ -133,11 +147,26 @@ fn crate_src_dir() -> PathBuf {
 }
 
 fn download_dir() -> PathBuf {
-    crate_src_dir().join("downloaded_lbrl")
+    crate_src_dir().join("downloaded_xbrl")
 }
 
 fn screenshot_dir() -> PathBuf {
     crate_src_dir().join("screenshot")
+}
+
+async fn cleanup_screenshot_dir(dir: &Path) {
+    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+        return;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path();
+        let Ok(meta) = entry.metadata().await else {
+            continue;
+        };
+        if meta.is_file() {
+            let _ = tokio::fs::remove_file(&path).await;
+        }
+    }
 }
 
 async fn cleanup_code_zips(dir: &Path, code: &str) {
@@ -154,11 +183,82 @@ async fn cleanup_code_zips(dir: &Path, code: &str) {
 }
 
 async fn goto_idx(page: &Page) -> Result<(), String> {
-    page.goto(IDX_URL)
-        .await
-        .map_err(|e| format!("goto IDX: {e}"))?;
-    sleep(Duration::from_secs(3)).await;
-    Ok(())
+    let max_attempts = std::env::var("XLBR_IDX_GOTO_RETRIES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(IDX_GOTO_MAX_ATTEMPTS);
+    let base_wait = std::env::var("XLBR_IDX_RETRY_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8u64);
+
+    for attempt in 1..=max_attempts {
+        if attempt == 1 {
+            let _ = page.goto(IDX_HOME).await;
+            sleep(Duration::from_secs(2)).await;
+        }
+
+        page.goto(IDX_URL)
+            .await
+            .map_err(|e| format!("goto IDX (attempt {attempt}): {e}"))?;
+
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_secs(20) {
+            if page_idx_ready(page).await? {
+                eprintln!("ScrapZipFromBei: halaman IDX siap (attempt {attempt})");
+                return Ok(());
+            }
+            if page_idx_error(page).await? {
+                break;
+            }
+            sleep(Duration::from_millis(POLL_MS)).await;
+        }
+
+        let wait_secs = base_wait.saturating_mul(attempt as u64);
+        eprintln!(
+            "ScrapZipFromBei: IDX error/belum siap (attempt {attempt}/{max_attempts}) — \
+             retry dalam {wait_secs}s"
+        );
+        if attempt < max_attempts {
+            sleep(Duration::from_secs(wait_secs)).await;
+            let _ = page.reload().await;
+            sleep(Duration::from_secs(2)).await;
+        }
+    }
+
+    Err(idx_unreachable_message())
+}
+
+fn idx_unreachable_message() -> String {
+    "IDX www.idx.co.id tidak dapat diakses (503 Varnish / 403 blocked / backend down). \
+     Server BEI sedang overload atau memblokir akses bot — coba lagi beberapa menit kemudian \
+     atau akses manual dari browser desktop di jaringan yang sama."
+        .into()
+}
+
+async fn page_idx_error(page: &Page) -> Result<bool, String> {
+    let text = eval_string(
+        page,
+        r#"(() => (document.body && document.body.innerText) ? document.body.innerText : '')"#,
+    )
+    .await?;
+    let lower = text.to_ascii_lowercase();
+    Ok(lower.contains("error 503")
+        || lower.contains("error 403")
+        || lower.contains("backend fetch failed")
+        || lower.contains("guru meditation")
+        || lower.contains("varnish cache server")
+        || lower.contains("cloudflare")
+        || lower.contains("access denied")
+        || lower.contains("attention required"))
+}
+
+async fn page_idx_ready(page: &Page) -> Result<bool, String> {
+    eval_bool(
+        page,
+        r#"(() => !!document.querySelector('input[placeholder="Search Company Code"]'))()"#,
+    )
+    .await
 }
 
 async fn search_company(page: &Page, code: &str) -> Result<(), String> {
