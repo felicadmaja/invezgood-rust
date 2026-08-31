@@ -17,10 +17,22 @@ enum CurrentDayMode {
     Live,
     /// Diluar jam operasional / libur: cache Moka→Redis; miss → GET Invezgo 1x lalu simpan.
     Cached,
+    /// Senin–Jumat 00:00–09:00 (bukan libur): pasar belum buka.
+    PreMarketClosed,
+}
+
+const MARKET_NOT_OPEN_MSG: &str = "Market belum buka.";
+
+/// Senin–Jumat sebelum 09:00 (menit lokal < 540).
+fn is_pre_market_weekday(weekday: chrono::Weekday, hour: u32, minute: u32) -> bool {
+    if matches!(weekday, chrono::Weekday::Sat | chrono::Weekday::Sun) {
+        return false;
+    }
+    hour * 60 + minute < 9 * 60
 }
 
 /// Senin–Kamis: live 09:00–12:00 & 13:30–16:00. Jumat: 09:00–11:30 & 14:00–16:00.
-/// Selain itu (istirahat, setelah 16:00, Sabtu/Minggu): mode Cached.
+/// Senin–Jumat 00:00–09:00: PreMarketClosed. Selain itu (istirahat, setelah 16:00, Sabtu/Minggu): Cached.
 fn current_day_chart_mode() -> CurrentDayMode {
     let now = Local::now();
     let weekday = now.weekday();
@@ -28,7 +40,13 @@ fn current_day_chart_mode() -> CurrentDayMode {
         return CurrentDayMode::Cached;
     }
 
-    let mins = now.hour() * 60 + now.minute();
+    let hour = now.hour();
+    let minute = now.minute();
+    if is_pre_market_weekday(weekday, hour, minute) {
+        return CurrentDayMode::PreMarketClosed;
+    }
+
+    let mins = hour * 60 + minute;
     const MORNING_START: u32 = 9 * 60;
     let in_session = match weekday {
         chrono::Weekday::Fri => {
@@ -149,6 +167,16 @@ impl Chart for ChartService {
 
             let is_holiday =
                 market_holiday::is_weekend() || market_holiday::is_national_holiday().await;
+
+            if matches!(mode, CurrentDayMode::PreMarketClosed) && !is_holiday {
+                return Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
+                    code,
+                    success: false,
+                    message: MARKET_NOT_OPEN_MSG.into(),
+                    ..Default::default()
+                }));
+            }
+
             let use_cache = matches!(mode, CurrentDayMode::Cached) || is_holiday;
 
             if use_cache {
@@ -331,5 +359,19 @@ impl Chart for ChartService {
             );
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Weekday;
+
+    #[test]
+    fn pre_market_weekday_before_nine() {
+        assert!(is_pre_market_weekday(Weekday::Mon, 8, 59));
+        assert!(is_pre_market_weekday(Weekday::Fri, 0, 0));
+        assert!(!is_pre_market_weekday(Weekday::Mon, 9, 0));
+        assert!(!is_pre_market_weekday(Weekday::Sat, 8, 0));
     }
 }

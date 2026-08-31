@@ -138,6 +138,8 @@ const SCRAP_CANCEL_WAIT_MS: u64 = 15_000;
 const WAIT_TABLE_MS: u64 = 25_000;
 const SEARCH_TYPE_CHAR_MS: u64 = 100;
 const SEARCH_ENTER_DELAY_MS: u64 = 300;
+const SEARCH_RETYPE_CLICK_MS: u64 = 150;
+const SEARCH_CLEAR_BACKSPACES: u32 = 8;
 const SEARCH_POLL_MS: u64 = 250;
 const POLL_MS: u64 = 400;
 const IDX_GOTO_MAX_ATTEMPTS: u32 = 6;
@@ -145,7 +147,12 @@ const VS_SEARCH_SELECTOR: &str = r#"input[type="search"].vs__search"#;
 const CLEAR_SELECTED_SELECTOR: &str =
     r#"button.vs__clear[title="Clear Selected"], button.vs__clear[aria-label="Clear Selected"]"#;
 const WAIT_VS_SEARCH_MS: u64 = 30_000;
+const WAIT_LISTBOX_MS: u64 = 45_000;
 const WAIT_COMPANY_SELECTED_MS: u64 = 45_000;
+const LISTBOX_SELECTOR: &str = "#vs3__listbox";
+const LISTBOX_ITEM_SELECTOR: &str =
+    r#"#vs3__listbox li[role="option"], #vs3__listbox li.vs__dropdown-option"#;
+const SEARCH_ARROW_DELAY_MS: u64 = 100;
 
 #[derive(Clone)]
 pub struct ScrapOutcome {
@@ -423,22 +430,26 @@ async fn search_company(
     job_gen: u64,
 ) -> Result<(), String> {
     check_scrap_job(job_gen)?;
-    eprintln!("ScrapZipFromBei: cari emiten {code} via vs__search + Enter");
+    eprintln!("ScrapZipFromBei: cari emiten {code} — ketik, tunggu listbox, ArrowDown, Enter");
 
     let input = wait_vs_search_input(page, job_gen).await?;
     input
         .click()
         .await
         .map_err(|e| format!("klik input vs__search: {e}"))?;
-    sleep(Duration::from_millis(150)).await;
+    sleep(Duration::from_millis(SEARCH_RETYPE_CLICK_MS)).await;
 
-    eprintln!("ScrapZipFromBei: ketik manual {code} lalu Enter");
     type_into_element(&input, code, job_gen).await?;
-    sleep(Duration::from_millis(SEARCH_ENTER_DELAY_MS)).await;
-    input
-        .press_key("Enter")
+    retype_code_if_missing(page, code, job_gen, screenshot_dir, 1).await?;
+
+    let target_index =
+        wait_for_listbox_match(page, code, job_gen, screenshot_dir).await?;
+
+    let input = page
+        .find_element(VS_SEARCH_SELECTOR)
         .await
-        .map_err(|e| format!("tekan Enter pada vs__search: {e}"))?;
+        .map_err(|e| format!("vs__search hilang sebelum ArrowDown: {e}"))?;
+    select_listbox_with_arrows(&input, code, target_index, job_gen).await?;
 
     let started = Instant::now();
     while started.elapsed() < Duration::from_millis(WAIT_COMPANY_SELECTED_MS) {
@@ -464,7 +475,199 @@ async fn search_company(
     ))
 }
 
+async fn wait_for_listbox_match(
+    page: &Page,
+    code: &str,
+    job_gen: u64,
+    screenshot_dir: &Path,
+) -> Result<usize, String> {
+    let started = Instant::now();
+    let mut listbox_screenshot_taken = false;
+    while started.elapsed() < Duration::from_millis(WAIT_LISTBOX_MS) {
+        check_scrap_job(job_gen)?;
+
+        if page.find_element(LISTBOX_SELECTOR).await.is_err() {
+            sleep(Duration::from_millis(SEARCH_POLL_MS)).await;
+            continue;
+        }
+
+        let items = page
+            .find_elements(LISTBOX_ITEM_SELECTOR)
+            .await
+            .unwrap_or_default();
+        if items.is_empty() {
+            sleep(Duration::from_millis(SEARCH_POLL_MS)).await;
+            continue;
+        }
+
+        if !listbox_screenshot_taken {
+            listbox_screenshot_taken = true;
+            save_screenshot(
+                page,
+                screenshot_dir,
+                &format!("{code}-02-listbox-{}li", items.len()),
+            )
+            .await;
+        }
+
+        if let Some(index) = find_matching_li_index(&items, code).await? {
+            eprintln!(
+                "ScrapZipFromBei: listbox siap — {code} di index {index} ({} li)",
+                items.len()
+            );
+            return Ok(index);
+        }
+
+        sleep(Duration::from_millis(SEARCH_POLL_MS)).await;
+    }
+
+    save_screenshot(page, screenshot_dir, &format!("{code}-02-listbox-timeout")).await;
+    Err(format!(
+        "timeout menunggu <li> emiten {code} di listbox ({}ms)",
+        started.elapsed().as_millis()
+    ))
+}
+
+async fn find_matching_li_index(items: &[Element], code: &str) -> Result<Option<usize>, String> {
+    for (index, item) in items.iter().enumerate() {
+        let Some(ticker) = listbox_li_ticker(item).await else {
+            continue;
+        };
+        if ticker.eq_ignore_ascii_case(code) {
+            return Ok(Some(index));
+        }
+    }
+    Ok(None)
+}
+
+async fn listbox_li_ticker(item: &Element) -> Option<String> {
+    if let Ok(strong) = item.find_element("strong").await {
+        if let Ok(Some(text)) = strong.inner_text().await {
+            let t = text.trim().to_ascii_uppercase();
+            if !t.is_empty() {
+                return Some(t);
+            }
+        }
+    }
+    let text = item.inner_text().await.ok().flatten()?;
+    parse_li_ticker_prefix(&text)
+}
+
+fn parse_li_ticker_prefix(text: &str) -> Option<String> {
+    let t = text.trim().to_ascii_uppercase();
+    if t.is_empty() {
+        return None;
+    }
+    if let Some(head) = t.split('-').next() {
+        let tok = head.trim();
+        if !tok.is_empty() {
+            return Some(tok.to_string());
+        }
+    }
+    t.split_whitespace().next().map(|s| s.to_string())
+}
+
+async fn select_listbox_with_arrows(
+    input: &Element,
+    code: &str,
+    target_index: usize,
+    job_gen: u64,
+) -> Result<(), String> {
+    eprintln!("ScrapZipFromBei: ArrowDown x{target_index} lalu Enter untuk {code}");
+    for _ in 0..target_index {
+        check_scrap_job(job_gen)?;
+        input
+            .press_key("ArrowDown")
+            .await
+            .map_err(|e| format!("ArrowDown listbox {code}: {e}"))?;
+        sleep(Duration::from_millis(SEARCH_ARROW_DELAY_MS)).await;
+    }
+    sleep(Duration::from_millis(SEARCH_ENTER_DELAY_MS)).await;
+    input
+        .press_key("Enter")
+        .await
+        .map_err(|e| format!("Enter pilih emiten {code}: {e}"))?;
+    Ok(())
+}
+
+async fn read_vs_search_value(page: &Page) -> Result<String, String> {
+    let input = page
+        .find_element(VS_SEARCH_SELECTOR)
+        .await
+        .map_err(|e| format!("baca vs__search: {e}"))?;
+    if let Ok(Some(v)) = input.attribute("value").await {
+        let t = v.trim().to_ascii_uppercase();
+        if !t.is_empty() {
+            return Ok(t);
+        }
+    }
+    eval_string(
+        page,
+        r#"(() => {
+  const el = document.querySelector('input[type="search"].vs__search');
+  return el ? String(el.value || '').trim().toUpperCase() : '';
+})()"#,
+    )
+    .await
+}
+
+async fn vs_search_has_code(page: &Page, code: &str) -> Result<bool, String> {
+    let val = read_vs_search_value(page).await?;
+    Ok(val.eq_ignore_ascii_case(code))
+}
+
+async fn clear_vs_search_input(input: &Element) -> Result<(), String> {
+    for _ in 0..SEARCH_CLEAR_BACKSPACES {
+        let _ = input.press_key("Backspace").await;
+    }
+    Ok(())
+}
+
+async fn retype_code_if_missing(
+    page: &Page,
+    code: &str,
+    job_gen: u64,
+    screenshot_dir: &Path,
+    attempt: u32,
+) -> Result<(), String> {
+    sleep(Duration::from_millis(SEARCH_POLL_MS)).await;
+    if vs_search_has_code(page, code).await? {
+        return Ok(());
+    }
+
+    save_screenshot(
+        page,
+        screenshot_dir,
+        &format!("{code}-02-retype-{attempt:02}"),
+    )
+    .await;
+
+    let input = page
+        .find_element(VS_SEARCH_SELECTOR)
+        .await
+        .map_err(|e| format!("vs__search hilang saat retype: {e}"))?;
+    input
+        .click()
+        .await
+        .map_err(|e| format!("klik vs__search retype: {e}"))?;
+    sleep(Duration::from_millis(SEARCH_RETYPE_CLICK_MS)).await;
+    clear_vs_search_input(&input).await?;
+    sleep(Duration::from_millis(SEARCH_RETYPE_CLICK_MS)).await;
+    type_into_element(&input, code, job_gen).await?;
+
+    sleep(Duration::from_millis(SEARCH_POLL_MS)).await;
+    if vs_search_has_code(page, code).await? {
+        eprintln!("ScrapZipFromBei: kode {code} tersimpan kembali di vs__search");
+    } else {
+        eprintln!(
+            "ScrapZipFromBei: WARNING kode {code} masih hilang dari vs__search setelah retype (attempt {attempt})"
+        );
+    }
+    Ok(())
+}
+
 async fn type_into_element(element: &Element, text: &str, job_gen: u64) -> Result<(), String> {
+    eprintln!("ScrapZipFromBei: ketik manual {text}");
     for ch in text.chars() {
         check_scrap_job(job_gen)?;
         element
