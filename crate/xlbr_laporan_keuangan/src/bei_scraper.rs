@@ -10,7 +10,6 @@ use chromiumoxide::page::{Page, ScreenshotParams};
 use scylla::client::session::Session;
 use stockbit_browser::{
     acquire_idx_browser_session, apply_desktop_viewport, evaluate_resilient, launch_idx_page,
-    reset_idx_browser_state,
 };
 use tokio::sync::{Mutex, watch};
 use tokio::time::{sleep, timeout};
@@ -132,14 +131,15 @@ fn check_scrap_job(job_gen: u64) -> Result<(), String> {
 }
 
 const IDX_URL: &str = "https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan";
-const IDX_HOME: &str = "https://www.idx.co.id/id/";
 const YEAR_IDS: [&str; 5] = ["year4", "year3", "year2", "year1", "year0"];
 const PERIOD_IDS: [&str; 4] = ["period0", "period1", "period2", "period3"];
 const SCRAP_CANCEL_WAIT_MS: u64 = 15_000;
-const WAIT_TABLE_MS: u64 = 45_000;
-const WAIT_SETTLE_MS: u64 = 60_000;
-const SEARCH_DROPDOWN_WAIT_MS: u64 = 30_000;
-const POLL_MS: u64 = 500;
+const WAIT_TABLE_MS: u64 = 25_000;
+const SEARCH_DROPDOWN_WAIT_MS: u64 = 45_000;
+const SEARCH_EVAL_TIMEOUT_MS: u64 = 15_000;
+const SEARCH_TYPE_CHAR_MS: u64 = 100;
+const SEARCH_POLL_MS: u64 = 250;
+const POLL_MS: u64 = 400;
 const IDX_GOTO_MAX_ATTEMPTS: u32 = 6;
 
 #[derive(Clone)]
@@ -179,9 +179,6 @@ pub async fn scrap_and_upload(
     let (_browser, page) = launch_idx_page()
         .await
         .map_err(|e| format!("launch Chrome BEI: {e}"))?;
-    reset_idx_browser_state(&page)
-        .await
-        .map_err(|e| format!("reset cookie BEI: {e}"))?;
     apply_desktop_viewport(&page)
         .await
         .map_err(|e| format!("viewport desktop: {e}"))?;
@@ -209,12 +206,6 @@ pub async fn scrap_and_upload(
         .await
         .map_err(|e| format!("viewport desktop setelah pilih emiten: {e}"))?;
     save_screenshot(&page, &screenshot_dir, &format!("{code}-02-selected")).await;
-
-    eprintln!("ScrapZipFromBei: tunggu auto-load IDX setelah pilih emiten");
-    if wait_idx_settled(&page, job_gen).await.is_err() {
-        eprintln!("ScrapZipFromBei: auto-load spinner — reload & pilih ulang emiten");
-        let _ = recover_idx_after_select(&page, &code, job_gen).await;
-    }
 
     let mut uploaded = 0usize;
     let mut skipped = 0usize;
@@ -338,10 +329,6 @@ async fn goto_idx(page: &Page, job_gen: u64) -> Result<(), String> {
 
     for attempt in 1..=max_attempts {
         check_scrap_job(job_gen)?;
-        if attempt == 1 {
-            let _ = page.goto(IDX_HOME).await;
-            sleep(Duration::from_secs(2)).await;
-        }
 
         page.goto(IDX_URL)
             .await
@@ -410,108 +397,135 @@ async fn page_idx_ready(page: &Page) -> Result<bool, String> {
 
 async fn search_company(page: &Page, code: &str, job_gen: u64) -> Result<(), String> {
     check_scrap_job(job_gen)?;
-    let code_js = js_str(code);
     eprintln!("ScrapZipFromBei: cari emiten {code} di dropdown IDX");
 
-    let eval = timeout(
-        Duration::from_millis(SEARCH_DROPDOWN_WAIT_MS + 15_000),
-        page.evaluate_function(format!(
-            r#"async () => {{
-  const code = {code_js};
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  const itemTicker = (li) => {{
-    const text = (li.textContent || '').trim().toUpperCase();
-    const m = text.match(/^([A-Z0-9]{{1,5}})\b/);
-    return m ? m[1] : text.split(/\s+/)[0];
-  }};
-  const readSelected = () => {{
-    const sel = document.querySelector('#vs3 .vs__selected, .vs__selected-options');
-    const text = (sel && sel.textContent ? sel.textContent : '').trim().toUpperCase();
-    if (!text) return '';
-    const m = text.match(/^([A-Z0-9]{{1,5}})\b/);
-    return m ? m[1] : text.split(/\s+/)[0];
-  }};
-  const listItems = () => {{
-    const box = document.querySelector('#vs3__listbox')
-      || document.querySelector('.vs__dropdown-menu');
-    if (!box) return [];
-    return [...box.querySelectorAll('li')].filter(li => (li.textContent || '').trim());
-  }};
-
-  for (const btn of document.querySelectorAll('#vs3 .vs__clear, #vs3 .vs__deselect, .vs__clear')) {{
+    let opened = eval_bool(
+        page,
+        r#"(() => {
+  for (const btn of document.querySelectorAll('#vs3 .vs__clear, #vs3 .vs__deselect, .vs__clear')) {
     btn.click();
-  }}
-  await sleep(250);
-
-  const combobox = document.querySelector('#vs3__combobox')
-    || document.querySelector('#vs3 .vs__dropdown-toggle');
-  if (combobox) combobox.click();
-  await sleep(200);
-
-  const input = document.querySelector('input[placeholder="Search Company Code"]');
-  if (!input) return {{ ok: false, step: 'no_input', got: '' }};
-
-  input.focus();
-  input.click();
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-  if (setter) setter.call(input, code);
-  else input.value = code;
-  input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-  input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-
-  const polls = Math.ceil({SEARCH_DROPDOWN_WAIT_MS} / {POLL_MS});
-  for (let i = 0; i < polls; i++) {{
-    await sleep({POLL_MS});
-    const items = listItems();
-    const hit = items.find(li => itemTicker(li) === code);
-    if (!hit) continue;
-    hit.click();
-    await sleep(600);
-    const got = readSelected();
-    if (got === code) return {{ ok: true, step: 'selected', got }};
-    return {{ ok: false, step: 'wrong_selection', got }};
-  }}
-
-  const items = listItems();
-  return {{
-    ok: false,
-    step: items.length > 0 ? 'no_exact_match' : 'timeout_dropdown',
-    got: readSelected(),
-  }};
-}}"#,
-        )),
+  }
+  const toggle = document.querySelector('#vs3 .vs__dropdown-toggle')
+    || document.querySelector('#vs3__combobox');
+  if (toggle) toggle.click();
+  const input = document.querySelector('#vs3 input.vs__search')
+    || document.querySelector('input[placeholder="Search Company Code"]');
+  return !!input;
+})()"#,
     )
-    .await
-    .map_err(|_| format!("timeout cari emiten {code} di dropdown IDX"))?
-    .map_err(|e| format!("evaluate search_company: {e}"))?;
-
+    .await?;
+    if !opened {
+        return Err("input Search Company Code (#vs3) tidak ditemukan".into());
+    }
+    sleep(Duration::from_millis(250)).await;
     check_scrap_job(job_gen)?;
 
-    let val = eval
-        .value()
-        .ok_or_else(|| format!("search {code}: tidak ada return value"))?;
-    let ok = val.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
-    if ok {
-        eprintln!("ScrapZipFromBei: emiten {code} terpilih");
-        sleep(Duration::from_millis(500)).await;
-        return Ok(());
+    let input = page
+        .find_element("#vs3 input.vs__search, input[placeholder=\"Search Company Code\"]")
+        .await
+        .map_err(|_| "elemen input dropdown emiten tidak ditemukan".to_string())?;
+    input
+        .click()
+        .await
+        .map_err(|e| format!("klik input emiten: {e}"))?;
+    sleep(Duration::from_millis(150)).await;
+
+    // Fokus input; ketik per huruf via keyboard CDP (vue-select IDX tidak merespons setter JS).
+    let _ = page
+        .evaluate(
+            r#"(() => {
+  const input = document.querySelector('#vs3 input.vs__search')
+    || document.querySelector('input[placeholder="Search Company Code"]');
+  if (!input) return false;
+  input.focus();
+  if (typeof input.select === 'function') input.select();
+  return true;
+})()"#,
+        )
+        .await;
+
+    eprintln!("ScrapZipFromBei: ketik kode emiten {code} (tunggu #vs3__listbox)");
+    for ch in code.chars() {
+        check_scrap_job(job_gen)?;
+        input
+            .type_str(&ch.to_string())
+            .await
+            .map_err(|e| format!("ketik emiten {code}: {e}"))?;
+        sleep(Duration::from_millis(SEARCH_TYPE_CHAR_MS)).await;
     }
 
-    let step = val
-        .get("step")
-        .and_then(|x| x.as_str())
-        .unwrap_or("unknown");
-    let got = val
-        .get("got")
-        .and_then(|x| x.as_str())
-        .unwrap_or("");
-    Err(match step {
-        "no_input" => "input Search Company Code tidak ditemukan".into(),
-        "wrong_selection" => format!("emiten terpilih bukan {code} (got {got})"),
-        "no_exact_match" => format!("emiten {code} tidak ada di dropdown IDX"),
-        "timeout_dropdown" => format!("timeout menunggu dropdown emiten {code} (li belum muncul)"),
-        _ => format!("gagal pilih emiten {code} ({step})"),
-    })
+    let code_js = js_str(code);
+    let started = Instant::now();
+    let mut last_hint = String::from("menunggu listbox");
+    while started.elapsed() < Duration::from_millis(SEARCH_DROPDOWN_WAIT_MS) {
+        check_scrap_job(job_gen)?;
+        let eval = timeout(
+            Duration::from_millis(SEARCH_EVAL_TIMEOUT_MS),
+            page.evaluate(format!(
+                r#"(() => {{
+  const code = {code_js};
+  const listbox = document.querySelector('#vs3__listbox');
+  if (!listbox) return {{ clicked: false, step: 'no_listbox', count: 0 }};
+  const items = [...listbox.querySelectorAll('li[role="option"], li.vs__dropdown-option')];
+  if (items.length === 0) return {{ clicked: false, step: 'listbox_empty', count: 0 }};
+  for (const li of items) {{
+    const strong = li.querySelector('strong');
+    const ticker = (strong ? strong.textContent : li.textContent || '').trim().toUpperCase();
+    const m = ticker.match(/^([A-Z0-9]{{1,5}})/);
+    const tok = m ? m[1] : ticker.split(/\s+/)[0];
+    if (tok === code) {{
+      li.click();
+      return {{ clicked: true, step: 'clicked', count: items.length, ticker: tok }};
+    }}
+  }}
+  return {{ clicked: false, step: 'no_exact_match', count: items.length }};
+}})()"#
+            )),
+        )
+        .await
+        .map_err(|_| format!("timeout eval listbox emiten {code}"))?
+        .map_err(|e| format!("evaluate listbox emiten: {e}"))?;
+
+        let val = eval
+            .value()
+            .ok_or_else(|| format!("listbox {code}: tidak ada return value"))?;
+        let clicked = val.get("clicked").and_then(|x| x.as_bool()).unwrap_or(false);
+        if clicked {
+            sleep(Duration::from_millis(400)).await;
+            let got = eval_string(
+                page,
+                r#"(() => {
+  const sel = document.querySelector('#vs3 .vs__selected-options, #vs3 .vs__selected');
+  if (!sel) return '';
+  const strong = sel.querySelector('strong');
+  const text = (strong ? strong.textContent : sel.textContent || '').trim().toUpperCase();
+  const m = text.match(/^([A-Z0-9]{1,5})/);
+  return m ? m[1] : text.split(/\s+/)[0];
+})()"#,
+            )
+            .await?;
+            if got == code {
+                eprintln!("ScrapZipFromBei: emiten {code} terpilih");
+                sleep(Duration::from_millis(300)).await;
+                return Ok(());
+            }
+            last_hint = format!("klik OK tapi terpilih={got}");
+        } else {
+            let step = val
+                .get("step")
+                .and_then(|x| x.as_str())
+                .unwrap_or("?");
+            let count = val.get("count").and_then(|x| x.as_u64()).unwrap_or(0);
+            last_hint = format!("{step} (li={count})");
+        }
+        sleep(Duration::from_millis(SEARCH_POLL_MS)).await;
+    }
+
+    save_screenshot_stuck(page).await;
+    Err(format!(
+        "timeout dropdown emiten {code} setelah {}ms — terakhir: {last_hint}",
+        started.elapsed().as_millis()
+    ))
 }
 
 async fn reset_filters(page: &Page) -> Result<(), String> {
@@ -527,7 +541,7 @@ async fn reset_filters(page: &Page) -> Result<(), String> {
     )
     .await?;
     if clicked {
-        sleep(Duration::from_millis(500)).await;
+        sleep(Duration::from_millis(300)).await;
     }
     Ok(())
 }
@@ -561,7 +575,7 @@ async fn select_filters(page: &Page, year_id: &str, period_id: &str) -> Result<(
             "filter tahun/periode tidak ditemukan ({year_id}, {period_id})"
         ));
     }
-    sleep(Duration::from_millis(400)).await;
+    sleep(Duration::from_millis(300)).await;
     Ok(())
 }
 
@@ -580,7 +594,7 @@ async fn click_terapkan(page: &Page) -> Result<(), String> {
     if !clicked {
         return Err("tombol Terapkan tidak ditemukan".into());
     }
-    sleep(Duration::from_millis(800)).await;
+    sleep(Duration::from_millis(500)).await;
     Ok(())
 }
 
@@ -609,36 +623,6 @@ async fn table_poll_state(page: &Page) -> Result<String, String> {
     eval_string(page, TABLE_POLL_JS).await
 }
 
-async fn wait_idx_settled(page: &Page, job_gen: u64) -> Result<(), String> {
-    let started = Instant::now();
-    while started.elapsed() < Duration::from_millis(WAIT_SETTLE_MS) {
-        check_scrap_job(job_gen)?;
-        match table_poll_state(page).await?.as_str() {
-            "found" | "not_found" => return Ok(()),
-            "loading" | "waiting" => sleep(Duration::from_millis(POLL_MS)).await,
-            _ => sleep(Duration::from_millis(POLL_MS)).await,
-        }
-    }
-    Err("auto-load IDX masih spinner".into())
-}
-
-async fn recover_idx_after_select(page: &Page, code: &str, job_gen: u64) -> Result<(), String> {
-    check_scrap_job(job_gen)?;
-    page.reload()
-        .await
-        .map_err(|e| format!("reload IDX: {e}"))?;
-    sleep(Duration::from_secs(3)).await;
-    apply_desktop_viewport(page)
-        .await
-        .map_err(|e| format!("viewport desktop setelah reload: {e}"))?;
-    if !page_idx_ready(page).await? {
-        goto_idx(page, job_gen).await?;
-    }
-    search_company(page, code, job_gen).await?;
-    let _ = wait_idx_settled(page, job_gen).await;
-    Ok(())
-}
-
 enum TableState {
     Found,
     NotFound,
@@ -656,7 +640,7 @@ async fn wait_table(page: &Page, job_gen: u64) -> Result<TableState, String> {
             "found" => return Ok(TableState::Found),
             "not_found" => return Ok(TableState::NotFound),
             "loading" => {
-                if !retried_terapkan && started.elapsed() > Duration::from_secs(25) {
+                if !retried_terapkan && started.elapsed() > Duration::from_secs(12) {
                     eprintln!("ScrapZipFromBei: loading lama — klik Terapkan ulang");
                     let _ = click_terapkan(page).await;
                     retried_terapkan = true;

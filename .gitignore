@@ -6,6 +6,7 @@
 .env
 logs/
 worker_scrapping/browser_data/
+crate/xlbr_laporan_keuangan/browser_data/
 *.log
 backup_database/
 crate/xlbr_laporan_keuangan/src/downloaded_xbrl/

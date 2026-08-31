@@ -10,7 +10,7 @@
 //! `STOCKBIT_2FA_TIMEOUT_SECS`, `STOCKBIT_SESSION_CHECK_SECS` (default random 60–300 untuk
 //! jendela cek readiness di `/stream`; default **2** untuk worker/on-demand),
 //! `STOCKBIT_BEARER_CACHE_SECS` (default 300 — cache JWT antar scrape),
-//! `STOCKBIT_BROWSER_DATA_DIR`,
+//! `STOCKBIT_BROWSER_DATA_DIR`, `BEI_BROWSER_DATA_DIR` / `IDX_BROWSER_DATA_DIR` (Chrome idx.co.id),
 //! `CHROME_VIEWPORT_WIDTH` / `CHROME_VIEWPORT_HEIGHT` (default 1920×1028),
 //! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 540–600 —
 //! interval poller readiness setelah cek pertama Senin–Jumat 09:00:00–09:00:59),

@@ -1,11 +1,11 @@
 //! Chrome pool terpisah untuk scrape idx.co.id (BEI) — tidak memakai profil / lock Stockbit.
 
-use chromiumoxide::browser::{Browser, BrowserConfig};
+use chromiumoxide::browser::Browser;
 use chromiumoxide::cdp::browser_protocol::network::ClearBrowserCookiesParams;
 use chromiumoxide::cdp::browser_protocol::storage::ClearDataForOriginParams;
 use chromiumoxide::page::Page;
 use futures::StreamExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{OnceLock};
 use std::time::Duration;
 use tokio::sync::{Mutex, MutexGuard};
@@ -116,6 +116,9 @@ pub async fn launch_idx_page() -> Result<(IdxBrowserSession, Page), StockbitErro
     }
 
     let (browser, page) = launch_fresh_idx_browser().await?;
+    if let Err(e) = reset_idx_browser_state(&page).await {
+        eprintln!("Chrome BEI: reset cookie launch awal — {e}");
+    }
     eprintln!("Chrome BEI: ready");
     *slot = Some(PersistentIdxChrome {
         browser,
@@ -124,7 +127,7 @@ pub async fn launch_idx_page() -> Result<(IdxBrowserSession, Page), StockbitErro
     Ok((IdxBrowserSession, page))
 }
 
-/// Hapus cookie & storage idx.co.id — reset sesi BEI dari awal setiap scrape.
+/// Hapus cookie & storage idx.co.id — dipanggil saat launch Chrome BEI pertama kali (bukan tiap scrape).
 pub async fn reset_idx_browser_state(page: &Page) -> Result<(), StockbitError> {
     page.execute(ClearBrowserCookiesParams::default()).await?;
     for origin in ["https://www.idx.co.id", "https://idx.co.id"] {
