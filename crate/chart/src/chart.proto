@@ -11,6 +11,7 @@ service Chart {
   // - Jumat 09:00–11:30 & 14:00–16:00 — GET Invezgo live; snapshot disimpan ke cache Moka+Redis.
   // Diluar jam operasional (istirahat, setelah 16:00), Sabtu/Minggu, dan tanggal invezgood.hari_libur:
   // baca cache Moka→Redis; miss → GET Invezgo 1x lalu simpan; request ulang kirim dari cache.
+  // Bila diakses jam 00:00 - 09:00 pada hari senin - jumat dan bukan hari libur berikan no result dengan pesan error "Market belum buka."
   // Response intraday: bila open=0 → open=close; bila low=0 dan high=0 → low=high=close (sebelum return/cache).
   // Debug log: GetCurrentDayChartFromInvezgo {user} {ms}ms - {code} O= H= L= C=
   rpc GetCurrentDayChartFromInvezgo(GetCurrentDayChartFromInvezgoRequest)
