@@ -11,7 +11,7 @@ use crate::model::{StockbitReportStreamDb, StockbitReportsDb};
 
 const STREAM_REPORTS_URL: &str = "https://exodus.stockbit.com/stream/v3/symbol";
 const REPORTS_LIMIT: u32 = 20;
-const STOCKBIT_REPORTS_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
+const STOCKBIT_REPORTS_MAX_AGE_SECS: i64 = 24 * 60 * 60;
 
 #[derive(Debug, Deserialize)]
 struct ApiReportsResponse {
@@ -24,7 +24,7 @@ struct ApiReportsData {
     stream: Vec<StockbitReportStreamDb>,
 }
 
-/// Perlu GET Stockbit API bila `stockbit_reports_updated_at` kosong atau ≥ 7 hari.
+/// Perlu GET Stockbit API bila `stockbit_reports_updated_at` kosong atau ≥ 1 hari.
 pub fn needs_stockbit_reports_refresh(updated_at: Option<DateTime<Utc>>) -> bool {
     let Some(updated_at) = updated_at else {
         return true;

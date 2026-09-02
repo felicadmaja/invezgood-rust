@@ -77,7 +77,8 @@ use crate::pb::{
     UpdateWyckoffChartByCodeResponse, WyckoffChartData,
 };
 
-const INVEZGO_DATA_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
+const INVEZGO_FINANCIAL_MAX_AGE_SECS: i64 = 24 * 60 * 60;
+const INVEZGO_CORPORATE_ACTION_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
 const SHARE_HOLDER_DATA_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
 const KEYSTATS_FROM_STOCKBIT_COOLDOWN: Duration = Duration::from_secs(5);
 
@@ -2007,7 +2008,7 @@ impl StockList for StockListService {
                             "Stockbit profile di-upsert ke stock_list"
                         } else {
                             eprintln!(
-                                "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<7 hari, data ada)"
+                                "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<1 hari, data ada)"
                             );
                             "Stockbit profile dari Scylla"
                         };
@@ -2167,7 +2168,7 @@ impl StockList for StockListService {
                 let refresh = existing
                     .as_ref()
                     .map(|row| {
-                        Self::should_refresh(kind.updated_at(row), INVEZGO_DATA_MAX_AGE_SECS)
+                        Self::should_refresh(kind.updated_at(row), INVEZGO_FINANCIAL_MAX_AGE_SECS)
                     })
                     .unwrap_or(true);
 
@@ -2353,7 +2354,7 @@ impl StockList for StockListService {
                 .map(|row| {
                     Self::should_refresh(
                         row.corporate_action_updated_at,
-                        INVEZGO_DATA_MAX_AGE_SECS,
+                        INVEZGO_CORPORATE_ACTION_MAX_AGE_SECS,
                     )
                 })
                 .unwrap_or(true);

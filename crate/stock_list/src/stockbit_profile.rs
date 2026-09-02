@@ -10,7 +10,7 @@ use stockbit_browser::ensure_stockbit_bearer;
 use crate::model::StockbitProfileDb;
 
 const PROFILE_URL: &str = "https://exodus.stockbit.com/emitten";
-const STOCKBIT_PROFILE_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
+const STOCKBIT_PROFILE_MAX_AGE_SECS: i64 = 24 * 60 * 60;
 
 #[derive(Debug, Deserialize)]
 struct ApiProfileResponse {
@@ -53,7 +53,7 @@ pub fn is_stockbit_profile_empty(profile: &StockbitProfileDb) -> bool {
         && !key_executive_has_entries(&profile.key_executive)
 }
 
-/// Perlu GET Stockbit API bila `stockbit_profile` kosong/null atau `stockbit_profile_updated_at` ≥ 7 hari.
+/// Perlu GET Stockbit API bila `stockbit_profile` kosong/null atau `stockbit_profile_updated_at` ≥ 1 hari.
 pub fn needs_stockbit_profile_refresh(
     profile: Option<&StockbitProfileDb>,
     updated_at: Option<DateTime<Utc>>,

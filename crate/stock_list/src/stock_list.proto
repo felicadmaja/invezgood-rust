@@ -19,22 +19,22 @@ service StockList {
       returns (stream GetStockByRepeatedCodeResponse);
 
   // Stream: push KeyStatsFromStockbitResponse per bagian (stats, closure group, fin year group, dividend).
-  // GET Stockbit API bila kolom kosong atau *_updated_at >7 hari. Rate limit 1× / 5 detik saat GET API.
+  // GET Stockbit API bila kolom kosong atau *_updated_at >1 hari. Rate limit 1× / 5 detik saat GET API.
   rpc GetKeyStatsFromStockbit(GetKeyStatsFromStockbitRequest)
       returns (stream KeyStatsFromStockbitResponse);
 
   // Stream: push StockbitProfileResponse (meta + tiap item repeated) per code.
-  // GET Stockbit API bila stockbit_profile kosong atau stockbit_profile_updated_at ≥ 7 hari.
+  // GET Stockbit API bila stockbit_profile kosong atau stockbit_profile_updated_at ≥ 1 hari.
   rpc GetStockbitProfileByCode(GetStockbitProfileByCodeRequest)
       returns (stream StockbitProfileResponse);
 
   // Stream: push StockbitReportsRow (meta + tiap stream report) per code.
-  // GET Stockbit API bila stockbit_reports_updated_at ≥ 7 hari atau kosong.
+  // GET Stockbit API bila stockbit_reports_updated_at ≥ 1 hari atau kosong.
   rpc GetStockbitReportsByCode(GetStockbitReportsByCodeRequest)
       returns (stream StockbitReportsRow);
 
   // GET Invezgo per jenis → upsert keystats, balance_statement, income_statement, cash_flow + *_updated_at.
-  // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >7 hari. Bearer INVEZGO_BEARER_TOKEN.
+  // Baca Scylla by PK code; refresh API per kolom bila *_updated_at kosong atau >1 hari. Bearer INVEZGO_BEARER_TOKEN.
   // Request: code wajib. Response: FinancialStatementResponse (keystats, balance_statement, income_statement, cash_flow).
   rpc GetFinancialStatementByCode(GetFinancialStatementByCodeRequest) returns (FinancialStatementResponse);
 
