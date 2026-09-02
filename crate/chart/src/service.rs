@@ -32,7 +32,7 @@ fn is_pre_market_weekday(weekday: chrono::Weekday, hour: u32, minute: u32) -> bo
 }
 
 /// Senin–Kamis: live 09:00–12:00 & 13:30–16:00. Jumat: 09:00–11:30 & 14:00–16:00.
-/// Senin–Jumat 00:00–09:00: PreMarketClosed. Selain itu (istirahat, setelah 16:00, Sabtu/Minggu): Cached.
+/// Senin–Jumat 00:00–08:59: PreMarketClosed. Selain itu (istirahat, setelah 16:00, Sabtu/Minggu): Cached.
 fn current_day_chart_mode() -> CurrentDayMode {
     let now = Local::now();
     let weekday = now.weekday();
