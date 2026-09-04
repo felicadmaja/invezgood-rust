@@ -2008,7 +2008,7 @@ impl StockList for StockListService {
                             "Stockbit profile di-upsert ke stock_list"
                         } else {
                             eprintln!(
-                                "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<1 hari, data ada)"
+                                "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<30 hari, data ada)"
                             );
                             "Stockbit profile dari Scylla"
                         };
