@@ -8,12 +8,9 @@
 //! Redis down → treat sebagai cache kosong (tetap cek Yahoo).
 
 use std::collections::{HashMap, HashSet};
-use std::sync::OnceLock;
 
 use chrono::{Local, TimeZone};
-use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
-use tokio::sync::Mutex;
 
 fn reported_key() -> String {
     format!(
@@ -27,10 +24,6 @@ fn today_key() -> String {
         "invezgood:yahoo_atr:spike_today:{}",
         Local::now().format("%Y-%m-%d")
     )
-}
-
-fn redis_url() -> String {
-    std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string())
 }
 
 /// Detik sampai 23:59:59 waktu lokal hari ini (minimal 1).
@@ -47,40 +40,17 @@ fn ttl_until_end_of_day_secs() -> u64 {
     (end - now).num_seconds().max(1) as u64
 }
 
-static REDIS: OnceLock<Mutex<Option<ConnectionManager>>> = OnceLock::new();
-
-fn redis_slot() -> &'static Mutex<Option<ConnectionManager>> {
-    REDIS.get_or_init(|| Mutex::new(None))
-}
-
-async fn connection() -> Result<ConnectionManager, String> {
-    let mut guard = redis_slot().lock().await;
-    if let Some(conn) = guard.as_ref() {
-        return Ok(conn.clone());
-    }
-    let client = redis::Client::open(redis_url()).map_err(|e| e.to_string())?;
-    let mgr = ConnectionManager::new(client)
-        .await
-        .map_err(|e| e.to_string())?;
-    *guard = Some(mgr.clone());
-    Ok(mgr)
-}
-
 /// Emiten yang sudah di-stream ke client hari ini (jangan GET Yahoo lagi).
 pub async fn already_reported() -> HashSet<String> {
-    let mut conn = match connection().await {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Redis yahoo_atr spike get: koneksi gagal ({e}) — cache miss");
-            return HashSet::new();
-        }
-    };
-    let members: Vec<String> = match conn.smembers(reported_key()).await {
+    let key = reported_key();
+    let members: Vec<String> = match crate::spike_redis::with_retry(
+        "Redis yahoo_atr spike SMEMBERS",
+        |mut conn| async move { conn.smembers(&key).await },
+    )
+    .await
+    {
         Ok(v) => v,
-        Err(e) => {
-            eprintln!("Redis yahoo_atr spike SMEMBERS: {e} — cache miss");
-            return HashSet::new();
-        }
+        Err(()) => return HashSet::new(),
     };
     members
         .into_iter()
@@ -94,13 +64,6 @@ pub async fn mark_reported(emitens: &[String]) {
     if emitens.is_empty() {
         return;
     }
-    let mut conn = match connection().await {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Redis yahoo_atr spike set: koneksi gagal ({e})");
-            return;
-        }
-    };
     let codes: Vec<String> = emitens
         .iter()
         .map(|s| s.trim().to_ascii_uppercase())
@@ -110,17 +73,25 @@ pub async fn mark_reported(emitens: &[String]) {
         return;
     }
     let key = reported_key();
-    let added: i64 = match conn.sadd(&key, &codes).await {
+    let added: i64 = match crate::spike_redis::with_retry(
+        "Redis yahoo_atr spike SADD",
+        |mut conn| {
+            let key = key.clone();
+            let codes = codes.clone();
+            async move { conn.sadd(&key, &codes).await }
+        },
+    )
+    .await
+    {
         Ok(n) => n,
-        Err(e) => {
-            eprintln!("Redis yahoo_atr spike SADD: {e}");
-            return;
-        }
+        Err(()) => return,
     };
     let secs = ttl_until_end_of_day_secs();
-    if let Err(e) = conn.expire::<_, ()>(&key, secs as i64).await {
-        eprintln!("Redis yahoo_atr spike EXPIRE: {e}");
-    }
+    let _ = crate::spike_redis::with_retry("Redis yahoo_atr spike EXPIRE", |mut conn| {
+        let key = key.clone();
+        async move { conn.expire::<_, ()>(&key, secs as i64).await.map(|_| ()) }
+    })
+    .await;
     if added > 0 {
         println!(
             "Yahoo spike cache: +{added} emiten di-Redis (skip Yahoo s/d 23:59:59) {}",
@@ -131,19 +102,18 @@ pub async fn mark_reported(emitens: &[String]) {
 
 /// Detail spike yang sudah di-output hari ini (untuk stream reconnect).
 pub async fn today_details() -> Vec<crate::yahoo_atr::SpikeEmiten> {
-    let mut conn = match connection().await {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Redis yahoo_atr spike_today get: koneksi gagal ({e})");
-            return Vec::new();
-        }
-    };
-    let raw: Option<String> = match conn.get(today_key()).await {
+    let key = today_key();
+    let raw: Option<String> = match crate::spike_redis::with_retry(
+        "Redis yahoo_atr spike_today GET",
+        |mut conn| {
+            let key = key.clone();
+            async move { conn.get(&key).await }
+        },
+    )
+    .await
+    {
         Ok(v) => v,
-        Err(e) => {
-            eprintln!("Redis yahoo_atr spike_today GET: {e}");
-            return Vec::new();
-        }
+        Err(()) => return Vec::new(),
     };
     let Some(raw) = raw else {
         return Vec::new();
@@ -155,13 +125,6 @@ pub async fn today_details() -> Vec<crate::yahoo_atr::SpikeEmiten> {
 }
 
 pub async fn set_today_details(items: &[crate::yahoo_atr::SpikeEmiten]) {
-    let mut conn = match connection().await {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Redis yahoo_atr spike_today set: koneksi gagal ({e})");
-            return;
-        }
-    };
     let raw = match serde_json::to_string(items) {
         Ok(s) => s,
         Err(e) => {
@@ -170,14 +133,22 @@ pub async fn set_today_details(items: &[crate::yahoo_atr::SpikeEmiten]) {
         }
     };
     let key = today_key();
-    if let Err(e) = conn.set::<_, _, ()>(&key, raw).await {
-        eprintln!("Redis yahoo_atr spike_today SET: {e}");
+    if crate::spike_redis::with_retry("Redis yahoo_atr spike_today SET", |mut conn| {
+        let key = key.clone();
+        let raw = raw.clone();
+        async move { conn.set::<_, _, ()>(&key, raw).await.map(|_| ()) }
+    })
+    .await
+    .is_err()
+    {
         return;
     }
     let secs = ttl_until_end_of_day_secs();
-    if let Err(e) = conn.expire::<_, ()>(&key, secs as i64).await {
-        eprintln!("Redis yahoo_atr spike_today EXPIRE: {e}");
-    }
+    let _ = crate::spike_redis::with_retry("Redis yahoo_atr spike_today EXPIRE", |mut conn| {
+        let key = key.clone();
+        async move { conn.expire::<_, ()>(&key, secs as i64).await.map(|_| ()) }
+    })
+    .await;
 }
 
 fn merge_first_wins(

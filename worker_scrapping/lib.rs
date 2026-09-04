@@ -10,6 +10,7 @@ pub mod portofolio_equity_worker;
 pub mod portofolio_history_worker;
 pub mod portofolio_worker;
 pub mod rate_limit_delay;
+pub mod spike_redis;
 pub mod invezgo_atr;
 pub mod invezgo_spike_cache;
 pub mod invezgo_spike_poller;
