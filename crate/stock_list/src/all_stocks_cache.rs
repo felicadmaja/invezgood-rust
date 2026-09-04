@@ -4,14 +4,20 @@ use std::time::Duration;
 
 use moka::future::Cache;
 
-use crate::pb::GetAllStocksResponse;
+use crate::pb::StockListRow;
 
 const CACHE_KEY: &str = "all";
 const TTL_SECS: u64 = 60;
 
 #[derive(Clone)]
+pub struct CachedAllStocks {
+    pub message: String,
+    pub items: Vec<StockListRow>,
+}
+
+#[derive(Clone)]
 pub struct AllStocksCache {
-    moka: Cache<String, GetAllStocksResponse>,
+    moka: Cache<String, CachedAllStocks>,
 }
 
 impl AllStocksCache {
@@ -23,11 +29,11 @@ impl AllStocksCache {
         Self { moka }
     }
 
-    pub async fn get(&self) -> Option<GetAllStocksResponse> {
+    pub async fn get(&self) -> Option<CachedAllStocks> {
         self.moka.get(CACHE_KEY).await
     }
 
-    pub async fn set(&self, response: GetAllStocksResponse) {
-        self.moka.insert(CACHE_KEY.to_string(), response).await;
+    pub async fn set(&self, cached: CachedAllStocks) {
+        self.moka.insert(CACHE_KEY.to_string(), cached).await;
     }
 }

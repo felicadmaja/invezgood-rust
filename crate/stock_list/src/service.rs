@@ -35,7 +35,7 @@ use crate::pb::stock_list_server::StockList;
 use crate::pb::{
     CompanyInformationData, CompanyPersonEntry, CompanySubsidiaryEntry,
     CorporateActionByCodeResponse, CorporateActionData, CorporateActionEntry,
-    FinancialStatementResponse, FinancialStatementRowItem,     GetAllKeyStatsRequest, GetAllKeyStatsResponse, GetAllKeyStatsStreamPart, GetAllStocksRequest, GetAllStocksResponse,
+    FinancialStatementResponse, FinancialStatementRowItem,     GetAllKeyStatsRequest, GetAllKeyStatsResponse, GetAllKeyStatsStreamPart, GetAllStocksRequest, GetAllStocksResponse, GetAllStocksStreamPart,
     GetCorporateActionByCodeRequest, GetFinancialStatementByCodeRequest,
     GetHorizontalLineByCodeRequest, GetHorizontalLineByCodeResponse,
     GetTakeProfitWyckoffByCodeRequest, GetTakeProfitWyckoffByCodeResponse,
@@ -80,7 +80,35 @@ use crate::pb::{
 const INVEZGO_FINANCIAL_MAX_AGE_SECS: i64 = 24 * 60 * 60;
 const INVEZGO_CORPORATE_ACTION_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
 const SHARE_HOLDER_DATA_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
-const KEYSTATS_FROM_STOCKBIT_COOLDOWN: Duration = Duration::from_secs(5);
+const STOCKBIT_API_GET_COOLDOWN: Duration = Duration::from_secs(5);
+
+enum StockbitApiGetSlot {
+    Acquired,
+    RateLimited { remaining_secs: u64 },
+}
+
+static LAST_STOCKBIT_API_GET: OnceLock<Mutex<Option<std::time::Instant>>> = OnceLock::new();
+
+fn stockbit_api_get_gate() -> &'static Mutex<Option<std::time::Instant>> {
+    LAST_STOCKBIT_API_GET.get_or_init(|| Mutex::new(None))
+}
+
+/// Rate limit hanya untuk GET Stockbit API (bukan RPC). `Acquired` = boleh GET; `RateLimited` = skip GET, RPC tetap jalan.
+async fn try_acquire_stockbit_api_get_slot(caller: &str, user_name: &str) -> StockbitApiGetSlot {
+    let mut last = stockbit_api_get_gate().lock().await;
+    if let Some(at) = *last {
+        let elapsed = at.elapsed();
+        if elapsed < STOCKBIT_API_GET_COOLDOWN {
+            let remaining_secs = (STOCKBIT_API_GET_COOLDOWN - elapsed).as_secs().max(1);
+            eprintln!(
+                "{caller} {user_name} rate-limit GET Stockbit API: skip, sisa {remaining_secs}s"
+            );
+            return StockbitApiGetSlot::RateLimited { remaining_secs };
+        }
+    }
+    *last = Some(std::time::Instant::now());
+    StockbitApiGetSlot::Acquired
+}
 
 type GetStockbitProfileByCodeStream =
     Pin<Box<dyn Stream<Item = Result<StockbitProfileResponse, Status>> + Send>>;
@@ -97,29 +125,8 @@ type GetStockByRepeatedCodeStream =
 type GetAllKeyStatsStream =
     Pin<Box<dyn Stream<Item = Result<GetAllKeyStatsResponse, Status>> + Send>>;
 
-static LAST_KEYSTATS_FROM_STOCKBIT: OnceLock<Mutex<Option<std::time::Instant>>> = OnceLock::new();
-
-fn keystats_from_stockbit_gate() -> &'static Mutex<Option<std::time::Instant>> {
-    LAST_KEYSTATS_FROM_STOCKBIT.get_or_init(|| Mutex::new(None))
-}
-
-async fn acquire_keystats_from_stockbit_slot(user_name: &str) -> Result<(), Status> {
-    let mut last = keystats_from_stockbit_gate().lock().await;
-    if let Some(at) = *last {
-        let elapsed = at.elapsed();
-        if elapsed < KEYSTATS_FROM_STOCKBIT_COOLDOWN {
-            let remaining_secs = (KEYSTATS_FROM_STOCKBIT_COOLDOWN - elapsed).as_secs().max(1);
-            eprintln!(
-                "GetKeyStatsFromStockbit {user_name} rate-limit ditolak: sisa {remaining_secs}s"
-            );
-            return Err(Status::failed_precondition(format!(
-                "Rate limit: maksimal 1× / 5 detik untuk semua user. Tunggu {remaining_secs} detik lagi"
-            )));
-        }
-    }
-    *last = Some(std::time::Instant::now());
-    Ok(())
-}
+type GetAllStocksStream =
+    Pin<Box<dyn Stream<Item = Result<GetAllStocksResponse, Status>> + Send>>;
 
 const ALL_STATEMENT_KINDS: [StatementKind; 4] = [
     StatementKind::Keystats,
@@ -386,6 +393,52 @@ impl StockListService {
             valuation_assesment: i32::from(row.valuation_assesment.unwrap_or(0)),
             catatan_bidang_usaha: row.catatan_bidang_usaha.unwrap_or_default(),
         }
+    }
+
+    async fn stream_all_stocks_chunks(
+        tx: &tokio::sync::mpsc::Sender<Result<GetAllStocksResponse, Status>>,
+        message: &str,
+        items: Vec<StockListRow>,
+    ) -> bool {
+        if !send_or_break(
+            tx,
+            Ok(GetAllStocksResponse {
+                success: true,
+                message: message.to_string(),
+                part: GetAllStocksStreamPart::Meta.into(),
+                ..Default::default()
+            }),
+        )
+        .await
+        {
+            return false;
+        }
+
+        for item in items {
+            if !send_or_break(
+                tx,
+                Ok(GetAllStocksResponse {
+                    success: true,
+                    item: Some(item),
+                    part: GetAllStocksStreamPart::Item.into(),
+                    ..Default::default()
+                }),
+            )
+            .await
+            {
+                return false;
+            }
+        }
+
+        send_or_break(
+            tx,
+            Ok(GetAllStocksResponse {
+                success: true,
+                part: GetAllStocksStreamPart::Done.into(),
+                ..Default::default()
+            }),
+        )
+        .await
     }
 
     fn financial_rows_to_proto(rows: Vec<crate::model::BalanceStatementRow>) -> Vec<FinancialStatementRowItem> {
@@ -1603,6 +1656,36 @@ impl StockListService {
         Ok(chunks)
     }
 
+    fn stockbit_profile_notice_stream(code: &str, message: &str) -> Vec<StockbitProfileResponse> {
+        let updated_at = Utc::now();
+        let msg = message.to_string();
+        vec![
+            StockbitProfileResponse {
+                success: false,
+                message: msg.clone(),
+                code: code.to_string(),
+                data: Some(StockbitProfileData::default()),
+                updated_at: Some(updated_at.timestamp()),
+                part: StockbitProfileStreamPart::Meta.into(),
+            },
+            StockbitProfileResponse {
+                success: false,
+                message: msg,
+                code: code.to_string(),
+                data: Some(StockbitProfileData::default()),
+                updated_at: Some(updated_at.timestamp()),
+                part: StockbitProfileStreamPart::Done.into(),
+            },
+        ]
+    }
+
+    fn stockbit_profile_scylla_empty(profile: Option<&StockbitProfileDb>) -> bool {
+        match profile {
+            None => true,
+            Some(p) => crate::stockbit_profile::is_stockbit_profile_empty(p),
+        }
+    }
+
     fn stockbit_reports_stream_chunk(
         code: &str,
         message: &str,
@@ -1664,67 +1747,91 @@ impl StockList for StockListService {
     type GetStockbitReportsByCodeStream = GetStockbitReportsByCodeStream;
     type GetStockByRepeatedCodeStream = GetStockByRepeatedCodeStream;
     type GetAllKeyStatsStream = GetAllKeyStatsStream;
+    type GetAllStocksStream = GetAllStocksStream;
 
     async fn get_all_stocks(
         &self,
         request: Request<GetAllStocksRequest>,
-    ) -> Result<Response<GetAllStocksResponse>, Status> {
+    ) -> Result<Response<Self::GetAllStocksStream>, Status> {
         let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
+        let _ = request.into_inner();
+
+        let user_name_spawn = user_name.clone();
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         if let Some(cached) = self.all_stocks_cache.get().await {
             eprintln!(
                 "GetAllStocks {user_name} {}ms - HIT moka",
                 started.elapsed().as_millis()
             );
-            return Ok(Response::new(cached));
+            tokio::spawn(async move {
+                Self::stream_all_stocks_chunks(&tx, &cached.message, cached.items).await;
+                Self::log_rpc_debug("GetAllStocks", &user_name_spawn, started);
+            });
+            return Ok(Response::new(
+                Box::pin(ReceiverStream::new(rx)) as GetAllStocksStream,
+            ));
         }
 
-        let result: Result<Response<GetAllStocksResponse>, Status> = async {
-            let _inner = request.into_inner();
+        let session = Arc::clone(&self.session);
+        let redis = self.redis.clone();
+        let cache = self.all_stocks_cache.clone();
 
-            let mut redis_conn = self
-                .redis
-                .get_multiplexed_tokio_connection()
-                .await
-                .map_err(|e| Status::internal(format!("redis connect: {e}")))?;
+        tokio::spawn(async move {
+            let load_result: Result<(String, Vec<StockListRow>), Status> = async {
+                let mut redis_conn = redis
+                    .get_multiplexed_tokio_connection()
+                    .await
+                    .map_err(|e| Status::internal(format!("redis connect: {e}")))?;
 
-            let refresh = crate::redis_cache::should_refresh_from_api(&mut redis_conn)
-                .await
-                .map_err(Status::internal)?;
-
-            let message = if refresh {
-                let count = crate::invezgo::fetch_and_save(self.session.clone())
+                let refresh = crate::redis_cache::should_refresh_from_api(&mut redis_conn)
                     .await
                     .map_err(Status::internal)?;
-                crate::redis_cache::set_updated_at(&mut redis_conn)
+
+                let message = if refresh {
+                    let count = crate::invezgo::fetch_and_save(session.clone())
+                        .await
+                        .map_err(Status::internal)?;
+                    crate::redis_cache::set_updated_at(&mut redis_conn)
+                        .await
+                        .map_err(Status::internal)?;
+                    format!("refresh Invezgo: {count} saham disimpan ke stock_list")
+                } else {
+                    "cache valid (<30 hari): baca dari Scylla".into()
+                };
+
+                let rows = crate::repository::list_all(session.as_ref())
                     .await
                     .map_err(Status::internal)?;
-                format!("refresh Invezgo: {count} saham disimpan ke stock_list")
-            } else {
-                "cache valid (<30 hari): baca dari Scylla".into()
-            };
 
-            let rows = crate::repository::list_all(self.session.as_ref())
-                .await
-                .map_err(Status::internal)?;
+                let items = rows.into_iter().map(Self::summary_row_to_proto).collect();
+                Ok((message, items))
+            }
+            .await;
 
-            let items = rows.into_iter().map(Self::summary_row_to_proto).collect();
+            match load_result {
+                Ok((message, items)) => {
+                    cache
+                        .set(crate::all_stocks_cache::CachedAllStocks {
+                            message: message.clone(),
+                            items: items.clone(),
+                        })
+                        .await;
+                    Self::stream_all_stocks_chunks(&tx, &message, items).await;
+                }
+                Err(status) => {
+                    let _ = send_or_break(&tx, Err(status)).await;
+                }
+            }
 
-            let response = GetAllStocksResponse {
-                success: true,
-                message,
-                items,
-            };
-            self.all_stocks_cache.set(response.clone()).await;
+            Self::log_rpc_debug("GetAllStocks", &user_name_spawn, started);
+        });
 
-            Ok(Response::new(response))
-        }
-        .await;
-
-        Self::log_rpc_debug("GetAllStocks", &user_name, started);
-        result
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(rx)) as GetAllStocksStream,
+        ))
     }
 
     async fn get_stock_by_code(
@@ -1881,32 +1988,53 @@ impl StockList for StockListService {
                             Status::not_found(format!("stock_list code={code} tidak ditemukan"))
                         })?;
 
-                        let message = if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
-                            acquire_keystats_from_stockbit_slot(&user_name_spawn).await?;
-                            eprintln!(
-                                "GetKeyStatsFromStockbit {user_name_spawn} GET Stockbit API keystats/ratio/v1/{code}"
-                            );
-                            crate::stockbit::fetch_and_save_keystats_from_stockbit(
-                                Arc::clone(&session),
-                                &code,
+                        let chunks = if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
+                            match try_acquire_stockbit_api_get_slot(
+                                "GetKeyStatsFromStockbit",
+                                &user_name_spawn,
                             )
                             .await
-                            .map_err(Status::internal)?;
-                            row = crate::repository::get_keystats_from_stockbit_by_code(
-                                session.as_ref(),
-                                &code,
-                            )
-                            .await
-                            .map_err(Status::internal)?
-                            .ok_or_else(|| {
-                                Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                            })?;
-                            "Key stats Stockbit di-upsert ke stock_list"
+                            {
+                                StockbitApiGetSlot::Acquired => {
+                                    eprintln!(
+                                        "GetKeyStatsFromStockbit {user_name_spawn} GET Stockbit API keystats/ratio/v1/{code}"
+                                    );
+                                    crate::stockbit::fetch_and_save_keystats_from_stockbit(
+                                        Arc::clone(&session),
+                                        &code,
+                                    )
+                                    .await
+                                    .map_err(Status::internal)?;
+                                    row = crate::repository::get_keystats_from_stockbit_by_code(
+                                        session.as_ref(),
+                                        &code,
+                                    )
+                                    .await
+                                    .map_err(Status::internal)?
+                                    .ok_or_else(|| {
+                                        Status::not_found(format!(
+                                            "stock_list code={code} tidak ditemukan"
+                                        ))
+                                    })?;
+                                    Self::keystats_from_stockbit_row_stream(
+                                        row,
+                                        "Key stats Stockbit di-upsert ke stock_list",
+                                    )
+                                }
+                                StockbitApiGetSlot::RateLimited { remaining_secs } => {
+                                    Self::keystats_from_stockbit_row_stream(
+                                        row,
+                                        &format!(
+                                            "Key stats Stockbit dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
+                                        ),
+                                    )
+                                }
+                            }
                         } else {
-                            "Key stats Stockbit dari Scylla"
+                            Self::keystats_from_stockbit_row_stream(row, "Key stats Stockbit dari Scylla")
                         };
 
-                        Ok(Self::keystats_from_stockbit_row_stream(row, message))
+                        Ok(chunks)
                     } => Some(result),
                 } {
                     None => {
@@ -1980,40 +2108,70 @@ impl StockList for StockListService {
                                     ))
                                 })?;
 
-                        let message = if crate::stockbit_profile::needs_stockbit_profile_refresh(
+                        let chunks = if crate::stockbit_profile::needs_stockbit_profile_refresh(
                             row.stockbit_profile.as_ref(),
                             row.stockbit_profile_updated_at,
                         ) {
-                            acquire_keystats_from_stockbit_slot(&user_name_spawn).await?;
-                            eprintln!(
-                                "\x1b[32mGetStockbitProfileByCode {user_name_spawn} GET Stockbit API emitten/{code}/profile\x1b[0m"
-                            );
-                            crate::stockbit_profile::fetch_and_save_stockbit_profile(
-                                Arc::clone(&session),
-                                &code,
+                            match try_acquire_stockbit_api_get_slot(
+                                "GetStockbitProfileByCode",
+                                &user_name_spawn,
                             )
                             .await
-                            .map_err(Status::internal)?;
-                            row = crate::repository::get_stockbit_profile_by_code(
-                                session.as_ref(),
-                                &code,
-                            )
-                            .await
-                            .map_err(Status::internal)?
-                            .ok_or_else(|| {
-                                Status::not_found(format!(
-                                    "stock_list code={code} tidak ditemukan"
-                                ))
-                            })?;
-                            "Stockbit profile di-upsert ke stock_list"
+                            {
+                                StockbitApiGetSlot::Acquired => {
+                                    eprintln!(
+                                        "\x1b[32mGetStockbitProfileByCode {user_name_spawn} GET Stockbit API Profile emitten/{code}/profile\x1b[0m"
+                                    );
+                                    crate::stockbit_profile::fetch_and_save_stockbit_profile(
+                                        Arc::clone(&session),
+                                        &code,
+                                    )
+                                    .await
+                                    .map_err(Status::internal)?;
+                                    row = crate::repository::get_stockbit_profile_by_code(
+                                        session.as_ref(),
+                                        &code,
+                                    )
+                                    .await
+                                    .map_err(Status::internal)?
+                                    .ok_or_else(|| {
+                                        Status::not_found(format!(
+                                            "stock_list code={code} tidak ditemukan"
+                                        ))
+                                    })?;
+                                    Self::stockbit_profile_row_stream(
+                                        row,
+                                        "Stockbit profile di-upsert ke stock_list",
+                                    )?
+                                }
+                                StockbitApiGetSlot::RateLimited { remaining_secs } => {
+                                    if Self::stockbit_profile_scylla_empty(
+                                        row.stockbit_profile.as_ref(),
+                                    ) {
+                                        Self::stockbit_profile_notice_stream(
+                                            &code,
+                                            &format!(
+                                                "Rate limit GET Stockbit API (tunggu {remaining_secs}s); data Scylla kosong"
+                                            ),
+                                        )
+                                    } else {
+                                        Self::stockbit_profile_row_stream(
+                                            row,
+                                            &format!(
+                                                "Stockbit profile dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
+                                            ),
+                                        )?
+                                    }
+                                }
+                            }
                         } else {
                             eprintln!(
                                 "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<30 hari, data ada)"
                             );
-                            "Stockbit profile dari Scylla"
+                            Self::stockbit_profile_row_stream(row, "Stockbit profile dari Scylla")?
                         };
 
-                        Self::stockbit_profile_row_stream(row, message)
+                        Ok(chunks)
                     } => Some(result),
                 } {
                     None => {
