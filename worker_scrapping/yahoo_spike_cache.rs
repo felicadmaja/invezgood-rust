@@ -45,7 +45,10 @@ pub async fn already_reported() -> HashSet<String> {
     let key = reported_key();
     let members: Vec<String> = match crate::spike_redis::with_retry(
         "Redis yahoo_atr spike SMEMBERS",
-        |mut conn| async move { conn.smembers(&key).await },
+        |mut conn| {
+            let key = key.clone();
+            async move { conn.smembers(&key).await }
+        },
     )
     .await
     {

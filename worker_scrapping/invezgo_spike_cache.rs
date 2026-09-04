@@ -62,7 +62,10 @@ async fn already_reported_for(kind: SpikeCacheKind) -> HashSet<String> {
     let key = reported_key(kind);
     let members: Vec<String> = match crate::spike_redis::with_retry(
         "Redis invezgo spike SMEMBERS",
-        |mut conn| async move { conn.smembers(&key).await },
+        |mut conn| {
+            let key = key.clone();
+            async move { conn.smembers(&key).await }
+        },
     )
     .await
     {
