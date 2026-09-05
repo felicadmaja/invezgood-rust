@@ -1,4 +1,4 @@
-//! Logic sync satu tanggal — dipakai RPC `GetTopForeignFlowByTanggal` dan scheduler harian.
+//! Logic sync satu tanggal — dipakai RPC `GetTopForeignFlowByTanggal`.
 
 use std::sync::Arc;
 
@@ -8,14 +8,6 @@ pub struct SyncOutcome {
     pub saved: usize,
     pub cached: bool,
     pub rows: Vec<crate::model::TopForeignFlowRow>,
-}
-
-/// True bila tanggal Sabtu/Minggu atau ada di `invezgood.hari_libur`.
-pub async fn is_non_trading_day(trade_date: chrono::NaiveDate) -> bool {
-    if market_holiday::is_weekend_date(trade_date) {
-        return true;
-    }
-    market_holiday::is_national_holiday_date(trade_date).await
 }
 
 pub async fn sync_trade_date(

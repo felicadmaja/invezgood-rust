@@ -6,8 +6,6 @@ service TopForeignFlow {
   // Baca MV top_foreign_flow_by_tahun_bulan_tanggal dulu; bila ≥1 baris → skip Invezgo, baca tabel dasar.
   // Bila MV kosong → GET api.invezgo.com/analysis/top/foreign?date=...&filter_column=value, upsert, baca Scylla.
   // Bearer login wajib. tahun_bulan_tanggal wajib ≥1 tanggal (YYYY-MM-DD), masing-masing bukan hari ini, bukan Sabtu/Minggu.
-  // Scheduler background (tanpa gRPC): setiap hari 08:30 waktu lokal — sync tanggal kemarin bila bukan
-  // Sabtu/Minggu/hari libur (invezgood.hari_libur); override jam/menit: TOP_FOREIGN_FLOW_SYNC_HOUR / TOP_FOREIGN_FLOW_SYNC_MINUTE.
   rpc GetTopForeignFlowByTanggal(GetTopForeignFlowByTanggalRequest) returns (GetTopForeignFlowByTanggalResponse);
 
   // Baca Scylla MV top_foreign_flow_by_code by PK code → baris penuh dari tabel dasar per PK.

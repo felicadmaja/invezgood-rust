@@ -9,11 +9,9 @@ pub const FILE_DESCRIPTOR_SET: &[u8] =
 mod invezgo;
 mod model;
 mod repository;
-mod scheduler;
 mod service;
 mod sync;
 
 pub use model::{TopForeignFlowPkRow, TopForeignFlowRow, KEYSPACE, MV_BY_CODE, MV_BY_TAHUN_BULAN_TANGGAL, TABLE};
 pub use pb::top_foreign_flow_server::{TopForeignFlow, TopForeignFlowServer};
-pub use scheduler::spawn_daily_top_foreign_flow_sync;
 pub use service::TopForeignFlowService;
