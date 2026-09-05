@@ -5,6 +5,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
+use chrono::Datelike;
+
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
 use chromiumoxide::element::Element;
 use chromiumoxide::page::{Page, ScreenshotParams};
@@ -172,17 +174,18 @@ pub async fn scrap_and_upload(
         return Err("code wajib diisi".into());
     }
 
-    let download_dir = download_dir();
+    let download_root = download_dir();
+    let emiten_dir = download_root.join(&code);
     let screenshot_dir = screenshot_dir();
-    tokio::fs::create_dir_all(&download_dir)
+    tokio::fs::create_dir_all(&emiten_dir)
         .await
-        .map_err(|e| format!("mkdir {}: {e}", download_dir.display()))?;
+        .map_err(|e| format!("mkdir {}: {e}", emiten_dir.display()))?;
     tokio::fs::create_dir_all(&screenshot_dir)
         .await
         .map_err(|e| format!("mkdir {}: {e}", screenshot_dir.display()))?;
 
     cleanup_screenshot_dir(&screenshot_dir).await;
-    cleanup_code_zips(&download_dir, &code).await;
+    cleanup_legacy_slot_zips(&download_root, &code).await;
     check_scrap_job(job_gen)?;
 
     let _lock = acquire_idx_browser_session()
@@ -228,6 +231,20 @@ pub async fn scrap_and_upload(
     for year_id in YEAR_IDS {
         for period_id in PERIOD_IDS {
             check_scrap_job(job_gen)?;
+
+            let zip_name = archive_zip_filename(year_id, period_id)
+                .ok_or_else(|| format!("label zip tidak valid: {year_id}/{period_id}"))?;
+            let zip_path = emiten_dir.join(&zip_name);
+            if zip_path.is_file() {
+                eprintln!(
+                    "ScrapZipFromBei: lewati {code} {year_id}/{period_id} — sudah ada {}",
+                    zip_path.display()
+                );
+                skipped += 1;
+                slot += 1;
+                continue;
+            }
+
             let label = format!("{code}-{slot:02}-{year_id}-{period_id}");
             save_screenshot(&page, &screenshot_dir, &format!("{label}-before")).await;
 
@@ -250,15 +267,18 @@ pub async fn scrap_and_upload(
 
             save_screenshot(&page, &screenshot_dir, &format!("{label}-found")).await;
 
-            let zip_path = download_dir.join(format!("{code}-{slot}.zip"));
             match download_inline_zip(&page, &zip_path).await {
                 Ok(()) => {
+                    eprintln!(
+                        "ScrapZipFromBei: simpan {} ({})",
+                        zip_path.display(),
+                        zip_name
+                    );
                     save_screenshot(&page, &screenshot_dir, &format!("{label}-downloaded")).await;
                     match upload_zip_file(db.clone(), &zip_path).await {
                         Ok(row) => {
                             uploaded += 1;
                             last_row = Some(row);
-                            let _ = tokio::fs::remove_file(&zip_path).await;
                         }
                         Err(e) => {
                             failed += 1;
@@ -278,7 +298,6 @@ pub async fn scrap_and_upload(
         }
     }
 
-    cleanup_code_zips(&download_dir, &code).await;
     save_screenshot(&page, &screenshot_dir, &format!("{code}-99-done")).await;
 
     Ok(ScrapOutcome {
@@ -301,6 +320,50 @@ fn screenshot_dir() -> PathBuf {
     crate_src_dir().join("screenshot")
 }
 
+/// year4 = tahun kalender saat ini − 4, … year0 = tahun ini.
+fn year_id_to_fiscal_year(year_id: &str) -> Option<i32> {
+    let current = chrono::Local::now().year();
+    match year_id {
+        "year4" => Some(current - 4),
+        "year3" => Some(current - 3),
+        "year2" => Some(current - 2),
+        "year1" => Some(current - 1),
+        "year0" => Some(current),
+        _ => None,
+    }
+}
+
+fn period_id_to_quarter(period_id: &str) -> Option<&'static str> {
+    match period_id {
+        "period0" => Some("Q1"),
+        "period1" => Some("Q2"),
+        "period2" => Some("Q3"),
+        "period3" => Some("Q4"),
+        _ => None,
+    }
+}
+
+/// Contoh: year4 + period0 pada 2026 → `inlineXBRL-2022-Q1.zip`.
+pub fn archive_zip_filename(year_id: &str, period_id: &str) -> Option<String> {
+    let year = year_id_to_fiscal_year(year_id)?;
+    let quarter = period_id_to_quarter(period_id)?;
+    Some(format!("inlineXBRL-{year}-{quarter}.zip"))
+}
+
+/// Hapus zip temp lama `{CODE}-N.zip` di root downloaded_xbrl (format sebelum 2026-09).
+async fn cleanup_legacy_slot_zips(dir: &Path, code: &str) {
+    let pattern = format!("{code}-");
+    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+        return;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with(&pattern) && name.ends_with(".zip") {
+            let _ = tokio::fs::remove_file(entry.path()).await;
+        }
+    }
+}
+
 async fn cleanup_screenshot_dir(dir: &Path) {
     let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
         return;
@@ -312,19 +375,6 @@ async fn cleanup_screenshot_dir(dir: &Path) {
         };
         if meta.is_file() {
             let _ = tokio::fs::remove_file(&path).await;
-        }
-    }
-}
-
-async fn cleanup_code_zips(dir: &Path, code: &str) {
-    let pattern = format!("{code}-");
-    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
-        return;
-    };
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with(&pattern) && name.ends_with(".zip") {
-            let _ = tokio::fs::remove_file(entry.path()).await;
         }
     }
 }

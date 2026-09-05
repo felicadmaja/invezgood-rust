@@ -225,20 +225,20 @@ fn parse_dei(html: &str) -> Result<ParsedReportMeta, String> {
 
 fn normalize_quarter(raw: &str) -> Result<String, String> {
     let lower = raw.to_ascii_lowercase();
-    // Urut TW4→TW1: "kuartal ii/iii/iv" mengandung substring "kuartal i".
+    // Urut Q4→Q1: "kuartal ii/iii/iv" mengandung substring "kuartal i".
     if lower.contains("annual")
         || lower.contains("tahunan")
         || lower.contains("fourth")
         || lower.contains("kuartal iv")
         || lower.contains("quarter iv")
     {
-        Ok("TW4".into())
+        Ok("Q4".into())
     } else if lower.contains("third") || lower.contains("kuartal iii") || lower.contains("quarter iii") {
-        Ok("TW3".into())
+        Ok("Q3".into())
     } else if lower.contains("second") || lower.contains("kuartal ii") || lower.contains("quarter ii") {
-        Ok("TW2".into())
+        Ok("Q2".into())
     } else if lower.contains("first") || lower.contains("kuartal i") || lower.contains("quarter i") {
-        Ok("TW1".into())
+        Ok("Q1".into())
     } else {
         Err(format!(
             "quarter tidak dikenali dari '{LABEL_PERIOD_SUBMISSION}': {raw}"
@@ -446,23 +446,23 @@ mod tests {
     fn normalize_quarter_roman_substrings() {
         assert_eq!(
             normalize_quarter("Kuartal II / Second Quarter").unwrap(),
-            "TW2"
+            "Q2"
         );
         assert_eq!(
             normalize_quarter("Kuartal III / Third Quarter").unwrap(),
-            "TW3"
+            "Q3"
         );
         assert_eq!(
             normalize_quarter("Kuartal IV / Fourth Quarter").unwrap(),
-            "TW4"
+            "Q4"
         );
         assert_eq!(
             normalize_quarter("Kuartal I / First Quarter").unwrap(),
-            "TW1"
+            "Q1"
         );
         assert_eq!(
             normalize_quarter("Tahunan / Annual").unwrap(),
-            "TW4"
+            "Q4"
         );
     }
 
@@ -506,7 +506,7 @@ mod tests {
         let bytes = fs::read(path).expect("inlineXBRL (38).zip");
         let parsed = parse_zip_bytes(&bytes).expect("parse zip 38");
         assert_eq!(parsed.meta.code, "DMAS");
-        assert_eq!(parsed.meta.quarter, "TW1");
+        assert_eq!(parsed.meta.quarter, "Q1");
         assert_eq!(parsed.meta.fiscal_year, 2022);
         assert!(parsed.ytd.net_income > 0.0);
         assert!(parsed.ytd.cash_from_operation > 0.0);
@@ -522,7 +522,7 @@ mod tests {
         let bytes = fs::read(path).expect("inlineXBRL.zip");
         let parsed = parse_zip_bytes(&bytes).expect("parse");
         assert_eq!(parsed.meta.code, "AADI");
-        assert_eq!(parsed.meta.quarter, "TW1");
+        assert_eq!(parsed.meta.quarter, "Q1");
         assert_eq!(parsed.meta.fiscal_year, 2026);
         assert!(parsed.ytd.net_income > 0.0);
         assert!(parsed.ytd.cash_from_operation > 0.0);

@@ -5,16 +5,18 @@ package xlbr_laporan_keuangan;
 service XlbrLaporanKeuangan {
   // Client stream inlineXBRL.zip (chunk bytes). Server baca semua *.html di zip; cari concept XBRL CurrentYearDuration.
   // Prefer laba rugi 1321000/2311000, arus kas 1510000/2510000; CapEx fallback beberapa concept PPE/properti.
-  // quarter dari baris "Periode penyampaian laporan keuangan" di 1000000.html → TW1..TW4.
+  // quarter dari baris "Periode penyampaian laporan keuangan" di 1000000.html → Q1..Q4.
   // Nilai XBRL YTD kumulatif → dekumulasi hanya vs kuartal sebelumnya yang sudah ada di DB; bila tidak ada, YTD = standalone.
   // Baris sama di-upsert (overwrite). Tidak simpan zip ke disk; buffer in-memory lalu upsert invezgood.xlbr_laporan_keuangan. Bearer login.
   rpc UploadZip(stream UploadZipChunk) returns (UploadZipResponse);
 
   // Scrape idx.co.id laporan keuangan (Chrome BEI terpisah dari Stockbit): reset cookie idx.co.id,
-  // cari emiten, loop year4..year0 × period0..3, unduh inlineXBRL.zip bila ada, parse+upsert
-  // invezgood.xlbr_laporan_keuangan, hapus zip temp. Profil Chrome: BEI_BROWSER_DATA_DIR /
+  // cari emiten, loop year4..year0 × period0..3, unduh inlineXBRL.zip bila ada, simpan ke
+  // src/downloaded_xbrl/{CODE}/inlineXBRL-{tahun}-{Qn}.zip, parse+upsert invezgood.xlbr_laporan_keuangan.
   // crate/xlbr_laporan_keuangan/browser_data — tidak mengunci Chrome Stockbit.
-  // Awal RPC: hapus semua file di src/screenshot/; screenshot langkah ke {code}-*.png; zip temp downloaded_xbrl/{code}-N.zip.
+  // Awal RPC: hapus semua file di src/screenshot/; screenshot langkah ke {code}-*.png.
+  // Zip unduhan disimpan permanen: src/downloaded_xbrl/{CODE}/inlineXBRL-{tahun}-{Qn}.zip
+  // (year4=tahun ini−4..year0=tahun ini; period0=Q1..period3=Q4). Bila file sudah ada, slot dilewati.
   // Retry goto IDX bila 503 Varnish (env XLBR_IDX_GOTO_RETRIES, XLBR_IDX_RETRY_SECS). Publik — tanpa JWT.
   // RPC menunggu scrape selesai lalu kirim uploaded/skipped/failed + fiscal_year/quarter terakhir.
   // Invoke baru batalkan scrap/Chrome lock sebelumnya (client logout) lalu mulai fresh.

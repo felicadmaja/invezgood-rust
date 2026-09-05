@@ -7,7 +7,21 @@ use scylla::SerializeRow;
 pub const KEYSPACE: &str = "invezgood";
 pub const TABLE: &str = "xlbr_laporan_keuangan";
 
-pub const QUARTERS: [&str; 4] = ["TW1", "TW2", "TW3", "TW4"];
+pub const QUARTERS: [&str; 4] = ["Q1", "Q2", "Q3", "Q4"];
+
+/// Normalisasi label kuartal ke `Q1`..`Q4` (legacy `TW1`..`TW4` tetap diterima saat baca).
+pub fn normalize_quarter_label(raw: &str) -> String {
+    let upper = raw.trim().to_ascii_uppercase();
+    if let Some(suffix) = upper.strip_prefix("TW") {
+        return format!("Q{suffix}");
+    }
+    upper
+}
+
+pub fn quarter_index(quarter: &str) -> Option<usize> {
+    let q = normalize_quarter_label(quarter);
+    QUARTERS.iter().position(|label| *label == q)
+}
 
 /// Metrik YTD mentah hasil parse ZIP (sebelum dekumulasi).
 #[derive(Debug, Clone, Copy, Default)]
@@ -92,10 +106,6 @@ pub struct XlbrLaporanKeuanganRow {
     pub net_income: f64,
     pub uploaded_at: DateTime<Utc>,
     pub source_zip_hash: String,
-}
-
-pub fn quarter_index(quarter: &str) -> Option<usize> {
-    QUARTERS.iter().position(|q| q.eq_ignore_ascii_case(quarter))
 }
 
 pub fn required_prior_quarters(quarter: &str) -> Result<&'static [&'static str], String> {

@@ -23,7 +23,7 @@
 -- |--------------------------|----------------|-----------|
 -- | code                     | partition_key  | text      |
 -- | fiscal_year              | clustering     | int       |
--- | quarter                  | clustering     | text      | TW1..TW4
+-- | quarter                  | clustering     | text      | Q1..Q4
 -- | period_end               | regular        | timestamp |
 -- | presentation_currency    | regular        | text      |
 -- | unit_scale               | regular        | int       | 3 = ribuan
@@ -35,3 +35,5 @@
 -- | net_income               | regular        | double    |
 -- | uploaded_at              | regular        | timestamp |
 -- | source_zip_hash          | regular        | text      |
+--
+-- Migrasi quarter TW→Q (2026-09-06): cargo run -p xlbr_laporan_keuangan --example migrate_quarter_tw_to_q

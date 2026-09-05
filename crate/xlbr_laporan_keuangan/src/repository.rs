@@ -3,8 +3,8 @@ use futures::TryStreamExt;
 use scylla::client::session::Session;
 
 use crate::model::{
-    required_prior_quarters, StandaloneMetrics, XlbrLaporanKeuanganRow, YtdMetrics, KEYSPACE,
-    TABLE,
+    normalize_quarter_label, quarter_index, required_prior_quarters, StandaloneMetrics,
+    XlbrLaporanKeuanganRow, YtdMetrics, KEYSPACE, TABLE,
 };
 
 const SELECT_PRIOR_FOR_YEAR: &str =
@@ -105,10 +105,9 @@ pub fn standalone_sum_prior_to(rows: &[XlbrLaporanKeuanganRow], quarter: &str) -
     };
     let mut sum = YtdMetrics::default();
     for row in rows {
-        if prior
-            .iter()
-            .any(|q| q.eq_ignore_ascii_case(&row.quarter))
-        {
+        if prior.iter().any(|q| {
+            q.eq_ignore_ascii_case(&normalize_quarter_label(&row.quarter))
+        }) {
             sum += YtdMetrics {
                 cash_from_operation: row.cash_from_operation,
                 cash_from_investment: row.cash_from_investment,
@@ -150,11 +149,5 @@ pub fn row_from_standalone(
 }
 
 fn quarter_ord(q: &str) -> i32 {
-    match q.to_ascii_uppercase().as_str() {
-        "TW1" => 1,
-        "TW2" => 2,
-        "TW3" => 3,
-        "TW4" => 4,
-        _ => 0,
-    }
+    quarter_index(q).map(|i| (i + 1) as i32).unwrap_or(0)
 }
