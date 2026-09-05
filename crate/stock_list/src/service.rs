@@ -209,6 +209,18 @@ impl StockListService {
         );
     }
 
+    fn log_rpc_debug_code(
+        rpc_name: &str,
+        user_name: &str,
+        code: &str,
+        started: std::time::Instant,
+    ) {
+        eprintln!(
+            "{rpc_name} {user_name} {code} {}ms",
+            started.elapsed().as_millis()
+        );
+    }
+
     fn should_refresh(updated_at: Option<DateTime<Utc>>, max_age_secs: i64) -> bool {
         let Some(updated_at) = updated_at else {
             return true;
@@ -2175,7 +2187,12 @@ impl StockList for StockListService {
                     } => Some(result),
                 } {
                     None => {
-                        Self::log_rpc_debug("GetStockbitProfileByCode", &user_name_spawn, started);
+                        Self::log_rpc_debug_code(
+                            "GetStockbitProfileByCode",
+                            &user_name_spawn,
+                            &code,
+                            started,
+                        );
                         return;
                     }
                     Some(result) => result,
@@ -2194,7 +2211,12 @@ impl StockList for StockListService {
                 }
             }
 
-            Self::log_rpc_debug("GetStockbitProfileByCode", &user_name_spawn, started);
+            Self::log_rpc_debug_code(
+                "GetStockbitProfileByCode",
+                &user_name_spawn,
+                &code,
+                started,
+            );
         });
 
         Ok(Response::new(
