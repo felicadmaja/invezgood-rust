@@ -21,7 +21,7 @@ use crate::model::{
     StockbitFinancialYearGroupDb, StockbitFinancialYearValueDb,
     StockbitFinNameResultDb, StockbitFitemDb, StockbitMostRecentQuarterDb, StockbitPeriodValueDb,
     StockbitProfileAddressDb, StockbitProfileAssetAllocationEntryDb, StockbitProfileBeneficiaryDb,
-    StockbitProfileDb, StockbitProfileExecutiveEntryDb, StockbitProfileFeeEntryDb,
+    StockbitProfileClassEntryDb, StockbitProfileClassificationDb, StockbitProfileDb, StockbitProfileExecutiveEntryDb, StockbitProfileFeeEntryDb,
     StockbitProfileFundProfileDb, StockbitProfileHistoryDb, StockbitProfileKeyExecutiveDb,
     StockbitProfileListingInformationDb, StockbitProfilePercentageDb, StockbitProfileProspectusDb,
     StockbitProfileShareholderEntryDb, StockbitProfileShareholderNumberDb,
@@ -53,7 +53,8 @@ use crate::pb::{
     StockbitFinancialYearGroup, StockbitFinancialYearParent, StockbitFinancialYearValue,
     StockbitFinNameResult, StockbitFitem, StockbitMostRecentQuarter, StockbitPeriodValue,
     StockbitProfileAddress, StockbitProfileAssetAllocationEntry, StockbitProfileBeneficiary,
-    StockbitProfileData, StockbitProfileExecutiveEntry, StockbitProfileFeeEntry,
+    StockbitProfileClassEntry, StockbitProfileClassification, StockbitProfileData,
+    StockbitProfileExecutiveEntry, StockbitProfileFeeEntry,
     StockbitProfileFundProfile, StockbitProfileHistory, StockbitProfileKeyExecutive,
     StockbitProfileListingInformation, StockbitProfilePercentage, StockbitProfileProspectus,
     StockbitProfileResponse, StockbitProfileShareholderEntry, StockbitProfileShareholderNumber,
@@ -1477,6 +1478,31 @@ impl StockListService {
         }
     }
 
+    fn stockbit_profile_class_entry_to_proto(
+        entry: StockbitProfileClassEntryDb,
+    ) -> StockbitProfileClassEntry {
+        StockbitProfileClassEntry {
+            id: entry.id,
+            name: entry.name,
+            symbol: entry.symbol,
+        }
+    }
+
+    fn stockbit_profile_classification_to_proto(
+        classification: StockbitProfileClassificationDb,
+    ) -> StockbitProfileClassification {
+        StockbitProfileClassification {
+            sector: Some(Self::stockbit_profile_class_entry_to_proto(classification.sector)),
+            sub_sector: Some(Self::stockbit_profile_class_entry_to_proto(
+                classification.sub_sector,
+            )),
+            industry: Some(Self::stockbit_profile_class_entry_to_proto(classification.industry)),
+            sub_industry: Some(Self::stockbit_profile_class_entry_to_proto(
+                classification.sub_industry,
+            )),
+        }
+    }
+
     fn stockbit_profile_meta_to_proto(profile: &StockbitProfileDb) -> StockbitProfileData {
         StockbitProfileData {
             address: vec![],
@@ -1548,7 +1574,10 @@ impl StockListService {
             shareholder_one_percent: Some(Self::stockbit_profile_shareholder_one_percent_to_proto(
                 profile.shareholder_one_percent.clone(),
             )),
-            classification: profile.classification.clone().unwrap_or_default(),
+            classification: profile
+                .sector_classification
+                .clone()
+                .map(Self::stockbit_profile_classification_to_proto),
         }
     }
 
@@ -1690,6 +1719,18 @@ impl StockListService {
                 part: StockbitProfileStreamPart::Done.into(),
             },
         ]
+    }
+
+    async fn stream_stockbit_profile_notice(
+        tx: &tokio::sync::mpsc::Sender<Result<StockbitProfileResponse, Status>>,
+        code: &str,
+        message: &str,
+    ) {
+        for chunk in Self::stockbit_profile_notice_stream(code, message) {
+            if !send_or_break(tx, Ok(chunk)).await {
+                break;
+            }
+        }
     }
 
     fn stockbit_profile_scylla_empty(profile: Option<&StockbitProfileDb>) -> bool {
@@ -2087,33 +2128,26 @@ impl StockList for StockListService {
         let user_name = auth.nama;
 
         let code = request.into_inner().code.trim().to_ascii_uppercase();
-        if code.is_empty() {
-            return Err(Status::invalid_argument("code wajib diisi"));
-        }
-        if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
-            return Err(Status::invalid_argument(format!(
-                "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
-            )));
-        }
-
-        crate::repository::get_stockbit_profile_by_code(self.session.as_ref(), &code)
-            .await
-            .map_err(Status::internal)?
-            .ok_or_else(|| Status::not_found(format!("stock_list code={code} tidak ditemukan")))?;
 
         let session = Arc::clone(&self.session);
         let user_name_spawn = user_name.clone();
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         tokio::spawn(async move {
-            let load_outcome: Result<(String, Vec<StockbitProfileResponse>), Status> = async {
-                let mut row =
-                    crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
-                        .await
-                        .map_err(Status::internal)?
-                        .ok_or_else(|| {
-                            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                        })?;
+            let load_outcome: Result<(String, Vec<StockbitProfileResponse>), String> = async {
+                if code.is_empty() {
+                    return Err("code wajib diisi".into());
+                }
+                if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+                    return Err(format!(
+                        "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
+                    ));
+                }
+
+                let mut row = crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
+                    .await
+                    .map_err(|e| format!("scylla query: {e}"))?
+                    .ok_or_else(|| format!("stock_list code={code} tidak ditemukan"))?;
 
                 if crate::stockbit_profile::needs_stockbit_profile_refresh(
                     row.stockbit_profile.as_ref(),
@@ -2134,20 +2168,19 @@ impl StockList for StockListService {
                                 &code,
                             )
                             .await
-                            .map_err(Status::internal)?;
+                            .map_err(|e| e.to_string())?;
                             row = crate::repository::get_stockbit_profile_by_code(
                                 session.as_ref(),
                                 &code,
                             )
                             .await
-                            .map_err(Status::internal)?
-                            .ok_or_else(|| {
-                                Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                            })?;
+                            .map_err(|e| format!("scylla query: {e}"))?
+                            .ok_or_else(|| format!("stock_list code={code} tidak ditemukan"))?;
                             let chunks = Self::stockbit_profile_row_stream(
                                 row,
                                 "Stockbit profile di-upsert ke stock_list",
-                            )?;
+                            )
+                            .map_err(|s| s.message().to_string())?;
                             Ok(("GET Stockbit API".to_string(), chunks))
                         }
                         StockbitApiGetSlot::RateLimited { remaining_secs } => {
@@ -2168,7 +2201,8 @@ impl StockList for StockListService {
                                     &format!(
                                         "Stockbit profile dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
                                     ),
-                                )?;
+                                )
+                                .map_err(|s| s.message().to_string())?;
                                 Ok((
                                     format!("rate-limit skip API (cache Scylla, tunggu {remaining_secs}s)"),
                                     chunks,
@@ -2177,8 +2211,8 @@ impl StockList for StockListService {
                         }
                     }
                 } else {
-                    let chunks =
-                        Self::stockbit_profile_row_stream(row, "Stockbit profile dari Scylla")?;
+                    let chunks = Self::stockbit_profile_row_stream(row, "Stockbit profile dari Scylla")
+                        .map_err(|s| s.message().to_string())?;
                     Ok(("cache Scylla".to_string(), chunks))
                 }
             }
@@ -2198,8 +2232,11 @@ impl StockList for StockListService {
                         }
                     }
                 }
-                Err(status) => {
-                    let _ = send_or_break(&tx, Err(status)).await;
+                Err(message) => {
+                    eprintln!(
+                        "GetStockbitProfileByCode {code} - {user_name_spawn} error: {message}"
+                    );
+                    Self::stream_stockbit_profile_notice(&tx, &code, &message).await;
                 }
             }
 

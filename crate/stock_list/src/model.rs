@@ -777,7 +777,8 @@ pub struct StockbitProfileShareholderOnePercentDb {
 /// UDT `stockbit_profile_subsidiary`.
 #[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
 pub struct StockbitProfileSubsidiaryDb {
-    #[serde(default)]
+    /// API Stockbit kadang kirim `company`, bukan `name` (contoh: ABDA).
+    #[serde(default, alias = "company")]
     pub name: String,
     #[serde(default)]
     pub percentage: String,
@@ -812,6 +813,30 @@ pub struct StockbitProfileTopHoldingEntryDb {
     pub percentage: String,
     #[serde(default)]
     pub value: String,
+}
+
+/// UDT `stockbit_profile_class_entry` — item sector/sub_sector/industry dari API.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileClassEntryDb {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub symbol: String,
+}
+
+/// UDT `stockbit_profile_classification` — object `classification` top-level dari API profile.
+#[derive(Debug, Clone, Default, SerializeValue, DeserializeValue, serde::Deserialize)]
+pub struct StockbitProfileClassificationDb {
+    #[serde(default)]
+    pub sector: StockbitProfileClassEntryDb,
+    #[serde(default)]
+    pub sub_sector: StockbitProfileClassEntryDb,
+    #[serde(default)]
+    pub industry: StockbitProfileClassEntryDb,
+    #[serde(default)]
+    pub sub_industry: StockbitProfileClassEntryDb,
 }
 
 /// UDT `stockbit_profile` — profil emiten dari API /emitten/{code}/profile.
@@ -869,9 +894,14 @@ pub struct StockbitProfileDb {
     pub beneficiary: Option<Vec<StockbitProfileBeneficiaryDb>>,
     #[serde(default)]
     pub shareholder_one_percent: StockbitProfileShareholderOnePercentDb,
-    #[serde(default)]
+    /// Kolom legacy Scylla `classification text` — API tidak lagi kirim string; biarkan null.
+    #[serde(skip, default)]
     #[scylla(default_when_null)]
     pub classification: Option<String>,
+    /// API field `classification` (object) → kolom Scylla `sector_classification`.
+    #[serde(default, rename = "classification")]
+    #[scylla(default_when_null, rename = "sector_classification")]
+    pub sector_classification: Option<StockbitProfileClassificationDb>,
 }
 
 /// Kolom `stockbit_profile`.

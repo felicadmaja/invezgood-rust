@@ -339,6 +339,15 @@
 -- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_top_holding_entry (
 --     name text, percentage text, value text
 -- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_class_entry (
+--     id text, name text, symbol text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile_classification (
+--     sector frozen<stockbit_profile_class_entry>,
+--     sub_sector frozen<stockbit_profile_class_entry>,
+--     industry frozen<stockbit_profile_class_entry>,
+--     sub_industry frozen<stockbit_profile_class_entry>
+-- );
 -- CREATE TYPE IF NOT EXISTS invezgood.stockbit_profile (
 --     address list<frozen<stockbit_profile_address>>,
 --     background text,
@@ -359,8 +368,10 @@
 --     listing_information frozen<stockbit_profile_listing_information>,
 --     beneficiary list<frozen<stockbit_profile_beneficiary>>,
 --     shareholder_one_percent frozen<stockbit_profile_shareholder_one_percent>,
---     classification text
+--     classification text,
+--     sector_classification frozen<stockbit_profile_classification>
 -- );
+-- ALTER TYPE invezgood.stockbit_profile ADD sector_classification frozen<stockbit_profile_classification>; -- MCP 2026-09-05
 -- ALTER TABLE invezgood.stock_list ADD stockbit_profile frozen<stockbit_profile>;
 -- ALTER TABLE invezgood.stock_list ADD stockbit_profile_updated_at timestamp;
 

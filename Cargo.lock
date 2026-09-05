@@ -2665,6 +2665,7 @@ name = "stock_list"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "dotenvy",
  "futures",
  "grpc_stream",
  "invezgo_http",

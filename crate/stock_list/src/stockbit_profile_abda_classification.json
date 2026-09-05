@@ -1,0 +1,25 @@
+{
+  "background": "PT Asuransi Bina Dana Arta Tbk. atau ABDA bergerak di bidang usaha asuransi yang terfokus dalam memberikan perlindungan terhadap risiko kerugian, dengan berbagai jenis pertanggungan; Kebakaran, Kendaraan Bermotor, Rekayasa, Tanggung Gugat, Pengangkutan, Peralatan Berat, Kesehatan, Aneka dan lain-lain. Kantor Pusat Perusahaan berada di Plaza Asia lantai 27, Jl. Jenderal Sudirman Kav. 59 Jakarta, dengan kantor cabang dan pemasaran yang terus berkembang. Sampai dengan akhir tahun 2020, Per 31 Desember 2020, Perusahaan telah memiliki 33 kantor cabang dan pemasaran serta didukung oleh 497* karyawan yang kompeten dan profesional.",
+  "classification": {
+    "sector": {
+      "id": "3",
+      "name": "Keuangan",
+      "symbol": ""
+    },
+    "sub_sector": {
+      "id": "12",
+      "name": "Asuransi",
+      "symbol": ""
+    },
+    "industry": {
+      "id": "98",
+      "name": "Asuransi",
+      "symbol": ""
+    },
+    "sub_industry": {
+      "id": "161",
+      "name": "Asuransi Umum",
+      "symbol": "Asuransi Umum"
+    }
+  }
+}

@@ -14,12 +14,13 @@ scylla = { version = "1.5", features = ["chrono-04"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 stockbit_browser = { path = "../stockbit_browser" }
-tokio = { version = "1", features = ["sync", "macros", "rt", "time"] }
+tokio = { version = "1", features = ["sync", "macros", "rt", "rt-multi-thread", "time"] }
 tokio-stream = "0.1"
 tonic = "0.12"
 prost = "0.13"
 user = { path = "../user" }
 grpc_stream = { path = "../grpc_stream" }
+dotenvy = "0.15"
 
 [build-dependencies]
 tonic-build = "0.12"

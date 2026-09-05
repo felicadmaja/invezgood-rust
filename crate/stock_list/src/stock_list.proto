@@ -7,7 +7,7 @@ service StockList {
   //
   // Stream: push GetAllStocksResponse — Meta (success+message), lalu Item per saham, Done.
   // Cek Redis StockListUpdatedAt: kosong atau >30 hari → GET Invezgo + upsert Scylla + set timestamp.
-  // Masih valid (<30 hari) → baca Scylla saja. Cache Moka in-memory TTL 1 menit (key global, semua user).
+  // Masih valid (<30 hari) → baca Scylla saja. Cache Moka in-memory TTL sampai 23:59:59 hari itu (key global, semua user).
   rpc GetAllStocks(GetAllStocksRequest) returns (stream GetAllStocksResponse);
 
   // Baca Scylla by PK code. Request: code wajib. Response: StockByCodeResponse.
@@ -27,6 +27,7 @@ service StockList {
   // Stream: push StockbitProfileResponse (meta + tiap item repeated) per code.
   // GET Stockbit API bila stockbit_profile kosong atau stockbit_profile_updated_at ≥ 30 hari.
   // Rate limit 1× / 5 detik untuk GET API saja (bukan RPC); slot shared dengan GetKeyStatsFromStockbit.
+  // Error: success=false + message berisi detail error (Meta lalu Done); stream tetap OK (bukan gRPC Status).
   rpc GetStockbitProfileByCode(GetStockbitProfileByCodeRequest)
       returns (stream StockbitProfileResponse);
 
@@ -399,6 +400,19 @@ message StockbitProfileTopHoldingEntry {
   string value = 3;
 }
 
+message StockbitProfileClassEntry {
+  string id = 1;
+  string name = 2;
+  string symbol = 3;
+}
+
+message StockbitProfileClassification {
+  StockbitProfileClassEntry sector = 1;
+  StockbitProfileClassEntry sub_sector = 2;
+  StockbitProfileClassEntry industry = 3;
+  StockbitProfileClassEntry sub_industry = 4;
+}
+
 message StockbitProfileData {
   repeated StockbitProfileAddress address = 1;
   string background = 2;
@@ -419,11 +433,12 @@ message StockbitProfileData {
   StockbitProfileListingInformation listing_information = 17;
   repeated StockbitProfileBeneficiary beneficiary = 18;
   StockbitProfileShareholderOnePercent shareholder_one_percent = 19;
-  string classification = 20;
+  StockbitProfileClassification classification = 20;
 }
 
 message StockbitProfileResponse {
   bool success = 1;
+  // Pesan sukses/info atau detail error bila success=false.
   string message = 2;
   string code = 3;
   StockbitProfileData data = 4;
