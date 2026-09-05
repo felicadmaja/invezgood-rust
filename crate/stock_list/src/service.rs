@@ -63,7 +63,7 @@ use crate::pb::{
     StockbitReportFollowingActivity, StockbitReportItem, StockbitReportNewsFeed, StockbitReportReaction,
     StockbitReportReactionEntry, StockbitReportsRow, StockbitReportsStreamPart, StockbitReportStatus, StockbitReportStream,
     StockbitReportSummary, StockbitReportUser, StockbitStats, StockByCodeResponse, StockListRow,
-    NotationEntry,
+    NotationEntry, FundamentalAssesment, ValuationAssesment,
     UpdateHorizontalLineByCodeRequest, UpdateHorizontalLineByCodeResponse,
     UpsertTakeProfitWyckoffByCodeRequest, UpsertTakeProfitWyckoffByCodeResponse,
     DeleteTakeProfitWyckoffByCodeRequest, DeleteTakeProfitWyckoffByCodeResponse,
@@ -223,6 +223,50 @@ impl StockListService {
         );
     }
 
+    fn fundamental_db_to_proto(v: Option<i8>) -> i32 {
+        let proto = match v.unwrap_or(0) {
+            1 => FundamentalAssesment::Bad,
+            2 => FundamentalAssesment::Good,
+            _ => FundamentalAssesment::Unspecified,
+        };
+        proto as i32
+    }
+
+    fn fundamental_proto_to_db(v: i32) -> Result<i8, Status> {
+        let v = FundamentalAssesment::try_from(v).map_err(|_| {
+            Status::invalid_argument("fundamental_assesment enum tidak valid")
+        })?;
+        match v {
+            FundamentalAssesment::Bad => Ok(1),
+            FundamentalAssesment::Good => Ok(2),
+            FundamentalAssesment::Unspecified => Ok(0),
+        }
+    }
+
+    /// Scylla: 0=normal, 1=murah, 3=mahal → proto enum (MAHAL=1, NORMAL=2, MURAH=3).
+    fn valuation_db_to_proto(v: Option<i8>) -> i32 {
+        let proto = match v {
+            None => ValuationAssesment::Unspecified,
+            Some(0) => ValuationAssesment::Normal,
+            Some(1) => ValuationAssesment::Murah,
+            Some(3) => ValuationAssesment::Mahal,
+            _ => ValuationAssesment::Unspecified,
+        };
+        proto as i32
+    }
+
+    fn valuation_proto_to_db(v: i32) -> Result<i8, Status> {
+        let v = ValuationAssesment::try_from(v).map_err(|_| {
+            Status::invalid_argument("valuation_assesment enum tidak valid")
+        })?;
+        match v {
+            ValuationAssesment::Mahal => Ok(3),
+            ValuationAssesment::Normal => Ok(0),
+            ValuationAssesment::Murah => Ok(1),
+            ValuationAssesment::Unspecified => Ok(0),
+        }
+    }
+
     fn should_refresh(updated_at: Option<DateTime<Utc>>, max_age_secs: i64) -> bool {
         let Some(updated_at) = updated_at else {
             return true;
@@ -297,7 +341,7 @@ impl StockListService {
             wyckoff_chart: row.wyckoff_chart.as_ref().map(Self::wyckoff_chart_from_db),
             horizontal_line: row.horizontal_line.clone().unwrap_or_default(),
             takeprofit_wyckoff: row.takeprofit_wyckoff.clone().unwrap_or_default(),
-            fundamental_assesment: i32::from(row.fundamental_assesment.unwrap_or(0)),
+            fundamental_assesment: Self::fundamental_db_to_proto(row.fundamental_assesment),
             notation: row
                 .notation
                 .clone()
@@ -309,7 +353,7 @@ impl StockListService {
                 })
                 .collect(),
             index_family: row.index_family.clone().unwrap_or_default(),
-            valuation_assesment: i32::from(row.valuation_assesment.unwrap_or(0)),
+            valuation_assesment: Self::valuation_db_to_proto(row.valuation_assesment),
             catatan_bidang_usaha: row.catatan_bidang_usaha.clone().unwrap_or_default(),
         }
     }
@@ -393,7 +437,7 @@ impl StockListService {
             is_plan_to_trade: row.is_plan_to_trade.unwrap_or(false),
             is_konglomerasi: row.is_konglomerasi.unwrap_or(false),
             takeprofit_wyckoff: row.takeprofit_wyckoff.unwrap_or_default(),
-            fundamental_assesment: i32::from(row.fundamental_assesment.unwrap_or(0)),
+            fundamental_assesment: Self::fundamental_db_to_proto(row.fundamental_assesment),
             notation: row
                 .notation
                 .unwrap_or_default()
@@ -404,7 +448,7 @@ impl StockListService {
                 })
                 .collect(),
             index_family: row.index_family.unwrap_or_default(),
-            valuation_assesment: i32::from(row.valuation_assesment.unwrap_or(0)),
+            valuation_assesment: Self::valuation_db_to_proto(row.valuation_assesment),
             catatan_bidang_usaha: row.catatan_bidang_usaha.unwrap_or_default(),
         }
     }
@@ -2761,9 +2805,7 @@ impl StockList for StockListService {
                 return Err(Status::invalid_argument("code wajib diisi"));
             }
 
-            let value = i8::try_from(inner.fundamental_assesment).map_err(|_| {
-                Status::invalid_argument("fundamental_assesment harus antara -128 dan 127")
-            })?;
+            let value = Self::fundamental_proto_to_db(inner.fundamental_assesment)?;
 
             crate::repository::update_fundamental_assesment(
                 self.session.as_ref(),
@@ -2779,11 +2821,12 @@ impl StockList for StockListService {
                 }
             })?;
 
+            let label = FundamentalAssesment::try_from(inner.fundamental_assesment)
+                .map(|e| e.as_str_name())
+                .unwrap_or("invalid");
             Ok(Response::new(UpdateFundamentalAssesmentByCodeResponse {
                 success: true,
-                message: format!(
-                    "fundamental_assesment code={code}={value}"
-                ),
+                message: format!("fundamental_assesment code={code}={label}"),
             }))
         }
         .await;
@@ -2840,9 +2883,7 @@ impl StockList for StockListService {
                 return Err(Status::invalid_argument("code wajib diisi"));
             }
 
-            let value = i8::try_from(inner.valuation_assesment).map_err(|_| {
-                Status::invalid_argument("valuation_assesment harus antara -128 dan 127")
-            })?;
+            let value = Self::valuation_proto_to_db(inner.valuation_assesment)?;
 
             crate::repository::update_valuation_assesment(
                 self.session.as_ref(),
@@ -2858,9 +2899,12 @@ impl StockList for StockListService {
                 }
             })?;
 
+            let label = ValuationAssesment::try_from(inner.valuation_assesment)
+                .map(|e| e.as_str_name())
+                .unwrap_or("invalid");
             Ok(Response::new(UpdateValuationAssesmentResponse {
                 success: true,
-                message: format!("valuation_assesment code={code}={value}"),
+                message: format!("valuation_assesment code={code}={label}"),
             }))
         }
         .await;

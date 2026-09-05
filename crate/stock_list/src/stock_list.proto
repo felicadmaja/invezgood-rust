@@ -104,7 +104,7 @@ service StockList {
   rpc DeleteTakeProfitWyckoffByCode(DeleteTakeProfitWyckoffByCodeRequest)
       returns (DeleteTakeProfitWyckoffByCodeResponse);
 
-  // Update kolom fundamental_assesment (tinyint: -1=bad fund, 0=normal) di invezgood.stock_list by PK code.
+  // Update kolom fundamental_assesment (Scylla: 0=unset, 1=bad, 2=good; proto enum FundamentalAssesment) di invezgood.stock_list by PK code.
   // Wajib Bearer login. success=false + message bila code tidak ada atau DB gagal.
   rpc UpdateFundamentalAssesmentByCode(UpdateFundamentalAssesmentByCodeRequest)
       returns (UpdateFundamentalAssesmentByCodeResponse);
@@ -114,7 +114,7 @@ service StockList {
   // Response: success + pesan jumlah updated/skipped.
   rpc UpdateNotationInvezgo(UpdateNotationInvezgoRequest) returns (UpdateNotationInvezgoResponse);
 
-  // Update kolom valuation_assesment (tinyint) di invezgood.stock_list by PK code.
+  // Update kolom valuation_assesment (Scylla: 0=normal, 1=murah, 3=mahal; proto enum ValuationAssesment) di invezgood.stock_list by PK code.
   // Wajib Bearer login. Request: code + valuation_assesment. success=false + message bila code tidak ada atau DB gagal.
   rpc UpdateValuationAssesment(UpdateValuationAssesmentRequest)
       returns (UpdateValuationAssesmentResponse);
@@ -126,6 +126,19 @@ service StockList {
 }
 
 message GetAllStocksRequest {}
+
+enum FundamentalAssesment {
+  FUNDAMENTAL_ASSESMENT_UNSPECIFIED = 0;
+  FUNDAMENTAL_ASSESMENT_BAD = 1;
+  FUNDAMENTAL_ASSESMENT_GOOD = 2;
+}
+
+enum ValuationAssesment {
+  VALUATION_ASSESMENT_UNSPECIFIED = 0;
+  VALUATION_ASSESMENT_MAHAL = 1;
+  VALUATION_ASSESMENT_NORMAL = 2;
+  VALUATION_ASSESMENT_MURAH = 3;
+}
 
 message GetStockByCodeRequest {
   string code = 1;
@@ -590,10 +603,10 @@ message StockByCodeResponse {
   repeated int32 horizontal_line = 19;
   string sub_sector = 20;
   map<string, double> takeprofit_wyckoff = 21;
-  int32 fundamental_assesment = 22;
+  FundamentalAssesment fundamental_assesment = 22;
   repeated NotationEntry notation = 23;
   repeated string index_family = 24;
-  int32 valuation_assesment = 25;
+  ValuationAssesment valuation_assesment = 25;
   string catatan_bidang_usaha = 26;
 }
 
@@ -748,7 +761,7 @@ message UpdateIsPlanToTradeResponse {
 
 message UpdateFundamentalAssesmentByCodeRequest {
   string code = 1;
-  int32 fundamental_assesment = 2;
+  FundamentalAssesment fundamental_assesment = 2;
 }
 
 message UpdateFundamentalAssesmentByCodeResponse {
@@ -758,7 +771,7 @@ message UpdateFundamentalAssesmentByCodeResponse {
 
 message UpdateValuationAssesmentRequest {
   string code = 1;
-  int32 valuation_assesment = 2;
+  ValuationAssesment valuation_assesment = 2;
 }
 
 message UpdateValuationAssesmentResponse {
@@ -982,11 +995,11 @@ message StockListRow {
   bool is_konglomerasi = 9;
   string sub_sector = 10;
   map<string, double> takeprofit_wyckoff = 11;
-  int32 fundamental_assesment = 12;
+  FundamentalAssesment fundamental_assesment = 12;
   // Notasi BEI per emiten (E, X, M, dll.) — kolom frozen list UDT invezgood.stock_list.notation, sumber GET Invezgo /analysis/notation.
   repeated NotationEntry notation = 13;
   repeated string index_family = 14;
-  int32 valuation_assesment = 15;
+  ValuationAssesment valuation_assesment = 15;
   string catatan_bidang_usaha = 16;
 }
 
