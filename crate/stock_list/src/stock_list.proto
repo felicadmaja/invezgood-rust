@@ -7,7 +7,7 @@ service StockList {
   //
   // Stream: push GetAllStocksResponse — Meta (success+message), lalu Item per saham, Done.
   // Cek Redis StockListUpdatedAt: kosong atau >30 hari → GET Invezgo + upsert Scylla + set timestamp.
-  // Masih valid (<30 hari) → baca Scylla saja. Cache Moka in-memory TTL sampai 23:59:59 hari itu (key global, semua user).
+  // Masih valid (<30 hari) → baca Scylla saja. Tanpa cache Moka in-memory.
   rpc GetAllStocks(GetAllStocksRequest) returns (stream GetAllStocksResponse);
 
   // Baca Scylla by PK code. Request: code wajib. Response: StockByCodeResponse.

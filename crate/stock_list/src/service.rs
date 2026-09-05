@@ -182,7 +182,6 @@ pub struct StockListService {
     session: Arc<Session>,
     redis: redis::Client,
     auth_sessions: SessionStore,
-    all_stocks_cache: crate::all_stocks_cache::AllStocksCache,
 }
 
 impl StockListService {
@@ -192,7 +191,6 @@ impl StockListService {
             session,
             redis,
             auth_sessions,
-            all_stocks_cache: crate::all_stocks_cache::AllStocksCache::new(),
         })
     }
 
@@ -1859,23 +1857,8 @@ impl StockList for StockListService {
         let user_name_spawn = user_name.clone();
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
-        if let Some(cached) = self.all_stocks_cache.get().await {
-            eprintln!(
-                "GetAllStocks {user_name} {}ms - HIT moka",
-                started.elapsed().as_millis()
-            );
-            tokio::spawn(async move {
-                Self::stream_all_stocks_chunks(&tx, &cached.message, cached.items).await;
-                Self::log_rpc_debug("GetAllStocks", &user_name_spawn, started);
-            });
-            return Ok(Response::new(
-                Box::pin(ReceiverStream::new(rx)) as GetAllStocksStream,
-            ));
-        }
-
         let session = Arc::clone(&self.session);
         let redis = self.redis.clone();
-        let cache = self.all_stocks_cache.clone();
 
         tokio::spawn(async move {
             let load_result: Result<(String, Vec<StockListRow>), Status> = async {
@@ -1911,12 +1894,6 @@ impl StockList for StockListService {
 
             match load_result {
                 Ok((message, items)) => {
-                    cache
-                        .set(crate::all_stocks_cache::CachedAllStocks {
-                            message: message.clone(),
-                            items: items.clone(),
-                        })
-                        .await;
                     Self::stream_all_stocks_chunks(&tx, &message, items).await;
                 }
                 Err(status) => {

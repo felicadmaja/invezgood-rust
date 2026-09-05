@@ -2669,7 +2669,6 @@ dependencies = [
  "futures",
  "grpc_stream",
  "invezgo_http",
- "moka",
  "prost",
  "redis",
  "reqwest 0.12.28",
