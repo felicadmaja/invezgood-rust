@@ -232,13 +232,23 @@ pub async fn scrap_and_upload(
         for period_id in PERIOD_IDS {
             check_scrap_job(job_gen)?;
 
-            let zip_name = archive_zip_filename(year_id, period_id)
+            let zip_name = archive_zip_filename(&code, year_id, period_id)
                 .ok_or_else(|| format!("label zip tidak valid: {year_id}/{period_id}"))?;
             let zip_path = emiten_dir.join(&zip_name);
             if zip_path.is_file() {
                 eprintln!(
                     "ScrapZipFromBei: lewati {code} {year_id}/{period_id} — sudah ada {}",
                     zip_path.display()
+                );
+                skipped += 1;
+                slot += 1;
+                continue;
+            }
+
+            if year_id == "year0" && should_skip_year0_period(period_id) {
+                let month = chrono::Local::now().month();
+                eprintln!(
+                    "ScrapZipFromBei: lewati {code} {year_id}/{period_id} — kuartal tahun berjalan belum tersedia (bulan {month})"
                 );
                 skipped += 1;
                 slot += 1;
@@ -343,11 +353,29 @@ fn period_id_to_quarter(period_id: &str) -> Option<&'static str> {
     }
 }
 
-/// Contoh: year4 + period0 pada 2026 → `inlineXBRL-2022-Q1.zip`.
-pub fn archive_zip_filename(year_id: &str, period_id: &str) -> Option<String> {
+/// Contoh: ACES + year4 + period0 pada 2026 → `inlineXBRL-ACES-2022-Q1.zip`.
+pub fn archive_zip_filename(code: &str, year_id: &str, period_id: &str) -> Option<String> {
+    let code = code.trim().to_ascii_uppercase();
+    if code.is_empty() {
+        return None;
+    }
     let year = year_id_to_fiscal_year(year_id)?;
     let quarter = period_id_to_quarter(period_id)?;
-    Some(format!("inlineXBRL-{year}-{quarter}.zip"))
+    Some(format!("inlineXBRL-{code}-{year}-{quarter}.zip"))
+}
+
+/// Khusus `year0` (tahun berjalan): lewati kuartal yang belum waktunya di BEI.
+/// Q1 jika bulan ≤ Maret, Q2 ≤ Juni, Q3 ≤ September, Q4 selama masih tahun kalender yang sama
+/// (Q4 tahun N baru bisa lewat `year1`/period3 di tahun N+1).
+fn should_skip_year0_period(period_id: &str) -> bool {
+    let month = chrono::Local::now().month();
+    match period_id {
+        "period0" => month <= 3,
+        "period1" => month <= 6,
+        "period2" => month <= 9,
+        "period3" => month <= 12,
+        _ => false,
+    }
 }
 
 /// Hapus zip temp lama `{CODE}-N.zip` di root downloaded_xbrl (format sebelum 2026-09).

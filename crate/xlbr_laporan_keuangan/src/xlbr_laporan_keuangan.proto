@@ -12,11 +12,12 @@ service XlbrLaporanKeuangan {
 
   // Scrape idx.co.id laporan keuangan (Chrome BEI terpisah dari Stockbit): reset cookie idx.co.id,
   // cari emiten, loop year4..year0 × period0..3, unduh inlineXBRL.zip bila ada, simpan ke
-  // src/downloaded_xbrl/{CODE}/inlineXBRL-{tahun}-{Qn}.zip, parse+upsert invezgood.xlbr_laporan_keuangan.
+  // src/downloaded_xbrl/{CODE}/inlineXBRL-{CODE}-{tahun}-{Qn}.zip, parse+upsert invezgood.xlbr_laporan_keuangan.
   // crate/xlbr_laporan_keuangan/browser_data — tidak mengunci Chrome Stockbit.
   // Awal RPC: hapus semua file di src/screenshot/; screenshot langkah ke {code}-*.png.
-  // Zip unduhan disimpan permanen: src/downloaded_xbrl/{CODE}/inlineXBRL-{tahun}-{Qn}.zip
+  // Zip unduhan disimpan permanen: src/downloaded_xbrl/{CODE}/inlineXBRL-{CODE}-{tahun}-{Qn}.zip
   // (year4=tahun ini−4..year0=tahun ini; period0=Q1..period3=Q4). Bila file sudah ada, slot dilewati.
+  // year0: lewati period0 jika bulan≤3, period1 bulan≤6, period2 bulan≤9, period3 selama masih tahun kalender sama.
   // Retry goto IDX bila 503 Varnish (env XLBR_IDX_GOTO_RETRIES, XLBR_IDX_RETRY_SECS). Publik — tanpa JWT.
   // RPC menunggu scrape selesai lalu kirim uploaded/skipped/failed + fiscal_year/quarter terakhir.
   // Invoke baru batalkan scrap/Chrome lock sebelumnya (client logout) lalu mulai fresh.
