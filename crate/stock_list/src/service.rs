@@ -209,14 +209,15 @@ impl StockListService {
         );
     }
 
-    fn log_rpc_debug_code(
+    fn log_rpc_debug_code_path(
         rpc_name: &str,
-        user_name: &str,
         code: &str,
+        user_name: &str,
+        path: &str,
         started: std::time::Instant,
     ) {
         eprintln!(
-            "{rpc_name} {user_name} {code} {}ms",
+            "{rpc_name} {code} - {user_name} {path} {}ms",
             started.elapsed().as_millis()
         );
     }
@@ -2105,101 +2106,92 @@ impl StockList for StockListService {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         tokio::spawn(async move {
-            let stream_result: Result<Vec<StockbitProfileResponse>, Status> =
-                match tokio::select! {
-                    biased;
-                    () = tx.closed() => None,
-                    result = async {
-                        let mut row =
-                            crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
-                                .await
-                                .map_err(Status::internal)?
-                                .ok_or_else(|| {
-                                    Status::not_found(format!(
-                                        "stock_list code={code} tidak ditemukan"
-                                    ))
-                                })?;
+            let load_outcome: Result<(String, Vec<StockbitProfileResponse>), Status> = async {
+                let mut row =
+                    crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
+                        .await
+                        .map_err(Status::internal)?
+                        .ok_or_else(|| {
+                            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                        })?;
 
-                        let chunks = if crate::stockbit_profile::needs_stockbit_profile_refresh(
-                            row.stockbit_profile.as_ref(),
-                            row.stockbit_profile_updated_at,
-                        ) {
-                            match try_acquire_stockbit_api_get_slot(
-                                "GetStockbitProfileByCode",
-                                &user_name_spawn,
+                if crate::stockbit_profile::needs_stockbit_profile_refresh(
+                    row.stockbit_profile.as_ref(),
+                    row.stockbit_profile_updated_at,
+                ) {
+                    match try_acquire_stockbit_api_get_slot(
+                        "GetStockbitProfileByCode",
+                        &user_name_spawn,
+                    )
+                    .await
+                    {
+                        StockbitApiGetSlot::Acquired => {
+                            eprintln!(
+                                "\x1b[32mGetStockbitProfileByCode {code} GET Stockbit API Profile emitten/{code}/profile\x1b[0m"
+                            );
+                            crate::stockbit_profile::fetch_and_save_stockbit_profile(
+                                Arc::clone(&session),
+                                &code,
                             )
                             .await
-                            {
-                                StockbitApiGetSlot::Acquired => {
-                                    eprintln!(
-                                        "\x1b[32mGetStockbitProfileByCode {user_name_spawn} GET Stockbit API Profile emitten/{code}/profile\x1b[0m"
-                                    );
-                                    crate::stockbit_profile::fetch_and_save_stockbit_profile(
-                                        Arc::clone(&session),
-                                        &code,
-                                    )
-                                    .await
-                                    .map_err(Status::internal)?;
-                                    row = crate::repository::get_stockbit_profile_by_code(
-                                        session.as_ref(),
-                                        &code,
-                                    )
-                                    .await
-                                    .map_err(Status::internal)?
-                                    .ok_or_else(|| {
-                                        Status::not_found(format!(
-                                            "stock_list code={code} tidak ditemukan"
-                                        ))
-                                    })?;
-                                    Self::stockbit_profile_row_stream(
-                                        row,
-                                        "Stockbit profile di-upsert ke stock_list",
-                                    )?
-                                }
-                                StockbitApiGetSlot::RateLimited { remaining_secs } => {
-                                    if Self::stockbit_profile_scylla_empty(
-                                        row.stockbit_profile.as_ref(),
-                                    ) {
-                                        Self::stockbit_profile_notice_stream(
-                                            &code,
-                                            &format!(
-                                                "Rate limit GET Stockbit API (tunggu {remaining_secs}s); data Scylla kosong"
-                                            ),
-                                        )
-                                    } else {
-                                        Self::stockbit_profile_row_stream(
-                                            row,
-                                            &format!(
-                                                "Stockbit profile dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
-                                            ),
-                                        )?
-                                    }
-                                }
+                            .map_err(Status::internal)?;
+                            row = crate::repository::get_stockbit_profile_by_code(
+                                session.as_ref(),
+                                &code,
+                            )
+                            .await
+                            .map_err(Status::internal)?
+                            .ok_or_else(|| {
+                                Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                            })?;
+                            let chunks = Self::stockbit_profile_row_stream(
+                                row,
+                                "Stockbit profile di-upsert ke stock_list",
+                            )?;
+                            Ok(("GET Stockbit API".to_string(), chunks))
+                        }
+                        StockbitApiGetSlot::RateLimited { remaining_secs } => {
+                            if Self::stockbit_profile_scylla_empty(row.stockbit_profile.as_ref()) {
+                                let chunks = Self::stockbit_profile_notice_stream(
+                                    &code,
+                                    &format!(
+                                        "Rate limit GET Stockbit API (tunggu {remaining_secs}s); data Scylla kosong"
+                                    ),
+                                );
+                                Ok((
+                                    format!("rate-limit skip API (Scylla kosong, tunggu {remaining_secs}s)"),
+                                    chunks,
+                                ))
+                            } else {
+                                let chunks = Self::stockbit_profile_row_stream(
+                                    row,
+                                    &format!(
+                                        "Stockbit profile dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
+                                    ),
+                                )?;
+                                Ok((
+                                    format!("rate-limit skip API (cache Scylla, tunggu {remaining_secs}s)"),
+                                    chunks,
+                                ))
                             }
-                        } else {
-                            eprintln!(
-                                "GetStockbitProfileByCode {user_name_spawn} cache Scylla emitten/{code}/profile (<30 hari, data ada)"
-                            );
-                            Self::stockbit_profile_row_stream(row, "Stockbit profile dari Scylla")?
-                        };
-
-                        Ok(chunks)
-                    } => Some(result),
-                } {
-                    None => {
-                        Self::log_rpc_debug_code(
-                            "GetStockbitProfileByCode",
-                            &user_name_spawn,
-                            &code,
-                            started,
-                        );
-                        return;
+                        }
                     }
-                    Some(result) => result,
-                };
+                } else {
+                    let chunks =
+                        Self::stockbit_profile_row_stream(row, "Stockbit profile dari Scylla")?;
+                    Ok(("cache Scylla".to_string(), chunks))
+                }
+            }
+            .await;
 
-            match stream_result {
-                Ok(chunks) => {
+            let debug_path = load_outcome
+                .as_ref()
+                .map(|(path, _)| path.as_str())
+                .unwrap_or("error")
+                .to_string();
+
+            match load_outcome {
+                Ok((_, chunks)) => {
                     for chunk in chunks {
                         if !send_or_break(&tx, Ok(chunk)).await {
                             break;
@@ -2211,10 +2203,11 @@ impl StockList for StockListService {
                 }
             }
 
-            Self::log_rpc_debug_code(
+            Self::log_rpc_debug_code_path(
                 "GetStockbitProfileByCode",
-                &user_name_spawn,
                 &code,
+                &user_name_spawn,
+                &debug_path,
                 started,
             );
         });

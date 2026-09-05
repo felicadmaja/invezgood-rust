@@ -109,9 +109,28 @@ pub async fn fetch_and_save_stockbit_profile(
     session: Arc<Session>,
     code: &str,
 ) -> Result<(StockbitProfileDb, DateTime<Utc>), String> {
-    let profile = fetch_stockbit_profile(code).await?;
+    let code = code.trim().to_ascii_uppercase();
+    let profile = fetch_stockbit_profile(&code).await?;
     let updated_at = Utc::now();
-    crate::repository::update_stockbit_profile(session.as_ref(), code, Some(profile.clone()), updated_at)
-        .await?;
+    crate::repository::update_stockbit_profile(
+        session.as_ref(),
+        &code,
+        profile.clone(),
+        updated_at,
+    )
+    .await?;
+
+    let row = crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
+        .await?
+        .ok_or_else(|| format!("stockbit profile {code}: baris tidak ditemukan setelah upsert"))?;
+    if row.stockbit_profile.is_none() {
+        return Err(format!("stockbit profile {code}: kolom stockbit_profile masih null setelah upsert"));
+    }
+    let saved_at = row
+        .stockbit_profile_updated_at
+        .ok_or_else(|| format!("stockbit profile {code}: stockbit_profile_updated_at masih null setelah upsert"))?;
+    eprintln!(
+        "GetStockbitProfileByCode {code} upsert Scylla OK updated_at={saved_at}"
+    );
     Ok((profile, updated_at))
 }

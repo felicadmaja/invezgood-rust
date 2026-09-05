@@ -6,8 +6,7 @@ use scylla::DeserializeRow;
 
 use crate::model::{
     CompanyInformationDb, CorporateActionDb, KeyStatsFromStockbitDb, KeyStatsFromStockbitRow,
-    ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb, StockbitProfileByCodeRow,
-    StockbitProfileColDb, StockbitReportsByCodeRow, StockbitReportsDb,
+    ShareHolder1Db, ShareHolder5Db, ShareHolderCompositionDb,     StockbitProfileByCodeRow, StockbitProfileDb, StockbitReportsByCodeRow, StockbitReportsDb,
     StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
     StockListKeystatsDb, StockListKeystatsRow, StockListRow, StockListSummaryRow,
     HorizontalLineByCodeRow, WyckoffChartByCodeRow, TakeProfitWyckoffByCodeRow, WyckoffChartDb,
@@ -304,7 +303,7 @@ pub async fn get_stockbit_profile_by_code(
 pub async fn update_stockbit_profile(
     session: &Session,
     code: &str,
-    profile: StockbitProfileColDb,
+    profile: StockbitProfileDb,
     updated_at: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), String> {
     session
