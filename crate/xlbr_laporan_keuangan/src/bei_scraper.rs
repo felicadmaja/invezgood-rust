@@ -1,7 +1,7 @@
 //! Scrape inlineXBRL.zip dari idx.co.id via Chrome BEI (profil terpisah dari Stockbit).
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -14,129 +14,98 @@ use scylla::client::session::Session;
 use stockbit_browser::{
     acquire_idx_browser_session, apply_desktop_viewport, evaluate_resilient, launch_idx_page,
 };
-use tokio::sync::{Mutex, watch};
+use tokio::sync::{mpsc, oneshot};
 use tokio::time::sleep;
 
 use crate::model::XlbrLaporanKeuanganRow;
 
-static SCRAP_JOB_GENERATION: AtomicU64 = AtomicU64::new(0);
-
-struct InflightScrap {
+struct ScrapQueueJob {
     code: String,
-    generation: u64,
-    status: watch::Sender<ScrapJobStatus>,
+    session: Arc<Session>,
+    done: oneshot::Sender<Result<ScrapOutcome, String>>,
 }
 
-#[derive(Clone)]
-pub enum ScrapJobStatus {
-    Running,
-    Finished(Result<ScrapOutcome, String>),
+static SCRAP_QUEUE_TX: OnceLock<mpsc::Sender<ScrapQueueJob>> = OnceLock::new();
+static SCRAP_PENDING: AtomicUsize = AtomicUsize::new(0);
+
+fn scrap_queue_tx() -> &'static mpsc::Sender<ScrapQueueJob> {
+    SCRAP_QUEUE_TX.get_or_init(|| {
+        let (tx, mut rx) = mpsc::channel::<ScrapQueueJob>(64);
+        tokio::spawn(async move {
+            while let Some(job) = rx.recv().await {
+                let code = job.code.clone();
+                eprintln!("ScrapZipFromBei queue: mulai {code}");
+                let bg_started = std::time::Instant::now();
+                let result = scrap_and_upload(job.session, &code).await;
+                match &result {
+                    Ok(outcome) => {
+                        let tail = outcome
+                            .last_row
+                            .as_ref()
+                            .map(|r| {
+                                format!(
+                                    " last_upload={} {} {}",
+                                    r.code, r.fiscal_year, r.quarter
+                                )
+                            })
+                            .unwrap_or_default();
+                        eprintln!(
+                            "ScrapZipFromBei queue: selesai {code} uploaded {} skipped {} failed {}{tail} {}ms",
+                            outcome.uploaded,
+                            outcome.skipped,
+                            outcome.failed,
+                            bg_started.elapsed().as_millis()
+                        );
+                    }
+                    Err(e) => eprintln!(
+                        "ScrapZipFromBei queue: gagal {code}: {e} {}ms",
+                        bg_started.elapsed().as_millis()
+                    ),
+                }
+                let _ = job.done.send(result);
+                SCRAP_PENDING.fetch_sub(1, Ordering::SeqCst);
+            }
+            eprintln!("ScrapZipFromBei queue worker terminated");
+        });
+        tx
+    })
 }
 
-static SCRAP_INFLIGHT: OnceLock<Mutex<Option<InflightScrap>>> = OnceLock::new();
-
-fn scrap_inflight() -> &'static Mutex<Option<InflightScrap>> {
-    SCRAP_INFLIGHT.get_or_init(|| Mutex::new(None))
-}
-
-pub enum ScrapStart {
-    Started { job_gen: u64, watch: watch::Receiver<ScrapJobStatus> },
-}
-
-async fn cancel_previous_scrap_and_wait() {
-    let prev_code = {
-        let slot = scrap_inflight().lock().await;
-        slot.as_ref().map(|s| s.code.clone())
-    };
-    let Some(prev_code) = prev_code else {
-        return;
-    };
-
-    SCRAP_JOB_GENERATION.fetch_add(1, Ordering::SeqCst);
-    eprintln!("ScrapZipFromBei: batalkan scrap {prev_code} sebelumnya — tunggu BEI Chrome lock lepas");
-
-    let deadline = Instant::now() + Duration::from_millis(SCRAP_CANCEL_WAIT_MS);
-    while Instant::now() < deadline {
-        if scrap_inflight().lock().await.is_none() {
-            eprintln!("ScrapZipFromBei: BEI Chrome lock scrap sebelumnya lepas");
-            sleep(Duration::from_millis(400)).await;
-            return;
-        }
-        sleep(Duration::from_millis(200)).await;
-    }
-
-    eprintln!(
-        "ScrapZipFromBei: WARNING scrap sebelumnya belum selesai setelah {SCRAP_CANCEL_WAIT_MS}ms — lanjut acquire lock"
-    );
-}
-
-/// Invoke baru: batalkan scrap/Chrome lock sebelumnya (mis. client logout), lalu mulai scrap fresh.
-pub async fn try_begin_scrap_job(code: &str) -> ScrapStart {
-    cancel_previous_scrap_and_wait().await;
-
-    let code = code.trim().to_ascii_uppercase();
-    let mut slot = scrap_inflight().lock().await;
-    let generation = SCRAP_JOB_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-    let (status_tx, status_rx) = watch::channel(ScrapJobStatus::Running);
-    *slot = Some(InflightScrap {
-        code,
-        generation,
-        status: status_tx,
-    });
-    ScrapStart::Started {
-        job_gen: generation,
-        watch: status_rx,
-    }
-}
-
-pub async fn wait_scrap_outcome(
-    mut watch: watch::Receiver<ScrapJobStatus>,
+/// Satu worker serial: setiap invoke menunggu giliran scrape BEI selesai.
+pub async fn enqueue_scrap_job(
+    session: Arc<Session>,
+    code: &str,
 ) -> Result<ScrapOutcome, String> {
-    loop {
-        if let ScrapJobStatus::Finished(result) = watch.borrow().clone() {
-            return result;
-        }
-        watch
-            .changed()
-            .await
-            .map_err(|_| "scrap task terminated unexpectedly".to_string())?;
+    let code = code.trim().to_ascii_uppercase();
+    if code.is_empty() {
+        return Err("code wajib diisi".into());
     }
-}
 
-pub async fn finish_scrap_job(generation: u64, result: Result<ScrapOutcome, String>) {
-    let mut slot = scrap_inflight().lock().await;
-    if let Some(active) = slot.as_ref() {
-        if active.generation == generation {
-            let _ = active
-                .status
-                .send(ScrapJobStatus::Finished(result.clone()));
-        }
+    let ahead = SCRAP_PENDING.fetch_add(1, Ordering::SeqCst);
+    if ahead > 0 {
+        eprintln!(
+            "ScrapZipFromBei queue: {code} masuk antrian ({ahead} job di depan)"
+        );
     }
-    if slot.as_ref().is_some_and(|s| s.generation == generation) {
-        *slot = None;
-    }
-}
 
-fn scrap_job_cancelled(job_gen: u64) -> bool {
-    job_gen != SCRAP_JOB_GENERATION.load(Ordering::SeqCst)
-}
+    let (done_tx, done_rx) = oneshot::channel();
+    scrap_queue_tx()
+        .send(ScrapQueueJob {
+            code,
+            session,
+            done: done_tx,
+        })
+        .await
+        .map_err(|_| "antrian scrap BEI ditutup".to_string())?;
 
-fn scrap_cancelled_err() -> String {
-    "scrap dibatalkan (invoke ScrapZipFromBei baru)".into()
-}
-
-fn check_scrap_job(job_gen: u64) -> Result<(), String> {
-    if scrap_job_cancelled(job_gen) {
-        Err(scrap_cancelled_err())
-    } else {
-        Ok(())
-    }
+    done_rx
+        .await
+        .map_err(|_| "worker scrap BEI tidak merespons".to_string())?
 }
 
 const IDX_URL: &str = "https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tahunan";
 const YEAR_IDS: [&str; 5] = ["year4", "year3", "year2", "year1", "year0"];
 const PERIOD_IDS: [&str; 4] = ["period0", "period1", "period2", "period3"];
-const SCRAP_CANCEL_WAIT_MS: u64 = 15_000;
 const WAIT_TABLE_MS: u64 = 25_000;
 const SEARCH_TYPE_CHAR_MS: u64 = 100;
 const SEARCH_ENTER_DELAY_MS: u64 = 300;
@@ -167,7 +136,6 @@ pub struct ScrapOutcome {
 pub async fn scrap_and_upload(
     db: Arc<Session>,
     code: &str,
-    job_gen: u64,
 ) -> Result<ScrapOutcome, String> {
     let code = code.trim().to_ascii_uppercase();
     if code.is_empty() {
@@ -186,7 +154,6 @@ pub async fn scrap_and_upload(
 
     cleanup_screenshot_dir(&screenshot_dir).await;
     cleanup_legacy_slot_zips(&download_root, &code).await;
-    check_scrap_job(job_gen)?;
 
     let _lock = acquire_idx_browser_session()
         .await
@@ -198,12 +165,11 @@ pub async fn scrap_and_upload(
         .await
         .map_err(|e| format!("viewport desktop: {e}"))?;
 
-    goto_idx(&page, job_gen).await?;
+    goto_idx(&page).await?;
     apply_desktop_viewport(&page)
         .await
         .map_err(|e| format!("viewport desktop setelah goto IDX: {e}"))?;
     save_screenshot(&page, &screenshot_dir, &format!("{code}-01-open")).await;
-    check_scrap_job(job_gen)?;
 
     if page_idx_error(&page).await? {
         save_screenshot(&page, &screenshot_dir, &format!("{code}-01-error")).await;
@@ -216,7 +182,7 @@ pub async fn scrap_and_upload(
         );
     }
 
-    search_company(&page, &code, &screenshot_dir, job_gen).await?;
+    search_company(&page, &code, &screenshot_dir).await?;
     apply_desktop_viewport(&page)
         .await
         .map_err(|e| format!("viewport desktop setelah pilih emiten: {e}"))?;
@@ -230,7 +196,6 @@ pub async fn scrap_and_upload(
 
     for year_id in YEAR_IDS {
         for period_id in PERIOD_IDS {
-            check_scrap_job(job_gen)?;
 
             let zip_name = archive_zip_filename(&code, year_id, period_id)
                 .ok_or_else(|| format!("label zip tidak valid: {year_id}/{period_id}"))?;
@@ -265,7 +230,7 @@ pub async fn scrap_and_upload(
                 .await
                 .map_err(|e| format!("viewport desktop setelah Terapkan: {e}"))?;
 
-            match wait_table(&page, job_gen).await? {
+            match wait_table(&page).await? {
                 TableState::NotFound => {
                     skipped += 1;
                     save_screenshot(&page, &screenshot_dir, &format!("{label}-not-found")).await;
@@ -407,7 +372,7 @@ async fn cleanup_screenshot_dir(dir: &Path) {
     }
 }
 
-async fn goto_idx(page: &Page, job_gen: u64) -> Result<(), String> {
+async fn goto_idx(page: &Page) -> Result<(), String> {
     let max_attempts = std::env::var("XLBR_IDX_GOTO_RETRIES")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -418,7 +383,6 @@ async fn goto_idx(page: &Page, job_gen: u64) -> Result<(), String> {
         .unwrap_or(8u64);
 
     for attempt in 1..=max_attempts {
-        check_scrap_job(job_gen)?;
 
         page.goto(IDX_URL)
             .await
@@ -426,7 +390,6 @@ async fn goto_idx(page: &Page, job_gen: u64) -> Result<(), String> {
 
         let started = Instant::now();
         while started.elapsed() < Duration::from_secs(20) {
-            check_scrap_job(job_gen)?;
             if page_idx_ready(page).await? {
                 eprintln!("ScrapZipFromBei: halaman IDX siap (attempt {attempt})");
                 return Ok(());
@@ -443,7 +406,6 @@ async fn goto_idx(page: &Page, job_gen: u64) -> Result<(), String> {
              retry dalam {wait_secs}s"
         );
         if attempt < max_attempts {
-            check_scrap_job(job_gen)?;
             sleep(Duration::from_secs(wait_secs)).await;
             let _ = page.reload().await;
             sleep(Duration::from_secs(2)).await;
@@ -481,10 +443,9 @@ async fn page_idx_ready(page: &Page) -> Result<bool, String> {
     Ok(page.find_element(VS_SEARCH_SELECTOR).await.is_ok())
 }
 
-async fn wait_vs_search_input(page: &Page, job_gen: u64) -> Result<Element, String> {
+async fn wait_vs_search_input(page: &Page) -> Result<Element, String> {
     let started = Instant::now();
     while started.elapsed() < Duration::from_millis(WAIT_VS_SEARCH_MS) {
-        check_scrap_job(job_gen)?;
         if let Ok(input) = page.find_element(VS_SEARCH_SELECTOR).await {
             eprintln!("ScrapZipFromBei: input vs__search siap");
             return Ok(input);
@@ -505,33 +466,30 @@ async fn search_company(
     page: &Page,
     code: &str,
     screenshot_dir: &Path,
-    job_gen: u64,
 ) -> Result<(), String> {
-    check_scrap_job(job_gen)?;
     eprintln!("ScrapZipFromBei: cari emiten {code} — ketik, tunggu listbox, ArrowDown, Enter");
 
-    let input = wait_vs_search_input(page, job_gen).await?;
+    let input = wait_vs_search_input(page).await?;
     input
         .click()
         .await
         .map_err(|e| format!("klik input vs__search: {e}"))?;
     sleep(Duration::from_millis(SEARCH_RETYPE_CLICK_MS)).await;
 
-    type_into_element(&input, code, job_gen).await?;
-    retype_code_if_missing(page, code, job_gen, screenshot_dir, 1).await?;
+    type_into_element(&input, code).await?;
+    retype_code_if_missing(page, code, screenshot_dir, 1).await?;
 
     let target_index =
-        wait_for_listbox_match(page, code, job_gen, screenshot_dir).await?;
+        wait_for_listbox_match(page, code, screenshot_dir).await?;
 
     let input = page
         .find_element(VS_SEARCH_SELECTOR)
         .await
         .map_err(|e| format!("vs__search hilang sebelum ArrowDown: {e}"))?;
-    select_listbox_with_arrows(&input, code, target_index, job_gen).await?;
+    select_listbox_with_arrows(&input, code, target_index).await?;
 
     let started = Instant::now();
     while started.elapsed() < Duration::from_millis(WAIT_COMPANY_SELECTED_MS) {
-        check_scrap_job(job_gen)?;
         if company_clear_selected_visible(page).await {
             save_screenshot(
                 page,
@@ -556,13 +514,11 @@ async fn search_company(
 async fn wait_for_listbox_match(
     page: &Page,
     code: &str,
-    job_gen: u64,
     screenshot_dir: &Path,
 ) -> Result<usize, String> {
     let started = Instant::now();
     let mut listbox_screenshot_taken = false;
     while started.elapsed() < Duration::from_millis(WAIT_LISTBOX_MS) {
-        check_scrap_job(job_gen)?;
 
         if page.find_element(LISTBOX_SELECTOR).await.is_err() {
             sleep(Duration::from_millis(SEARCH_POLL_MS)).await;
@@ -649,11 +605,9 @@ async fn select_listbox_with_arrows(
     input: &Element,
     code: &str,
     target_index: usize,
-    job_gen: u64,
 ) -> Result<(), String> {
     eprintln!("ScrapZipFromBei: ArrowDown x{target_index} lalu Enter untuk {code}");
     for _ in 0..target_index {
-        check_scrap_job(job_gen)?;
         input
             .press_key("ArrowDown")
             .await
@@ -704,7 +658,6 @@ async fn clear_vs_search_input(input: &Element) -> Result<(), String> {
 async fn retype_code_if_missing(
     page: &Page,
     code: &str,
-    job_gen: u64,
     screenshot_dir: &Path,
     attempt: u32,
 ) -> Result<(), String> {
@@ -731,7 +684,7 @@ async fn retype_code_if_missing(
     sleep(Duration::from_millis(SEARCH_RETYPE_CLICK_MS)).await;
     clear_vs_search_input(&input).await?;
     sleep(Duration::from_millis(SEARCH_RETYPE_CLICK_MS)).await;
-    type_into_element(&input, code, job_gen).await?;
+    type_into_element(&input, code).await?;
 
     sleep(Duration::from_millis(SEARCH_POLL_MS)).await;
     if vs_search_has_code(page, code).await? {
@@ -744,10 +697,9 @@ async fn retype_code_if_missing(
     Ok(())
 }
 
-async fn type_into_element(element: &Element, text: &str, job_gen: u64) -> Result<(), String> {
+async fn type_into_element(element: &Element, text: &str) -> Result<(), String> {
     eprintln!("ScrapZipFromBei: ketik manual {text}");
     for ch in text.chars() {
-        check_scrap_job(job_gen)?;
         element
             .type_str(&ch.to_string())
             .await
@@ -849,12 +801,11 @@ enum TableState {
     NotFound,
 }
 
-async fn wait_table(page: &Page, job_gen: u64) -> Result<TableState, String> {
+async fn wait_table(page: &Page) -> Result<TableState, String> {
     let started = Instant::now();
     let mut retried_terapkan = false;
     let mut last_state = String::from("waiting");
     while started.elapsed() < Duration::from_millis(WAIT_TABLE_MS) {
-        check_scrap_job(job_gen)?;
         let state = table_poll_state(page).await?;
         last_state = state.clone();
         match state.as_str() {

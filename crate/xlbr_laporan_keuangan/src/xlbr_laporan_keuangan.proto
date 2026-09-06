@@ -18,13 +18,17 @@ service XlbrLaporanKeuangan {
   // Zip unduhan disimpan permanen: src/downloaded_xbrl/{CODE}/inlineXBRL-{CODE}-{tahun}-{Qn}.zip
   // (year4=tahun ini−4..year0=tahun ini; period0=Q1..period3=Q4). Bila file sudah ada, slot dilewati.
   // year0: lewati period0 jika bulan≤3, period1 bulan≤6, period2 bulan≤9, period3 selama masih tahun kalender sama.
-  // Retry goto IDX bila 503 Varnish (env XLBR_IDX_GOTO_RETRIES, XLBR_IDX_RETRY_SECS). Publik — tanpa JWT.
+  // Retry goto IDX bila 503 Varnish (env XLBR_IDX_GOTO_RETRIES, XLBR_IDX_RETRY_SECS). Bearer login.
   // RPC menunggu scrape selesai lalu kirim uploaded/skipped/failed + fiscal_year/quarter terakhir.
-  // Invoke baru batalkan scrap/Chrome lock sebelumnya (client logout) lalu mulai fresh.
+  // Satu worker serial: invoke paralel diantrikan FIFO, diproses satu per satu (tidak membatalkan job sebelumnya).
   rpc ScrapZipFromBei(ScrapZipFromBeiRequest) returns (UploadZipResponse);
 
-  // Baca hingga 20 baris (5 tahun × 4 kuartal) per code untuk grafik client. Publik — tanpa JWT.
+  // Baca hingga 20 baris (5 tahun × 4 kuartal) per code untuk grafik client. Bearer login.
   rpc GetChartByCode(GetXlbrChartByCodeRequest) returns (GetXlbrChartByCodeResponse);
+
+  // Unduh inlineXBRL zip dari src/downloaded_xbrl/{CODE}/. Bila tahun_quarter diisi (contoh 2026Q1),
+  // stream satu file inlineXBRL-{CODE}-2026-Q1.zip; bila kosong, bundel semua zip emiten. Bearer login.
+  rpc DownloadInlineXBRL(DownloadInlineXBRLRequest) returns (stream DownloadInlineXBRLResponse);
 }
 
 message UploadZipChunk {
@@ -66,4 +70,15 @@ message GetXlbrChartByCodeResponse {
   string message = 2;
   string code = 3;
   repeated XlbrChartPoint points = 4;
+}
+
+message DownloadInlineXBRLRequest {
+  string code = 1;
+  string tahun_quarter = 2; // format "{tahun}{quarter}", contoh 2026Q1; kosong = bundel semua zip emiten
+}
+
+message DownloadInlineXBRLResponse {
+  bool success = 1;
+  string message = 2;
+  bytes data = 3;
 }

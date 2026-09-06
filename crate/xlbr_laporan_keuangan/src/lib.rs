@@ -7,6 +7,7 @@ pub const FILE_DESCRIPTOR_SET: &[u8] =
 
 mod bei_scraper;
 mod database;
+mod download;
 pub mod model;
 mod parser;
 pub mod repository;

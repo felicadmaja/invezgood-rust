@@ -1,17 +1,25 @@
+use std::pin::Pin;
 use std::sync::Arc;
 
+use futures::Stream;
 use scylla::client::session::Session;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
 use user::{extract_bearer_token, validate_session, SessionStore};
 
+use crate::download::STREAM_CHUNK_BYTES;
 use crate::pb::xlbr_laporan_keuangan_server::XlbrLaporanKeuangan;
 use crate::pb::{
-    GetXlbrChartByCodeRequest, GetXlbrChartByCodeResponse, ScrapZipFromBeiRequest,
-    UploadZipChunk, UploadZipResponse, XlbrChartPoint,
+    DownloadInlineXbrlRequest, DownloadInlineXbrlResponse, GetXlbrChartByCodeRequest,
+    GetXlbrChartByCodeResponse, ScrapZipFromBeiRequest, UploadZipChunk, UploadZipResponse,
+    XlbrChartPoint,
 };
 use crate::repository;
 
 const CHART_LIMIT: i32 = 20;
+
+type DownloadInlineXbrlStream =
+    Pin<Box<dyn Stream<Item = Result<DownloadInlineXbrlResponse, Status>> + Send>>;
 
 pub struct XlbrLaporanKeuanganService {
     session: Arc<Session>,
@@ -29,20 +37,26 @@ impl XlbrLaporanKeuanganService {
     fn map_upload_error(e: String) -> Status {
         Status::invalid_argument(e)
     }
+
+    async fn require_auth_token(&self, token: &str) -> Result<String, Status> {
+        let auth = validate_session(&self.auth_sessions, token)
+            .await
+            .map_err(Status::unauthenticated)?;
+        Ok(auth.nama)
+    }
 }
 
 #[tonic::async_trait]
 impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
+    type DownloadInlineXBRLStream = DownloadInlineXbrlStream;
+
     async fn upload_zip(
         &self,
         request: Request<Streaming<UploadZipChunk>>,
     ) -> Result<Response<UploadZipResponse>, Status> {
         let started = std::time::Instant::now();
         let token = extract_bearer_token(&request)?;
-        let auth = validate_session(&self.auth_sessions, &token)
-            .await
-            .map_err(Status::unauthenticated)?;
-        let user_name = auth.nama;
+        let user_name = self.require_auth_token(&token).await?;
 
         let result: Result<Response<UploadZipResponse>, Status> = async {
             let mut stream = request.into_inner();
@@ -88,7 +102,8 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         request: Request<ScrapZipFromBeiRequest>,
     ) -> Result<Response<UploadZipResponse>, Status> {
         let started = std::time::Instant::now();
-        let user_name = "anonymous";
+        let token = extract_bearer_token(&request)?;
+        let user_name = self.require_auth_token(&token).await?;
         let code = request.into_inner().code.trim().to_ascii_uppercase();
 
         if code.is_empty() {
@@ -99,50 +114,8 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
             return Err(Status::invalid_argument("code wajib diisi"));
         }
 
-        let watch = match crate::bei_scraper::try_begin_scrap_job(&code).await {
-            crate::bei_scraper::ScrapStart::Started { job_gen, watch } => {
-                let session = self.session.clone();
-                let code_bg = code.clone();
-
-                tokio::spawn(async move {
-                    let bg_started = std::time::Instant::now();
-                    eprintln!("ScrapZipFromBei background {code_bg} dimulai (gen {job_gen})");
-                    let result =
-                        crate::bei_scraper::scrap_and_upload(session, &code_bg, job_gen).await;
-                    match &result {
-                        Ok(outcome) => {
-                            let tail = outcome
-                                .last_row
-                                .as_ref()
-                                .map(|r| {
-                                    format!(
-                                        " last_upload={} {} {}",
-                                        r.code, r.fiscal_year, r.quarter
-                                    )
-                                })
-                                .unwrap_or_default();
-                            eprintln!(
-                                "ScrapZipFromBei background {code_bg} uploaded {} skipped {} failed {}{tail} {}ms",
-                                outcome.uploaded,
-                                outcome.skipped,
-                                outcome.failed,
-                                bg_started.elapsed().as_millis()
-                            );
-                        }
-                        Err(e) => eprintln!(
-                            "ScrapZipFromBei background {code_bg} gagal: {e} {}ms",
-                            bg_started.elapsed().as_millis()
-                        ),
-                    }
-                    crate::bei_scraper::finish_scrap_job(job_gen, result).await;
-                });
-
-                watch
-            }
-        };
-
         let result: Result<Response<UploadZipResponse>, Status> = async {
-            let outcome = crate::bei_scraper::wait_scrap_outcome(watch)
+            let outcome = crate::bei_scraper::enqueue_scrap_job(self.session.clone(), &code)
                 .await
                 .map_err(Status::internal)?;
 
@@ -169,12 +142,89 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         result
     }
 
+    async fn download_inline_xbrl(
+        &self,
+        request: Request<DownloadInlineXbrlRequest>,
+    ) -> Result<Response<Self::DownloadInlineXBRLStream>, Status> {
+        let started = std::time::Instant::now();
+        let token = extract_bearer_token(&request)?;
+        let user_name = self.require_auth_token(&token).await?;
+        let req = request.into_inner();
+        let code = req.code.trim().to_ascii_uppercase();
+        let tahun_quarter = req.tahun_quarter.trim().to_string();
+
+        if code.is_empty() {
+            eprintln!(
+                "DownloadInlineXBRL {user_name} {}ms",
+                started.elapsed().as_millis()
+            );
+            return Err(Status::invalid_argument("code wajib diisi"));
+        }
+
+        let (tx, rx) = tokio::sync::mpsc::channel(32);
+        let code_bg = code.clone();
+        let tahun_quarter_bg = tahun_quarter.clone();
+        let user_name_bg = user_name.clone();
+
+        tokio::spawn(async move {
+            let result =
+                crate::download::resolve_emiten_download(&code_bg, &tahun_quarter_bg).await;
+            match result {
+                Ok((bytes, message)) => {
+                    for chunk in bytes.chunks(STREAM_CHUNK_BYTES) {
+                        if tx
+                            .send(Ok(DownloadInlineXbrlResponse {
+                                success: false,
+                                message: String::new(),
+                                data: chunk.to_vec(),
+                            }))
+                            .await
+                            .is_err()
+                        {
+                            eprintln!(
+                                "DownloadInlineXBRL {user_name_bg} {}ms",
+                                started.elapsed().as_millis()
+                            );
+                            return;
+                        }
+                    }
+                    let _ = tx
+                        .send(Ok(DownloadInlineXbrlResponse {
+                            success: true,
+                            message,
+                            data: Vec::new(),
+                        }))
+                        .await;
+                }
+                Err(e) => {
+                    let _ = tx
+                        .send(Ok(DownloadInlineXbrlResponse {
+                            success: false,
+                            message: e,
+                            data: Vec::new(),
+                        }))
+                        .await;
+                }
+            }
+
+            eprintln!(
+                "DownloadInlineXBRL {user_name_bg} {}ms",
+                started.elapsed().as_millis()
+            );
+        });
+
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(rx)) as DownloadInlineXbrlStream,
+        ))
+    }
+
     async fn get_chart_by_code(
         &self,
         request: Request<GetXlbrChartByCodeRequest>,
     ) -> Result<Response<GetXlbrChartByCodeResponse>, Status> {
         let started = std::time::Instant::now();
-        let user_name = "anonymous";
+        let token = extract_bearer_token(&request)?;
+        let user_name = self.require_auth_token(&token).await?;
         let code = request.into_inner().code.trim().to_ascii_uppercase();
 
         let result: Result<Response<GetXlbrChartByCodeResponse>, Status> = async {
