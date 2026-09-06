@@ -10,9 +10,10 @@ use user::{extract_bearer_token, validate_session, SessionStore};
 use crate::download::STREAM_CHUNK_BYTES;
 use crate::pb::xlbr_laporan_keuangan_server::XlbrLaporanKeuangan;
 use crate::pb::{
-    DownloadInlineXbrlRequest, DownloadInlineXbrlResponse, GetXlbrChartByCodeRequest,
-    GetXlbrChartByCodeResponse, ScrapZipFromBeiRequest, UploadZipChunk, UploadZipResponse,
-    XlbrChartPoint,
+    DownloadInlineXbrlRequest, DownloadInlineXbrlResponse, GetCatatanByCodeRequest,
+    GetCatatanByCodeResponse, GetXlbrChartByCodeRequest, GetXlbrChartByCodeResponse,
+    ScrapZipFromBeiRequest, UploadZipChunk, UploadZipResponse, UpsertCatatanByCodeRequest,
+    UpsertCatatanByCodeResponse, XlbrChartPoint,
 };
 use crate::repository;
 
@@ -220,6 +221,90 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         Ok(Response::new(
             Box::pin(ReceiverStream::new(rx)) as DownloadInlineXbrlStream,
         ))
+    }
+
+    async fn get_catatan_by_code(
+        &self,
+        request: Request<GetCatatanByCodeRequest>,
+    ) -> Result<Response<GetCatatanByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let token = extract_bearer_token(&request)?;
+        let user_name = self.require_auth_token(&token).await?;
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+
+        let result: Result<Response<GetCatatanByCodeResponse>, Status> = async {
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            let catatan = repository::get_catatan_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(|e| {
+                    if e.contains("tidak ditemukan") {
+                        Status::not_found(e)
+                    } else {
+                        Status::internal(e)
+                    }
+                })?;
+
+            Ok(Response::new(GetCatatanByCodeResponse {
+                success: true,
+                message: format!("{} entri catatan", catatan.len()),
+                code,
+                catatan,
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "GetCatatanByCode {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
+        result
+    }
+
+    async fn upsert_catatan_by_code(
+        &self,
+        request: Request<UpsertCatatanByCodeRequest>,
+    ) -> Result<Response<UpsertCatatanByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let token = extract_bearer_token(&request)?;
+        let user_name = self.require_auth_token(&token).await?;
+        let req = request.into_inner();
+        let code = req.code.trim().to_ascii_uppercase();
+
+        let result: Result<Response<UpsertCatatanByCodeResponse>, Status> = async {
+            if code.is_empty() {
+                return Err(Status::invalid_argument("code wajib diisi"));
+            }
+
+            let updated = repository::upsert_catatan_by_code(
+                self.session.as_ref(),
+                &code,
+                req.catatan,
+            )
+            .await
+            .map_err(|e| {
+                if e.contains("tidak ditemukan") {
+                    Status::not_found(e)
+                } else {
+                    Status::internal(e)
+                }
+            })?;
+
+            Ok(Response::new(UpsertCatatanByCodeResponse {
+                success: true,
+                message: format!("catatan {code} diupdate pada {updated} baris"),
+                code,
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "UpsertCatatanByCode {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
+        result
     }
 
     async fn get_chart_by_code(

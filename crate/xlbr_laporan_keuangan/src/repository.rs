@@ -1,6 +1,7 @@
 use chrono::Utc;
 use futures::TryStreamExt;
 use scylla::client::session::Session;
+use std::collections::HashMap;
 
 use crate::model::{
     normalize_quarter_label, quarter_index, required_prior_quarters, StandaloneMetrics,
@@ -68,6 +69,55 @@ pub async fn list_chart(
     });
     rows.truncate(limit as usize);
     Ok(rows)
+}
+
+pub async fn list_by_code(
+    session: &Session,
+    code: &str,
+) -> Result<Vec<XlbrLaporanKeuanganRow>, String> {
+    let mut stream = session
+        .query_iter(SELECT_CHART, (code,))
+        .await
+        .map_err(|e| format!("select {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .rows_stream::<XlbrLaporanKeuanganRow>()
+        .map_err(|e| format!("stream {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+
+    let mut rows = Vec::new();
+    while let Some(row) = stream.try_next().await.map_err(|e| format!("row code={code}: {e}"))? {
+        rows.push(row);
+    }
+    Ok(rows)
+}
+
+pub async fn get_catatan_by_code(
+    session: &Session,
+    code: &str,
+) -> Result<HashMap<String, String>, String> {
+    let rows = list_by_code(session, code).await?;
+    let Some(latest) = latest_row(&rows) else {
+        return Err(format!("code {code} tidak ditemukan"));
+    };
+    Ok(latest.catatan.clone().unwrap_or_default())
+}
+
+pub async fn upsert_catatan_by_code(
+    session: &Session,
+    code: &str,
+    catatan: HashMap<String, String>,
+) -> Result<usize, String> {
+    let rows = list_by_code(session, code).await?;
+    if rows.is_empty() {
+        return Err(format!("code {code} tidak ditemukan"));
+    }
+
+    let catatan = Some(catatan);
+    let mut updated = 0usize;
+    for mut row in rows {
+        row.catatan = catatan.clone();
+        upsert(session, &row).await?;
+        updated += 1;
+    }
+    Ok(updated)
 }
 
 pub async fn upsert(
@@ -152,4 +202,12 @@ pub fn row_from_standalone(
 
 fn quarter_ord(q: &str) -> i32 {
     quarter_index(q).map(|i| (i + 1) as i32).unwrap_or(0)
+}
+
+fn latest_row(rows: &[XlbrLaporanKeuanganRow]) -> Option<&XlbrLaporanKeuanganRow> {
+    rows.iter().max_by(|a, b| {
+        a.fiscal_year
+            .cmp(&b.fiscal_year)
+            .then_with(|| quarter_ord(&a.quarter).cmp(&quarter_ord(&b.quarter)))
+    })
 }

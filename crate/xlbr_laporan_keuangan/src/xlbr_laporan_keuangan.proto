@@ -26,6 +26,12 @@ service XlbrLaporanKeuangan {
   // Baca hingga 20 baris (5 tahun × 4 kuartal) per code untuk grafik client. Bearer login.
   rpc GetChartByCode(GetXlbrChartByCodeRequest) returns (GetXlbrChartByCodeResponse);
 
+  // Baca catatan map emiten dari invezgood.xlbr_laporan_keuangan (baris kuartal terbaru per code). Bearer login.
+  rpc GetCatatanByCode(GetCatatanByCodeRequest) returns (GetCatatanByCodeResponse);
+
+  // Upsert catatan map ke semua baris kuartal emiten yang sama (overwrite map). Bearer login.
+  rpc UpsertCatatanByCode(UpsertCatatanByCodeRequest) returns (UpsertCatatanByCodeResponse);
+
   // Unduh inlineXBRL zip dari src/downloaded_xbrl/{CODE}/. tahun_quarter repeated (contoh 2026-Q1):
   // 1 item → stream file tunggal; >1 item → bundel zip terpilih; kosong → bundel semua zip emiten. Bearer login.
   rpc DownloadInlineXBRL(DownloadInlineXBRLRequest) returns (stream DownloadInlineXBRLResponse);
@@ -71,6 +77,28 @@ message GetXlbrChartByCodeResponse {
   string message = 2;
   string code = 3;
   repeated XlbrChartPoint points = 4;
+}
+
+message GetCatatanByCodeRequest {
+  string code = 1;
+}
+
+message GetCatatanByCodeResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  map<string, string> catatan = 4;
+}
+
+message UpsertCatatanByCodeRequest {
+  string code = 1;
+  map<string, string> catatan = 2;
+}
+
+message UpsertCatatanByCodeResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
 }
 
 message DownloadInlineXBRLRequest {
