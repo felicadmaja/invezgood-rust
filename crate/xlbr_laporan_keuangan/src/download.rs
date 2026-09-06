@@ -49,20 +49,19 @@ pub async fn list_emiten_zip_paths(code: &str) -> Result<Vec<PathBuf>, String> {
     Ok(paths)
 }
 
-/// Parse `2026Q1` → `(2026, "Q1")`.
+/// Parse `2026-Q1` → `(2026, "Q1")`.
 pub fn parse_tahun_quarter(raw: &str) -> Result<(i32, String), String> {
     let s = raw.trim().to_ascii_uppercase();
-    let pos = s
-        .find('Q')
-        .ok_or_else(|| format!("tahun_quarter invalid: {raw} (contoh 2026Q1)"))?;
-    let year: i32 = s[..pos]
+    let (year_str, quarter) = s.split_once('-').ok_or_else(|| {
+        format!("tahun_quarter invalid: {raw} (contoh 2026-Q1)")
+    })?;
+    let year: i32 = year_str
         .parse()
         .map_err(|_| format!("tahun invalid dalam tahun_quarter: {raw}"))?;
-    let quarter = s[pos..].to_string();
-    if !matches!(quarter.as_str(), "Q1" | "Q2" | "Q3" | "Q4") {
+    if !matches!(quarter, "Q1" | "Q2" | "Q3" | "Q4") {
         return Err(format!("quarter invalid dalam tahun_quarter: {raw}"));
     }
-    Ok((year, quarter))
+    Ok((year, quarter.to_string()))
 }
 
 pub fn emiten_zip_path(code: &str, fiscal_year: i32, quarter: &str) -> PathBuf {
@@ -77,24 +76,37 @@ pub async fn read_emiten_zip(code: &str, tahun_quarter: &str) -> Result<(Vec<u8>
     let bytes = tokio::fs::read(&path)
         .await
         .map_err(|e| format!("baca {}: {e}", path.display()))?;
-    let message = format!("{code} {year}{quarter} {} byte", bytes.len());
+    let message = format!("{code} {year}-{quarter} {} byte", bytes.len());
     Ok((bytes, message))
 }
 
 pub async fn resolve_emiten_download(
     code: &str,
-    tahun_quarter: &str,
+    tahun_quarters: &[String],
 ) -> Result<(Vec<u8>, String), String> {
-    if tahun_quarter.trim().is_empty() {
-        bundle_emiten_zips(code).await
-    } else {
-        read_emiten_zip(code, tahun_quarter).await
+    let selected: Vec<String> = tahun_quarters
+        .iter()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if selected.is_empty() {
+        return bundle_emiten_zips(code).await;
     }
+    if selected.len() == 1 {
+        return read_emiten_zip(code, &selected[0]).await;
+    }
+
+    let mut paths = Vec::with_capacity(selected.len());
+    for tq in &selected {
+        let (year, quarter) = parse_tahun_quarter(tq)?;
+        paths.push(emiten_zip_path(code, year, &quarter));
+    }
+    bundle_zip_paths(code, &paths).await
 }
 
-pub async fn bundle_emiten_zips(code: &str) -> Result<(Vec<u8>, String), String> {
+async fn bundle_zip_paths(code: &str, paths: &[PathBuf]) -> Result<(Vec<u8>, String), String> {
     let code = code.trim().to_ascii_uppercase();
-    let paths = list_emiten_zip_paths(&code).await?;
     if paths.is_empty() {
         return Err(format!("tidak ada inlineXBRL zip untuk {code}"));
     }
@@ -105,7 +117,7 @@ pub async fn bundle_emiten_zips(code: &str) -> Result<(Vec<u8>, String), String>
         let options =
             SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
-        for path in &paths {
+        for path in paths {
             let name = path
                 .file_name()
                 .ok_or_else(|| format!("nama file invalid: {}", path.display()))?
@@ -133,4 +145,13 @@ pub async fn bundle_emiten_zips(code: &str) -> Result<(Vec<u8>, String), String>
         bundled.len()
     );
     Ok((bundled, message))
+}
+
+pub async fn bundle_emiten_zips(code: &str) -> Result<(Vec<u8>, String), String> {
+    let code = code.trim().to_ascii_uppercase();
+    let paths = list_emiten_zip_paths(&code).await?;
+    if paths.is_empty() {
+        return Err(format!("tidak ada inlineXBRL zip untuk {code}"));
+    }
+    bundle_zip_paths(&code, &paths).await
 }

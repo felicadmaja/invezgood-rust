@@ -151,7 +151,11 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         let user_name = self.require_auth_token(&token).await?;
         let req = request.into_inner();
         let code = req.code.trim().to_ascii_uppercase();
-        let tahun_quarter = req.tahun_quarter.trim().to_string();
+        let tahun_quarter: Vec<String> = req
+            .tahun_quarter
+            .into_iter()
+            .map(|s| s.trim().to_string())
+            .collect();
 
         if code.is_empty() {
             eprintln!(
@@ -250,6 +254,7 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
                     net_income: r.net_income,
                     presentation_currency: r.presentation_currency,
                     unit_scale: r.unit_scale,
+                    catatan: r.catatan.clone().unwrap_or_default(),
                 })
                 .collect();
 

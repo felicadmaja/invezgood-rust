@@ -26,8 +26,8 @@ service XlbrLaporanKeuangan {
   // Baca hingga 20 baris (5 tahun × 4 kuartal) per code untuk grafik client. Bearer login.
   rpc GetChartByCode(GetXlbrChartByCodeRequest) returns (GetXlbrChartByCodeResponse);
 
-  // Unduh inlineXBRL zip dari src/downloaded_xbrl/{CODE}/. Bila tahun_quarter diisi (contoh 2026Q1),
-  // stream satu file inlineXBRL-{CODE}-2026-Q1.zip; bila kosong, bundel semua zip emiten. Bearer login.
+  // Unduh inlineXBRL zip dari src/downloaded_xbrl/{CODE}/. tahun_quarter repeated (contoh 2026-Q1):
+  // 1 item → stream file tunggal; >1 item → bundel zip terpilih; kosong → bundel semua zip emiten. Bearer login.
   rpc DownloadInlineXBRL(DownloadInlineXBRLRequest) returns (stream DownloadInlineXBRLResponse);
 }
 
@@ -63,6 +63,7 @@ message XlbrChartPoint {
   double net_income = 9;
   string presentation_currency = 10;
   int32 unit_scale = 11;
+  map<string, string> catatan = 12;
 }
 
 message GetXlbrChartByCodeResponse {
@@ -74,7 +75,7 @@ message GetXlbrChartByCodeResponse {
 
 message DownloadInlineXBRLRequest {
   string code = 1;
-  string tahun_quarter = 2; // format "{tahun}{quarter}", contoh 2026Q1; kosong = bundel semua zip emiten
+  repeated string tahun_quarter = 2; // format "{tahun}-{quarter}", contoh 2026-Q1; kosong = bundel semua zip emiten
 }
 
 message DownloadInlineXBRLResponse {

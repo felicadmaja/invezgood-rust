@@ -10,20 +10,20 @@ use crate::model::{
 const SELECT_PRIOR_FOR_YEAR: &str =
     "SELECT code, fiscal_year, quarter, period_end, presentation_currency, unit_scale, \
     cash_from_operation, cash_from_investment, cash_from_financing, capital_expenditure, \
-    free_cash_flow, net_income, uploaded_at, source_zip_hash \
+    free_cash_flow, net_income, uploaded_at, source_zip_hash, catatan \
     FROM invezgood.xlbr_laporan_keuangan WHERE code = ? AND fiscal_year = ?";
 
 const SELECT_CHART: &str =
     "SELECT code, fiscal_year, quarter, period_end, presentation_currency, unit_scale, \
     cash_from_operation, cash_from_investment, cash_from_financing, capital_expenditure, \
-    free_cash_flow, net_income, uploaded_at, source_zip_hash \
+    free_cash_flow, net_income, uploaded_at, source_zip_hash, catatan \
     FROM invezgood.xlbr_laporan_keuangan WHERE code = ?";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.xlbr_laporan_keuangan (code, fiscal_year, quarter, period_end, \
     presentation_currency, unit_scale, cash_from_operation, cash_from_investment, \
     cash_from_financing, capital_expenditure, free_cash_flow, net_income, uploaded_at, \
-    source_zip_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    source_zip_hash, catatan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 pub async fn list_for_year(
     session: &Session,
@@ -92,6 +92,7 @@ pub async fn upsert(
                 row.net_income,
                 row.uploaded_at,
                 &row.source_zip_hash,
+                &row.catatan,
             ),
         )
         .await
@@ -145,6 +146,7 @@ pub fn row_from_standalone(
         net_income: metrics.net_income,
         uploaded_at: Utc::now(),
         source_zip_hash: source_zip_hash.to_string(),
+        catatan: None,
     }
 }
 

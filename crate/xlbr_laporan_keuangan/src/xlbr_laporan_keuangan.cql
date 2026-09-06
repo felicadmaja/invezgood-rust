@@ -16,6 +16,7 @@
 --     net_income double,
 --     uploaded_at timestamp,
 --     source_zip_hash text,
+--     catatan map<text, text>,
 --     PRIMARY KEY ((code), fiscal_year, quarter)
 -- ) WITH CLUSTERING ORDER BY (fiscal_year DESC, quarter DESC);
 
@@ -35,5 +36,6 @@
 -- | net_income               | regular        | double    |
 -- | uploaded_at              | regular        | timestamp |
 -- | source_zip_hash          | regular        | text      |
+-- | catatan                  | regular        | map<text,text> |
 --
--- Migrasi quarter TW→Q (2026-09-06): cargo run -p xlbr_laporan_keuangan --example migrate_quarter_tw_to_q
+-- Migrasi catatan (2026-09-06): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD catatan map<text, text>;

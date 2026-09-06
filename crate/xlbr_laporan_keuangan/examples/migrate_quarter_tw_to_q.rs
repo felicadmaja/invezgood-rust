@@ -11,7 +11,7 @@ use xlbr_laporan_keuangan::repository;
 const SELECT_ALL: &str =
     "SELECT code, fiscal_year, quarter, period_end, presentation_currency, unit_scale, \
     cash_from_operation, cash_from_investment, cash_from_financing, capital_expenditure, \
-    free_cash_flow, net_income, uploaded_at, source_zip_hash \
+    free_cash_flow, net_income, uploaded_at, source_zip_hash, catatan \
     FROM invezgood.xlbr_laporan_keuangan";
 
 const DELETE_ROW: &str =

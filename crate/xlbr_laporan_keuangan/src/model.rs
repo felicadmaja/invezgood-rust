@@ -1,5 +1,7 @@
 //! Model baris tabel `invezgood.xlbr_laporan_keuangan`.
 
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 use scylla::DeserializeRow;
 use scylla::SerializeRow;
@@ -106,6 +108,8 @@ pub struct XlbrLaporanKeuanganRow {
     pub net_income: f64,
     pub uploaded_at: DateTime<Utc>,
     pub source_zip_hash: String,
+    #[scylla(default_when_null)]
+    pub catatan: Option<HashMap<String, String>>,
 }
 
 pub fn required_prior_quarters(quarter: &str) -> Result<&'static [&'static str], String> {
