@@ -33,6 +33,8 @@ pub struct YtdMetrics {
     pub cash_from_financing: f64,
     pub capital_expenditure: f64,
     pub net_income: f64,
+    pub interest_paid: f64,
+    pub tax_paid: f64,
 }
 
 impl YtdMetrics {
@@ -43,6 +45,8 @@ impl YtdMetrics {
             cash_from_financing: self.cash_from_financing - prior_standalone_sum.cash_from_financing,
             capital_expenditure: self.capital_expenditure - prior_standalone_sum.capital_expenditure,
             net_income: self.net_income - prior_standalone_sum.net_income,
+            interest_paid: self.interest_paid - prior_standalone_sum.interest_paid,
+            tax_paid: self.tax_paid - prior_standalone_sum.tax_paid,
         }
     }
 }
@@ -54,6 +58,8 @@ impl std::ops::AddAssign for YtdMetrics {
         self.cash_from_financing += rhs.cash_from_financing;
         self.capital_expenditure += rhs.capital_expenditure;
         self.net_income += rhs.net_income;
+        self.interest_paid += rhs.interest_paid;
+        self.tax_paid += rhs.tax_paid;
     }
 }
 
@@ -65,6 +71,8 @@ pub struct StandaloneMetrics {
     pub cash_from_financing: f64,
     pub capital_expenditure: f64,
     pub net_income: f64,
+    pub interest_paid: f64,
+    pub tax_paid: f64,
 }
 
 impl StandaloneMetrics {
@@ -106,6 +114,8 @@ pub struct XlbrLaporanKeuanganRow {
     pub capital_expenditure: f64,
     pub free_cash_flow: f64,
     pub net_income: f64,
+    pub interest_paid: f64,
+    pub tax_paid: f64,
     pub uploaded_at: DateTime<Utc>,
     pub source_zip_hash: String,
     #[scylla(default_when_null)]

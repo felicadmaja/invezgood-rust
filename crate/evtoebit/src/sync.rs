@@ -1,4 +1,4 @@
-//! Logic sync Yahoo Finance → Scylla — dipakai scheduler bulanan dan example seed.
+//! Logic sync Yahoo Finance → Scylla — dipakai scheduler harian dan example seed.
 
 use std::sync::Arc;
 

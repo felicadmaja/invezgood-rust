@@ -14,7 +14,7 @@ use crate::model::{ParsedReportMeta, ParsedXlbrZip, YtdMetrics};
 const FILE_DEI: &str = "1000000.html";
 
 const PREFERRED_IS: &[&str] = &["1321000.html", "2311000.html", "2321000.html"];
-const PREFERRED_CF: &[&str] = &["1510000.html", "2510000.html"];
+const PREFERRED_CF: &[&str] = &["1510000.html", "1520000.html", "2510000.html"];
 
 const LABEL_PERIOD_SUBMISSION: &str = "Periode penyampaian laporan keuangan";
 
@@ -29,6 +29,16 @@ const CONCEPT_CAPEX_CANDIDATES: &[&str] = &[
     "idx-cor:PaymentsForAcquisitionOfLandForDevelopment",
 ];
 
+const CONCEPT_INTEREST_PAID_SECTIONS: &[&str] = &[
+    "idx-cor:InterestsPaidFromOperatingActivities",
+    "idx-cor:InterestsPaidFromInvestingActivities",
+    "idx-cor:InterestsPaidFromFinancingActivities",
+];
+const CONCEPT_INTEREST_PAID_FALLBACK: &[&str] = &[
+    "idx-cor:InterestPaid",
+    "idx-cor:PaymentsOfFinanceCosts",
+];
+
 const CONTEXT_YTD: &str = "CurrentYearDuration";
 
 /// Cara interpretasi tanda dari tag inline XBRL.
@@ -39,6 +49,26 @@ enum IxAmountKind {
     /// CapEx / pengeluaran: simpan selalu negatif.
     NegativeOutflow,
 }
+
+const CONCEPT_TAX_PAID_CANDIDATES: &[(&str, IxAmountKind)] = &[
+    (
+        "idx-cor:IncomeTaxesRefundedPaidFromOperatingActivities",
+        IxAmountKind::Signed,
+    ),
+    (
+        "idx-cor:ReceiptsFromRefundsPaymentsOfIncomeTaxes",
+        IxAmountKind::Signed,
+    ),
+    (
+        "idx-cor:PaymentsForCorporateIncomeTax",
+        IxAmountKind::NegativeOutflow,
+    ),
+    (
+        "idx-cor:PaymentsOfIncomeTaxes",
+        IxAmountKind::NegativeOutflow,
+    ),
+    ("idx-cor:IncomeTaxesPaid", IxAmountKind::NegativeOutflow),
+];
 
 struct ZipHtmlCorpus {
     entries: Vec<(String, String)>,
@@ -144,6 +174,8 @@ pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
             CONCEPT_CAPEX_CANDIDATES,
             IxAmountKind::NegativeOutflow,
         ),
+        interest_paid: extract_interest_paid_ytd(&cf_order),
+        tax_paid: extract_tax_paid_ytd(&cf_order),
     };
 
     Ok(ParsedXlbrZip {
@@ -173,10 +205,37 @@ fn extract_optional_from_htmls(htmls: &[&str], concepts: &[&str], kind: IxAmount
     extract_from_htmls(htmls, concepts, kind).unwrap_or(0.0)
 }
 
+fn extract_interest_paid_ytd(htmls: &[&str]) -> f64 {
+    let mut sum = 0.0;
+    let mut found = false;
+    for concept in CONCEPT_INTEREST_PAID_SECTIONS {
+        if let Some(value) =
+            extract_from_htmls(htmls, &[*concept], IxAmountKind::NegativeOutflow)
+        {
+            sum += value;
+            found = true;
+        }
+    }
+    if found {
+        sum
+    } else {
+        extract_optional_from_htmls(htmls, CONCEPT_INTEREST_PAID_FALLBACK, IxAmountKind::NegativeOutflow)
+    }
+}
+
+fn extract_tax_paid_ytd(htmls: &[&str]) -> f64 {
+    for (concept, kind) in CONCEPT_TAX_PAID_CANDIDATES {
+        if let Some(value) = extract_from_htmls(htmls, &[*concept], *kind) {
+            return value;
+        }
+    }
+    0.0
+}
+
 fn extract_from_htmls(htmls: &[&str], concepts: &[&str], kind: IxAmountKind) -> Option<f64> {
     for concept in concepts {
         for html in htmls {
-            if let Some(value) = extract_non_fraction_if_present(html, concept, CONTEXT_YTD, kind) {
+            if let Some(value) = extract_non_fraction_non_nil(html, concept, CONTEXT_YTD, kind) {
                 return Some(value);
             }
         }
@@ -303,7 +362,7 @@ fn extract_non_numeric(html: &str, concept: &str, context: &str) -> Result<Strin
     extract_ix_non_numeric_value(&html[start..])
 }
 
-fn extract_non_fraction_if_present(
+fn extract_non_fraction_non_nil(
     html: &str,
     concept: &str,
     context: &str,
@@ -313,11 +372,11 @@ fn extract_non_fraction_if_present(
     let tag_end = html[start..].find('>')? + start + 1;
     let tag = &html[start..tag_end];
     if tag.contains("xsi:nil=\"true\"") || tag.contains("xsi:nil='true'") {
-        return Some(0.0);
+        return None;
     }
     let inner = &html[tag_end..];
     if inner.starts_with("</") {
-        return Some(0.0);
+        return None;
     }
     let close = find_ix_close_start(inner, "nonfraction")?;
     let display = inner[..close].trim();
@@ -528,6 +587,8 @@ mod tests {
         assert!(parsed.ytd.cash_from_operation > 0.0);
         assert_eq!(parsed.ytd.cash_from_investment, -68_293.0);
         assert_eq!(parsed.ytd.capital_expenditure, -76_165.0);
+        assert_eq!(parsed.ytd.interest_paid, -19_327.0);
+        assert_eq!(parsed.ytd.tax_paid, 2_412.0);
     }
 
     #[test]

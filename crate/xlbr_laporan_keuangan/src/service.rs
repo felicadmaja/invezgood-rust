@@ -337,6 +337,8 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
                     capital_expenditure: r.capital_expenditure,
                     free_cash_flow: r.free_cash_flow,
                     net_income: r.net_income,
+                    interest_paid: r.interest_paid,
+                    tax_paid: r.tax_paid,
                     presentation_currency: r.presentation_currency,
                     unit_scale: r.unit_scale,
                     catatan: r.catatan.clone().unwrap_or_default(),

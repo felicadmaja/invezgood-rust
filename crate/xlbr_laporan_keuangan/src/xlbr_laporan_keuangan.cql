@@ -14,6 +14,8 @@
 --     capital_expenditure double,
 --     free_cash_flow double,
 --     net_income double,
+--     interest_paid double,   -- arus kas YTD→standalone; bunga dibayar (negatif), dari InterestsPaid*/PaymentsOfFinanceCosts
+--     tax_paid double,        -- arus kas YTD→standalone; pajak neto (Signed) atau pembayaran (negatif)
 --     uploaded_at timestamp,
 --     source_zip_hash text,
 --     catatan map<text, text>,
@@ -34,8 +36,11 @@
 -- | capital_expenditure      | regular        | double    |
 -- | free_cash_flow           | regular        | double    | CFO + CapEx (CapEx negatif, standalone)
 -- | net_income               | regular        | double    |
+-- | interest_paid            | regular        | double    | bunga dibayar standalone (negatif = outflow)
+-- | tax_paid                 | regular        | double    | pajak neto/pembayaran standalone
 -- | uploaded_at              | regular        | timestamp |
 -- | source_zip_hash          | regular        | text      |
 -- | catatan                  | regular        | map<text,text> |
 --
 -- Migrasi catatan (2026-09-06): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD catatan map<text, text>;
+-- Migrasi interest/tax (2026-09-07): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD interest_paid double, tax_paid double;

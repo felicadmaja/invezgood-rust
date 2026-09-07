@@ -8,8 +8,8 @@ service EvToEbit {
   // neraca, laba rugi TTM via Rust reqwest (Yahoo crumb + timeseries).
   // winsorize multiple >100×. Flag `n<3` bila emiten valid < 3; agregat per sektor saja.
   // Hasil compute di-upsert ke invezgood.evtoebit (kolom updated_at = waktu upsert).
-  // Scheduler background: tanggal 1 setiap bulan 00:00 (12 malam) waktu lokal — sync Yahoo → Scylla
-  // (env: EVTOEBIT_SYNC_DAY/HOUR/MINUTE). Response: repeated MedianEvMultipleRow; internal bila gagal.
+  // Scheduler background: setiap hari jam 00:00 (12 malam) waktu lokal — sync Yahoo → Scylla
+  // (env: EVTOEBIT_SYNC_HOUR/MINUTE). Response: repeated MedianEvMultipleRow; internal bila gagal.
   rpc GetMedianEVToEbitdaFromYahooFinance(GetMedianEVToEbitdaFromYahooFinanceRequest) returns (GetMedianEVToEbitdaFromYahooFinanceResponse);
 
   // Baca agregat median dari invezgood.evtoebit (read-only, tanpa fetch/parse Yahoo Finance).

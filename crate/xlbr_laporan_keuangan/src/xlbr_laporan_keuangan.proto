@@ -4,7 +4,8 @@ package xlbr_laporan_keuangan;
 
 service XlbrLaporanKeuangan {
   // Client stream inlineXBRL.zip (chunk bytes). Server baca semua *.html di zip; cari concept XBRL CurrentYearDuration.
-  // Prefer laba rugi 1321000/2311000, arus kas 1510000/2510000; CapEx fallback beberapa concept PPE/properti.
+  // Prefer laba rugi 1321000/2311000, arus kas 1510000/1520000/2510000; CapEx fallback beberapa concept PPE/properti.
+  // interest_paid dari InterestsPaid* / PaymentsOfFinanceCosts; tax_paid dari IncomeTaxesRefundedPaid* / PaymentsForCorporateIncomeTax.
   // quarter dari baris "Periode penyampaian laporan keuangan" di 1000000.html → Q1..Q4.
   // Nilai XBRL YTD kumulatif → dekumulasi hanya vs kuartal sebelumnya yang sudah ada di DB; bila tidak ada, YTD = standalone.
   // Baris sama di-upsert (overwrite). Tidak simpan zip ke disk; buffer in-memory lalu upsert invezgood.xlbr_laporan_keuangan. Bearer login.
@@ -70,6 +71,8 @@ message XlbrChartPoint {
   string presentation_currency = 10;
   int32 unit_scale = 11;
   map<string, string> catatan = 12;
+  double interest_paid = 13;
+  double tax_paid = 14;
 }
 
 message GetXlbrChartByCodeResponse {

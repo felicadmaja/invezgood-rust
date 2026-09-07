@@ -17,7 +17,7 @@ use stockbit_browser::ReadinessPoller;
 use worker_scrapping::invezgo_spike_poller::InvezgoSpikePoller;
 use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
 use config_fundamental::{ConfigFundamentalServer, ConfigFundamentalService};
-use evtoebit::{new_shared_median_cache, new_yahoo_client, spawn_monthly_evtoebit_sync, EvToEbitServer, EvToEbitService};
+use evtoebit::{new_shared_median_cache, new_yahoo_client, spawn_daily_evtoebit_sync, EvToEbitServer, EvToEbitService};
 use shareholder_composition::{
     ShareholderCompositionServer, ShareholderCompositionService,
 };
@@ -178,7 +178,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .await;
 
     spawn_daily_notation_sync(session.clone());
-    spawn_monthly_evtoebit_sync(session.clone(), evtoebit_yahoo, evtoebit_cache);
+    spawn_daily_evtoebit_sync(session.clone(), evtoebit_yahoo, evtoebit_cache);
 
     let user = UserService::new(
         session,

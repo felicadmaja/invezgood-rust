@@ -1,26 +1,17 @@
-//! Scheduler `GetMedianEVToEbitdaFromYahooFinance`: tanggal 1 setiap bulan jam 00:00 waktu lokal
-//! (override env `EVTOEBIT_SYNC_DAY`, `EVTOEBIT_SYNC_HOUR`, `EVTOEBIT_SYNC_MINUTE`).
+//! Scheduler `GetMedianEVToEbitdaFromYahooFinance`: setiap hari jam 00:00 waktu lokal
+//! (override env `EVTOEBIT_SYNC_HOUR`, `EVTOEBIT_SYNC_MINUTE`).
 
 use std::sync::Arc;
 
-use chrono::{DateTime, Datelike, Local, NaiveDate, TimeZone};
+use chrono::{DateTime, Local, NaiveDate, TimeZone};
 use scylla::client::session::Session;
 
 use crate::cache::MedianCache;
 use crate::sync::sync_median_from_yahoo_to_scylla;
 use crate::yahoo::YahooClient;
 
-const DEFAULT_SYNC_DAY: u32 = 1;
 const DEFAULT_SYNC_HOUR: u32 = 0;
 const DEFAULT_SYNC_MINUTE: u32 = 0;
-
-fn sync_day_from_env() -> u32 {
-    std::env::var("EVTOEBIT_SYNC_DAY")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(DEFAULT_SYNC_DAY)
-        .clamp(1, 28)
-}
 
 fn sync_hour_from_env() -> u32 {
     std::env::var("EVTOEBIT_SYNC_HOUR")
@@ -48,20 +39,13 @@ fn local_at(date: NaiveDate, hour: u32, min: u32, sec: u32) -> DateTime<Local> {
         .expect("zona waktu lokal")
 }
 
-fn month_slot_at(year: i32, month: u32, day: u32, hour: u32, min: u32) -> DateTime<Local> {
-    let date = NaiveDate::from_ymd_opt(year, month, day).expect("tanggal scheduler valid");
-    local_at(date, hour, min, 0)
-}
-
-fn next_monthly_sync_at(now: DateTime<Local>, day: u32, hour: u32, min: u32) -> DateTime<Local> {
-    let y = now.year();
-    let m = now.month();
-    let target = month_slot_at(y, m, day, hour, min);
+fn next_daily_sync_at(now: DateTime<Local>, hour: u32, min: u32) -> DateTime<Local> {
+    let today = now.date_naive();
+    let target = local_at(today, hour, min, 0);
     if now < target {
         return target;
     }
-    let (ny, nm) = if m == 12 { (y + 1, 1) } else { (y, m + 1) };
-    month_slot_at(ny, nm, day, hour, min)
+    local_at(today.succ_opt().expect("tanggal scheduler valid"), hour, min, 0)
 }
 
 async fn run_sync(session: Arc<Session>, yahoo: Arc<YahooClient>, cache: Arc<MedianCache>) {
@@ -73,21 +57,20 @@ async fn run_sync(session: Arc<Session>, yahoo: Arc<YahooClient>, cache: Arc<Med
     }
 }
 
-/// Loop background: sync Yahoo → Scylla setiap tanggal 1 jam 00:00 lokal.
-/// Tidak ada catch-up saat restart — hanya jadwal bulanan atau invoke RPC user.
-pub fn spawn_monthly_evtoebit_sync(
+/// Loop background: sync Yahoo → Scylla setiap hari jam 00:00 lokal.
+/// Tidak ada catch-up saat restart — hanya jadwal harian atau invoke RPC user.
+pub fn spawn_daily_evtoebit_sync(
     session: Arc<Session>,
     yahoo: Arc<YahooClient>,
     cache: Arc<MedianCache>,
 ) {
     tokio::spawn(async move {
-        let day = sync_day_from_env();
         let hour = sync_hour_from_env();
         let min = sync_minute_from_env();
 
         loop {
             let now = Local::now();
-            let target = next_monthly_sync_at(now, day, hour, min);
+            let target = next_daily_sync_at(now, hour, min);
             let wait_secs = (target - now).num_seconds().max(1) as u64;
             eprintln!(
                 "GetMedianEVToEbitdaFromYahooFinance scheduler: sync berikutnya {} (tunggu {wait_secs}s)",

@@ -11,20 +11,21 @@ use crate::model::{
 const SELECT_PRIOR_FOR_YEAR: &str =
     "SELECT code, fiscal_year, quarter, period_end, presentation_currency, unit_scale, \
     cash_from_operation, cash_from_investment, cash_from_financing, capital_expenditure, \
-    free_cash_flow, net_income, uploaded_at, source_zip_hash, catatan \
+    free_cash_flow, net_income, interest_paid, tax_paid, uploaded_at, source_zip_hash, catatan \
     FROM invezgood.xlbr_laporan_keuangan WHERE code = ? AND fiscal_year = ?";
 
 const SELECT_CHART: &str =
     "SELECT code, fiscal_year, quarter, period_end, presentation_currency, unit_scale, \
     cash_from_operation, cash_from_investment, cash_from_financing, capital_expenditure, \
-    free_cash_flow, net_income, uploaded_at, source_zip_hash, catatan \
+    free_cash_flow, net_income, interest_paid, tax_paid, uploaded_at, source_zip_hash, catatan \
     FROM invezgood.xlbr_laporan_keuangan WHERE code = ?";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.xlbr_laporan_keuangan (code, fiscal_year, quarter, period_end, \
     presentation_currency, unit_scale, cash_from_operation, cash_from_investment, \
-    cash_from_financing, capital_expenditure, free_cash_flow, net_income, uploaded_at, \
-    source_zip_hash, catatan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    cash_from_financing, capital_expenditure, free_cash_flow, net_income, interest_paid, \
+    tax_paid, uploaded_at, source_zip_hash, catatan) \
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 pub async fn list_for_year(
     session: &Session,
@@ -125,26 +126,7 @@ pub async fn upsert(
     row: &XlbrLaporanKeuanganRow,
 ) -> Result<(), String> {
     session
-        .query_unpaged(
-            UPSERT,
-            (
-                &row.code,
-                row.fiscal_year,
-                &row.quarter,
-                row.period_end,
-                &row.presentation_currency,
-                row.unit_scale,
-                row.cash_from_operation,
-                row.cash_from_investment,
-                row.cash_from_financing,
-                row.capital_expenditure,
-                row.free_cash_flow,
-                row.net_income,
-                row.uploaded_at,
-                &row.source_zip_hash,
-                &row.catatan,
-            ),
-        )
+        .query_unpaged(UPSERT, row)
         .await
         .map_err(|e| format!("upsert {KEYSPACE}.{TABLE}: {e}"))?;
     Ok(())
@@ -165,6 +147,8 @@ pub fn standalone_sum_prior_to(rows: &[XlbrLaporanKeuanganRow], quarter: &str) -
                 cash_from_financing: row.cash_from_financing,
                 capital_expenditure: row.capital_expenditure,
                 net_income: row.net_income,
+                interest_paid: row.interest_paid,
+                tax_paid: row.tax_paid,
             };
         }
     }
@@ -194,6 +178,8 @@ pub fn row_from_standalone(
         capital_expenditure: metrics.capital_expenditure,
         free_cash_flow: metrics.free_cash_flow(),
         net_income: metrics.net_income,
+        interest_paid: metrics.interest_paid,
+        tax_paid: metrics.tax_paid,
         uploaded_at: Utc::now(),
         source_zip_hash: source_zip_hash.to_string(),
         catatan: None,

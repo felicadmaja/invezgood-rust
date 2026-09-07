@@ -34,5 +34,9 @@ name = "upload_from_file"
 required-features = []
 
 [[example]]
+name = "backfill_interest_tax_paid"
+required-features = []
+
+[[example]]
 name = "grpc_upload_zip"
 required-features = []

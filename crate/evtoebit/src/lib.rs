@@ -23,7 +23,7 @@ pub use model::{EvToEbitRow, KEYSPACE, TABLE};
 pub use cache::{new_shared_median_cache, MedianCache};
 pub use compute::{cache_ttl, compute_median};
 pub use pb::ev_to_ebit_server::{EvToEbit, EvToEbitServer};
-pub use scheduler::spawn_monthly_evtoebit_sync;
+pub use scheduler::spawn_daily_evtoebit_sync;
 pub use service::EvToEbitService;
 pub use sync::sync_median_from_yahoo_to_scylla;
 pub use yahoo::YahooClient;
