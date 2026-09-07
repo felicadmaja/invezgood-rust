@@ -15,7 +15,7 @@
 --     free_cash_flow double,
 --     net_income double,
 --     interest_paid double,   -- arus kas YTD→standalone; bunga dibayar (negatif), dari InterestsPaid*/PaymentsOfFinanceCosts
---     tax_paid double,        -- arus kas YTD→standalone; pajak neto (Signed) atau pembayaran (negatif)
+--     tax_paid double,        -- arus kas YTD→standalone; pajak dibayar (selalu negatif)
 --     uploaded_at timestamp,
 --     source_zip_hash text,
 --     catatan map<text, text>,
@@ -37,7 +37,7 @@
 -- | free_cash_flow           | regular        | double    | CFO + CapEx (CapEx negatif, standalone)
 -- | net_income               | regular        | double    |
 -- | interest_paid            | regular        | double    | bunga dibayar standalone (negatif = outflow)
--- | tax_paid                 | regular        | double    | pajak neto/pembayaran standalone
+-- | tax_paid                 | regular        | double    | pajak dibayar standalone (selalu negatif)
 -- | uploaded_at              | regular        | timestamp |
 -- | source_zip_hash          | regular        | text      |
 -- | catatan                  | regular        | map<text,text> |

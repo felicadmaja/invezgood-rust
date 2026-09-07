@@ -13,8 +13,19 @@ use crate::model::{ParsedReportMeta, ParsedXlbrZip, YtdMetrics};
 
 const FILE_DEI: &str = "1000000.html";
 
-const PREFERRED_IS: &[&str] = &["1321000.html", "2311000.html", "2321000.html"];
-const PREFERRED_CF: &[&str] = &["1510000.html", "1520000.html", "2510000.html"];
+const PREFERRED_IS: &[&str] = &[
+    "1321000.html",
+    "2311000.html",
+    "2321000.html",
+    "3410000.html",
+    "3311000.html",
+];
+const PREFERRED_CF: &[&str] = &[
+    "1510000.html",
+    "1520000.html",
+    "2510000.html",
+    "3510000.html",
+];
 
 const LABEL_PERIOD_SUBMISSION: &str = "Periode penyampaian laporan keuangan";
 
@@ -52,14 +63,6 @@ enum IxAmountKind {
 
 const CONCEPT_TAX_PAID_CANDIDATES: &[(&str, IxAmountKind)] = &[
     (
-        "idx-cor:IncomeTaxesRefundedPaidFromOperatingActivities",
-        IxAmountKind::Signed,
-    ),
-    (
-        "idx-cor:ReceiptsFromRefundsPaymentsOfIncomeTaxes",
-        IxAmountKind::Signed,
-    ),
-    (
         "idx-cor:PaymentsForCorporateIncomeTax",
         IxAmountKind::NegativeOutflow,
     ),
@@ -68,6 +71,14 @@ const CONCEPT_TAX_PAID_CANDIDATES: &[(&str, IxAmountKind)] = &[
         IxAmountKind::NegativeOutflow,
     ),
     ("idx-cor:IncomeTaxesPaid", IxAmountKind::NegativeOutflow),
+    (
+        "idx-cor:IncomeTaxesRefundedPaidFromOperatingActivities",
+        IxAmountKind::NegativeOutflow,
+    ),
+    (
+        "idx-cor:ReceiptsFromRefundsPaymentsOfIncomeTaxes",
+        IxAmountKind::NegativeOutflow,
+    ),
 ];
 
 struct ZipHtmlCorpus {
@@ -157,12 +168,11 @@ pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
             "cash from operation",
             IxAmountKind::Signed,
         )?,
-        cash_from_investment: extract_required_from_htmls(
+        cash_from_investment: extract_optional_from_htmls(
             &cf_order,
             &[CONCEPT_CFI],
-            "cash from investment",
             IxAmountKind::Signed,
-        )?,
+        ),
         cash_from_financing: extract_required_from_htmls(
             &cf_order,
             &[CONCEPT_CFF],
@@ -174,8 +184,8 @@ pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
             CONCEPT_CAPEX_CANDIDATES,
             IxAmountKind::NegativeOutflow,
         ),
-        interest_paid: extract_interest_paid_ytd(&cf_order),
-        tax_paid: extract_tax_paid_ytd(&cf_order),
+        interest_paid: store_as_negative_outflow(extract_interest_paid_ytd(&cf_order)),
+        tax_paid: store_as_negative_outflow(extract_tax_paid_ytd(&cf_order)),
     };
 
     Ok(ParsedXlbrZip {
@@ -230,6 +240,15 @@ fn extract_tax_paid_ytd(htmls: &[&str]) -> f64 {
         }
     }
     0.0
+}
+
+/// Simpan pengeluaran selalu negatif (konvensi sama dengan `capital_expenditure`).
+fn store_as_negative_outflow(value: f64) -> f64 {
+    if value == 0.0 {
+        0.0
+    } else {
+        -value.abs()
+    }
 }
 
 fn extract_from_htmls(htmls: &[&str], concepts: &[&str], kind: IxAmountKind) -> Option<f64> {
@@ -560,8 +579,28 @@ mod tests {
     }
 
     #[test]
+    fn parse_bull_nil_cfi() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/downloaded_xbrl/BULL/inlineXBRL-BULL-2025-Q1.zip"
+        );
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let bytes = fs::read(path).expect("BULL zip");
+        let parsed = parse_zip_bytes(&bytes).expect("parse BULL nil CFI");
+        assert_eq!(parsed.meta.code, "BULL");
+        assert_eq!(parsed.meta.quarter, "Q1");
+        assert_eq!(parsed.ytd.cash_from_investment, 0.0);
+        assert!(parsed.ytd.cash_from_operation > 0.0);
+    }
+
+    #[test]
     fn parse_dmas_zip38() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/inlineXBRL (38).zip");
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
         let bytes = fs::read(path).expect("inlineXBRL (38).zip");
         let parsed = parse_zip_bytes(&bytes).expect("parse zip 38");
         assert_eq!(parsed.meta.code, "DMAS");
@@ -588,7 +627,7 @@ mod tests {
         assert_eq!(parsed.ytd.cash_from_investment, -68_293.0);
         assert_eq!(parsed.ytd.capital_expenditure, -76_165.0);
         assert_eq!(parsed.ytd.interest_paid, -19_327.0);
-        assert_eq!(parsed.ytd.tax_paid, 2_412.0);
+        assert_eq!(parsed.ytd.tax_paid, -46_716.0);
     }
 
     #[test]

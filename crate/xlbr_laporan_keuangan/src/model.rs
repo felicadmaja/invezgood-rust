@@ -114,7 +114,9 @@ pub struct XlbrLaporanKeuanganRow {
     pub capital_expenditure: f64,
     pub free_cash_flow: f64,
     pub net_income: f64,
+    #[scylla(default_when_null)]
     pub interest_paid: f64,
+    #[scylla(default_when_null)]
     pub tax_paid: f64,
     pub uploaded_at: DateTime<Utc>,
     pub source_zip_hash: String,
