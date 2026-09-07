@@ -6,6 +6,7 @@ service XlbrLaporanKeuangan {
   // Client stream inlineXBRL.zip (chunk bytes). Server baca semua *.html di zip; cari concept XBRL CurrentYearDuration.
   // Prefer laba rugi 1321000/2311000, arus kas 1510000/1520000/2510000; CapEx fallback beberapa concept PPE/properti.
   // interest_paid / tax_paid dari arus kas; disimpan selalu negatif (outflow, sama seperti CapEx).
+  // hutang_berbunga + komponen dari neraca 1210000/2210000 (`CurrentYearInstant`, snapshot per kuartal).
   // quarter dari baris "Periode penyampaian laporan keuangan" di 1000000.html → Q1..Q4.
   // Nilai XBRL YTD kumulatif → dekumulasi hanya vs kuartal sebelumnya yang sudah ada di DB; bila tidak ada, YTD = standalone.
   // Baris sama di-upsert (overwrite). Tidak simpan zip ke disk; buffer in-memory lalu upsert invezgood.xlbr_laporan_keuangan. Bearer login.
@@ -73,6 +74,13 @@ message XlbrChartPoint {
   map<string, string> catatan = 12;
   double interest_paid = 13;
   double tax_paid = 14;
+  double st_bank_loans = 15;
+  double current_maturities = 16;
+  double lt_loans = 17;
+  double bonds = 18;
+  double sukuk = 19;
+  double lease_liabilities = 20;
+  double hutang_berbunga = 21;
 }
 
 message GetXlbrChartByCodeResponse {

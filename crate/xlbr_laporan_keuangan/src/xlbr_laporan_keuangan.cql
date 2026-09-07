@@ -14,8 +14,15 @@
 --     capital_expenditure double,
 --     free_cash_flow double,
 --     net_income double,
---     interest_paid double,   -- arus kas YTD→standalone; bunga dibayar (negatif), dari InterestsPaid*/PaymentsOfFinanceCosts
---     tax_paid double,        -- arus kas YTD→standalone; pajak dibayar (selalu negatif)
+--     interest_paid double,      -- arus kas YTD→standalone; bunga dibayar (selalu negatif)
+--     tax_paid double,           -- arus kas YTD→standalone; pajak dibayar (selalu negatif)
+--     st_bank_loans double,      -- neraca CurrentYearInstant: ShorttermBankLoans/ShortTermBankLoans
+--     current_maturities double, -- jumlah CurrentMaturitiesOf* (bank, obligasi, sukuk, sewa, MTN, ...)
+--     lt_loans double,           -- LongTermBankLoans + pinjaman jangka panjang terkait
+--     bonds double,              -- BondsPayable, LongTermBondsPayable, MTN, ConvertibleBonds, ...
+--     sukuk double,              -- SukukIjarah, SukukMudharabah, LongTermSukuk, ...
+--     lease_liabilities double,  -- LongTermFinanceLease*/LongTermLeaseLiabilities
+--     hutang_berbunga double,    -- st_bank_loans + current_maturities + lt_loans + bonds + sukuk + lease_liabilities
 --     uploaded_at timestamp,
 --     source_zip_hash text,
 --     catatan map<text, text>,
@@ -36,11 +43,20 @@
 -- | capital_expenditure      | regular        | double    |
 -- | free_cash_flow           | regular        | double    | CFO + CapEx (CapEx negatif, standalone)
 -- | net_income               | regular        | double    |
--- | interest_paid            | regular        | double    | bunga dibayar standalone (negatif = outflow)
+-- | interest_paid            | regular        | double    | bunga dibayar standalone (selalu negatif)
 -- | tax_paid                 | regular        | double    | pajak dibayar standalone (selalu negatif)
+-- | st_bank_loans            | regular        | double    | snapshot neraca per kuartal
+-- | current_maturities       | regular        | double    | snapshot neraca per kuartal
+-- | lt_loans                 | regular        | double    | snapshot neraca per kuartal
+-- | bonds                    | regular        | double    | snapshot neraca per kuartal
+-- | sukuk                    | regular        | double    | snapshot neraca per kuartal
+-- | lease_liabilities        | regular        | double    | snapshot neraca per kuartal
+-- | hutang_berbunga          | regular        | double    | jumlah 6 komponen di atas
 -- | uploaded_at              | regular        | timestamp |
 -- | source_zip_hash          | regular        | text      |
 -- | catatan                  | regular        | map<text,text> |
 --
 -- Migrasi catatan (2026-09-06): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD catatan map<text, text>;
--- Migrasi interest/tax (2026-09-07): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD interest_paid double, tax_paid double;
+-- Migrasi interest/tax (2026-09-07): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD interest_paid double;
+-- Migrasi interest/tax (2026-09-07): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD tax_paid double;
+-- Migrasi hutang (2026-09-08): ALTER TABLE ... ADD st_bank_loans/current_maturities/lt_loans/bonds/sukuk/lease_liabilities/hutang_berbunga double;

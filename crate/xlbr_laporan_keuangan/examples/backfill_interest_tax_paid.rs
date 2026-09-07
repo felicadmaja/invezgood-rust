@@ -1,4 +1,4 @@
-//! Backfill kolom `interest_paid` dan `tax_paid` dari zip lokal `src/downloaded_xbrl/`.
+//! Backfill ulang semua metrik (termasuk interest_paid, tax_paid, hutang_berbunga) dari zip lokal.
 //!
 //! Proses per emiten/tahun/kuartal ascending (Q1→Q4) agar dekumulasi YTD benar.
 //!
@@ -45,10 +45,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match process_zip(session.clone(), job).await {
             Ok(row) => {
                 ok += 1;
-                if ok % 50 == 0 || row.interest_paid != 0.0 || row.tax_paid != 0.0 {
+                if ok % 50 == 0
+                    || row.interest_paid != 0.0
+                    || row.tax_paid != 0.0
+                    || row.hutang_berbunga != 0.0
+                {
                     eprintln!(
-                        "OK {} {} {} interest={:.0} tax={:.0}",
-                        row.code, row.fiscal_year, row.quarter, row.interest_paid, row.tax_paid
+                        "OK {} {} {} interest={:.0} tax={:.0} hutang={:.0}",
+                        row.code,
+                        row.fiscal_year,
+                        row.quarter,
+                        row.interest_paid,
+                        row.tax_paid,
+                        row.hutang_berbunga
                     );
                 }
             }

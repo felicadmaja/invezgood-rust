@@ -92,11 +92,35 @@ pub struct ParsedReportMeta {
     pub unit_scale: i32,
 }
 
+/// Snapshot utang berbunga dari laporan posisi keuangan (`CurrentYearInstant`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BalanceSheetDebtMetrics {
+    pub st_bank_loans: f64,
+    pub current_maturities: f64,
+    pub lt_loans: f64,
+    pub bonds: f64,
+    pub sukuk: f64,
+    pub lease_liabilities: f64,
+    pub hutang_berbunga: f64,
+}
+
+impl BalanceSheetDebtMetrics {
+    pub fn compute_total(&mut self) {
+        self.hutang_berbunga = self.st_bank_loans
+            + self.current_maturities
+            + self.lt_loans
+            + self.bonds
+            + self.sukuk
+            + self.lease_liabilities;
+    }
+}
+
 /// Hasil parse penuh dari ZIP inline XBRL.
 #[derive(Debug, Clone)]
 pub struct ParsedXlbrZip {
     pub meta: ParsedReportMeta,
     pub ytd: YtdMetrics,
+    pub debt: BalanceSheetDebtMetrics,
     pub source_zip_hash: String,
 }
 
@@ -118,6 +142,20 @@ pub struct XlbrLaporanKeuanganRow {
     pub interest_paid: f64,
     #[scylla(default_when_null)]
     pub tax_paid: f64,
+    #[scylla(default_when_null)]
+    pub st_bank_loans: f64,
+    #[scylla(default_when_null)]
+    pub current_maturities: f64,
+    #[scylla(default_when_null)]
+    pub lt_loans: f64,
+    #[scylla(default_when_null)]
+    pub bonds: f64,
+    #[scylla(default_when_null)]
+    pub sukuk: f64,
+    #[scylla(default_when_null)]
+    pub lease_liabilities: f64,
+    #[scylla(default_when_null)]
+    pub hutang_berbunga: f64,
     pub uploaded_at: DateTime<Utc>,
     pub source_zip_hash: String,
     #[scylla(default_when_null)]

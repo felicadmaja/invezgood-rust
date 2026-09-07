@@ -9,7 +9,7 @@ use chrono::{Datelike, NaiveDate, Utc};
 use sha2::{Digest, Sha256};
 use zip::ZipArchive;
 
-use crate::model::{ParsedReportMeta, ParsedXlbrZip, YtdMetrics};
+use crate::model::{BalanceSheetDebtMetrics, ParsedReportMeta, ParsedXlbrZip, YtdMetrics};
 
 const FILE_DEI: &str = "1000000.html";
 
@@ -26,6 +26,7 @@ const PREFERRED_CF: &[&str] = &[
     "2510000.html",
     "3510000.html",
 ];
+const PREFERRED_BS: &[&str] = &["1210000.html", "2210000.html", "3210000.html"];
 
 const LABEL_PERIOD_SUBMISSION: &str = "Periode penyampaian laporan keuangan";
 
@@ -51,6 +52,66 @@ const CONCEPT_INTEREST_PAID_FALLBACK: &[&str] = &[
 ];
 
 const CONTEXT_YTD: &str = "CurrentYearDuration";
+const CONTEXT_INSTANT: &str = "CurrentYearInstant";
+
+const CONCEPT_ST_BANK_LOANS: &[&str] = &[
+    "idx-cor:ShorttermBankLoans",
+    "idx-cor:ShortTermBankLoans",
+];
+
+const CONCEPT_CURRENT_MATURITIES: &[&str] = &[
+    "idx-cor:CurrentMaturitiesOfBankLoans",
+    "idx-cor:CurrentMaturitiesOfBondsPayable",
+    "idx-cor:CurrentMaturitiesOfSukukIjarah",
+    "idx-cor:CurrentMaturitiesOfSukukMudharabah",
+    "idx-cor:CurrentMaturitiesOfSukuk",
+    "idx-cor:CurrentMaturitiesOfFinanceLeasePayables",
+    "idx-cor:CurrentMaturitiesOfFinanceLeaseLiabilities",
+    "idx-cor:CurrentMaturitiesOfLeaseLiabilities",
+    "idx-cor:CurrentMaturitiesOfMediumTermNotes",
+    "idx-cor:CurrentMaturitiesOfLoansFromGovernmentOfTheRepublicOfIndonesia",
+    "idx-cor:CurrentMaturitiesOfNon-BankFinancialInstitutionsLoan",
+    "idx-cor:CurrentMaturitiesOfSecuredLoans",
+    "idx-cor:CurrentMaturitiesOfStepLoans",
+    "idx-cor:CurrentMaturitiesOfSubordinatedBonds",
+    "idx-cor:CurrentMaturitiesOfSubordinatedLoans",
+    "idx-cor:CurrentMaturitiesOfUnsecuredLoans",
+];
+
+const CONCEPT_LT_LOANS: &[&str] = &[
+    "idx-cor:LongtermBankLoans",
+    "idx-cor:LongTermBankLoans",
+    "idx-cor:LongTermLoansFromGovernmentOfTheRepublicOfIndonesia",
+    "idx-cor:LongTermNon-BankFinancialInstitutionsLoan",
+    "idx-cor:LongTermSecuredLoans",
+    "idx-cor:LongTermStepLoans",
+    "idx-cor:LongTermSubordinatedLoans",
+    "idx-cor:LongTermUnsecuredLoans",
+];
+
+const CONCEPT_BONDS: &[&str] = &[
+    "idx-cor:BondsPayable",
+    "idx-cor:LongTermBondsPayable",
+    "idx-cor:LongtermBondsPayable",
+    "idx-cor:ConvertibleBonds",
+    "idx-cor:LongTermSubordinatedBonds",
+    "idx-cor:MediumTermNotes",
+    "idx-cor:LongTermMediumTermNotes",
+];
+
+const CONCEPT_SUKUK: &[&str] = &[
+    "idx-cor:SukukIjarah",
+    "idx-cor:SukukMudharabah",
+    "idx-cor:LongTermSukuk",
+    "idx-cor:LongtermSukuk",
+];
+
+const CONCEPT_LEASE_LIABILITIES: &[&str] = &[
+    "idx-cor:LongtermFinanceLeasePayables",
+    "idx-cor:LongTermFinanceLeaseLiabilities",
+    "idx-cor:LongtermLeaseLiabilities",
+    "idx-cor:LongTermLeaseLiabilities",
+];
 
 /// Cara interpretasi tanda dari tag inline XBRL.
 #[derive(Debug, Clone, Copy)]
@@ -154,6 +215,7 @@ pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
 
     let is_order = corpus.search_order(PREFERRED_IS);
     let cf_order = corpus.search_order(PREFERRED_CF);
+    let bs_order = corpus.search_order(PREFERRED_BS);
 
     let ytd = YtdMetrics {
         net_income: extract_required_from_htmls(
@@ -188,9 +250,13 @@ pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
         tax_paid: store_as_negative_outflow(extract_tax_paid_ytd(&cf_order)),
     };
 
+    let mut debt = extract_balance_sheet_debt(&bs_order);
+    debt.compute_total();
+
     Ok(ParsedXlbrZip {
         meta,
         ytd,
+        debt,
         source_zip_hash,
     })
 }
@@ -251,15 +317,48 @@ fn store_as_negative_outflow(value: f64) -> f64 {
     }
 }
 
-fn extract_from_htmls(htmls: &[&str], concepts: &[&str], kind: IxAmountKind) -> Option<f64> {
+fn extract_balance_sheet_debt(htmls: &[&str]) -> BalanceSheetDebtMetrics {
+    BalanceSheetDebtMetrics {
+        st_bank_loans: extract_category_sum_instant(htmls, CONCEPT_ST_BANK_LOANS),
+        current_maturities: extract_category_sum_instant(htmls, CONCEPT_CURRENT_MATURITIES),
+        lt_loans: extract_category_sum_instant(htmls, CONCEPT_LT_LOANS),
+        bonds: extract_category_sum_instant(htmls, CONCEPT_BONDS),
+        sukuk: extract_category_sum_instant(htmls, CONCEPT_SUKUK),
+        lease_liabilities: extract_category_sum_instant(htmls, CONCEPT_LEASE_LIABILITIES),
+        hutang_berbunga: 0.0,
+    }
+}
+
+fn extract_category_sum_instant(htmls: &[&str], concepts: &[&str]) -> f64 {
+    let mut sum = 0.0;
+    for concept in concepts {
+        if let Some(value) =
+            extract_from_htmls_with_context(htmls, &[*concept], CONTEXT_INSTANT, IxAmountKind::Signed)
+        {
+            sum += value.abs();
+        }
+    }
+    sum
+}
+
+fn extract_from_htmls_with_context(
+    htmls: &[&str],
+    concepts: &[&str],
+    context: &str,
+    kind: IxAmountKind,
+) -> Option<f64> {
     for concept in concepts {
         for html in htmls {
-            if let Some(value) = extract_non_fraction_non_nil(html, concept, CONTEXT_YTD, kind) {
+            if let Some(value) = extract_non_fraction_non_nil(html, concept, context, kind) {
                 return Some(value);
             }
         }
     }
     None
+}
+
+fn extract_from_htmls(htmls: &[&str], concepts: &[&str], kind: IxAmountKind) -> Option<f64> {
+    extract_from_htmls_with_context(htmls, concepts, CONTEXT_YTD, kind)
 }
 
 fn parse_dei(html: &str) -> Result<ParsedReportMeta, String> {
@@ -593,6 +692,33 @@ mod tests {
         assert_eq!(parsed.meta.quarter, "Q1");
         assert_eq!(parsed.ytd.cash_from_investment, 0.0);
         assert!(parsed.ytd.cash_from_operation > 0.0);
+    }
+
+    #[test]
+    fn parse_untr_debt() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/downloaded_xbrl/UNTR/inlineXBRL-UNTR-2025-Q1.zip"
+        );
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let bytes = fs::read(path).expect("UNTR zip");
+        let parsed = parse_zip_bytes(&bytes).expect("parse UNTR debt");
+        assert_eq!(parsed.meta.code, "UNTR");
+        assert_eq!(parsed.debt.st_bank_loans, 638_820.0);
+        assert!(parsed.debt.current_maturities >= 2_520_641.0);
+        assert_eq!(parsed.debt.lt_loans, 14_842_714.0);
+        assert_eq!(
+            parsed.debt.hutang_berbunga,
+            parsed.debt.st_bank_loans
+                + parsed.debt.current_maturities
+                + parsed.debt.lt_loans
+                + parsed.debt.bonds
+                + parsed.debt.sukuk
+                + parsed.debt.lease_liabilities
+        );
+        assert!(parsed.debt.hutang_berbunga > 0.0);
     }
 
     #[test]

@@ -53,6 +53,7 @@ pub async fn upload_from_zip_bytes(session: Arc<Session>, bytes: &[u8]) -> Resul
         &parsed.meta.presentation_currency,
         parsed.meta.unit_scale,
         standalone,
+        &parsed.debt,
         &parsed.source_zip_hash,
     );
 

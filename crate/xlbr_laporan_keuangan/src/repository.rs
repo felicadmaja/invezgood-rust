@@ -4,28 +4,31 @@ use scylla::client::session::Session;
 use std::collections::HashMap;
 
 use crate::model::{
-    normalize_quarter_label, quarter_index, required_prior_quarters, StandaloneMetrics,
-    XlbrLaporanKeuanganRow, YtdMetrics, KEYSPACE, TABLE,
+    normalize_quarter_label, quarter_index, required_prior_quarters, BalanceSheetDebtMetrics,
+    StandaloneMetrics, XlbrLaporanKeuanganRow, YtdMetrics, KEYSPACE, TABLE,
 };
 
 const SELECT_PRIOR_FOR_YEAR: &str =
     "SELECT code, fiscal_year, quarter, period_end, presentation_currency, unit_scale, \
     cash_from_operation, cash_from_investment, cash_from_financing, capital_expenditure, \
-    free_cash_flow, net_income, interest_paid, tax_paid, uploaded_at, source_zip_hash, catatan \
-    FROM invezgood.xlbr_laporan_keuangan WHERE code = ? AND fiscal_year = ?";
+    free_cash_flow, net_income, interest_paid, tax_paid, st_bank_loans, current_maturities, \
+    lt_loans, bonds, sukuk, lease_liabilities, hutang_berbunga, uploaded_at, source_zip_hash, \
+    catatan FROM invezgood.xlbr_laporan_keuangan WHERE code = ? AND fiscal_year = ?";
 
 const SELECT_CHART: &str =
     "SELECT code, fiscal_year, quarter, period_end, presentation_currency, unit_scale, \
     cash_from_operation, cash_from_investment, cash_from_financing, capital_expenditure, \
-    free_cash_flow, net_income, interest_paid, tax_paid, uploaded_at, source_zip_hash, catatan \
-    FROM invezgood.xlbr_laporan_keuangan WHERE code = ?";
+    free_cash_flow, net_income, interest_paid, tax_paid, st_bank_loans, current_maturities, \
+    lt_loans, bonds, sukuk, lease_liabilities, hutang_berbunga, uploaded_at, source_zip_hash, \
+    catatan FROM invezgood.xlbr_laporan_keuangan WHERE code = ?";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.xlbr_laporan_keuangan (code, fiscal_year, quarter, period_end, \
     presentation_currency, unit_scale, cash_from_operation, cash_from_investment, \
     cash_from_financing, capital_expenditure, free_cash_flow, net_income, interest_paid, \
-    tax_paid, uploaded_at, source_zip_hash, catatan) \
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    tax_paid, st_bank_loans, current_maturities, lt_loans, bonds, sukuk, lease_liabilities, \
+    hutang_berbunga, uploaded_at, source_zip_hash, catatan) \
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 pub async fn list_for_year(
     session: &Session,
@@ -163,6 +166,7 @@ pub fn row_from_standalone(
     presentation_currency: &str,
     unit_scale: i32,
     metrics: StandaloneMetrics,
+    debt: &BalanceSheetDebtMetrics,
     source_zip_hash: &str,
 ) -> XlbrLaporanKeuanganRow {
     XlbrLaporanKeuanganRow {
@@ -180,6 +184,13 @@ pub fn row_from_standalone(
         net_income: metrics.net_income,
         interest_paid: metrics.interest_paid,
         tax_paid: metrics.tax_paid,
+        st_bank_loans: debt.st_bank_loans,
+        current_maturities: debt.current_maturities,
+        lt_loans: debt.lt_loans,
+        bonds: debt.bonds,
+        sukuk: debt.sukuk,
+        lease_liabilities: debt.lease_liabilities,
+        hutang_berbunga: debt.hutang_berbunga,
         uploaded_at: Utc::now(),
         source_zip_hash: source_zip_hash.to_string(),
         catatan: None,
