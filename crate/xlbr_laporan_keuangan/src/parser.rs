@@ -32,7 +32,12 @@ pub(crate) const PREFERRED_CF: &[&str] = &[
     "2510000.html",
     "3510000.html",
 ];
-const PREFERRED_BS: &[&str] = &["1210000.html", "2210000.html", "3210000.html"];
+const PREFERRED_BS: &[&str] = &[
+    "1210000.html",
+    "2210000.html",
+    "3210000.html",
+    "5220000.html", // template sekuritas (mis. PADI)
+];
 
 const LABEL_PERIOD_SUBMISSION: &str = "Periode penyampaian laporan keuangan";
 
@@ -62,6 +67,9 @@ const CONCEPT_ST_BANK_LOANS: &[&str] = &[
     "idx-cor:ShortTermBankLoans",
 ];
 
+/// Agregat pinjaman bank (template sekuritas `5220000`) bila tidak ada pemisahan ST/LT.
+const CONCEPT_BANK_LOANS_AGGREGATE: &[&str] = &["idx-cor:BankLoans"];
+
 const CONCEPT_CURRENT_MATURITIES: &[&str] = &[
     "idx-cor:CurrentMaturitiesOfBankLoans",
     "idx-cor:CurrentMaturitiesOfBondsPayable",
@@ -79,6 +87,8 @@ const CONCEPT_CURRENT_MATURITIES: &[&str] = &[
     "idx-cor:CurrentMaturitiesOfSubordinatedBonds",
     "idx-cor:CurrentMaturitiesOfSubordinatedLoans",
     "idx-cor:CurrentMaturitiesOfUnsecuredLoans",
+    "idx-cor:CurrentMaturitiesOfOtherBorrowings",
+    "idx-cor:CurrentMaturitiesOfNotesPayable",
 ];
 
 const CONCEPT_LT_LOANS: &[&str] = &[
@@ -90,6 +100,10 @@ const CONCEPT_LT_LOANS: &[&str] = &[
     "idx-cor:LongTermStepLoans",
     "idx-cor:LongTermSubordinatedLoans",
     "idx-cor:LongTermUnsecuredLoans",
+    "idx-cor:SubordinatedLoans",
+    "idx-cor:Non-BankFinancialInstitutionsLoan",
+    "idx-cor:LongTermOtherBorrowings",
+    "idx-cor:LongTermNotesPayable",
 ];
 
 const CONCEPT_BONDS: &[&str] = &[
@@ -98,6 +112,7 @@ const CONCEPT_BONDS: &[&str] = &[
     "idx-cor:LongtermBondsPayable",
     "idx-cor:ConvertibleBonds",
     "idx-cor:LongTermSubordinatedBonds",
+    "idx-cor:SubordinatedBonds",
     "idx-cor:MediumTermNotes",
     "idx-cor:LongTermMediumTermNotes",
 ];
@@ -107,6 +122,7 @@ const CONCEPT_SUKUK: &[&str] = &[
     "idx-cor:SukukMudharabah",
     "idx-cor:LongTermSukuk",
     "idx-cor:LongtermSukuk",
+    "idx-cor:Sukuk",
 ];
 
 const CONCEPT_LEASE_LIABILITIES: &[&str] = &[
@@ -334,7 +350,7 @@ fn store_as_negative_outflow(value: f64) -> f64 {
 
 fn extract_balance_sheet_debt(htmls: &[&str]) -> BalanceSheetDebtMetrics {
     BalanceSheetDebtMetrics {
-        st_bank_loans: extract_category_sum_instant(htmls, CONCEPT_ST_BANK_LOANS),
+        st_bank_loans: extract_st_bank_loans(htmls),
         current_maturities: extract_category_sum_instant(htmls, CONCEPT_CURRENT_MATURITIES),
         lt_loans: extract_category_sum_instant(htmls, CONCEPT_LT_LOANS),
         bonds: extract_category_sum_instant(htmls, CONCEPT_BONDS),
@@ -342,6 +358,15 @@ fn extract_balance_sheet_debt(htmls: &[&str]) -> BalanceSheetDebtMetrics {
         lease_liabilities: extract_category_sum_instant(htmls, CONCEPT_LEASE_LIABILITIES),
         hutang_berbunga: 0.0,
     }
+}
+
+/// ST bank loans; fallback `BankLoans` agregat (template sekuritas) bila pemisahan ST/LT tidak ada.
+fn extract_st_bank_loans(htmls: &[&str]) -> f64 {
+    let split = extract_category_sum_instant(htmls, CONCEPT_ST_BANK_LOANS);
+    if split > 0.0 {
+        return split;
+    }
+    extract_category_sum_instant(htmls, CONCEPT_BANK_LOANS_AGGREGATE)
 }
 
 /// Kas dan setara kas (`CurrentYearInstant`): neraca 1210000 dulu, fallback arus kas 1510000.
@@ -749,7 +774,7 @@ mod tests {
         assert_eq!(parsed.meta.code, "UNTR");
         assert_eq!(parsed.debt.st_bank_loans, 638_820.0);
         assert!(parsed.debt.current_maturities >= 2_520_641.0);
-        assert_eq!(parsed.debt.lt_loans, 14_842_714.0);
+        assert_eq!(parsed.debt.lt_loans, 15_170_351.0); // incl. LongTermOtherBorrowings 327,637
         assert_eq!(
             parsed.debt.hutang_berbunga,
             parsed.debt.st_bank_loans
@@ -761,6 +786,73 @@ mod tests {
         );
         assert!(parsed.debt.hutang_berbunga > 0.0);
         assert_eq!(parsed.kas, 30_111_557.0);
+    }
+
+    #[test]
+    fn parse_padi_debt_securities_template() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/downloaded_xbrl/PADI/inlineXBRL-PADI-2025-Q1.zip"
+        );
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let bytes = fs::read(path).expect("PADI zip");
+        let parsed = parse_zip_bytes(&bytes).expect("parse PADI debt");
+        assert_eq!(parsed.meta.code, "PADI");
+        assert_eq!(parsed.debt.st_bank_loans, 7_834_033_613.0);
+        assert_eq!(parsed.debt.lt_loans, 4_000_000_000.0);
+        assert_eq!(parsed.debt.hutang_berbunga, 11_834_033_613.0);
+    }
+
+    #[test]
+    fn parse_padi_debt_paid_off_2026_q2() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/downloaded_xbrl/PADI/inlineXBRL-PADI-2026-Q2.zip"
+        );
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let bytes = fs::read(path).expect("PADI 2026 Q2 zip");
+        let parsed = parse_zip_bytes(&bytes).expect("parse PADI 2026 Q2");
+        assert_eq!(parsed.debt.st_bank_loans, 0.0);
+        assert_eq!(parsed.debt.lt_loans, 0.0);
+        assert_eq!(parsed.debt.hutang_berbunga, 0.0);
+    }
+
+    #[test]
+    fn parse_tins_other_borrowings() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/downloaded_xbrl/TINS/inlineXBRL-TINS-2026-Q2.zip"
+        );
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let bytes = fs::read(path).expect("TINS zip");
+        let parsed = parse_zip_bytes(&bytes).expect("parse TINS debt");
+        assert_eq!(parsed.meta.code, "TINS");
+        assert_eq!(parsed.debt.current_maturities, 537_955.0);
+        assert_eq!(parsed.debt.lt_loans, 539_653.0);
+        assert_eq!(parsed.debt.hutang_berbunga, 1_077_608.0);
+    }
+
+    #[test]
+    fn parse_lsip_finance_lease_debt() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/downloaded_xbrl/LSIP/inlineXBRL-LSIP-2024-Q2.zip"
+        );
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let bytes = fs::read(path).expect("LSIP zip");
+        let parsed = parse_zip_bytes(&bytes).expect("parse LSIP debt");
+        assert_eq!(parsed.meta.code, "LSIP");
+        assert_eq!(parsed.debt.current_maturities, 5_174.0);
+        assert_eq!(parsed.debt.lease_liabilities, 903.0);
+        assert_eq!(parsed.debt.hutang_berbunga, 6_077.0);
     }
 
     #[test]

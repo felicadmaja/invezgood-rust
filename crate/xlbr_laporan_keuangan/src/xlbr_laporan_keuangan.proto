@@ -6,7 +6,9 @@ service XlbrLaporanKeuangan {
   // Client stream inlineXBRL.zip (chunk bytes). Server baca semua *.html di zip; cari concept XBRL CurrentYearDuration.
   // Prefer laba rugi 1321000/2311000, arus kas 1510000/1520000/2510000; CapEx fallback beberapa concept PPE/properti.
   // interest_paid / tax_paid dari arus kas; disimpan selalu negatif (outflow, sama seperti CapEx).
-  // hutang_berbunga + komponen dari neraca 1210000/2210000 (`CurrentYearInstant`, snapshot per kuartal).
+  // hutang_berbunga + komponen dari neraca 1210000/2210000/5220000 (`CurrentYearInstant`, snapshot per kuartal).
+  // Template sekuritas (5220000): fallback idx-cor:BankLoans, SubordinatedLoans, SubordinatedBonds, Sukuk.
+  // OtherBorrowings / NotesPayable (mis. TINS): CurrentMaturitiesOfOtherBorrowings, LongTermOtherBorrowings.
   // kas dari 1210000 idx-cor:CashAndCashEquivalents CurrentYearInstant; fallback 1510000 CashAndCashEquivalentsCashFlows.
   // ebitda_ttm: EBIT=PL+tax+fin_cost−fin_inc; EBITDA=EBIT+D&A; TTM=FY(t−1)−YTD(t−1,Qn)+YTD(t,Qn) — butuh zip Q4 tahun lalu + PriorYearDuration/zip kuartal lalu.
   // quarter dari baris "Periode penyampaian laporan keuangan" di 1000000.html → Q1..Q4.

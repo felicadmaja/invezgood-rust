@@ -17,11 +17,11 @@
 --     interest_paid double,      -- arus kas YTD→standalone; bunga dibayar (selalu negatif)
 --     tax_paid double,           -- arus kas YTD→standalone; pajak dibayar (selalu negatif)
 
---     st_bank_loans double,      -- neraca CurrentYearInstant: ShorttermBankLoans/ShortTermBankLoans
+--     st_bank_loans double,      -- ShorttermBankLoans/ShortTermBankLoans; fallback BankLoans (5220000 sekuritas)
 --     current_maturities double, -- jumlah CurrentMaturitiesOf* (bank, obligasi, sukuk, sewa, MTN, ...)
---     lt_loans double,           -- LongTermBankLoans + pinjaman jangka panjang terkait
---     bonds double,              -- BondsPayable, LongTermBondsPayable, MTN, ConvertibleBonds, ...
---     sukuk double,              -- SukukIjarah, SukukMudharabah, LongTermSukuk, ...
+--     lt_loans double,           -- LongTermBankLoans + SubordinatedLoans + pinjaman JP terkait
+--     bonds double,              -- BondsPayable, SubordinatedBonds, MTN, ConvertibleBonds, ...
+--     sukuk double,              -- SukukIjarah, SukukMudharabah, Sukuk, ...
 --     lease_liabilities double,  -- LongTermFinanceLease*/LongTermLeaseLiabilities
 --     hutang_berbunga double,    -- st_bank_loans + current_maturities + lt_loans + bonds + sukuk + lease_liabilities
 
