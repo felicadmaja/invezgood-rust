@@ -7,6 +7,8 @@ service XlbrLaporanKeuangan {
   // Prefer laba rugi 1321000/2311000, arus kas 1510000/1520000/2510000; CapEx fallback beberapa concept PPE/properti.
   // interest_paid / tax_paid dari arus kas; disimpan selalu negatif (outflow, sama seperti CapEx).
   // hutang_berbunga + komponen dari neraca 1210000/2210000 (`CurrentYearInstant`, snapshot per kuartal).
+  // kas dari 1210000 idx-cor:CashAndCashEquivalents CurrentYearInstant; fallback 1510000 CashAndCashEquivalentsCashFlows.
+  // ebitda_ttm: EBIT=PL+tax+fin_cost−fin_inc; EBITDA=EBIT+D&A; TTM=FY(t−1)−YTD(t−1,Qn)+YTD(t,Qn) — butuh zip Q4 tahun lalu + PriorYearDuration/zip kuartal lalu.
   // quarter dari baris "Periode penyampaian laporan keuangan" di 1000000.html → Q1..Q4.
   // Nilai XBRL YTD kumulatif → dekumulasi hanya vs kuartal sebelumnya yang sudah ada di DB; bila tidak ada, YTD = standalone.
   // Baris sama di-upsert (overwrite). Tidak simpan zip ke disk; buffer in-memory lalu upsert invezgood.xlbr_laporan_keuangan. Bearer login.
@@ -81,6 +83,8 @@ message XlbrChartPoint {
   double sukuk = 19;
   double lease_liabilities = 20;
   double hutang_berbunga = 21;
+  double kas = 22;
+  double ebitda_ttm = 23;
 }
 
 message GetXlbrChartByCodeResponse {

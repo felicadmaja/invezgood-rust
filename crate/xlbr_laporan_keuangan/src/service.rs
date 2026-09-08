@@ -346,6 +346,8 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
                     sukuk: r.sukuk,
                     lease_liabilities: r.lease_liabilities,
                     hutang_berbunga: r.hutang_berbunga,
+                    kas: r.kas,
+                    ebitda_ttm: r.ebitda_ttm,
                     presentation_currency: r.presentation_currency,
                     unit_scale: r.unit_scale,
                     catatan: r.catatan.clone().unwrap_or_default(),

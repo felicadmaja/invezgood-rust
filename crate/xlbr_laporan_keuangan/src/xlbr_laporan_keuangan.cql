@@ -16,6 +16,7 @@
 --     net_income double,
 --     interest_paid double,      -- arus kas YTD→standalone; bunga dibayar (selalu negatif)
 --     tax_paid double,           -- arus kas YTD→standalone; pajak dibayar (selalu negatif)
+
 --     st_bank_loans double,      -- neraca CurrentYearInstant: ShorttermBankLoans/ShortTermBankLoans
 --     current_maturities double, -- jumlah CurrentMaturitiesOf* (bank, obligasi, sukuk, sewa, MTN, ...)
 --     lt_loans double,           -- LongTermBankLoans + pinjaman jangka panjang terkait
@@ -23,14 +24,9 @@
 --     sukuk double,              -- SukukIjarah, SukukMudharabah, LongTermSukuk, ...
 --     lease_liabilities double,  -- LongTermFinanceLease*/LongTermLeaseLiabilities
 --     hutang_berbunga double,    -- st_bank_loans + current_maturities + lt_loans + bonds + sukuk + lease_liabilities
-// tambahkan kolom kas, nilainya diambil dari 1210000.html cari <ix:nonFraction name="idx-cor:CashAndCashEquivalents" contextRef="CurrentYearInstant" ...>
-// Label baris HTML: "Kas dan setara kas" — biasanya baris pertama di aset lancar.
-// Context yang kamu mau: CurrentYearInstant (posisi akhir periode pelaporan). Ada juga PriorEndYearInstant / PriorYearInstant untuk saldo pembanding (akhir tahun lalu).
-// untuk crosscheck bisa di lakukan pengecekkan di 1510000.html <ix:nonFraction name="idx-cor:CashAndCashEquivalentsCashFlows" ...>
-// Label: "Kas dan setara kas pada akhir periode". Nilainya seharusnya sama dengan 1210000, tapi bisa beda kalau ada kas yang direklasifikasi (misalnya kas dibatasi penggunaannya / restricted cash, atau kas dalam kelompok aset dimiliki untuk dijual). Bagus untuk validasi parser.
-//     "idx-cor:CashAndCashEquivalents",           # 1210000, prioritas 1
-//    "idx-cor:CashAndCashEquivalentsCashFlows",  # 1510000, fallback/validasi
 
+--     kas double,                -- 1210000 CashAndCashEquivalents CurrentYearInstant; fallback 1510000 CashAndCashEquivalentsCashFlows
+--     ebitda_ttm double,         -- EBIT=PL+tax+fin_cost−fin_inc (+D&A); TTM=FY(t−1)−YTD(t−1,Qn)+YTD(t,Qn); Q4 TTM=YTD FY
 --     uploaded_at timestamp,
 --     source_zip_hash text,
 --     catatan map<text, text>,
@@ -60,6 +56,8 @@
 -- | sukuk                    | regular        | double    | snapshot neraca per kuartal
 -- | lease_liabilities        | regular        | double    | snapshot neraca per kuartal
 -- | hutang_berbunga          | regular        | double    | jumlah 6 komponen di atas
+-- | kas                      | regular        | double    | snapshot neraca; nilai tampilan XBRL
+-- | ebitda_ttm               | regular        | double    | trailing twelve months; butuh zip multi-periode
 -- | uploaded_at              | regular        | timestamp |
 -- | source_zip_hash          | regular        | text      |
 -- | catatan                  | regular        | map<text,text> |
@@ -68,3 +66,7 @@
 -- Migrasi interest/tax (2026-09-07): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD interest_paid double;
 -- Migrasi interest/tax (2026-09-07): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD tax_paid double;
 -- Migrasi hutang (2026-09-08): ALTER TABLE ... ADD st_bank_loans/current_maturities/lt_loans/bonds/sukuk/lease_liabilities/hutang_berbunga double;
+-- Migrasi kas (2026-09-08): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD kas double;
+-- Migrasi ebitda_ttm (2026-09-08): ALTER TABLE invezgood.xlbr_laporan_keuangan ADD ebitda_ttm double;
+-- Backfill kas: cargo run -p xlbr_laporan_keuangan --example backfill_kas
+-- Backfill ebitda_ttm: cargo run -p xlbr_laporan_keuangan --example backfill_ebitda_ttm

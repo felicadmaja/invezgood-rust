@@ -12,14 +12,14 @@ const SELECT_PRIOR_FOR_YEAR: &str =
     "SELECT code, fiscal_year, quarter, period_end, presentation_currency, unit_scale, \
     cash_from_operation, cash_from_investment, cash_from_financing, capital_expenditure, \
     free_cash_flow, net_income, interest_paid, tax_paid, st_bank_loans, current_maturities, \
-    lt_loans, bonds, sukuk, lease_liabilities, hutang_berbunga, uploaded_at, source_zip_hash, \
+    lt_loans, bonds, sukuk, lease_liabilities, hutang_berbunga, kas, ebitda_ttm, uploaded_at, source_zip_hash, \
     catatan FROM invezgood.xlbr_laporan_keuangan WHERE code = ? AND fiscal_year = ?";
 
 const SELECT_CHART: &str =
     "SELECT code, fiscal_year, quarter, period_end, presentation_currency, unit_scale, \
     cash_from_operation, cash_from_investment, cash_from_financing, capital_expenditure, \
     free_cash_flow, net_income, interest_paid, tax_paid, st_bank_loans, current_maturities, \
-    lt_loans, bonds, sukuk, lease_liabilities, hutang_berbunga, uploaded_at, source_zip_hash, \
+    lt_loans, bonds, sukuk, lease_liabilities, hutang_berbunga, kas, ebitda_ttm, uploaded_at, source_zip_hash, \
     catatan FROM invezgood.xlbr_laporan_keuangan WHERE code = ?";
 
 const UPSERT: &str =
@@ -27,8 +27,8 @@ const UPSERT: &str =
     presentation_currency, unit_scale, cash_from_operation, cash_from_investment, \
     cash_from_financing, capital_expenditure, free_cash_flow, net_income, interest_paid, \
     tax_paid, st_bank_loans, current_maturities, lt_loans, bonds, sukuk, lease_liabilities, \
-    hutang_berbunga, uploaded_at, source_zip_hash, catatan) \
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    hutang_berbunga, kas, ebitda_ttm, uploaded_at, source_zip_hash, catatan) \
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 pub async fn list_for_year(
     session: &Session,
@@ -167,6 +167,8 @@ pub fn row_from_standalone(
     unit_scale: i32,
     metrics: StandaloneMetrics,
     debt: &BalanceSheetDebtMetrics,
+    kas: f64,
+    ebitda_ttm: f64,
     source_zip_hash: &str,
 ) -> XlbrLaporanKeuanganRow {
     XlbrLaporanKeuanganRow {
@@ -191,6 +193,8 @@ pub fn row_from_standalone(
         sukuk: debt.sukuk,
         lease_liabilities: debt.lease_liabilities,
         hutang_berbunga: debt.hutang_berbunga,
+        kas,
+        ebitda_ttm,
         uploaded_at: Utc::now(),
         source_zip_hash: source_zip_hash.to_string(),
         catatan: None,

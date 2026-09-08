@@ -13,14 +13,20 @@ use crate::model::{BalanceSheetDebtMetrics, ParsedReportMeta, ParsedXlbrZip, Ytd
 
 const FILE_DEI: &str = "1000000.html";
 
-const PREFERRED_IS: &[&str] = &[
+pub(crate) const CONTEXT_YTD: &str = "CurrentYearDuration";
+pub(crate) const CONTEXT_PRIOR_YTD: &str = "PriorYearDuration";
+pub(crate) const CONTEXT_INSTANT: &str = "CurrentYearInstant";
+
+pub(crate) const PREFERRED_IS: &[&str] = &[
     "1321000.html",
     "2311000.html",
     "2321000.html",
     "3410000.html",
     "3311000.html",
+    "1311000.html",
+    "1331000.html",
 ];
-const PREFERRED_CF: &[&str] = &[
+pub(crate) const PREFERRED_CF: &[&str] = &[
     "1510000.html",
     "1520000.html",
     "2510000.html",
@@ -50,9 +56,6 @@ const CONCEPT_INTEREST_PAID_FALLBACK: &[&str] = &[
     "idx-cor:InterestPaid",
     "idx-cor:PaymentsOfFinanceCosts",
 ];
-
-const CONTEXT_YTD: &str = "CurrentYearDuration";
-const CONTEXT_INSTANT: &str = "CurrentYearInstant";
 
 const CONCEPT_ST_BANK_LOANS: &[&str] = &[
     "idx-cor:ShorttermBankLoans",
@@ -113,6 +116,9 @@ const CONCEPT_LEASE_LIABILITIES: &[&str] = &[
     "idx-cor:LongTermLeaseLiabilities",
 ];
 
+const CONCEPT_CASH_BS: &str = "idx-cor:CashAndCashEquivalents";
+const CONCEPT_CASH_CF: &str = "idx-cor:CashAndCashEquivalentsCashFlows";
+
 /// Cara interpretasi tanda dari tag inline XBRL.
 #[derive(Debug, Clone, Copy)]
 enum IxAmountKind {
@@ -142,7 +148,7 @@ const CONCEPT_TAX_PAID_CANDIDATES: &[(&str, IxAmountKind)] = &[
     ),
 ];
 
-struct ZipHtmlCorpus {
+pub(crate) struct ZipHtmlCorpus {
     entries: Vec<(String, String)>,
 }
 
@@ -175,7 +181,7 @@ impl ZipHtmlCorpus {
             .map(|(_, h)| h.as_str())
     }
 
-    fn search_order<'a>(&'a self, preferred: &[&str]) -> Vec<&'a str> {
+    pub(crate) fn search_order<'a>(&'a self, preferred: &[&str]) -> Vec<&'a str> {
         let mut order = Vec::new();
         for name in preferred {
             if self.html(name).is_some() {
@@ -188,6 +194,10 @@ impl ZipHtmlCorpus {
             }
         }
         order
+    }
+
+    pub(crate) fn all_htmls(&self) -> Vec<&str> {
+        self.entries.iter().map(|(_, h)| h.as_str()).collect()
     }
 
     fn find_dei_html(&self) -> Result<&str, String> {
@@ -252,11 +262,16 @@ pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
 
     let mut debt = extract_balance_sheet_debt(&bs_order);
     debt.compute_total();
+    let kas = extract_kas(&bs_order, &cf_order);
+    let (ebitda_current, ebitda_prior) = crate::ebitda::extract_from_corpus(&corpus);
 
     Ok(ParsedXlbrZip {
         meta,
         ytd,
         debt,
+        kas,
+        ebitda_current,
+        ebitda_prior,
         source_zip_hash,
     })
 }
@@ -329,6 +344,24 @@ fn extract_balance_sheet_debt(htmls: &[&str]) -> BalanceSheetDebtMetrics {
     }
 }
 
+/// Kas dan setara kas (`CurrentYearInstant`): neraca 1210000 dulu, fallback arus kas 1510000.
+fn extract_kas(bs_htmls: &[&str], cf_htmls: &[&str]) -> f64 {
+    if let Some(value) = extract_from_htmls_with_context(
+        bs_htmls,
+        &[CONCEPT_CASH_BS],
+        CONTEXT_INSTANT,
+        IxAmountKind::Signed,
+    ) {
+        return value.abs();
+    }
+    extract_optional_instant(cf_htmls, &[CONCEPT_CASH_CF]).abs()
+}
+
+fn extract_optional_instant(htmls: &[&str], concepts: &[&str]) -> f64 {
+    extract_from_htmls_with_context(htmls, concepts, CONTEXT_INSTANT, IxAmountKind::Signed)
+        .unwrap_or(0.0)
+}
+
 fn extract_category_sum_instant(htmls: &[&str], concepts: &[&str]) -> f64 {
     let mut sum = 0.0;
     for concept in concepts {
@@ -359,6 +392,14 @@ fn extract_from_htmls_with_context(
 
 fn extract_from_htmls(htmls: &[&str], concepts: &[&str], kind: IxAmountKind) -> Option<f64> {
     extract_from_htmls_with_context(htmls, concepts, CONTEXT_YTD, kind)
+}
+
+pub(crate) fn extract_signed_optional(
+    htmls: &[&str],
+    concepts: &[&str],
+    context: &str,
+) -> Option<f64> {
+    extract_from_htmls_with_context(htmls, concepts, context, IxAmountKind::Signed)
 }
 
 fn parse_dei(html: &str) -> Result<ParsedReportMeta, String> {
@@ -719,6 +760,7 @@ mod tests {
                 + parsed.debt.lease_liabilities
         );
         assert!(parsed.debt.hutang_berbunga > 0.0);
+        assert_eq!(parsed.kas, 30_111_557.0);
     }
 
     #[test]

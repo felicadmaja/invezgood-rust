@@ -92,6 +92,27 @@ pub struct ParsedReportMeta {
     pub unit_scale: i32,
 }
 
+/// Komponen EBIT/EBITDA YTD (`CurrentYearDuration` / `PriorYearDuration`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct EbitdaComponents {
+    pub profit_loss: f64,
+    pub tax: f64,
+    pub finance_cost: f64,
+    pub finance_income: f64,
+    pub depreciation_amortisation: f64,
+}
+
+impl EbitdaComponents {
+    /// EBIT = PL + pajak + biaya keuangan − pendapatan keuangan (komponen biaya di-abs).
+    pub fn ebit(&self) -> f64 {
+        self.profit_loss + self.tax.abs() + self.finance_cost.abs() - self.finance_income.abs()
+    }
+
+    pub fn ebitda(&self) -> f64 {
+        self.ebit() + self.depreciation_amortisation.abs()
+    }
+}
+
 /// Snapshot utang berbunga dari laporan posisi keuangan (`CurrentYearInstant`).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BalanceSheetDebtMetrics {
@@ -121,6 +142,9 @@ pub struct ParsedXlbrZip {
     pub meta: ParsedReportMeta,
     pub ytd: YtdMetrics,
     pub debt: BalanceSheetDebtMetrics,
+    pub kas: f64,
+    pub ebitda_current: EbitdaComponents,
+    pub ebitda_prior: Option<EbitdaComponents>,
     pub source_zip_hash: String,
 }
 
@@ -156,6 +180,10 @@ pub struct XlbrLaporanKeuanganRow {
     pub lease_liabilities: f64,
     #[scylla(default_when_null)]
     pub hutang_berbunga: f64,
+    #[scylla(default_when_null)]
+    pub kas: f64,
+    #[scylla(default_when_null)]
+    pub ebitda_ttm: f64,
     pub uploaded_at: DateTime<Utc>,
     pub source_zip_hash: String,
     #[scylla(default_when_null)]

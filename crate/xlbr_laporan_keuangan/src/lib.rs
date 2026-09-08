@@ -5,6 +5,7 @@ pub mod pb {
 pub const FILE_DESCRIPTOR_SET: &[u8] =
     tonic::include_file_descriptor_set!("xlbr_laporan_keuangan_descriptor");
 
+pub mod ebitda;
 mod bei_scraper;
 mod database;
 mod download;
@@ -22,6 +23,7 @@ use std::sync::Arc;
 
 use scylla::client::session::Session;
 
+use ebitda::resolve_ebitda_ttm;
 use model::XlbrLaporanKeuanganRow as Row;
 use parser::parse_zip_bytes;
 use repository::{list_for_year, row_from_standalone, standalone_sum_prior_to, upsert};
@@ -45,6 +47,8 @@ pub async fn upload_from_zip_bytes(session: Arc<Session>, bytes: &[u8]) -> Resul
     let prior_sum = standalone_sum_prior_to(&existing, &parsed.meta.quarter);
     let standalone = parsed.ytd.deaccumulate(&prior_sum);
 
+    let ebitda_ttm = resolve_ebitda_ttm(&parsed);
+
     let row = row_from_standalone(
         &parsed.meta.code,
         parsed.meta.fiscal_year,
@@ -54,6 +58,8 @@ pub async fn upload_from_zip_bytes(session: Arc<Session>, bytes: &[u8]) -> Resul
         parsed.meta.unit_scale,
         standalone,
         &parsed.debt,
+        parsed.kas,
+        ebitda_ttm,
         &parsed.source_zip_hash,
     );
 

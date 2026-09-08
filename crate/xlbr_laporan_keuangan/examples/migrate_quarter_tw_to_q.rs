@@ -12,7 +12,7 @@ const SELECT_ALL: &str =
     "SELECT code, fiscal_year, quarter, period_end, presentation_currency, unit_scale, \
     cash_from_operation, cash_from_investment, cash_from_financing, capital_expenditure, \
     free_cash_flow, net_income, interest_paid, tax_paid, st_bank_loans, current_maturities, \
-    lt_loans, bonds, sukuk, lease_liabilities, hutang_berbunga, uploaded_at, source_zip_hash, catatan \
+    lt_loans, bonds, sukuk, lease_liabilities, hutang_berbunga, kas, ebitda_ttm, uploaded_at, source_zip_hash, catatan \
     FROM invezgood.xlbr_laporan_keuangan";
 
 const DELETE_ROW: &str =
