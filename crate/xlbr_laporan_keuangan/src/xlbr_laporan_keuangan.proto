@@ -6,6 +6,8 @@ service XlbrLaporanKeuangan {
   // Client stream inlineXBRL.zip (chunk bytes). Server baca semua *.html di zip; cari concept XBRL CurrentYearDuration.
   // Prefer laba rugi 1321000/2311000, arus kas 1510000/1520000/2510000; CapEx fallback beberapa concept PPE/properti.
   // interest_paid / tax_paid dari arus kas; disimpan selalu negatif (outflow, sama seperti CapEx).
+  // interest_paid fallback: CF `InterestPaid`/`PaymentsOfFinanceCosts`/adjustment tidak langsung;
+  // bila semua nil, pakai beban akrual P&L `InterestAndFinanceCosts`/`FinanceCosts` (mis. ENRG).
   // hutang_berbunga + komponen dari neraca 1210000/2210000/5220000 (`CurrentYearInstant`, snapshot per kuartal).
   // Template sekuritas (5220000): fallback idx-cor:BankLoans, SubordinatedLoans, SubordinatedBonds, Sukuk.
   // OtherBorrowings / NotesPayable (mis. TINS): CurrentMaturitiesOfOtherBorrowings, LongTermOtherBorrowings.

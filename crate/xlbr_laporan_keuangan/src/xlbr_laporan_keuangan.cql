@@ -14,7 +14,7 @@
 --     capital_expenditure double,
 --     free_cash_flow double,
 --     net_income double,
---     interest_paid double,      -- arus kas YTD→standalone; bunga dibayar (selalu negatif)
+--     interest_paid double,      -- arus kas YTD→standalone; bunga dibayar (selalu negatif); fallback P&L bila CF nil (ENRG)
 --     tax_paid double,           -- arus kas YTD→standalone; pajak dibayar (selalu negatif)
 
 --     st_bank_loans double,      -- ShorttermBankLoans/ShortTermBankLoans; fallback BankLoans (5220000 sekuritas)

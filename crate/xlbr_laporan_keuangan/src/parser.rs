@@ -60,6 +60,20 @@ const CONCEPT_INTEREST_PAID_SECTIONS: &[&str] = &[
 const CONCEPT_INTEREST_PAID_FALLBACK: &[&str] = &[
     "idx-cor:InterestPaid",
     "idx-cor:PaymentsOfFinanceCosts",
+    "idx-cor:PaymentsOfInterestAndBonusFeesAndCommissions",
+];
+
+/// Penyesuaian metode tidak langsung di arus kas (bila `InterestsPaidFrom*` tidak diisi).
+const CONCEPT_INTEREST_PAID_CF_ADJUSTMENTS: &[&str] = &[
+    "idx-cor:AdjustmentsForFinanceCosts",
+    "idx-cor:AdjustmentsForInterestExpense",
+];
+
+/// Beban bunga akrual di laba rugi — fallback terakhir bila arus kas tidak mengungkapkan bunga dibayar (mis. ENRG, HRUM).
+const CONCEPT_INTEREST_PAID_PL_FALLBACK: &[&str] = &[
+    "idx-cor:InterestAndFinanceCosts",
+    "idx-cor:FinanceCosts",
+    "idx-cor:InterestExpense",
 ];
 
 const CONCEPT_ST_BANK_LOANS: &[&str] = &[
@@ -272,7 +286,7 @@ pub fn parse_zip_bytes(bytes: &[u8]) -> Result<ParsedXlbrZip, String> {
             CONCEPT_CAPEX_CANDIDATES,
             IxAmountKind::NegativeOutflow,
         ),
-        interest_paid: store_as_negative_outflow(extract_interest_paid_ytd(&cf_order)),
+        interest_paid: store_as_negative_outflow(extract_interest_paid_ytd(&cf_order, &is_order)),
         tax_paid: store_as_negative_outflow(extract_tax_paid_ytd(&cf_order)),
     };
 
@@ -312,22 +326,39 @@ fn extract_optional_from_htmls(htmls: &[&str], concepts: &[&str], kind: IxAmount
     extract_from_htmls(htmls, concepts, kind).unwrap_or(0.0)
 }
 
-fn extract_interest_paid_ytd(htmls: &[&str]) -> f64 {
+fn extract_interest_paid_ytd(cf_htmls: &[&str], is_htmls: &[&str]) -> f64 {
     let mut sum = 0.0;
     let mut found = false;
     for concept in CONCEPT_INTEREST_PAID_SECTIONS {
         if let Some(value) =
-            extract_from_htmls(htmls, &[*concept], IxAmountKind::NegativeOutflow)
+            extract_from_htmls(cf_htmls, &[*concept], IxAmountKind::NegativeOutflow)
         {
             sum += value;
             found = true;
         }
     }
     if found {
-        sum
-    } else {
-        extract_optional_from_htmls(htmls, CONCEPT_INTEREST_PAID_FALLBACK, IxAmountKind::NegativeOutflow)
+        return sum;
     }
+    if let Some(value) = extract_from_htmls(
+        cf_htmls,
+        CONCEPT_INTEREST_PAID_FALLBACK,
+        IxAmountKind::NegativeOutflow,
+    ) {
+        return value;
+    }
+    if let Some(value) = extract_from_htmls(
+        cf_htmls,
+        CONCEPT_INTEREST_PAID_CF_ADJUSTMENTS,
+        IxAmountKind::Signed,
+    ) {
+        return value;
+    }
+    extract_optional_from_htmls(
+        is_htmls,
+        CONCEPT_INTEREST_PAID_PL_FALLBACK,
+        IxAmountKind::Signed,
+    )
 }
 
 fn extract_tax_paid_ytd(htmls: &[&str]) -> f64 {
@@ -869,6 +900,21 @@ mod tests {
         assert!(parsed.ytd.net_income > 0.0);
         assert!(parsed.ytd.cash_from_operation > 0.0);
         assert!(parsed.ytd.cash_from_investment < 0.0);
+    }
+
+    #[test]
+    fn parse_enrg_interest_paid_pl_fallback() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/downloaded_xbrl/ENRG/inlineXBRL-ENRG-2025-Q2.zip"
+        );
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let bytes = fs::read(path).expect("ENRG zip");
+        let parsed = parse_zip_bytes(&bytes).expect("parse ENRG interest fallback");
+        assert_eq!(parsed.meta.code, "ENRG");
+        assert_eq!(parsed.ytd.interest_paid, -17_489_346.0);
     }
 
     #[test]
