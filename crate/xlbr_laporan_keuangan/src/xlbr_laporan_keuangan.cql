@@ -23,6 +23,14 @@
 --     sukuk double,              -- SukukIjarah, SukukMudharabah, LongTermSukuk, ...
 --     lease_liabilities double,  -- LongTermFinanceLease*/LongTermLeaseLiabilities
 --     hutang_berbunga double,    -- st_bank_loans + current_maturities + lt_loans + bonds + sukuk + lease_liabilities
+// tambahkan kolom kas, nilainya diambil dari 1210000.html cari <ix:nonFraction name="idx-cor:CashAndCashEquivalents" contextRef="CurrentYearInstant" ...>
+// Label baris HTML: "Kas dan setara kas" — biasanya baris pertama di aset lancar.
+// Context yang kamu mau: CurrentYearInstant (posisi akhir periode pelaporan). Ada juga PriorEndYearInstant / PriorYearInstant untuk saldo pembanding (akhir tahun lalu).
+// untuk crosscheck bisa di lakukan pengecekkan di 1510000.html <ix:nonFraction name="idx-cor:CashAndCashEquivalentsCashFlows" ...>
+// Label: "Kas dan setara kas pada akhir periode". Nilainya seharusnya sama dengan 1210000, tapi bisa beda kalau ada kas yang direklasifikasi (misalnya kas dibatasi penggunaannya / restricted cash, atau kas dalam kelompok aset dimiliki untuk dijual). Bagus untuk validasi parser.
+//     "idx-cor:CashAndCashEquivalents",           # 1210000, prioritas 1
+//    "idx-cor:CashAndCashEquivalentsCashFlows",  # 1510000, fallback/validasi
+
 --     uploaded_at timestamp,
 --     source_zip_hash text,
 --     catatan map<text, text>,
