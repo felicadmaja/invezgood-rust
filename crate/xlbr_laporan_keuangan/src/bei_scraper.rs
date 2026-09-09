@@ -202,10 +202,19 @@ pub async fn scrap_and_upload(
             let zip_path = emiten_dir.join(&zip_name);
             if zip_path.is_file() {
                 eprintln!(
-                    "ScrapZipFromBei: lewati {code} {year_id}/{period_id} — sudah ada {}",
+                    "ScrapZipFromBei: zip sudah ada {} — parse+upsert",
                     zip_path.display()
                 );
-                skipped += 1;
+                match upload_zip_file(db.clone(), &zip_path).await {
+                    Ok(row) => {
+                        uploaded += 1;
+                        last_row = Some(row);
+                    }
+                    Err(e) => {
+                        failed += 1;
+                        eprintln!("ScrapZipFromBei upload {zip_path:?} gagal: {e}");
+                    }
+                }
                 slot += 1;
                 continue;
             }

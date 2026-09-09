@@ -24,7 +24,7 @@ service XlbrLaporanKeuangan {
   // crate/xlbr_laporan_keuangan/browser_data — tidak mengunci Chrome Stockbit.
   // Awal RPC: hapus semua file di src/screenshot/; screenshot langkah ke {code}-*.png.
   // Zip unduhan disimpan permanen: src/downloaded_xbrl/{CODE}/inlineXBRL-{CODE}-{tahun}-{Qn}.zip
-  // (year4=tahun ini−4..year0=tahun ini; period0=Q1..period3=Q4). Bila file sudah ada, slot dilewati.
+  // (year4=tahun ini−4..year0=tahun ini; period0=Q1..period3=Q4). Bila file sudah ada, lewati unduh IDX; tetap parse+upsert dari zip lokal.
   // year0: lewati period0 jika bulan≤3, period1 bulan≤6, period2 bulan≤9, period3 selama masih tahun kalender sama.
   // Retry goto IDX bila 503 Varnish (env XLBR_IDX_GOTO_RETRIES, XLBR_IDX_RETRY_SECS). Bearer login.
   // RPC menunggu scrape selesai lalu kirim uploaded/skipped/failed + fiscal_year/quarter terakhir.
