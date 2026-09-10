@@ -2979,6 +2979,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "grpc_stream",
  "invezgo_http",
  "market_holiday",
  "prost",
@@ -2987,6 +2988,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-build",
  "user",

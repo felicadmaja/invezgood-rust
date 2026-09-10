@@ -1,6 +1,10 @@
+use std::pin::Pin;
 use std::sync::Arc;
 
+use futures::Stream;
+use grpc_stream::send_or_break;
 use scylla::client::session::Session;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
@@ -10,6 +14,9 @@ use crate::pb::{
     GetTopForeignFlowByCodeRequest, GetTopForeignFlowByCodeResponse,
     GetTopForeignFlowByTanggalRequest, GetTopForeignFlowByTanggalResponse, TopForeignFlowRow,
 };
+
+type TanggalStream =
+    Pin<Box<dyn Stream<Item = Result<GetTopForeignFlowByTanggalResponse, Status>> + Send>>;
 
 pub struct TopForeignFlowService {
     session: Arc<Session>,
@@ -50,76 +57,113 @@ impl TopForeignFlowService {
             accum_or_dist: row.accum_or_dist.unwrap_or_default(),
         }
     }
+
+    fn map_sync_error(e: String) -> Status {
+        if e.contains("Sabtu") || e.contains("hari ini") {
+            Status::failed_precondition(e)
+        } else {
+            Status::internal(e)
+        }
+    }
 }
 
 #[tonic::async_trait]
 impl TopForeignFlow for TopForeignFlowService {
+    type GetTopForeignFlowByTanggalStream = TanggalStream;
+
     async fn get_top_foreign_flow_by_tanggal(
         &self,
         request: Request<GetTopForeignFlowByTanggalRequest>,
-    ) -> Result<Response<GetTopForeignFlowByTanggalResponse>, Status> {
+    ) -> Result<Response<TanggalStream>, Status> {
         let started = std::time::Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
+        let inner = request.into_inner();
 
-        let result: Result<Response<GetTopForeignFlowByTanggalResponse>, Status> = async {
-            let inner = request.into_inner();
-            if inner.tahun_bulan_tanggal.is_empty() {
-                return Err(Status::invalid_argument(
-                    "tahun_bulan_tanggal wajib diisi (≥1 tanggal YYYY-MM-DD)",
-                ));
-            }
+        if inner.tahun_bulan_tanggal.is_empty() {
+            Self::log_rpc_debug("GetTopForeignFlowByTanggal", &user_name, started);
+            return Err(Status::invalid_argument(
+                "tahun_bulan_tanggal wajib diisi (≥1 tanggal YYYY-MM-DD)",
+            ));
+        }
 
-            let mut all_rows = Vec::new();
-            let mut saved_total = 0usize;
-            let mut cached_dates = 0usize;
-            let mut fetched_dates = 0usize;
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let session = self.session.clone();
+        let dates = inner.tahun_bulan_tanggal;
+        let user_name_bg = user_name.clone();
 
-            for raw_date in &inner.tahun_bulan_tanggal {
-                let trade_date = crate::invezgo::parse_trade_date(raw_date)
-                    .map_err(Status::invalid_argument)?;
+        tokio::spawn(async move {
+            let mut aborted = false;
 
-                let outcome = crate::sync::sync_trade_date(self.session.clone(), trade_date)
-                    .await
-                    .map_err(|e| {
-                        if e.contains("Sabtu") || e.contains("hari ini") {
-                            Status::failed_precondition(e)
-                        } else {
-                            Status::internal(e)
-                        }
-                    })?;
+            for raw_date in dates {
+                let trade_date = match crate::invezgo::parse_trade_date(&raw_date) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        let _ = send_or_break(
+                            &tx,
+                            Err(Status::invalid_argument(format!("{raw_date}: {e}"))),
+                        )
+                        .await;
+                        aborted = true;
+                        break;
+                    }
+                };
+
+                let outcome = match crate::sync::sync_trade_date(session.clone(), trade_date).await
+                {
+                    Ok(o) => o,
+                    Err(e) => {
+                        let _ = send_or_break(&tx, Err(Self::map_sync_error(e))).await;
+                        aborted = true;
+                        break;
+                    }
+                };
 
                 if outcome.cached {
                     eprintln!(
-                        "GetTopForeignFlowByTanggal {user_name} skip Invezgo API date={trade_date} (MV ada ≥1 baris)"
+                        "GetTopForeignFlowByTanggal {user_name_bg} skip Invezgo API date={trade_date} (MV ada ≥1 baris)"
                     );
-                    cached_dates += 1;
-                } else {
-                    saved_total += outcome.saved;
-                    fetched_dates += 1;
                 }
 
-                all_rows.extend(outcome.rows);
+                let n = outcome.rows.len();
+                let message = if outcome.cached {
+                    format!("{trade_date}: {n} baris dari cache Scylla")
+                } else {
+                    format!(
+                        "{trade_date}: fetch Invezgo {} baris upsert, {n} baris",
+                        outcome.saved
+                    )
+                };
+
+                let response = GetTopForeignFlowByTanggalResponse {
+                    success: true,
+                    message,
+                    items: outcome
+                        .rows
+                        .into_iter()
+                        .map(Self::db_row_to_proto)
+                        .collect(),
+                };
+
+                if !send_or_break(&tx, Ok(response)).await {
+                    eprintln!(
+                        "GetTopForeignFlowByTanggal {user_name_bg} client disconnect date={trade_date}"
+                    );
+                    aborted = true;
+                    break;
+                }
             }
 
-            let message = format!(
-                "{} tanggal ({} dari cache Scylla, {} fetch Invezgo {saved_total} baris upsert), {} baris total",
-                inner.tahun_bulan_tanggal.len(),
-                cached_dates,
-                fetched_dates,
-                all_rows.len()
-            );
+            if !aborted {
+                eprintln!("GetTopForeignFlowByTanggal {user_name_bg} stream selesai");
+            }
+            drop(tx);
+            Self::log_rpc_debug("GetTopForeignFlowByTanggal", &user_name_bg, started);
+        });
 
-            Ok(Response::new(GetTopForeignFlowByTanggalResponse {
-                success: true,
-                message,
-                items: all_rows.into_iter().map(Self::db_row_to_proto).collect(),
-            }))
-        }
-        .await;
-
-        Self::log_rpc_debug("GetTopForeignFlowByTanggal", &user_name, started);
-        result
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(rx)) as TanggalStream
+        ))
     }
 
     async fn get_top_foreign_flow_by_code(
