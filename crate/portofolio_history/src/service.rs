@@ -238,6 +238,10 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         let started = Instant::now();
         let auth = self.require_auth(&request).await?;
         let user_name = auth.nama;
+        let emiten_invoke = request.get_ref().emiten_name.trim().to_string();
+        eprintln!(
+            "GetPortofolioHistoryByEmitenNameFromStockbit invoke {user_name} emiten={emiten_invoke}"
+        );
 
         enum LogSource {
             Cache,
