@@ -428,7 +428,7 @@ pub fn secs_until_next_yahoo_spike_window() -> u64 {
     (target - now).num_seconds().max(1) as u64
 }
 
-/// On-demand: login → PIN → GET carina `/history?stock=` →
+/// On-demand: login → PIN → GET carina `/history?page=&limit=200&period=all&stock=` →
 /// upsert `portofolio_history` per tanggal. Single-flight per emiten.
 /// Returns jumlah entri history yang di-upsert.
 pub async fn scrape_portofolio_history_for_emiten(

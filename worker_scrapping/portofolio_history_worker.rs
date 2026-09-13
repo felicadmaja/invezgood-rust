@@ -1,10 +1,10 @@
-//! Portofolio history via API `carina.stockbit.com/history?stock=`.
-//! Upsert ke tabel Scylla `portofolio_history` (bukan kolom `portofolio.history`).
+//! Portofolio history via API Carina `/history?page=&limit=200&period=all&stock=`.
+//! Upsert ke tabel Scylla `portofolio_history` (UDT `portofolio_history_item` di kolom `history`).
 //!
 //! Alur: START TRADING/PIN bila perlu → Bearer trading → GET `/history` per emiten
-//! (paginate `page` s/d `meta.max_page`; jeda adaptif rate-limit)
-//! → group by tanggal transaksi (`date`, mis. `20 Jul 2026`)
-//! → INSERT `(emiten_name=symbol, tahun_bulan_tanggal=date, history=list item hari itu)`.
+//! (paginate `page` s/d `data.meta.max_page`; jeda adaptif rate-limit)
+//! → flatten `data.history[].history_list[]` → group by tanggal item (`date`, mis. `28 Aug 2026`)
+//! → INSERT `(emiten_name=stock, tahun_bulan_tanggal=date, history=list item hari itu)`.
 
 use chrono::{Local, NaiveDate};
 use chromiumoxide::page::Page;
@@ -302,7 +302,7 @@ pub async fn upsert_portofolio_history_by_dates(
     Ok((total, latest))
 }
 
-/// START TRADING/PIN → Bearer → GET `/history?stock=` → upsert per tanggal transaksi.
+/// START TRADING/PIN → Bearer → GET `/history?page=&limit=200&period=all&stock=` → upsert per tanggal.
 /// Returns (jumlah entri, tanggal terbaru, list history tanggal terbaru).
 pub async fn scrape_and_replace_portofolio_history(
     page: &Page,
@@ -328,7 +328,7 @@ pub async fn scrape_and_replace_portofolio_history(
         .build()?;
 
     println!(
-        "Portofolio history API: GET {HISTORY_API_URL}?page=1&limit={HISTORY_PAGE_LIMIT}&period=all&stock={code}..."
+        "Portofolio history API: GET {HISTORY_API_URL}?page=1&limit={HISTORY_PAGE_LIMIT}&period=all&start=&end=&action=&stock={code}..."
     );
     let (by_date, _rate) = fetch_history_by_stock_code(&http, &bearer, &code).await?;
     let (n, latest) = upsert_portofolio_history_by_dates(session, keyspace, &code, &by_date).await?;
@@ -470,5 +470,36 @@ mod tests {
         assert!((items[0].lot - 6.0).abs() < 1e-9);
         assert!((items[0].amount - 1059000.0).abs() < 1e-9);
         assert_eq!(items[0].status, "MATCH");
+    }
+
+    #[test]
+    fn parse_carina_history_bren_aug_2026() {
+        let v: Value = serde_json::from_str(
+            r#"{
+                "message": "History Info retrieved",
+                "data": {
+                  "history": [{
+                    "date": "Aug 2026",
+                    "history_list": [
+                      {"command":"BUY","symbol":"BREN","price":3400,"lot":13,"amount":4420000,"status":"MATCH","date":"28 Aug 2026","id":"464778095"},
+                      {"command":"BUY","symbol":"BREN","price":3420,"lot":7,"amount":2394000,"status":"MATCH","date":"24 Aug 2026","id":"461367252"},
+                      {"command":"SELL","symbol":"BREN","price":3650,"lot":15,"amount":5475000,"status":"MATCH","date":"12 Aug 2026","id":"453243731"}
+                    ],
+                    "monthly_gain": 0
+                  }],
+                  "meta": {"max_page": 1}
+                }
+              }"#,
+        )
+        .unwrap();
+        let by_date = parse_carina_history_by_date(&v);
+        assert_eq!(by_date.len(), 3);
+        let d28 = NaiveDate::from_ymd_opt(2026, 8, 28).unwrap();
+        let d24 = NaiveDate::from_ymd_opt(2026, 8, 24).unwrap();
+        let d12 = NaiveDate::from_ymd_opt(2026, 8, 12).unwrap();
+        assert_eq!(by_date.get(&d28).unwrap().len(), 1);
+        assert_eq!(by_date.get(&d24).unwrap().len(), 1);
+        assert_eq!(by_date.get(&d12).unwrap()[0].command, "SELL");
+        assert!((by_date.get(&d12).unwrap()[0].amount - 5475000.0).abs() < 1e-9);
     }
 }
