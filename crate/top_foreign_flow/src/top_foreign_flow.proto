@@ -7,6 +7,7 @@ service TopForeignFlow {
   // Bila MV kosong → GET api.invezgo.com/analysis/top/foreign?date=...&filter_column=value, upsert, baca Scylla.
   // Bearer login wajib. tahun_bulan_tanggal wajib ≥1 tanggal (YYYY-MM-DD), masing-masing bukan hari ini, bukan Sabtu/Minggu.
   // Stream: 1 pesan per tanggal (items = baris tanggal itu); error tanggal → stream Err(Status) lalu stop.
+  // Scheduler background (main): setiap 04:00 lokal sync tanggal kemarin via sync_trade_date; lewati Sab/Ming/hari libur.
   rpc GetTopForeignFlowByTanggal(GetTopForeignFlowByTanggalRequest) returns (stream GetTopForeignFlowByTanggalResponse);
 
   // Baca Scylla MV top_foreign_flow_by_code by PK code → baris penuh dari tabel dasar per PK.

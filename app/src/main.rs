@@ -21,7 +21,9 @@ use evtoebit::{new_shared_median_cache, new_yahoo_client, spawn_daily_evtoebit_s
 use shareholder_composition::{
     ShareholderCompositionServer, ShareholderCompositionService,
 };
-use top_foreign_flow::{TopForeignFlowServer, TopForeignFlowService};
+use top_foreign_flow::{
+    spawn_daily_top_foreign_flow_sync, TopForeignFlowServer, TopForeignFlowService,
+};
 use top_gainer_loser::{TopGainerLoserServer, TopGainerLoserService};
 use user::{new_session_store, UserServer, UserService};
 use wyckoff_glossary::{WyckoffGlossaryServer, WyckoffGlossaryService};
@@ -179,6 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     spawn_daily_notation_sync(session.clone());
     spawn_daily_evtoebit_sync(session.clone(), evtoebit_yahoo, evtoebit_cache);
+    spawn_daily_top_foreign_flow_sync(session.clone());
 
     let user = UserService::new(
         session,
