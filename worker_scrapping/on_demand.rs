@@ -429,13 +429,13 @@ pub fn secs_until_next_yahoo_spike_window() -> u64 {
 }
 
 /// On-demand: login → PIN → GET carina `/history?page=&limit=200&period=all&stock=` →
-/// upsert `portofolio_history` per tanggal. Single-flight per emiten.
+/// upsert `portofolio_history` per tanggal. Single-flight per emiten. Tanpa cek hari libur/weekend.
 /// Returns jumlah entri history yang di-upsert.
 pub async fn scrape_portofolio_history_for_emiten(
     session: Arc<Session>,
     emiten_name: &str,
 ) -> Result<usize, String> {
-    ensure_market_open().await?;
+    // On-demand history: tanpa cek hari libur/weekend (API Carina tetap bisa diakses).
     let code = emiten_name.trim().to_ascii_uppercase();
     if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
         return Err("emiten_name harus tepat 4 huruf alfabet (contoh: ASBI)".into());

@@ -259,7 +259,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                             GetPortofolioHistoryByEmitenNameFromStockbitResponse {
                                 success: false,
                                 message,
-                                row: None,
+                                rows: vec![],
                             },
                         )),
                         LogSource::Other,
@@ -287,26 +287,26 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
             .await
             {
                 Ok(n) => {
-                    let row = match self.repo.find_latest_by_emiten(&kode).await {
-                        Ok(Some(r)) => Some(r.into_proto()),
-                        Ok(None) => None,
+                    let rows = match self.repo.find_all_by_emiten(&kode).await {
+                        Ok(rows) => rows.into_iter().map(|r| r.into_proto()).collect(),
                         Err(e) => {
                             eprintln!(
                                 "GetPortofolioHistoryByEmitenNameFromStockbit: baca ulang gagal: {e}"
                             );
-                            None
+                            vec![]
                         }
                     };
-                    let date_note = row
-                        .as_ref()
+                    let date_note = rows
+                        .first()
                         .map(|r| r.tahun_bulan_tanggal.as_str())
                         .unwrap_or("-");
                     let resp = GetPortofolioHistoryByEmitenNameFromStockbitResponse {
                         success: true,
                         message: format!(
-                            "portofolio_history {kode}: scrape selesai, {n} entri di-upsert (terbaru {date_note})"
+                            "portofolio_history {kode}: scrape selesai, {n} entri di-upsert ({} tanggal, terbaru {date_note})",
+                            rows.len()
                         ),
-                        row,
+                        rows,
                     };
                     crate::redis_cache::set(&kode, &resp).await;
                     (Ok(Response::new(resp)), LogSource::Api, kode)
@@ -316,7 +316,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                         GetPortofolioHistoryByEmitenNameFromStockbitResponse {
                             success: false,
                             message: format!("scrape portofolio history gagal: {e}"),
-                            row: None,
+                            rows: vec![],
                         },
                     )),
                     LogSource::Other,

@@ -61,6 +61,28 @@ impl PortofolioHistoryRepository {
         Ok(result.maybe_first_row::<PortofolioHistory>()?)
     }
 
+    pub async fn find_all_by_emiten(
+        &self,
+        emiten_name: &str,
+    ) -> Result<Vec<PortofolioHistory>, Box<dyn std::error::Error + Send + Sync>> {
+        let q = format!(
+            "SELECT emiten_name, tahun_bulan_tanggal, tahun_bulan, history \
+             FROM {} WHERE emiten_name = ?",
+            self.table
+        );
+        let mut rows = self
+            .session
+            .query_iter(q.as_str(), (emiten_name,))
+            .await?
+            .rows_stream::<PortofolioHistory>()?;
+
+        let mut out = Vec::new();
+        while let Some(row) = rows.try_next().await? {
+            out.push(row);
+        }
+        Ok(out)
+    }
+
     pub async fn find_by_tahun_bulan(
         &self,
         tahun_bulan: &str,
