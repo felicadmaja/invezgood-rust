@@ -19,6 +19,14 @@ const SCAN_LTE: &str =
 const FIND_BY_EMAIL: &str =
     "SELECT email, nama, password, role FROM invezgood.user WHERE email = ?";
 
+const INSERT_USER: &str =
+    "INSERT INTO invezgood.user (email, nama, password, role) VALUES (?, ?, ?, ?)";
+
+const UPDATE_USER: &str =
+    "UPDATE invezgood.user SET nama = ?, role = ? WHERE email = ?";
+
+const DELETE_USER: &str = "DELETE FROM invezgood.user WHERE email = ?";
+
 const LOCAL_TOKENS: &str = "SELECT tokens FROM system.local";
 const PEERS_TOKENS: &str = "SELECT tokens FROM system.peers";
 
@@ -39,6 +47,44 @@ pub async fn find_by_email(session: &Session, email: &str) -> Result<Option<User
     rows.try_next()
         .await
         .map_err(|e| format!("find_by_email row {KEYSPACE}.{TABLE}: {e}"))
+}
+
+pub async fn insert_user(
+    session: &Session,
+    email: &str,
+    nama: &str,
+    password_hash: &str,
+    role: &str,
+) -> Result<(), String> {
+    session
+        .query_unpaged(
+            INSERT_USER,
+            (email, nama, password_hash, role),
+        )
+        .await
+        .map_err(|e| format!("insert_user {KEYSPACE}.{TABLE} email={email}: {e}"))?;
+    Ok(())
+}
+
+pub async fn update_user(
+    session: &Session,
+    email: &str,
+    nama: &str,
+    role: &str,
+) -> Result<(), String> {
+    session
+        .query_unpaged(UPDATE_USER, (nama, role, email))
+        .await
+        .map_err(|e| format!("update_user {KEYSPACE}.{TABLE} email={email}: {e}"))?;
+    Ok(())
+}
+
+pub async fn delete_user(session: &Session, email: &str) -> Result<(), String> {
+    session
+        .query_unpaged(DELETE_USER, (email,))
+        .await
+        .map_err(|e| format!("delete_user {KEYSPACE}.{TABLE} email={email}: {e}"))?;
+    Ok(())
 }
 
 /// Full read via token ring — satu query per range vnode di cluster.

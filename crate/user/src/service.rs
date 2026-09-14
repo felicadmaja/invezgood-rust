@@ -16,11 +16,14 @@ use crate::auth::{extract_bearer_token, validate_session, SessionStore};
 use crate::model::UserRow as DbUserRow;
 use crate::pb::user_server::User;
 use crate::pb::{
-    CekUsageRequest, GetPriceSpikeFromInvezGoRequest, GetPriceSpikeFromYahooFinanceRequest,
-    GetUsersFromScyllaRequest, GetUsersFromScyllaResponse, IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest,
-    LoginResponse, LogoutRequest, LogoutResponse, PriceSpikeResponse, PriceSpikeRow,
-    UsageResponse, UserRow,
+    CekUsageRequest, DeleteUserRequest, GetPriceSpikeFromInvezGoRequest,
+    GetPriceSpikeFromYahooFinanceRequest, GetUsersFromScyllaRequest, GetUsersFromScyllaResponse,
+    InsertUserRequest, IsStockbitReadyRequest, IsStockbitReadyResponse, LoginRequest, LoginResponse,
+    LogoutRequest, LogoutResponse, MutateUserResponse, PriceSpikeResponse, PriceSpikeRow,
+    UpdateUserRequest, UsageResponse, UserRow,
 };
+
+const DEFAULT_USER_PASSWORD: &str = "12345678";
 
 const READY_STREAM_CHECK_SECS: u64 = 2;
 const READY_STREAM_HEARTBEAT_TICKS: u64 = 15;
@@ -96,6 +99,22 @@ impl UserService {
             role: row.role.unwrap_or_default(),
         }
     }
+
+    fn normalize_email(raw: &str) -> Result<String, String> {
+        let email = raw.trim().to_ascii_lowercase();
+        if email.is_empty() || !email.contains('@') {
+            return Err("email wajib diisi dan valid".into());
+        }
+        Ok(email)
+    }
+
+    fn require_non_empty(field: &str, value: &str) -> Result<String, String> {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err(format!("{field} wajib diisi"));
+        }
+        Ok(trimmed.to_string())
+    }
 }
 
 #[tonic::async_trait]
@@ -167,6 +186,137 @@ impl User for UserService {
         let items = rows.into_iter().map(Self::db_row_to_proto).collect();
 
         Ok(Response::new(GetUsersFromScyllaResponse { items }))
+    }
+
+    async fn insert_user(
+        &self,
+        request: Request<InsertUserRequest>,
+    ) -> Result<Response<MutateUserResponse>, Status> {
+        let started = std::time::Instant::now();
+        let user_name = self.require_auth(&request).await?;
+        let req = request.into_inner();
+
+        let result: Result<Response<MutateUserResponse>, Status> = async {
+            let email = Self::normalize_email(&req.email).map_err(Status::invalid_argument)?;
+            let nama = Self::require_non_empty("nama", &req.nama).map_err(Status::invalid_argument)?;
+            let role = Self::require_non_empty("role", &req.role).map_err(Status::invalid_argument)?;
+
+            if crate::repository::find_by_email(self.session.as_ref(), &email)
+                .await
+                .map_err(Status::internal)?
+                .is_some()
+            {
+                return Ok(Response::new(MutateUserResponse {
+                    success: false,
+                    message: format!("user email={email} sudah ada"),
+                }));
+            }
+
+            let password_hash = crate::password::hash_password(DEFAULT_USER_PASSWORD)
+                .map_err(Status::internal)?;
+
+            crate::repository::insert_user(
+                self.session.as_ref(),
+                &email,
+                &nama,
+                &password_hash,
+                &role,
+            )
+            .await
+            .map_err(Status::internal)?;
+
+            Ok(Response::new(MutateUserResponse {
+                success: true,
+                message: format!("user {email} berhasil dibuat (password default)"),
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "InsertUser {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
+        result
+    }
+
+    async fn update_user(
+        &self,
+        request: Request<UpdateUserRequest>,
+    ) -> Result<Response<MutateUserResponse>, Status> {
+        let started = std::time::Instant::now();
+        let user_name = self.require_auth(&request).await?;
+        let req = request.into_inner();
+
+        let result: Result<Response<MutateUserResponse>, Status> = async {
+            let email = Self::normalize_email(&req.email).map_err(Status::invalid_argument)?;
+            let nama = Self::require_non_empty("nama", &req.nama).map_err(Status::invalid_argument)?;
+            let role = Self::require_non_empty("role", &req.role).map_err(Status::invalid_argument)?;
+
+            if crate::repository::find_by_email(self.session.as_ref(), &email)
+                .await
+                .map_err(Status::internal)?
+                .is_none()
+            {
+                return Ok(Response::new(MutateUserResponse {
+                    success: false,
+                    message: format!("user email={email} tidak ditemukan"),
+                }));
+            }
+
+            crate::repository::update_user(self.session.as_ref(), &email, &nama, &role)
+                .await
+                .map_err(Status::internal)?;
+
+            Ok(Response::new(MutateUserResponse {
+                success: true,
+                message: format!("user {email} berhasil diupdate"),
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "UpdateUser {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
+        result
+    }
+
+    async fn delete_user(
+        &self,
+        request: Request<DeleteUserRequest>,
+    ) -> Result<Response<MutateUserResponse>, Status> {
+        let started = std::time::Instant::now();
+        let user_name = self.require_auth(&request).await?;
+        let req = request.into_inner();
+
+        let result: Result<Response<MutateUserResponse>, Status> = async {
+            let email = Self::normalize_email(&req.email).map_err(Status::invalid_argument)?;
+
+            let existed = crate::repository::find_by_email(self.session.as_ref(), &email)
+                .await
+                .map_err(Status::internal)?
+                .is_some();
+
+            crate::repository::delete_user(self.session.as_ref(), &email)
+                .await
+                .map_err(Status::internal)?;
+
+            Ok(Response::new(MutateUserResponse {
+                success: true,
+                message: if existed {
+                    format!("user {email} berhasil dihapus")
+                } else {
+                    format!("user {email} sudah tidak ada (idempotent)")
+                },
+            }))
+        }
+        .await;
+
+        eprintln!(
+            "DeleteUser {user_name} {}ms",
+            started.elapsed().as_millis()
+        );
+        result
     }
 
     type IsStockbitReadyStream =

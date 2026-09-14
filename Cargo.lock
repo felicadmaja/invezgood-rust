@@ -1779,8 +1779,8 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "futures",
+ "moka",
  "prost",
- "redis",
  "scylla",
  "tokio",
  "tonic",

@@ -14,6 +14,17 @@ service User {
   // Token ring scan invezgood.user; baca semua baris user, read-only.
   rpc GetUsersFromScylla(GetUsersFromScyllaRequest) returns (GetUsersFromScyllaResponse);
 
+  // INSERT invezgood.user (email PK); password default '12345678' di-hash bcrypt sebelum simpan.
+  // Gagal bila email sudah ada. Bearer login wajib.
+  rpc InsertUser(InsertUserRequest) returns (MutateUserResponse);
+
+  // UPDATE nama + role by email (PK); password tidak diubah. Gagal bila email tidak ditemukan.
+  // Bearer login wajib.
+  rpc UpdateUser(UpdateUserRequest) returns (MutateUserResponse);
+
+  // DELETE by email (PK). success=true idempotent bila baris sudah tidak ada. Bearer login wajib.
+  rpc DeleteUser(DeleteUserRequest) returns (MutateUserResponse);
+
   // Status login Chrome scraper Stockbit (state di Redis stockbit:readiness).
   // Poller global selalu jalan sejak server start (tanpa perlu subscriber stream).
   // Cek pertama: Senin–Jumat 09:00:00–09:00:59 waktu server; seterusnya interval 9–10 menit.
@@ -104,6 +115,27 @@ message UserRow {
 
 message GetUsersFromScyllaResponse {
   repeated UserRow items = 1;
+}
+
+message InsertUserRequest {
+  string email = 1;
+  string nama = 2;
+  string role = 3;
+}
+
+message UpdateUserRequest {
+  string email = 1;
+  string nama = 2;
+  string role = 3;
+}
+
+message DeleteUserRequest {
+  string email = 1;
+}
+
+message MutateUserResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 message IsStockbitReadyRequest {}

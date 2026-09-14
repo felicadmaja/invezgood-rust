@@ -7,9 +7,9 @@ pub const FILE_DESCRIPTOR_SET: &[u8] =
 
 mod database;
 pub mod model;
-mod redis_cache;
 mod repository;
 mod service;
+mod stockbit_cache;
 
 pub use model::{PortofolioHistory, PortofolioHistoryItem, KEYSPACE, TABLE};
 pub use pb::portofolio_history_server::{PortofolioHistory as PortofolioHistoryRpc, PortofolioHistoryServer};

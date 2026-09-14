@@ -94,6 +94,36 @@ impl PortofolioHistoryService {
             started.elapsed().as_millis()
         );
     }
+
+    async fn read_emiten_from_scylla_for_stockbit(
+        &self,
+        kode: &str,
+        source_note: &str,
+    ) -> GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+        match self.repo.find_all_by_emiten(kode).await {
+            Ok(rows) if rows.is_empty() => GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                success: false,
+                message: format!("portofolio_history {kode}: tidak ada di Scylla"),
+                rows: vec![],
+            },
+            Ok(rows) => {
+                let n_entri: usize = rows.iter().map(|r| r.history.len()).sum();
+                GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                    success: true,
+                    message: format!(
+                        "portofolio_history {kode}: {n_entri} entri dari Scylla ({} tanggal){source_note}",
+                        rows.len()
+                    ),
+                    rows: rows.into_iter().map(|r| r.into_proto()).collect(),
+                }
+            }
+            Err(e) => GetPortofolioHistoryByEmitenNameFromStockbitResponse {
+                success: false,
+                message: format!("baca portofolio_history gagal: {e}"),
+                rows: vec![],
+            },
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -244,8 +274,8 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         );
 
         enum LogSource {
-            Cache,
-            Api,
+            Moka,
+            Scrape,
             Other,
         }
 
@@ -268,50 +298,22 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                 }
             };
 
-            if let Some(mut cached) = crate::redis_cache::get(&kode).await {
-                cached.message = format!(
-                    "{} (redis cache)",
-                    cached.message.trim_end_matches(" (redis cache)")
-                );
-                return (Ok(Response::new(cached)), LogSource::Cache, kode);
+            if crate::stockbit_cache::is_fresh(&kode).await {
+                let resp = self
+                    .read_emiten_from_scylla_for_stockbit(&kode, " (moka ≤15m)")
+                    .await;
+                return (Ok(Response::new(resp)), LogSource::Moka, kode);
             }
 
             if let Err(status) = acquire_history_scrape_slot().await {
                 return (Err(status), LogSource::Other, kode);
             }
 
-            match on_demand::scrape_portofolio_history_for_emiten(
-                Arc::clone(&self.session),
-                &kode,
-            )
-            .await
+            if let Err(e) =
+                on_demand::scrape_portofolio_history_for_emiten(Arc::clone(&self.session), &kode)
+                    .await
             {
-                Ok(n) => {
-                    let rows = match self.repo.find_all_by_emiten(&kode).await {
-                        Ok(rows) => rows.into_iter().map(|r| r.into_proto()).collect(),
-                        Err(e) => {
-                            eprintln!(
-                                "GetPortofolioHistoryByEmitenNameFromStockbit: baca ulang gagal: {e}"
-                            );
-                            vec![]
-                        }
-                    };
-                    let date_note = rows
-                        .first()
-                        .map(|r| r.tahun_bulan_tanggal.as_str())
-                        .unwrap_or("-");
-                    let resp = GetPortofolioHistoryByEmitenNameFromStockbitResponse {
-                        success: true,
-                        message: format!(
-                            "portofolio_history {kode}: scrape selesai, {n} entri di-upsert ({} tanggal, terbaru {date_note})",
-                            rows.len()
-                        ),
-                        rows,
-                    };
-                    crate::redis_cache::set(&kode, &resp).await;
-                    (Ok(Response::new(resp)), LogSource::Api, kode)
-                }
-                Err(e) => (
+                return (
                     Ok(Response::new(
                         GetPortofolioHistoryByEmitenNameFromStockbitResponse {
                             success: false,
@@ -321,17 +323,23 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                     )),
                     LogSource::Other,
                     kode,
-                ),
+                );
             }
+
+            crate::stockbit_cache::mark_scraped(&kode).await;
+            let resp = self
+                .read_emiten_from_scylla_for_stockbit(&kode, "")
+                .await;
+            (Ok(Response::new(resp)), LogSource::Scrape, kode)
         }
         .await;
 
         let elapsed = started.elapsed().as_millis();
         match log_source {
-            LogSource::Cache => eprintln!(
-                "\x1b[37mGetPortofolioHistoryByEmitenNameFromStockbit {user_name} {elapsed}ms - HIT FROM CACHE - {log_emiten}\x1b[0m"
+            LogSource::Moka => eprintln!(
+                "\x1b[37mGetPortofolioHistoryByEmitenNameFromStockbit {user_name} {elapsed}ms - HIT moka - {log_emiten}\x1b[0m"
             ),
-            LogSource::Api => eprintln!(
+            LogSource::Scrape => eprintln!(
                 "\x1b[32mGetPortofolioHistoryByEmitenNameFromStockbit {user_name} {elapsed}ms - {log_emiten}\x1b[0m"
             ),
             LogSource::Other => Self::log_rpc_debug(
