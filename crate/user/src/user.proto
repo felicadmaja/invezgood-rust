@@ -11,18 +11,20 @@ service User {
   // Revoke JWT: hapus jti dari store in-memory sehingga token tidak valid meski belum expired; idempotent bila sudah logout.
   rpc Logout(LogoutRequest) returns (LogoutResponse);
 
-  // Token ring scan invezgood.user; baca semua baris user, read-only.
+  // Baca invezgood.user read-only. Bearer login wajib.
+  // role admin: token ring scan semua user; selain admin: hanya baris email login sendiri.
   rpc GetUsersFromScylla(GetUsersFromScyllaRequest) returns (GetUsersFromScyllaResponse);
 
   // INSERT invezgood.user (email PK); password default '12345678' di-hash bcrypt sebelum simpan.
-  // Gagal bila email sudah ada. Bearer login wajib.
+  // Gagal bila email sudah ada. Bearer login wajib; hanya role admin (permission_denied selain admin).
   rpc InsertUser(InsertUserRequest) returns (MutateUserResponse);
 
   // UPDATE nama + role by email (PK); password tidak diubah. Gagal bila email tidak ditemukan.
-  // Bearer login wajib.
+  // Bearer login wajib; hanya role admin.
   rpc UpdateUser(UpdateUserRequest) returns (MutateUserResponse);
 
-  // DELETE by email (PK). success=true idempotent bila baris sudah tidak ada. Bearer login wajib.
+  // DELETE by email (PK). success=true idempotent bila baris sudah tidak ada.
+  // Bearer login wajib; hanya role admin.
   rpc DeleteUser(DeleteUserRequest) returns (MutateUserResponse);
 
   // Status login Chrome scraper Stockbit (state di Redis stockbit:readiness).

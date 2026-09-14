@@ -12,7 +12,7 @@ use tonic::{Request, Response, Status};
 use worker_scrapping::invezgo_spike_poller::{InvezgoSpikePoller, InvezgoSpikeSnapshot};
 use worker_scrapping::yahoo_spike_poller::{YahooSpikePoller, YahooSpikeSnapshot};
 
-use crate::auth::{extract_bearer_token, validate_session, SessionStore};
+use crate::auth::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 use crate::model::UserRow as DbUserRow;
 use crate::pb::user_server::User;
 use crate::pb::{
@@ -84,12 +84,24 @@ impl UserService {
         Arc::clone(&self.readiness)
     }
 
-    async fn require_auth<T>(&self, request: &Request<T>) -> Result<String, Status> {
+    async fn require_auth<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
         let token = extract_bearer_token(request)?;
-        let auth = validate_session(&self.auth_sessions, &token)
+        validate_session(&self.auth_sessions, &token)
             .await
-            .map_err(|_| Status::unauthenticated("login diperlukan"))?;
-        Ok(auth.nama)
+            .map_err(|_| Status::unauthenticated("login diperlukan"))
+    }
+
+    fn is_admin_role(role: &str) -> bool {
+        role.eq_ignore_ascii_case("admin")
+    }
+
+    async fn require_admin<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
+        let auth = self.require_auth(request).await?;
+        if Self::is_admin_role(&auth.role) {
+            Ok(auth)
+        } else {
+            Err(Status::permission_denied("hanya role admin"))
+        }
     }
 
     fn db_row_to_proto(row: DbUserRow) -> UserRow {
@@ -177,13 +189,33 @@ impl User for UserService {
 
     async fn get_users_from_scylla(
         &self,
-        _request: Request<GetUsersFromScyllaRequest>,
+        request: Request<GetUsersFromScyllaRequest>,
     ) -> Result<Response<GetUsersFromScyllaResponse>, Status> {
-        let rows = crate::repository::token_ring_scan(self.session.as_ref())
-            .await
-            .map_err(Status::internal)?;
+        let started = std::time::Instant::now();
+        let auth = self.require_auth(&request).await?;
+        let _ = request.into_inner();
+
+        let rows = if Self::is_admin_role(&auth.role) {
+            crate::repository::token_ring_scan(self.session.as_ref())
+                .await
+                .map_err(Status::internal)?
+        } else {
+            match crate::repository::find_by_email(self.session.as_ref(), &auth.email)
+                .await
+                .map_err(Status::internal)?
+            {
+                Some(row) => vec![row],
+                None => Vec::new(),
+            }
+        };
 
         let items = rows.into_iter().map(Self::db_row_to_proto).collect();
+
+        eprintln!(
+            "GetUsersFromScylla {} {}ms",
+            auth.nama,
+            started.elapsed().as_millis()
+        );
 
         Ok(Response::new(GetUsersFromScyllaResponse { items }))
     }
@@ -193,7 +225,7 @@ impl User for UserService {
         request: Request<InsertUserRequest>,
     ) -> Result<Response<MutateUserResponse>, Status> {
         let started = std::time::Instant::now();
-        let user_name = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let req = request.into_inner();
 
         let result: Result<Response<MutateUserResponse>, Status> = async {
@@ -233,7 +265,8 @@ impl User for UserService {
         .await;
 
         eprintln!(
-            "InsertUser {user_name} {}ms",
+            "InsertUser {} {}ms",
+            auth.nama,
             started.elapsed().as_millis()
         );
         result
@@ -244,7 +277,7 @@ impl User for UserService {
         request: Request<UpdateUserRequest>,
     ) -> Result<Response<MutateUserResponse>, Status> {
         let started = std::time::Instant::now();
-        let user_name = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let req = request.into_inner();
 
         let result: Result<Response<MutateUserResponse>, Status> = async {
@@ -275,7 +308,8 @@ impl User for UserService {
         .await;
 
         eprintln!(
-            "UpdateUser {user_name} {}ms",
+            "UpdateUser {} {}ms",
+            auth.nama,
             started.elapsed().as_millis()
         );
         result
@@ -286,7 +320,7 @@ impl User for UserService {
         request: Request<DeleteUserRequest>,
     ) -> Result<Response<MutateUserResponse>, Status> {
         let started = std::time::Instant::now();
-        let user_name = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let req = request.into_inner();
 
         let result: Result<Response<MutateUserResponse>, Status> = async {
@@ -313,7 +347,8 @@ impl User for UserService {
         .await;
 
         eprintln!(
-            "DeleteUser {user_name} {}ms",
+            "DeleteUser {} {}ms",
+            auth.nama,
             started.elapsed().as_millis()
         );
         result
@@ -659,7 +694,7 @@ impl User for UserService {
         request: Request<CekUsageRequest>,
     ) -> Result<Response<UsageResponse>, Status> {
         let started = std::time::Instant::now();
-        let user_name = self.require_auth(&request).await?;
+        let auth = self.require_auth(&request).await?;
         let _ = request.into_inner();
 
         let result: Result<Response<UsageResponse>, Status> = async {
@@ -671,7 +706,8 @@ impl User for UserService {
         .await;
 
         eprintln!(
-            "CekUsage {user_name} {}ms",
+            "CekUsage {} {}ms",
+            auth.nama,
             started.elapsed().as_millis()
         );
         result

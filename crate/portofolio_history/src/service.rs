@@ -88,6 +88,15 @@ impl PortofolioHistoryService {
             .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
 
+    async fn require_admin<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
+        let auth = self.require_auth(request).await?;
+        if auth.role.trim().eq_ignore_ascii_case("admin") {
+            Ok(auth)
+        } else {
+            Err(Status::permission_denied("hanya role admin"))
+        }
+    }
+
     fn log_rpc_debug(rpc_name: &str, user_name: &str, started: Instant) {
         eprintln!(
             "{rpc_name} {user_name} {}ms",
@@ -133,7 +142,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         request: Request<GetPortofolioHistoryByEmitenNameFromScyllaRequest>,
     ) -> Result<Response<GetPortofolioHistoryByEmitenNameFromScyllaResponse>, Status> {
         let started = Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<GetPortofolioHistoryByEmitenNameFromScyllaResponse>, Status> =
@@ -197,7 +206,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         request: Request<GetPortofolioHistoryByTahunBulanFromScyllaRequest>,
     ) -> Result<Response<GetPortofolioHistoryByTahunBulanFromScyllaResponse>, Status> {
         let started = Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let mut emiten_log = String::new();
@@ -266,7 +275,7 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
         request: Request<GetPortofolioHistoryByEmitenNameFromStockbitRequest>,
     ) -> Result<Response<GetPortofolioHistoryByEmitenNameFromStockbitResponse>, Status> {
         let started = Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
         let emiten_invoke = request.get_ref().emiten_name.trim().to_string();
         eprintln!(

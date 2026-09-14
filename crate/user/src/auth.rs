@@ -14,6 +14,7 @@ pub const DEFAULT_JWT_EXPIRY_SECS: i64 = 30 * 24 * 60 * 60;
 
 #[derive(Debug, Clone)]
 pub struct AuthSession {
+    pub email: String,
     pub nama: String,
     pub role: String,
     pub expires_at: DateTime<Utc>,
@@ -92,6 +93,7 @@ fn decode_jwt(token: &str, validate_exp: bool) -> Result<JwtClaims, String> {
 
 fn claims_to_session(claims: &JwtClaims) -> AuthSession {
     AuthSession {
+        email: claims.sub.clone(),
         nama: claims.nama.clone(),
         role: claims.role.clone(),
         expires_at: DateTime::from_timestamp(claims.exp as i64, 0).unwrap_or_else(Utc::now),
@@ -120,6 +122,7 @@ pub async fn login(
     let token = issue_jwt(&email, &nama, &role, &jti, expires_at)?;
 
     let auth = AuthSession {
+        email: email.clone(),
         nama: nama.clone(),
         role: role.clone(),
         expires_at,
