@@ -29,8 +29,9 @@ service PendingOrder {
   rpc GetAllPendingOrderFromStockbit(GetAllPendingOrderFromStockbitRequest)
       returns (GetAllPendingOrderFromStockbitResponse);
 
-  // Buat order limit buy via DOM scrape Stockbit. Rate limit: 1× / 30 detik global.
-  // Belum tersedia di invezgood — UNIMPLEMENTED sampai worker Stockbit diintegrasikan.
+  // Buat order limit buy via DOM scrape Stockbit (stockbit.com/securities/order) + Chrome.
+  // Bearer login wajib; hanya role admin (permission_denied selain admin). Rate limit global 1× / 30 detik.
+  // Request: emiten_name, buylimit_price (< current_price), lot, expiry GFD/GTC. Env STOCKBIT_*.
   rpc CreateBuyLimitOrder(CreateBuyLimitOrderRequest)
       returns (CreateBuyLimitOrderResponse);
 }
