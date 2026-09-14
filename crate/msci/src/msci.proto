@@ -8,16 +8,17 @@ service Msci {
   rpc GetAllMsci(GetAllMsciRequest) returns (GetAllMsciResponse);
 
   // INSERT/upsert baris ke invezgood.msci (PK code). updated_at dari request (RFC3339); kosong = now (UTC).
-  // Wajib authorization: Bearer <token> login. success=false + message bila validasi/DB gagal.
+  // Bearer login wajib; hanya role admin (permission_denied selain admin).
+  // success=false + message bila validasi/DB gagal.
   rpc InsertMsci(InsertMsciRequest) returns (InsertMsciResponse);
 
   // UPDATE grade+status+updated_at di invezgood.msci WHERE code = ?. updated_at kosong = now (UTC).
-  // Gagal bila code belum ada (bukan insert). Wajib Bearer login.
+  // Gagal bila code belum ada (bukan insert). Bearer login wajib; hanya role admin.
   // success=false + message bila validasi / not found / DB gagal.
   rpc UpdateMsci(UpdateMsciRequest) returns (UpdateMsciResponse);
 
   // DELETE FROM invezgood.msci WHERE code = ?. Gagal bila code belum ada.
-  // Wajib Bearer login. success=false + message bila validasi / not found / DB gagal.
+  // Bearer login wajib; hanya role admin. success=false + message bila validasi / not found / DB gagal.
   rpc DeleteMsci(DeleteMsciRequest) returns (DeleteMsciResponse);
 }
 

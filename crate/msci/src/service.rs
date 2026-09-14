@@ -33,6 +33,15 @@ impl MsciService {
             .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
 
+    async fn require_admin<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
+        let auth = self.require_auth(request).await?;
+        if auth.role.trim().eq_ignore_ascii_case("admin") {
+            Ok(auth)
+        } else {
+            Err(Status::permission_denied("hanya role admin"))
+        }
+    }
+
     fn normalize_code(raw: &str) -> Result<String, String> {
         let code = raw.trim().to_ascii_uppercase();
         if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
@@ -131,7 +140,7 @@ impl Msci for MsciService {
         let mut user_name = "anonymous".to_string();
 
         let result: Result<Response<InsertMsciResponse>, Status> = async {
-            let auth = self.require_auth(&request).await?;
+            let auth = self.require_admin(&request).await?;
             user_name = auth.nama.clone();
 
             let req = request.into_inner();
@@ -196,7 +205,7 @@ impl Msci for MsciService {
         let mut user_name = "anonymous".to_string();
 
         let result: Result<Response<UpdateMsciResponse>, Status> = async {
-            let auth = self.require_auth(&request).await?;
+            let auth = self.require_admin(&request).await?;
             user_name = auth.nama.clone();
 
             let req = request.into_inner();
@@ -277,7 +286,7 @@ impl Msci for MsciService {
         let mut user_name = "anonymous".to_string();
 
         let result: Result<Response<DeleteMsciResponse>, Status> = async {
-            let auth = self.require_auth(&request).await?;
+            let auth = self.require_admin(&request).await?;
             user_name = auth.nama.clone();
 
             let code = match Self::normalize_code(&request.into_inner().code) {

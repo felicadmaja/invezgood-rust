@@ -4,7 +4,7 @@ package wyckoff_glossary;
 
 service WyckoffGlossary {
   // Insert satu entri ke tabel Scylla `wyckoff_glossary` (PK name).
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  // Bearer login wajib; hanya role admin (permission_denied selain admin).
   rpc InsertWyckoffGlossary(InsertWyckoffGlossaryRequest) returns (InsertWyckoffGlossaryResponse);
 
   // Baca semua entri dari tabel Scylla `wyckoff_glossary` (token-ring scan).
@@ -12,11 +12,10 @@ service WyckoffGlossary {
   rpc GetAllWyckoffGlossary(GetAllWyckoffGlossaryRequest) returns (GetAllWyckoffGlossaryResponse);
 
   // Update satu entri `wyckoff_glossary` (PK name); long_name, description, jenis, phase, urutan_tampil.
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  // Bearer login wajib; hanya role admin.
   rpc UpdateWyckoffGlossary(UpdateWyckoffGlossaryRequest) returns (UpdateWyckoffGlossaryResponse);
 
-  // Hapus satu entri `wyckoff_glossary` (PK name).
-  // Wajib Authorization: Bearer <JWT valid>; jika tidak valid mengembalikan UNAUTHENTICATED.
+  // Hapus satu entri `wyckoff_glossary` (PK name). Bearer login wajib; hanya role admin.
   rpc DeleteWyckoffGlossary(DeleteWyckoffGlossaryRequest) returns (DeleteWyckoffGlossaryResponse);
 }
 

@@ -37,6 +37,15 @@ impl WyckoffGlossaryService {
             .await
             .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
+
+    async fn require_admin<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
+        let auth = self.require_auth(request).await?;
+        if auth.role.trim().eq_ignore_ascii_case("admin") {
+            Ok(auth)
+        } else {
+            Err(Status::permission_denied("hanya role admin"))
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -74,7 +83,7 @@ impl WyckoffGlossaryRpc for WyckoffGlossaryService {
         request: Request<InsertWyckoffGlossaryRequest>,
     ) -> Result<Response<InsertWyckoffGlossaryResponse>, Status> {
         let started = Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let username = auth.nama;
         let req = request.into_inner();
 
@@ -124,7 +133,7 @@ impl WyckoffGlossaryRpc for WyckoffGlossaryService {
         request: Request<UpdateWyckoffGlossaryRequest>,
     ) -> Result<Response<UpdateWyckoffGlossaryResponse>, Status> {
         let started = Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let username = auth.nama;
         let req = request.into_inner();
 
@@ -174,7 +183,7 @@ impl WyckoffGlossaryRpc for WyckoffGlossaryService {
         request: Request<DeleteWyckoffGlossaryRequest>,
     ) -> Result<Response<DeleteWyckoffGlossaryResponse>, Status> {
         let started = Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let username = auth.nama;
 
         let name = request.into_inner().name.trim().to_string();
