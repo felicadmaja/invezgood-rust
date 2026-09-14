@@ -8,7 +8,8 @@ service Chart {
   // GET api.invezgo.com/analysis/intraday-data/{code}?market=RG (Bearer INVEZGO_BEARER_TOKEN).
   // Jam operasional (waktu server lokal):
   // - Senin–Kamis 09:00–12:00 & 13:30–16:00;
-  // - Jumat 09:00–11:30 & 14:00–16:00 — GET Invezgo live; snapshot disimpan ke cache Moka+Redis.
+  // - Jumat 09:00–11:30 & 14:00–16:00 — Moka live per emiten TTL 55s (OHLCV > 0) → miss GET Invezgo;
+  //   sukses valid juga snapshot ke cache Moka+Redis EOD.
   // Diluar jam operasional (istirahat, setelah 16:00), Sabtu/Minggu, dan tanggal invezgood.hari_libur:
   // baca cache Moka→Redis; miss → GET Invezgo 1x lalu simpan; request ulang kirim dari cache.
   // Bila diakses jam 00:00 - 08:59 pada hari senin - jumat dan bukan hari libur berikan no result dengan pesan error "Market belum buka."
@@ -19,8 +20,8 @@ service Chart {
 
   // Memerlukan user login valid. Tanpa auth / session invalid: response default (tidak GET Invezgo).
   // Kirim metadata: authorization: Bearer <token>.
-  // Cache 2 lapis (Moka → Redis → Invezgo API). Key: code + from_date + to_date.
-  // GET Invezgo analysis/chart/stock/{code}?from=&to= bila cache miss.
+  // Cache 2 lapis: Moka TTL 55s → Redis (CHART_CACHE_TTL_SECS) → Invezgo API.
+  // Key: code + from_date + to_date. GET analysis/chart/stock/{code}?from=&to= bila cache miss.
   rpc GetHistoryChartFromInvezgo(GetHistoryChartFromInvezgoRequest)
       returns (GetHistoryChartFromInvezgoResponse);
 

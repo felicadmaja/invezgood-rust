@@ -14,6 +14,9 @@ const REDIS_INTRADAY_EOD_PREFIX: &str = "chart:intraday-eod:";
 const DEFAULT_MOKA_MAX_ENTRIES: u64 = 10_000;
 const DEFAULT_CACHE_TTL_SECS: u64 = 24 * 60 * 60;
 const INTRADAY_EOD_TTL_SECS: u64 = 24 * 60 * 60;
+/// Cache Moka pendek (intraday live + history chart stock): skip GET Invezgo bila masih fresh.
+const CHART_MOKA_SHORT_TTL_SECS: u64 = 55;
+const INTRADAY_LIVE_TTL_SECS: u64 = CHART_MOKA_SHORT_TTL_SECS;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedChartBar {
@@ -129,8 +132,12 @@ impl From<CachedIntradayData> for GetCurrentDayChartFromInvezgoResponse {
 
 #[derive(Clone)]
 pub struct ChartCache {
-    moka: Cache<String, Vec<CachedChartBar>>,
+    /// History chart stock (`GetHistoryChartFromInvezgo`): TTL 55s.
+    history_chart_moka: Cache<String, Vec<CachedChartBar>>,
+    /// History IHSG (`GetHistoryIHSGFromInvezgo`): TTL panjang (CHART_CACHE_TTL_SECS).
+    ihsg_chart_moka: Cache<String, Vec<CachedChartBar>>,
     intraday_eod_moka: Cache<String, CachedIntradayData>,
+    intraday_live_moka: Cache<String, CachedIntradayData>,
     redis: redis::Client,
     ttl: Duration,
 }
@@ -148,7 +155,12 @@ impl ChartCache {
             .and_then(|v| v.parse().ok())
             .unwrap_or(DEFAULT_MOKA_MAX_ENTRIES);
 
-        let moka = Cache::builder()
+        let history_chart_moka = Cache::builder()
+            .max_capacity(max_entries)
+            .time_to_live(Duration::from_secs(CHART_MOKA_SHORT_TTL_SECS))
+            .build();
+
+        let ihsg_chart_moka = Cache::builder()
             .max_capacity(max_entries)
             .time_to_live(ttl)
             .build();
@@ -158,16 +170,62 @@ impl ChartCache {
             .time_to_live(Duration::from_secs(INTRADAY_EOD_TTL_SECS))
             .build();
 
+        let intraday_live_moka = Cache::builder()
+            .max_capacity(max_entries)
+            .time_to_live(Duration::from_secs(INTRADAY_LIVE_TTL_SECS))
+            .build();
+
         let redis_url =
             std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
         let redis = redis::Client::open(redis_url).map_err(|e| format!("redis client: {e}"))?;
 
         Ok(Self {
-            moka,
+            history_chart_moka,
+            ihsg_chart_moka,
             intraday_eod_moka,
+            intraday_live_moka,
             redis,
             ttl,
         })
+    }
+
+    /// OHLCV valid untuk cache live: semua harga > 0 dan volume > 0 (bukan respons gagal/default).
+    pub fn has_valid_intraday_ohlcv(data: &GetCurrentDayChartFromInvezgoResponse) -> bool {
+        data.success
+            && data.open > 0.0
+            && data.high > 0.0
+            && data.low > 0.0
+            && data.close > 0.0
+            && data.volume > 0
+    }
+
+    fn intraday_live_key(code: &str) -> String {
+        code.trim().to_ascii_uppercase()
+    }
+
+    /// Cache intraday live per emiten (Moka TTL 55s). Hanya dipakai jam operasional.
+    pub async fn get_intraday_live(
+        &self,
+        code: &str,
+    ) -> Option<(GetCurrentDayChartFromInvezgoResponse, String)> {
+        let key = Self::intraday_live_key(code);
+        self.intraday_live_moka.get(&key).await.map(|cached| {
+            (
+                cached.into(),
+                format!("intraday live HIT moka ≤55s {key}"),
+            )
+        })
+    }
+
+    /// Simpan ke Moka live bila OHLCV valid; respons nol/error tidak di-cache.
+    pub async fn set_intraday_live(&self, code: &str, data: &GetCurrentDayChartFromInvezgoResponse) {
+        if !Self::has_valid_intraday_ohlcv(data) {
+            return;
+        }
+        let key = Self::intraday_live_key(code);
+        self.intraday_live_moka
+            .insert(key, CachedIntradayData::from(data))
+            .await;
     }
 
     fn intraday_eod_key(code: &str) -> String {
@@ -253,6 +311,8 @@ impl ChartCache {
         to_date: &str,
     ) -> Result<(Vec<ChartBar>, String), String> {
         self.get_chart_cached(
+            &self.history_chart_moka,
+            "chart cache HIT moka ≤55s",
             code,
             from_date,
             to_date,
@@ -261,13 +321,15 @@ impl ChartCache {
         .await
     }
 
-    /// Cache history IHSG (index COMPOSITE) — pola sama `get_chart`.
+    /// Cache history IHSG (index COMPOSITE) — Moka TTL panjang (CHART_CACHE_TTL_SECS).
     pub async fn get_ihsg_chart(
         &self,
         from_date: &str,
         to_date: &str,
     ) -> Result<(Vec<ChartBar>, String), String> {
         self.get_chart_cached(
+            &self.ihsg_chart_moka,
+            "chart cache HIT moka",
             "COMPOSITE",
             from_date,
             to_date,
@@ -278,6 +340,8 @@ impl ChartCache {
 
     async fn get_chart_cached<F>(
         &self,
+        moka: &Cache<String, Vec<CachedChartBar>>,
+        moka_hit_label: &str,
         code: &str,
         from_date: &str,
         to_date: &str,
@@ -288,15 +352,15 @@ impl ChartCache {
     {
         let key = Self::cache_key(code, from_date, to_date);
 
-        if let Some(cached) = self.moka.get(&key).await {
+        if let Some(cached) = moka.get(&key).await {
             return Ok((
                 cached.into_iter().map(ChartBar::from).collect(),
-                format!("chart cache HIT moka {key}"),
+                format!("{moka_hit_label} {key}"),
             ));
         }
 
         if let Some(cached) = self.redis_get(&key).await? {
-            self.moka.insert(key.clone(), cached.clone()).await;
+            moka.insert(key.clone(), cached.clone()).await;
             return Ok((
                 cached.into_iter().map(ChartBar::from).collect(),
                 format!("chart cache HIT redis {key}"),
@@ -305,7 +369,7 @@ impl ChartCache {
 
         let items = fetch.await?;
         let cached: Vec<CachedChartBar> = items.iter().map(CachedChartBar::from).collect();
-        self.moka.insert(key.clone(), cached.clone()).await;
+        moka.insert(key.clone(), cached.clone()).await;
         self.redis_set(&key, &cached).await?;
         Ok((items, format!("chart cache MISS {key} — GET Invezgo")))
     }

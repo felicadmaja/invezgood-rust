@@ -137,6 +137,39 @@ impl ChartService {
             .map_err(|_| Status::invalid_argument(format!("{field} harus format YYYY-MM-DD")))?;
         Ok(value.to_string())
     }
+
+    async fn fetch_intraday_live_cached(
+        &self,
+        code: &str,
+        code_log: &mut String,
+        cache_hit: &mut bool,
+    ) -> GetCurrentDayChartFromInvezgoResponse {
+        if let Some((data, detail)) = self.cache.get_intraday_live(code).await {
+            *code_log = format!("{code} {detail}");
+            *cache_hit = true;
+            return data;
+        }
+
+        *code_log = format!("{code} intraday live MISS — GET Invezgo");
+        match crate::invezgo::fetch_intraday_data(code).await {
+            Ok(data) => {
+                if ChartCache::has_valid_intraday_ohlcv(&data) {
+                    self.cache.set_intraday_live(code, &data).await;
+                    if let Err(error) = self.cache.set_intraday_eod(code, &data).await {
+                        eprintln!(
+                            "GetCurrentDayChartFromInvezgo set eod cache {code} gagal: {error}"
+                        );
+                    }
+                }
+                data
+            }
+            Err(error) => GetCurrentDayChartFromInvezgoResponse {
+                success: false,
+                message: error,
+                ..Default::default()
+            },
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -214,21 +247,10 @@ impl Chart for ChartService {
                     })),
                 }
             } else {
-                match crate::invezgo::fetch_intraday_data(&code).await {
-                    Ok(data) => {
-                        if let Err(error) = self.cache.set_intraday_eod(&code, &data).await {
-                            eprintln!(
-                                "GetCurrentDayChartFromInvezgo set cache {code} gagal: {error}"
-                            );
-                        }
-                        Ok(Response::new(data))
-                    }
-                    Err(error) => Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
-                        success: false,
-                        message: error,
-                        ..Default::default()
-                    })),
-                }
+                let data = self
+                    .fetch_intraday_live_cached(&code, &mut code_log, &mut cache_hit)
+                    .await;
+                Ok(Response::new(data))
             }
         }
         .await;
