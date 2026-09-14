@@ -2,7 +2,7 @@
 //!
 //! Env: `REDIS_URL` (default `redis://localhost:6379`).
 //! Key: `invezgood:portofolio_history:stockbit:{EMITEN}` (berdasarkan emiten_name).
-//! TTL: 60 detik (1 menit) per emiten.
+//! TTL: 900 detik (15 menit) per emiten.
 //! Payload: prost bytes response. Redis down → treat sebagai cache miss.
 
 use std::sync::OnceLock;
@@ -25,7 +25,7 @@ fn cache_key(emiten: &str) -> String {
     )
 }
 
-const CACHE_TTL_SECS: u64 = 60;
+const CACHE_TTL_SECS: u64 = 900;
 
 static REDIS: OnceLock<Mutex<Option<ConnectionManager>>> = OnceLock::new();
 

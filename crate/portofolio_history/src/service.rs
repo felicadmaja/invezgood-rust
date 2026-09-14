@@ -116,38 +116,38 @@ impl PortofolioHistoryRpc for PortofolioHistoryService {
                             GetPortofolioHistoryByEmitenNameFromScyllaResponse {
                                 success: false,
                                 message,
-                                row: None,
+                                rows: vec![],
                             },
                         ));
                     }
                 };
 
-                match self.repo.find_latest_by_emiten(&kode).await {
-                    Ok(Some(r)) => {
-                        let n = r.history.len();
-                        let date = r.tahun_bulan_tanggal;
+                match self.repo.find_all_by_emiten(&kode).await {
+                    Ok(rows) if rows.is_empty() => Ok(Response::new(
+                        GetPortofolioHistoryByEmitenNameFromScyllaResponse {
+                            success: false,
+                            message: format!("portofolio_history {kode}: tidak ada di Scylla"),
+                            rows: vec![],
+                        },
+                    )),
+                    Ok(rows) => {
+                        let n_entri: usize = rows.iter().map(|r| r.history.len()).sum();
                         Ok(Response::new(
                             GetPortofolioHistoryByEmitenNameFromScyllaResponse {
                                 success: true,
                                 message: format!(
-                                    "portofolio_history {kode}: {n} entri dari Scylla ({date})"
+                                    "portofolio_history {kode}: {n_entri} entri dari Scylla ({} tanggal)",
+                                    rows.len()
                                 ),
-                                row: Some(r.into_proto()),
+                                rows: rows.into_iter().map(|r| r.into_proto()).collect(),
                             },
                         ))
                     }
-                    Ok(None) => Ok(Response::new(
-                        GetPortofolioHistoryByEmitenNameFromScyllaResponse {
-                            success: false,
-                            message: format!("portofolio_history {kode}: tidak ada di Scylla"),
-                            row: None,
-                        },
-                    )),
                     Err(e) => Ok(Response::new(
                         GetPortofolioHistoryByEmitenNameFromScyllaResponse {
                             success: false,
                             message: format!("baca portofolio_history gagal: {e}"),
-                            row: None,
+                            rows: vec![],
                         },
                     )),
                 }
