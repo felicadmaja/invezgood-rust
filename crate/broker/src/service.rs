@@ -36,6 +36,15 @@ impl BrokerService {
             .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
 
+    async fn require_admin<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
+        let auth = self.require_auth(request).await?;
+        if auth.role.trim().eq_ignore_ascii_case("admin") {
+            Ok(auth)
+        } else {
+            Err(Status::permission_denied("hanya role admin"))
+        }
+    }
+
     fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
         eprintln!(
             "{rpc_name} {user_name} {}ms",
@@ -172,7 +181,7 @@ impl Broker for BrokerService {
         request: Request<UpdateBrokerByCodeRequest>,
     ) -> Result<Response<UpdateBrokerByCodeResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<UpdateBrokerByCodeResponse>, Status> = async {
@@ -243,7 +252,7 @@ impl Broker for BrokerService {
         request: Request<DeleteBrokerByCodeRequest>,
     ) -> Result<Response<DeleteBrokerByCodeResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<DeleteBrokerByCodeResponse>, Status> = async {
@@ -356,7 +365,7 @@ impl Broker for BrokerService {
         request: Request<UpdateKapitalisasiRequest>,
     ) -> Result<Response<UpdateKapitalisasiResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<UpdateKapitalisasiResponse>, Status> = async {
@@ -405,7 +414,7 @@ impl Broker for BrokerService {
         request: Request<UpdateTopBrokerRequest>,
     ) -> Result<Response<UpdateTopBrokerResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<UpdateTopBrokerResponse>, Status> = async {

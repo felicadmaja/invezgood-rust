@@ -43,6 +43,18 @@ impl HariLiburService {
         Ok(auth.nama)
     }
 
+    async fn require_admin<T>(&self, request: &Request<T>) -> Result<String, Status> {
+        let token = extract_bearer_token(request)?;
+        let auth = validate_session(&self.auth_sessions, &token)
+            .await
+            .map_err(Status::unauthenticated)?;
+        if auth.role.trim().eq_ignore_ascii_case("admin") {
+            Ok(auth.nama)
+        } else {
+            Err(Status::permission_denied("hanya role admin"))
+        }
+    }
+
     /// `YYYY` dari request; kosong → tahun berjalan waktu server.
     fn normalize_tahun(raw: &str) -> Result<String, Status> {
         let tahun = match raw.trim() {
@@ -272,7 +284,7 @@ impl HariLibur for HariLiburService {
         let started = std::time::Instant::now();
         let rpc_name = "InsertHariLibur";
 
-        let user_name = match self.require_auth(&request).await {
+        let user_name = match self.require_admin(&request).await {
             Ok(nama) => nama,
             Err(e) => {
                 eprintln!("{rpc_name} anonymous {}ms", started.elapsed().as_millis());
@@ -326,7 +338,7 @@ impl HariLibur for HariLiburService {
         let started = std::time::Instant::now();
         let rpc_name = "UpdateHariLibur";
 
-        let user_name = match self.require_auth(&request).await {
+        let user_name = match self.require_admin(&request).await {
             Ok(nama) => nama,
             Err(e) => {
                 eprintln!("{rpc_name} anonymous {}ms", started.elapsed().as_millis());
@@ -385,7 +397,7 @@ impl HariLibur for HariLiburService {
         let started = std::time::Instant::now();
         let rpc_name = "DeleteHariLibur";
 
-        let user_name = match self.require_auth(&request).await {
+        let user_name = match self.require_admin(&request).await {
             Ok(nama) => nama,
             Err(e) => {
                 eprintln!("{rpc_name} anonymous {}ms", started.elapsed().as_millis());

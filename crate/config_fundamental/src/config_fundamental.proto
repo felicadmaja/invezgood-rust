@@ -10,21 +10,19 @@ service ConfigFundamental {
       returns (GetAllConfigFundamentalResponse);
 
   // Insert baris baru Scylla `invezgood.config_fundamental` (PK key unik; key di-trim).
-  // Wajib Authorization: Bearer JWT valid; `success=false` bila key kosong/setelah trim atau sudah ada.
-  // Side effect: INSERT Scylla; error internal bila query gagal.
+  // Bearer login wajib; hanya role admin (permission_denied selain admin).
+  // `success=false` bila key kosong/setelah trim atau sudah ada. Side effect: INSERT Scylla.
   rpc InsertConfigFundamental(InsertConfigFundamentalRequest)
       returns (InsertConfigFundamentalResponse);
 
   // Update kolom value/description Scylla `invezgood.config_fundamental` untuk PK key (key di-trim, tidak diubah).
-  // Wajib Authorization: Bearer JWT valid; `success=false` bila key kosong/setelah trim atau tidak ditemukan.
+  // Bearer login wajib; hanya role admin. `success=false` bila key kosong/setelah trim atau tidak ditemukan.
   // Side effect: UPDATE Scylla; error internal bila query gagal.
   rpc UpdateConfigFundamental(UpdateConfigFundamentalRequest)
       returns (UpdateConfigFundamentalResponse);
 
-  
-
   // Hapus baris Scylla `invezgood.config_fundamental` by PK key (key di-trim).
-  // Wajib Authorization: Bearer JWT valid; `success=false` bila key kosong/setelah trim atau tidak ditemukan.
+  // Bearer login wajib; hanya role admin. `success=false` bila key kosong/setelah trim atau tidak ditemukan.
   // Side effect: DELETE Scylla; error internal bila query gagal.
   rpc DeleteConfigFundamental(DeleteConfigFundamentalRequest)
       returns (DeleteConfigFundamentalResponse);

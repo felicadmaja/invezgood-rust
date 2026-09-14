@@ -25,26 +25,20 @@ service HariLibur {
   // Log debug menandai sumber data: "- {N} tanggal (scylla | api | api tanpa data)".
   rpc GetAllHariLibur(GetAllHariLiburRequest) returns (stream GetAllHariLiburResponse);
 
-  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
   // Upsert 1 baris ke invezgood.hari_libur (PK date, jadi tanggal sama = overwrite).
-  // request.date wajib "YYYY-MM-DD"; kolom tahun (YYYY dari date) dan updated_at diisi server,
-  // bukan dari client. MV hari_libur_by_tahun ikut ter-update otomatis.
-  // Response: success + pesan tanggal yang disimpan; date invalid / name kosong → invalid_argument.
+  // Bearer login wajib; hanya role admin (permission_denied selain admin).
+  // request.date wajib "YYYY-MM-DD"; kolom tahun (YYYY dari date) dan updated_at diisi server.
+  // MV hari_libur_by_tahun ikut ter-update otomatis. date invalid / name kosong → invalid_argument.
   rpc InsertHariLibur(InsertHariLiburRequest) returns (InsertHariLiburResponse);
 
-  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
   // Update name/is_civic/is_religious/is_cuti_bersama pada invezgood.hari_libur WHERE date = ?.
-  // Beda dengan InsertHariLibur: baris wajib sudah ada (dicek dulu) — kalau tidak → not_found,
-  // jadi update tidak diam-diam membuat baris baru. updated_at diisi waktu server.
-  // request.date wajib "YYYY-MM-DD" (PK, tidak bisa diubah); tahun tetap turunan date.
-  // Response: success + pesan tanggal yang diupdate; date invalid / name kosong → invalid_argument.
+  // Bearer login wajib; hanya role admin. Baris wajib sudah ada — kalau tidak → not_found.
+  // request.date wajib "YYYY-MM-DD" (PK, tidak bisa diubah); updated_at diisi waktu server.
   rpc UpdateHariLibur(UpdateHariLiburRequest) returns (UpdateHariLiburResponse);
 
-  // Butuh login: metadata authorization: Bearer <token> (dari user.Login).
   // Hapus 1 baris invezgood.hari_libur berdasarkan PK date (MV hari_libur_by_tahun ikut terhapus).
-  // Cek dulu barisnya ada (DELETE Scylla idempotent, tidak melapor baris hilang).
-  // request.date wajib "YYYY-MM-DD"; date tidak ada di tabel → not_found.
-  // Response: success + pesan tanggal yang dihapus; date invalid → invalid_argument.
+  // Bearer login wajib; hanya role admin. Cek dulu barisnya ada; date tidak ada → not_found.
+  // request.date wajib "YYYY-MM-DD"; date invalid → invalid_argument.
   rpc DeleteHariLibur(DeleteHariLiburRequest) returns (DeleteHariLiburResponse);
 }
 

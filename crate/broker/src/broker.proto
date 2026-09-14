@@ -15,11 +15,11 @@ service Broker {
 
   // Update kolom name/tipe/asosiasi/catatan/is_huge/is_top di invezgood.broker by PK broker_code.
   // Field optional: hanya yang diisi yang diupdate. Broker harus sudah ada → not_found bila tidak ada.
-  // Response: BrokerRow terbaru.
+  // Bearer login wajib; hanya role admin (permission_denied selain admin). Response: BrokerRow terbaru.
   rpc UpdateBrokerByCode(UpdateBrokerByCodeRequest) returns (UpdateBrokerByCodeResponse);
 
   // Hapus baris invezgood.broker by PK broker_code. Broker harus ada → not_found bila tidak ada.
-  // Response: success + message.
+  // Bearer login wajib; hanya role admin. Response: success + message.
   rpc DeleteBrokerByCode(DeleteBrokerByCodeRequest) returns (DeleteBrokerByCodeResponse);
 
   // Cek invezgood.broker_stalker by PK (broker_code, tahun_bulan YYYY-MM).
@@ -29,11 +29,11 @@ service Broker {
   rpc BrokerStalkerFromInvezgo(BrokerStalkerFromInvezgoRequest) returns (BrokerStalkerFromInvezgoResponse);
 
   // Update kolom is_huge di invezgood.broker by PK broker_code (+ updated_at).
-  // Broker harus ada → not_found bila tidak ada. Response: success + message.
+  // Broker harus ada → not_found bila tidak ada. Bearer login wajib; hanya role admin.
   rpc UpdateKapitalisasi(UpdateKapitalisasiRequest) returns (UpdateKapitalisasiResponse);
 
   // Update kolom is_top di invezgood.broker by PK broker_code (+ updated_at).
-  // Broker harus ada → not_found bila tidak ada. Response: success + message.
+  // Broker harus ada → not_found bila tidak ada. Bearer login wajib; hanya role admin.
   rpc UpdateTopBroker(UpdateTopBrokerRequest) returns (UpdateTopBrokerResponse);
 }
 
