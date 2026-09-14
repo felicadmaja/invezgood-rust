@@ -58,18 +58,19 @@ service StockList {
 
   // Update kolom sub_sector di Scylla by PK code. Request: code + sub_sector.
   // Side effect: tulis invezgood.stock_list. Response: success + message; not_found bila code tidak ada.
+  // Bearer login wajib; hanya role admin (permission_denied selain admin).
   rpc UpdateSubSector(UpdateSubSectorRequest) returns (UpdateSubSectorResponse);
 
-  // Update kolom is_konglomerasi di Scylla by PK code.
+  // Update kolom is_konglomerasi di Scylla by PK code. Bearer login wajib; hanya role admin.
   rpc UpdateIsKonglomerasi(UpdateIsKonglomerasiRequest) returns (UpdateIsKonglomerasiResponse);
 
-  // Update kolom is_plan_to_trade di Scylla by PK code.
+  // Update kolom is_plan_to_trade di Scylla by PK code. Bearer login wajib; hanya role admin.
   rpc UpdateIsPlanToTrade(UpdateIsPlanToTradeRequest) returns (UpdateIsPlanToTradeResponse);
 
-  // Update kolom catatan_owner di Scylla by PK code.
+  // Update kolom catatan_owner di Scylla by PK code. Bearer login wajib; hanya role admin.
   rpc UpdateCatatanOwner(UpdateCatatanOwnerRequest) returns (UpdateCatatanOwnerResponse);
 
-  // Update kolom catatan_pribadi di Scylla by PK code.
+  // Update kolom catatan_pribadi di Scylla by PK code. Bearer login wajib; hanya role admin.
   rpc UpdateCatatanPribadi(UpdateCatatanPribadiRequest) returns (UpdateCatatanPribadiResponse);
 
   // Baca kolom wyckoff_chart di Scylla by PK code. Request: code wajib. Response: GetWyckoffChartByCodeResponse.
@@ -115,12 +116,12 @@ service StockList {
   rpc UpdateNotationInvezgo(UpdateNotationInvezgoRequest) returns (UpdateNotationInvezgoResponse);
 
   // Update kolom valuation_assesment (Scylla: 0=normal, 1=murah, 3=mahal; proto enum ValuationAssesment) di invezgood.stock_list by PK code.
-  // Wajib Bearer login. Request: code + valuation_assesment. success=false + message bila code tidak ada atau DB gagal.
+  // Bearer login wajib; hanya role admin. Request: code + valuation_assesment. success=false + message bila code tidak ada atau DB gagal.
   rpc UpdateValuationAssesment(UpdateValuationAssesmentRequest)
       returns (UpdateValuationAssesmentResponse);
 
   // Update kolom catatan_bidang_usaha (text) di invezgood.stock_list by PK code.
-  // Wajib Bearer login. Request: code + catatan_bidang_usaha. success=false + message bila code tidak ada atau DB gagal.
+  // Bearer login wajib; hanya role admin. Request: code + catatan_bidang_usaha. success=false + message bila code tidak ada atau DB gagal.
   rpc UpdateCatatanBidangUsaha(UpdateCatatanBidangUsahaRequest)
       returns (UpdateCatatanBidangUsahaResponse);
 }

@@ -201,6 +201,15 @@ impl StockListService {
             .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
 
+    async fn require_admin<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
+        let auth = self.require_auth(request).await?;
+        if auth.role.trim().eq_ignore_ascii_case("admin") {
+            Ok(auth)
+        } else {
+            Err(Status::permission_denied("hanya role admin"))
+        }
+    }
+
     fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
         eprintln!(
             "{rpc_name} {user_name} {}ms",
@@ -2652,7 +2661,7 @@ impl StockList for StockListService {
         request: Request<UpdateSubSectorRequest>,
     ) -> Result<Response<UpdateSubSectorResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
         let inner = request.into_inner();
         let code = inner.code.trim().to_ascii_uppercase();
@@ -2692,7 +2701,7 @@ impl StockList for StockListService {
         request: Request<UpdateIsKonglomerasiRequest>,
     ) -> Result<Response<UpdateIsKonglomerasiResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<UpdateIsKonglomerasiResponse>, Status> = async {
@@ -2732,7 +2741,7 @@ impl StockList for StockListService {
         request: Request<UpdateIsPlanToTradeRequest>,
     ) -> Result<Response<UpdateIsPlanToTradeResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<UpdateIsPlanToTradeResponse>, Status> = async {
@@ -2850,7 +2859,7 @@ impl StockList for StockListService {
         request: Request<UpdateValuationAssesmentRequest>,
     ) -> Result<Response<UpdateValuationAssesmentResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
         let inner = request.into_inner();
         let code = inner.code.trim().to_ascii_uppercase();
@@ -2895,7 +2904,7 @@ impl StockList for StockListService {
         request: Request<UpdateCatatanBidangUsahaRequest>,
     ) -> Result<Response<UpdateCatatanBidangUsahaResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<UpdateCatatanBidangUsahaResponse>, Status> = async {
@@ -2935,7 +2944,7 @@ impl StockList for StockListService {
         request: Request<UpdateCatatanOwnerRequest>,
     ) -> Result<Response<UpdateCatatanOwnerResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<UpdateCatatanOwnerResponse>, Status> = async {
@@ -2975,7 +2984,7 @@ impl StockList for StockListService {
         request: Request<UpdateCatatanPribadiRequest>,
     ) -> Result<Response<UpdateCatatanPribadiResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_auth(&request).await?;
+        let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<UpdateCatatanPribadiResponse>, Status> = async {
