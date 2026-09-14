@@ -334,6 +334,8 @@ dependencies = [
  "scylla",
  "serde",
  "serde_json",
+ "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-build",
  "user",

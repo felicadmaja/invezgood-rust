@@ -1,6 +1,9 @@
+use std::pin::Pin;
 use std::sync::Arc;
 
 use chrono::{Datelike, Local, Timelike};
+use tokio::sync::mpsc;
+use tokio_stream::{wrappers::ReceiverStream, Stream};
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, SessionStore};
 
@@ -22,6 +25,14 @@ enum CurrentDayMode {
 }
 
 const MARKET_NOT_OPEN_MSG: &str = "Market belum buka.";
+
+type ChartStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
+
+async fn stream_once<T: Send + 'static>(item: Result<T, Status>) -> ChartStream<T> {
+    let (tx, rx) = mpsc::channel(1);
+    let _ = tx.send(item).await;
+    Box::pin(ReceiverStream::new(rx))
+}
 
 /// Senin–Jumat sebelum 09:00 (menit lokal < 540).
 fn is_pre_market_weekday(weekday: chrono::Weekday, hour: u32, minute: u32) -> bool {
@@ -170,217 +181,263 @@ impl ChartService {
             },
         }
     }
+
+    async fn compute_current_day_chart(
+        &self,
+        code: String,
+        code_log: &mut String,
+        cache_hit: &mut bool,
+    ) -> GetCurrentDayChartFromInvezgoResponse {
+        let mode = current_day_chart_mode();
+        *code_log = code.clone();
+
+        let is_holiday =
+            market_holiday::is_weekend() || market_holiday::is_national_holiday().await;
+
+        if matches!(mode, CurrentDayMode::PreMarketClosed) && !is_holiday {
+            return GetCurrentDayChartFromInvezgoResponse {
+                code,
+                success: false,
+                message: MARKET_NOT_OPEN_MSG.into(),
+                ..Default::default()
+            };
+        }
+
+        let use_cache = matches!(mode, CurrentDayMode::Cached) || is_holiday;
+
+        if use_cache {
+            match self.cache.get_intraday_eod(&code).await {
+                Ok(Some((data, detail))) => {
+                    *code_log = format!("{code} {detail}");
+                    *cache_hit = true;
+                    return data;
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    return GetCurrentDayChartFromInvezgoResponse {
+                        code: code.clone(),
+                        success: false,
+                        message: error,
+                        ..Default::default()
+                    };
+                }
+            }
+
+            match crate::invezgo::fetch_intraday_data(&code).await {
+                Ok(data) => {
+                    if let Err(error) = self.cache.set_intraday_eod(&code, &data).await {
+                        eprintln!("GetCurrentDayChartFromInvezgo set cache {code} gagal: {error}");
+                    }
+                    *code_log = format!("{code} intraday cache MISS — GET Invezgo 1x");
+                    data
+                }
+                Err(error) => GetCurrentDayChartFromInvezgoResponse {
+                    success: false,
+                    message: error,
+                    ..Default::default()
+                },
+            }
+        } else {
+            self.fetch_intraday_live_cached(&code, code_log, cache_hit)
+                .await
+        }
+    }
 }
 
 #[tonic::async_trait]
 impl Chart for ChartService {
+    type GetCurrentDayChartFromInvezgoStream = ChartStream<GetCurrentDayChartFromInvezgoResponse>;
+    type GetHistoryChartFromInvezgoStream = ChartStream<GetHistoryChartFromInvezgoResponse>;
+    type GetHistoryIHSGFromInvezgoStream = ChartStream<GetHistoryIhsgFromInvezgoResponse>;
+
     async fn get_current_day_chart_from_invezgo(
         &self,
         request: Request<GetCurrentDayChartFromInvezgoRequest>,
-    ) -> Result<Response<GetCurrentDayChartFromInvezgoResponse>, Status> {
+    ) -> Result<Response<Self::GetCurrentDayChartFromInvezgoStream>, Status> {
         let started = std::time::Instant::now();
-        let Some(user_name) = self
-            .resolve_user_name(
-                "GetCurrentDayChartFromInvezgo",
-                started,
-                &request,
-            )
-            .await
-        else {
-            return Ok(Response::new(GetCurrentDayChartFromInvezgoResponse::default()));
+        let rpc_name = "GetCurrentDayChartFromInvezgo";
+
+        let Some(user_name) = self.resolve_user_name(rpc_name, started, &request).await else {
+            return Ok(Response::new(
+                stream_once(Ok(GetCurrentDayChartFromInvezgoResponse::default())).await,
+            ));
+        };
+
+        let code_raw = request.into_inner().code;
+        let code = match Self::normalize_code(&code_raw) {
+            Ok(c) => c,
+            Err(status) => {
+                eprintln!(
+                    "{rpc_name} {user_name} {}ms",
+                    started.elapsed().as_millis()
+                );
+                return Ok(Response::new(stream_once(Err(status)).await));
+            }
         };
 
         let mut code_log = String::new();
         let mut cache_hit = false;
-
-        let result: Result<Response<GetCurrentDayChartFromInvezgoResponse>, Status> = async {
-            let mode = current_day_chart_mode();
-            let code = Self::normalize_code(&request.into_inner().code)?;
-            code_log = code.clone();
-
-            let is_holiday =
-                market_holiday::is_weekend() || market_holiday::is_national_holiday().await;
-
-            if matches!(mode, CurrentDayMode::PreMarketClosed) && !is_holiday {
-                return Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
-                    code,
-                    success: false,
-                    message: MARKET_NOT_OPEN_MSG.into(),
-                    ..Default::default()
-                }));
-            }
-
-            let use_cache = matches!(mode, CurrentDayMode::Cached) || is_holiday;
-
-            if use_cache {
-                match self.cache.get_intraday_eod(&code).await {
-                    Ok(Some((data, detail))) => {
-                        code_log = format!("{code} {detail}");
-                        cache_hit = true;
-                        return Ok(Response::new(data));
-                    }
-                    Ok(None) => {}
-                    Err(error) => {
-                        return Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
-                            code: code.clone(),
-                            success: false,
-                            message: error,
-                            ..Default::default()
-                        }));
-                    }
-                }
-
-                match crate::invezgo::fetch_intraday_data(&code).await {
-                    Ok(data) => {
-                        if let Err(error) = self.cache.set_intraday_eod(&code, &data).await {
-                            eprintln!(
-                                "GetCurrentDayChartFromInvezgo set cache {code} gagal: {error}"
-                            );
-                        }
-                        code_log = format!("{code} intraday cache MISS — GET Invezgo 1x");
-                        Ok(Response::new(data))
-                    }
-                    Err(error) => Ok(Response::new(GetCurrentDayChartFromInvezgoResponse {
-                        success: false,
-                        message: error,
-                        ..Default::default()
-                    })),
-                }
-            } else {
-                let data = self
-                    .fetch_intraday_live_cached(&code, &mut code_log, &mut cache_hit)
-                    .await;
-                Ok(Response::new(data))
-            }
-        }
-        .await;
-
-        if code_log.is_empty() {
-            if let Err(ref status) = result {
-                code_log = status.message().to_string();
-            }
-        }
+        let response = self
+            .compute_current_day_chart(code, &mut code_log, &mut cache_hit)
+            .await;
 
         let elapsed = started.elapsed().as_millis();
-        let ohlc_log = match &result {
-            Ok(resp) => format_ohlc(resp.get_ref()),
-            Err(_) => String::new(),
-        };
+        let ohlc_log = format_ohlc(&response);
         if cache_hit {
-            eprintln!(
-                "GetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}"
-            );
+            eprintln!("{rpc_name} {user_name} {elapsed}ms - {code_log}{ohlc_log}");
         } else {
             eprintln!(
-                "\x1b[32mGetCurrentDayChartFromInvezgo {user_name} {elapsed}ms - {code_log}{ohlc_log}\x1b[0m"
+                "\x1b[32m{rpc_name} {user_name} {elapsed}ms - {code_log}{ohlc_log}\x1b[0m"
             );
         }
-        result
+
+        Ok(Response::new(stream_once(Ok(response)).await))
     }
 
     async fn get_history_chart_from_invezgo(
         &self,
         request: Request<GetHistoryChartFromInvezgoRequest>,
-    ) -> Result<Response<GetHistoryChartFromInvezgoResponse>, Status> {
+    ) -> Result<Response<Self::GetHistoryChartFromInvezgoStream>, Status> {
         let started = std::time::Instant::now();
-        let Some(user_name) = self
-            .resolve_user_name("GetHistoryChartFromInvezgo", started, &request)
-            .await
-        else {
-            return Ok(Response::new(GetHistoryChartFromInvezgoResponse::default()));
+        let rpc_name = "GetHistoryChartFromInvezgo";
+
+        let Some(user_name) = self.resolve_user_name(rpc_name, started, &request).await else {
+            return Ok(Response::new(
+                stream_once(Ok(GetHistoryChartFromInvezgoResponse::default())).await,
+            ));
         };
 
-        let mut cache_detail = String::new();
-
-        let result: Result<Response<GetHistoryChartFromInvezgoResponse>, Status> = async {
-            let req = request.into_inner();
-            let code = Self::normalize_code(&req.code)?;
-            let from_date = Self::normalize_date("from_date", &req.from_date)?;
-            let to_date = Self::normalize_date("to_date", &req.to_date)?;
-
-            match self.cache.get_chart(&code, &from_date, &to_date).await {
-                Ok((items, detail)) => {
-                    cache_detail = detail;
-                    Ok(Response::new(GetHistoryChartFromInvezgoResponse {
-                        success: true,
-                        message: format!("{} baris", items.len()),
-                        items,
-                    }))
-                }
-                Err(error) => {
-                    cache_detail = format!("chart error: {error}");
-                    Ok(Response::new(GetHistoryChartFromInvezgoResponse {
-                        success: false,
-                        message: error,
-                        items: vec![],
-                    }))
-                }
+        let req = request.into_inner();
+        let code = match Self::normalize_code(&req.code) {
+            Ok(c) => c,
+            Err(status) => {
+                eprintln!(
+                    "{rpc_name} {user_name} {}ms",
+                    started.elapsed().as_millis()
+                );
+                return Ok(Response::new(stream_once(Err(status)).await));
             }
-        }
-        .await;
+        };
+        let from_date = match Self::normalize_date("from_date", &req.from_date) {
+            Ok(v) => v,
+            Err(status) => {
+                eprintln!(
+                    "{rpc_name} {user_name} {}ms",
+                    started.elapsed().as_millis()
+                );
+                return Ok(Response::new(stream_once(Err(status)).await));
+            }
+        };
+        let to_date = match Self::normalize_date("to_date", &req.to_date) {
+            Ok(v) => v,
+            Err(status) => {
+                eprintln!(
+                    "{rpc_name} {user_name} {}ms",
+                    started.elapsed().as_millis()
+                );
+                return Ok(Response::new(stream_once(Err(status)).await));
+            }
+        };
+
+        let (response, cache_detail) = match self.cache.get_chart(&code, &from_date, &to_date).await
+        {
+            Ok((items, detail)) => (
+                GetHistoryChartFromInvezgoResponse {
+                    success: true,
+                    message: format!("{} baris", items.len()),
+                    items,
+                },
+                detail,
+            ),
+            Err(error) => (
+                GetHistoryChartFromInvezgoResponse {
+                    success: false,
+                    message: error.clone(),
+                    items: vec![],
+                },
+                format!("chart error: {error}"),
+            ),
+        };
 
         let elapsed = started.elapsed().as_millis();
         let is_cache_hit = cache_detail.contains("HIT moka") || cache_detail.contains("HIT redis");
         if is_cache_hit {
-            eprintln!("GetHistoryChartFromInvezgo {user_name} {elapsed}ms - {cache_detail}");
+            eprintln!("{rpc_name} {user_name} {elapsed}ms - {cache_detail}");
         } else {
             eprintln!(
-                "\x1b[32mGetHistoryChartFromInvezgo {user_name} {elapsed}ms - {cache_detail}\x1b[0m"
+                "\x1b[32m{rpc_name} {user_name} {elapsed}ms - {cache_detail}\x1b[0m"
             );
         }
-        result
+
+        Ok(Response::new(stream_once(Ok(response)).await))
     }
 
     async fn get_history_ihsg_from_invezgo(
         &self,
         request: Request<GetHistoryIhsgFromInvezgoRequest>,
-    ) -> Result<Response<GetHistoryIhsgFromInvezgoResponse>, Status> {
+    ) -> Result<Response<Self::GetHistoryIHSGFromInvezgoStream>, Status> {
         let started = std::time::Instant::now();
-        let Some(user_name) = self
-            .resolve_user_name("GetHistoryIHSGFromInvezgo", started, &request)
-            .await
-        else {
-            return Ok(Response::new(GetHistoryIhsgFromInvezgoResponse::default()));
+        let rpc_name = "GetHistoryIHSGFromInvezgo";
+
+        let Some(user_name) = self.resolve_user_name(rpc_name, started, &request).await else {
+            return Ok(Response::new(
+                stream_once(Ok(GetHistoryIhsgFromInvezgoResponse::default())).await,
+            ));
         };
 
-        let mut cache_detail = String::new();
+        let req = request.into_inner();
+        let from_date = match Self::normalize_date("from_date", &req.from_date) {
+            Ok(v) => v,
+            Err(status) => {
+                eprintln!(
+                    "{rpc_name} {user_name} {}ms",
+                    started.elapsed().as_millis()
+                );
+                return Ok(Response::new(stream_once(Err(status)).await));
+            }
+        };
+        let to_date = match Self::normalize_date("to_date", &req.to_date) {
+            Ok(v) => v,
+            Err(status) => {
+                eprintln!(
+                    "{rpc_name} {user_name} {}ms",
+                    started.elapsed().as_millis()
+                );
+                return Ok(Response::new(stream_once(Err(status)).await));
+            }
+        };
 
-        let result: Result<Response<GetHistoryIhsgFromInvezgoResponse>, Status> = async {
-            let req = request.into_inner();
-            let from_date = Self::normalize_date("from_date", &req.from_date)?;
-            let to_date = Self::normalize_date("to_date", &req.to_date)?;
-
+        let (response, cache_detail) =
             match self.cache.get_ihsg_chart(&from_date, &to_date).await {
-                Ok((items, detail)) => {
-                    cache_detail = detail;
-                    Ok(Response::new(GetHistoryIhsgFromInvezgoResponse {
+                Ok((items, detail)) => (
+                    GetHistoryIhsgFromInvezgoResponse {
                         success: true,
                         message: format!("{} baris", items.len()),
                         items,
-                    }))
-                }
-                Err(error) => {
-                    cache_detail = format!("ihsg chart error: {error}");
-                    Ok(Response::new(GetHistoryIhsgFromInvezgoResponse {
+                    },
+                    detail,
+                ),
+                Err(error) => (
+                    GetHistoryIhsgFromInvezgoResponse {
                         success: false,
-                        message: error,
+                        message: error.clone(),
                         items: vec![],
-                    }))
-                }
-            }
-        }
-        .await;
+                    },
+                    format!("ihsg chart error: {error}"),
+                ),
+            };
 
         let elapsed = started.elapsed().as_millis();
         let is_cache_hit = cache_detail.contains("HIT moka") || cache_detail.contains("HIT redis");
         if is_cache_hit {
-            eprintln!("GetHistoryIHSGFromInvezgo {user_name} {elapsed}ms - {cache_detail}");
+            eprintln!("{rpc_name} {user_name} {elapsed}ms - {cache_detail}");
         } else {
             eprintln!(
-                "\x1b[32mGetHistoryIHSGFromInvezgo {user_name} {elapsed}ms - {cache_detail}\x1b[0m"
+                "\x1b[32m{rpc_name} {user_name} {elapsed}ms - {cache_detail}\x1b[0m"
             );
         }
-        result
+
+        Ok(Response::new(stream_once(Ok(response)).await))
     }
 }
 
