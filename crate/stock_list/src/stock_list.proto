@@ -19,7 +19,7 @@ service StockList {
       returns (stream GetStockByRepeatedCodeResponse);
 
   // Stream: push KeyStatsFromStockbitResponse per bagian (stats, closure group, fin year group, dividend).
-  // GET Stockbit API bila kolom kosong atau *_updated_at >1 hari.
+  // GET Stockbit API bila kolom kosong atau *_updated_at >4 jam.
   // Rate limit 1× / 5 detik untuk GET API saja (bukan RPC); slot shared dengan GetStockbitProfileByCode.
   rpc GetKeyStatsFromStockbit(GetKeyStatsFromStockbitRequest)
       returns (stream KeyStatsFromStockbitResponse);
