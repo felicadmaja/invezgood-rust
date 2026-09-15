@@ -24,6 +24,7 @@ service Chart {
   // Cache 2 lapis: Moka TTL 55s → Redis (CHART_CACHE_TTL_SECS) → Invezgo API.
   // Key: code + from_date + to_date. GET analysis/chart/stock/{code}?from=&to= bila cache miss.
   // Server stream: push 1x response lalu tutup.
+  // Debug log invoke: GetHistoryChartFromInvezgo invoke {user} code= from= to=; selesai: {user} {ms}ms - {cache_detail}.
   rpc GetHistoryChartFromInvezgo(GetHistoryChartFromInvezgoRequest)
       returns (stream GetHistoryChartFromInvezgoResponse);
 

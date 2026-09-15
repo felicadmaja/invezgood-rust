@@ -307,6 +307,14 @@ impl Chart for ChartService {
             ));
         };
 
+        let req_ref = request.get_ref();
+        eprintln!(
+            "{rpc_name} invoke {user_name} code={} from={} to={}",
+            req_ref.code.trim(),
+            req_ref.from_date.trim(),
+            req_ref.to_date.trim(),
+        );
+
         let req = request.into_inner();
         let code = match Self::normalize_code(&req.code) {
             Ok(c) => c,
