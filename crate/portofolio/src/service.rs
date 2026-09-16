@@ -21,7 +21,7 @@ use crate::pb::{
     PortofolioEquityRow, PortofolioRow,
 };
 
-const PORTFOLIO_SCRAPE_COOLDOWN: Duration = Duration::from_secs(3 * 60);
+const PORTFOLIO_SCRAPE_COOLDOWN: Duration = Duration::from_secs(60);
 
 static LAST_PORTFOLIO_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
@@ -36,7 +36,7 @@ async fn acquire_portfolio_scrape_slot() -> Result<(), Status> {
         if elapsed < PORTFOLIO_SCRAPE_COOLDOWN {
             let remaining_secs = (PORTFOLIO_SCRAPE_COOLDOWN - elapsed).as_secs().max(1);
             return Err(Status::failed_precondition(format!(
-                "Rate limit: maksimal 1× / 3 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
+                "Rate limit: maksimal 1× / 1 menit untuk semua user. Tunggu {remaining_secs} detik lagi"
             )));
         }
     }
