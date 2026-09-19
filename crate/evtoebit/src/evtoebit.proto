@@ -7,11 +7,12 @@ service EvToEbit {
   // Sumber: kolom sector invezgood.stock_list + Yahoo Finance (.JK) untuk market cap,
   // neraca, laba rugi TTM via Rust reqwest (Yahoo crumb + timeseries).
   // winsorize multiple >100×. Flag `n<3` bila emiten valid < 3; agregat per sektor saja.
-  // Publik — tanpa JWT. Handler: fetch Yahoo setiap invoke → truncate + upsert invezgood.evtoebit.
+  // Auth: metadata authorization Bearer JWT (SessionStore user). unauthenticated bila token invalid/expired.
+  // Handler: fetch Yahoo setiap invoke → truncate + upsert invezgood.evtoebit.
   // Scheduler harian (jam 19:00 lokal, env EVTOEBIT_SYNC_HOUR/MINUTE) menjalankan sync yang sama tanpa gRPC.
-  // Response: repeated MedianEvMultipleRow + pesan jumlah upsert; internal bila compute/Scylla gagal.
-  // cargo run -p evtoebit --example invoke_median
-  rpc GetMedianEVToEbitdaFromYahooFinance(GetMedianEVToEbitdaFromYahooFinanceRequest) returns (GetMedianEVToEbitdaFromYahooFinanceResponse);
+  // Server stream: chunk progress fetch_done/fetch_total saat hit Yahoo; chunk terakhir berisi rows + pesan upsert.
+  // internal (chunk Err) bila compute/Scylla gagal atau client disconnect.
+  rpc GetMedianEVToEbitdaFromYahooFinance(GetMedianEVToEbitdaFromYahooFinanceRequest) returns (stream GetMedianEVToEbitdaFromYahooFinanceResponse);
 
   // Baca agregat median dari invezgood.evtoebit (read-only, tanpa fetch/parse Yahoo Finance).
   // Auth: metadata authorization Bearer JWT (SessionStore user). unauthenticated bila token invalid/expired.
@@ -39,6 +40,8 @@ message GetMedianEVToEbitdaFromYahooFinanceResponse {
   bool success = 1;
   string message = 2;
   repeated MedianEvMultipleRow rows = 3;
+  optional int32 fetch_done = 4; // progress fetch emiten (kosong pada chunk final)
+  optional int32 fetch_total = 5;
 }
 
 message GetMedianEVToEbitdaFromScyllaRequest {}

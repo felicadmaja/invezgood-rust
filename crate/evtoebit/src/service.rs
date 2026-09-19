@@ -1,6 +1,10 @@
+use std::pin::Pin;
 use std::sync::Arc;
 
+use futures::Stream;
+use grpc_stream::send_or_break;
 use scylla::client::session::Session;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
 
@@ -13,6 +17,9 @@ use crate::pb::{
 };
 use crate::repository;
 use crate::sync::persist_median_response;
+
+type YahooFinanceStream =
+    Pin<Box<dyn Stream<Item = Result<GetMedianEvToEbitdaFromYahooFinanceResponse, Status>> + Send>>;
 
 pub struct EvToEbitService {
     session: Arc<Session>,
@@ -40,11 +47,11 @@ impl EvToEbitService {
             .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
 
-    /// Logic RPC `GetMedianEVToEbitdaFromYahooFinance` — fetch Yahoo setiap invoke, upsert Scylla, tanpa auth gRPC.
+    /// Logic RPC `GetMedianEVToEbitdaFromYahooFinance` — fetch Yahoo, upsert Scylla (tanpa stream; dev/seed).
     pub async fn fetch_median_from_yahoo_finance(
         &self,
     ) -> Result<GetMedianEvToEbitdaFromYahooFinanceResponse, String> {
-        let resp = compute_median(Arc::clone(&self.session), Arc::clone(&self.yahoo)).await?;
+        let resp = compute_median(Arc::clone(&self.session), Arc::clone(&self.yahoo), None).await?;
         let n = persist_median_response(self.session.as_ref(), &resp).await?;
         let mut out = resp;
         out.message = format!("{}; upsert {n} baris ke invezgood.evtoebit", out.message);
@@ -61,25 +68,55 @@ impl EvToEbitService {
 
 #[tonic::async_trait]
 impl EvToEbit for EvToEbitService {
+    type GetMedianEVToEbitdaFromYahooFinanceStream = YahooFinanceStream;
+
     async fn get_median_ev_to_ebitda_from_yahoo_finance(
         &self,
         request: Request<GetMedianEvToEbitdaFromYahooFinanceRequest>,
-    ) -> Result<Response<GetMedianEvToEbitdaFromYahooFinanceResponse>, Status> {
+    ) -> Result<Response<YahooFinanceStream>, Status> {
         let started = std::time::Instant::now();
         let rpc_name = "GetMedianEVToEbitdaFromYahooFinance";
 
-        let user_name = "anonymous";
-        let result: Result<Response<GetMedianEvToEbitdaFromYahooFinanceResponse>, Status> = async {
-            let _inner = request.into_inner();
-            self.fetch_median_from_yahoo_finance()
-                .await
-                .map(Response::new)
-                .map_err(Status::internal)
-        }
-        .await;
+        let auth = match self.require_auth(&request).await {
+            Ok(auth) => auth,
+            Err(status) => {
+                Self::log_rpc_debug(rpc_name, "anonymous", started);
+                return Err(status);
+            }
+        };
+        let user_name = auth.nama.clone();
+        let _inner = request.into_inner();
 
-        Self::log_rpc_debug(rpc_name, user_name, started);
-        result
+        let session = Arc::clone(&self.session);
+        let yahoo = Arc::clone(&self.yahoo);
+        let (stream_tx, stream_rx) = tokio::sync::mpsc::channel(8);
+
+        tokio::spawn(async move {
+            let run = async {
+                let resp = compute_median(session.clone(), yahoo, Some(stream_tx.clone())).await?;
+                let n = persist_median_response(session.as_ref(), &resp).await?;
+                let mut final_resp = resp;
+                final_resp.message =
+                    format!("{}; upsert {n} baris ke invezgood.evtoebit", final_resp.message);
+                if !send_or_break(&stream_tx, Ok(final_resp)).await {
+                    return Err("client disconnect".to_string());
+                }
+                Ok(())
+            }
+            .await;
+
+            if let Err(e) = run {
+                if e != "client disconnect" {
+                    let _ = send_or_break(&stream_tx, Err(Status::internal(e))).await;
+                }
+            }
+
+            Self::log_rpc_debug(rpc_name, &user_name, started);
+        });
+
+        Ok(Response::new(
+            Box::pin(ReceiverStream::new(stream_rx)) as YahooFinanceStream
+        ))
     }
 
     async fn get_median_ev_to_ebitda_from_scylla(

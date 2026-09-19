@@ -25,7 +25,7 @@ pub async fn sync_median_from_yahoo_to_scylla(
     session: Arc<Session>,
     yahoo: Arc<YahooClient>,
 ) -> Result<(usize, String), String> {
-    let resp = compute_median(session.clone(), yahoo).await?;
+    let resp = compute_median(session.clone(), yahoo, None).await?;
     let message = resp.message.clone();
     let n = persist_median_response(session.as_ref(), &resp).await?;
     Ok((n, message))

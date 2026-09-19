@@ -1,4 +1,4 @@
-//! Invoke `EvToEbitService::fetch_median_from_yahoo_finance` (sama dengan RPC, tanpa gRPC/auth).
+//! Invoke `fetch_median_from_yahoo_finance` langsung (dev); RPC wajib JWT Bearer.
 //! Full universe: `cargo run -p evtoebit --example invoke_median`
 
 use evtoebit::{new_yahoo_client, EvToEbitService};
