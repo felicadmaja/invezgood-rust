@@ -11,6 +11,7 @@ use crate::pb::{
     GetMedianEvToEbitdaFromYahooFinanceRequest, GetMedianEvToEbitdaFromYahooFinanceResponse,
 };
 use crate::repository;
+use crate::sync::persist_median_response;
 
 pub struct EvToEbitService {
     session: Arc<Session>,
@@ -31,14 +32,18 @@ impl EvToEbitService {
         }
     }
 
-    /// Logic RPC `GetMedianEVToEbitdaFromYahooFinance` — compute Yahoo (cache Moka), tanpa auth gRPC.
+    /// Logic RPC `GetMedianEVToEbitdaFromYahooFinance` — compute Yahoo (cache Moka), upsert Scylla, tanpa auth gRPC.
     pub async fn fetch_median_from_yahoo_finance(
         &self,
     ) -> Result<GetMedianEvToEbitdaFromYahooFinanceResponse, String> {
-        self.cache
+        let cached = self
+            .cache
             .get_or_compute(Arc::clone(&self.session))
-            .await
-            .map(|cached| (*cached).clone())
+            .await?;
+        let n = persist_median_response(self.session.as_ref(), cached.as_ref()).await?;
+        let mut resp = (*cached).clone();
+        resp.message = format!("{}; upsert {n} baris ke invezgood.evtoebit", resp.message);
+        Ok(resp)
     }
 
     fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
