@@ -3,6 +3,7 @@
 
 use evtoebit::{new_yahoo_client, EvToEbitService};
 use stock_list::connect;
+use user::new_session_store;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -10,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let session = connect().await?;
     let yahoo = new_yahoo_client()?;
-    let service = EvToEbitService::new(session, yahoo);
+    let service = EvToEbitService::new(session, yahoo, new_session_store());
 
     let resp = service.fetch_median_from_yahoo_finance().await?;
 

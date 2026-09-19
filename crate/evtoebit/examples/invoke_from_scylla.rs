@@ -1,4 +1,4 @@
-//! Invoke logic sama dengan RPC `GetMedianEVToEbitdaFromScylla` (tanpa gRPC auth).
+//! Baca `invezgood.evtoebit` langsung (dev); RPC `GetMedianEVToEbitdaFromScylla` wajib JWT Bearer.
 //! `cargo run -p evtoebit --example invoke_from_scylla`
 
 use evtoebit::repository;

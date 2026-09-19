@@ -146,7 +146,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         ConfigFundamentalService::new(session.clone(), auth_sessions.clone());
     let evtoebit_yahoo = new_yahoo_client()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    let evtoebit = EvToEbitService::new(session.clone(), evtoebit_yahoo.clone());
+    let evtoebit = EvToEbitService::new(
+        session.clone(),
+        evtoebit_yahoo.clone(),
+        auth_sessions.clone(),
+    );
     let xlbr_laporan_keuangan =
         XlbrLaporanKeuanganService::new(session.clone(), auth_sessions.clone());
 

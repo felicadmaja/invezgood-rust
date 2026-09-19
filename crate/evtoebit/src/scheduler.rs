@@ -1,4 +1,4 @@
-//! Scheduler `GetMedianEVToEbitdaFromYahooFinance`: setiap hari jam 17:00 waktu lokal
+//! Scheduler `GetMedianEVToEbitdaFromYahooFinance`: setiap hari jam 19:00 waktu lokal
 //! (override env `EVTOEBIT_SYNC_HOUR`, `EVTOEBIT_SYNC_MINUTE`).
 
 use std::sync::Arc;
@@ -9,7 +9,7 @@ use scylla::client::session::Session;
 use crate::sync::sync_median_from_yahoo_to_scylla;
 use crate::yahoo::YahooClient;
 
-const DEFAULT_SYNC_HOUR: u32 = 17;
+const DEFAULT_SYNC_HOUR: u32 = 19;
 const DEFAULT_SYNC_MINUTE: u32 = 0;
 
 fn sync_hour_from_env() -> u32 {
@@ -56,7 +56,7 @@ async fn run_sync(session: Arc<Session>, yahoo: Arc<YahooClient>) {
     }
 }
 
-/// Loop background: sync Yahoo → Scylla setiap hari jam 17:00 lokal.
+/// Loop background: sync Yahoo → Scylla setiap hari jam 19:00 lokal.
 /// Tidak ada catch-up saat restart — hanya jadwal harian atau invoke RPC user.
 pub fn spawn_daily_evtoebit_sync(session: Arc<Session>, yahoo: Arc<YahooClient>) {
     tokio::spawn(async move {
