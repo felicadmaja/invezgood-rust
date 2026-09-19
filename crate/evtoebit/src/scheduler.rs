@@ -6,7 +6,6 @@ use std::sync::Arc;
 use chrono::{DateTime, Local, NaiveDate, TimeZone};
 use scylla::client::session::Session;
 
-use crate::cache::MedianCache;
 use crate::sync::sync_median_from_yahoo_to_scylla;
 use crate::yahoo::YahooClient;
 
@@ -48,8 +47,8 @@ fn next_daily_sync_at(now: DateTime<Local>, hour: u32, min: u32) -> DateTime<Loc
     local_at(today.succ_opt().expect("tanggal scheduler valid"), hour, min, 0)
 }
 
-async fn run_sync(session: Arc<Session>, yahoo: Arc<YahooClient>, cache: Arc<MedianCache>) {
-    match sync_median_from_yahoo_to_scylla(session, yahoo, Some(cache)).await {
+async fn run_sync(session: Arc<Session>, yahoo: Arc<YahooClient>) {
+    match sync_median_from_yahoo_to_scylla(session, yahoo).await {
         Ok((n, message)) => {
             eprintln!("GetMedianEVToEbitdaFromYahooFinance scheduler: {message}, upsert {n} baris")
         }
@@ -59,11 +58,7 @@ async fn run_sync(session: Arc<Session>, yahoo: Arc<YahooClient>, cache: Arc<Med
 
 /// Loop background: sync Yahoo → Scylla setiap hari jam 17:00 lokal.
 /// Tidak ada catch-up saat restart — hanya jadwal harian atau invoke RPC user.
-pub fn spawn_daily_evtoebit_sync(
-    session: Arc<Session>,
-    yahoo: Arc<YahooClient>,
-    cache: Arc<MedianCache>,
-) {
+pub fn spawn_daily_evtoebit_sync(session: Arc<Session>, yahoo: Arc<YahooClient>) {
     tokio::spawn(async move {
         let hour = sync_hour_from_env();
         let min = sync_minute_from_env();
@@ -78,7 +73,7 @@ pub fn spawn_daily_evtoebit_sync(
             );
             tokio::time::sleep(tokio::time::Duration::from_secs(wait_secs)).await;
 
-            run_sync(session.clone(), yahoo.clone(), cache.clone()).await;
+            run_sync(session.clone(), yahoo.clone()).await;
         }
     });
 }

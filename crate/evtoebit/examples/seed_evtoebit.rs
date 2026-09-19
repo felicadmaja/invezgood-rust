@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let session = connect().await?;
     let yahoo: Arc<YahooClient> = new_yahoo_client()?;
     repository::recreate_table(session.as_ref()).await?;
-    let (n, message) = sync_median_from_yahoo_to_scylla(session, yahoo, None).await?;
+    let (n, message) = sync_median_from_yahoo_to_scylla(session, yahoo).await?;
 
     println!("success: true");
     println!("message: {message}");

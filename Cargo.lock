@@ -744,7 +744,6 @@ dependencies = [
  "chrono",
  "dotenvy",
  "futures",
- "moka",
  "prost",
  "protoc-bin-vendored",
  "reqwest 0.12.28",
@@ -754,7 +753,6 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
- "user",
 ]
 
 [[package]]

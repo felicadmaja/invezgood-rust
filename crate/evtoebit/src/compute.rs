@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use scylla::client::session::Session;
 
@@ -54,12 +53,4 @@ pub async fn compute_median(
         ),
         rows,
     })
-}
-
-pub fn cache_ttl() -> Duration {
-    let secs = std::env::var("EVTOEBIT_CACHE_TTL_SECS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(24 * 60 * 60);
-    Duration::from_secs(secs)
 }

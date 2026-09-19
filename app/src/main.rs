@@ -17,7 +17,7 @@ use stockbit_browser::ReadinessPoller;
 use worker_scrapping::invezgo_spike_poller::InvezgoSpikePoller;
 use worker_scrapping::yahoo_spike_poller::YahooSpikePoller;
 use config_fundamental::{ConfigFundamentalServer, ConfigFundamentalService};
-use evtoebit::{new_shared_median_cache, new_yahoo_client, spawn_daily_evtoebit_sync, EvToEbitServer, EvToEbitService};
+use evtoebit::{new_yahoo_client, spawn_daily_evtoebit_sync, EvToEbitServer, EvToEbitService};
 use shareholder_composition::{
     ShareholderCompositionServer, ShareholderCompositionService,
 };
@@ -146,12 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         ConfigFundamentalService::new(session.clone(), auth_sessions.clone());
     let evtoebit_yahoo = new_yahoo_client()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    let evtoebit_cache = new_shared_median_cache(evtoebit_yahoo.clone());
-    let evtoebit = EvToEbitService::new(
-        session.clone(),
-        auth_sessions.clone(),
-        evtoebit_cache.clone(),
-    );
+    let evtoebit = EvToEbitService::new(session.clone(), evtoebit_yahoo.clone());
     let xlbr_laporan_keuangan =
         XlbrLaporanKeuanganService::new(session.clone(), auth_sessions.clone());
 
@@ -180,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .await;
 
     spawn_daily_notation_sync(session.clone());
-    spawn_daily_evtoebit_sync(session.clone(), evtoebit_yahoo, evtoebit_cache);
+    spawn_daily_evtoebit_sync(session.clone(), evtoebit_yahoo);
     spawn_daily_top_foreign_flow_sync(session.clone());
 
     let user = UserService::new(

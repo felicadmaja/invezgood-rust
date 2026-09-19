@@ -1,9 +1,8 @@
 //! Invoke `EvToEbitService::fetch_median_from_yahoo_finance` (sama dengan RPC, tanpa gRPC/auth).
 //! Full universe: `cargo run -p evtoebit --example invoke_median`
 
-use evtoebit::{new_shared_median_cache, new_yahoo_client, EvToEbitService};
+use evtoebit::{new_yahoo_client, EvToEbitService};
 use stock_list::connect;
-use user::new_session_store;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -11,8 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let session = connect().await?;
     let yahoo = new_yahoo_client()?;
-    let cache = new_shared_median_cache(yahoo);
-    let service = EvToEbitService::new(session, new_session_store(), cache);
+    let service = EvToEbitService::new(session, yahoo);
 
     let resp = service.fetch_median_from_yahoo_finance().await?;
 

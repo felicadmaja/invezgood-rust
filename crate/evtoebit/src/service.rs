@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
-use user::SessionStore;
 
-use crate::cache::MedianCache;
+use crate::compute::compute_median;
 use crate::pb::ev_to_ebit_server::EvToEbit;
+use crate::yahoo::YahooClient;
 use crate::pb::{
     GetMedianEvToEbitdaFromScyllaRequest, GetMedianEvToEbitdaFromScyllaResponse,
     GetMedianEvToEbitdaFromYahooFinanceRequest, GetMedianEvToEbitdaFromYahooFinanceResponse,
@@ -15,35 +15,23 @@ use crate::sync::persist_median_response;
 
 pub struct EvToEbitService {
     session: Arc<Session>,
-    auth_sessions: SessionStore,
-    cache: Arc<MedianCache>,
+    yahoo: Arc<YahooClient>,
 }
 
 impl EvToEbitService {
-    pub fn new(
-        session: Arc<Session>,
-        auth_sessions: SessionStore,
-        cache: Arc<MedianCache>,
-    ) -> Self {
-        Self {
-            session,
-            auth_sessions,
-            cache,
-        }
+    pub fn new(session: Arc<Session>, yahoo: Arc<YahooClient>) -> Self {
+        Self { session, yahoo }
     }
 
-    /// Logic RPC `GetMedianEVToEbitdaFromYahooFinance` — compute Yahoo (cache Moka), upsert Scylla, tanpa auth gRPC.
+    /// Logic RPC `GetMedianEVToEbitdaFromYahooFinance` — fetch Yahoo setiap invoke, upsert Scylla, tanpa auth gRPC.
     pub async fn fetch_median_from_yahoo_finance(
         &self,
     ) -> Result<GetMedianEvToEbitdaFromYahooFinanceResponse, String> {
-        let cached = self
-            .cache
-            .get_or_compute(Arc::clone(&self.session))
-            .await?;
-        let n = persist_median_response(self.session.as_ref(), cached.as_ref()).await?;
-        let mut resp = (*cached).clone();
-        resp.message = format!("{}; upsert {n} baris ke invezgood.evtoebit", resp.message);
-        Ok(resp)
+        let resp = compute_median(Arc::clone(&self.session), Arc::clone(&self.yahoo)).await?;
+        let n = persist_median_response(self.session.as_ref(), &resp).await?;
+        let mut out = resp;
+        out.message = format!("{}; upsert {n} baris ke invezgood.evtoebit", out.message);
+        Ok(out)
     }
 
     fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
