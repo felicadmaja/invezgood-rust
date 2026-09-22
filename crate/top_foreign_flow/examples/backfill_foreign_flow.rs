@@ -1,5 +1,5 @@
 //! Backfill Invezgo top foreign → Scylla (sama fetch/upsert dengan RPC, tanpa gRPC).
-//! `cargo run -p top_foreign_flow --example backfill_foreign_flow`
+//! `cargo run -p top_foreign_flow --example backfill_foreign_flow -- 2026-09-02 2026-09-21`
 
 use std::sync::Arc;
 
@@ -15,8 +15,16 @@ fn parse_date(s: &str) -> NaiveDate {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let _ = dotenvy::dotenv_override();
 
-    let start = parse_date("2026-03-01");
-    let end = parse_date("2026-09-01");
+    let start = std::env::args()
+        .nth(1)
+        .as_deref()
+        .map(parse_date)
+        .unwrap_or_else(|| parse_date("2026-03-01"));
+    let end = std::env::args()
+        .nth(2)
+        .as_deref()
+        .map(parse_date)
+        .unwrap_or_else(|| parse_date("2026-09-01"));
     let session = connect().await?;
 
     let mut date = start;
