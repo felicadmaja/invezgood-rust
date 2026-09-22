@@ -2981,6 +2981,7 @@ name = "top_foreign_flow"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "dotenvy",
  "futures",
  "grpc_stream",
  "invezgo_http",
@@ -2990,6 +2991,7 @@ dependencies = [
  "scylla",
  "serde",
  "serde_json",
+ "stock_list",
  "tokio",
  "tokio-stream",
  "tonic",

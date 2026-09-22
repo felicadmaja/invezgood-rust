@@ -18,6 +18,8 @@ tonic = "0.12"
 prost = "0.13"
 market_holiday = { path = "../market_holiday" }
 user = { path = "../user" }
+stock_list = { path = "../stock_list" }
+dotenvy = "0.15"
 
 [build-dependencies]
 tonic-build = "0.12"

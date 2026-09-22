@@ -13,7 +13,9 @@ mod scheduler;
 mod service;
 mod sync;
 
+pub use invezgo::fetch_and_save;
 pub use model::{TopForeignFlowPkRow, TopForeignFlowRow, KEYSPACE, MV_BY_CODE, MV_BY_TAHUN_BULAN_TANGGAL, TABLE};
+pub use sync::sync_trade_date;
 pub use pb::top_foreign_flow_server::{TopForeignFlow, TopForeignFlowServer};
 pub use scheduler::spawn_daily_top_foreign_flow_sync;
 pub use service::TopForeignFlowService;
