@@ -1,6 +1,7 @@
 //! Scheduler `GetTopForeignFlowByTanggal`: setiap hari jam 04:00 waktu lokal server
 //! (override env `TOP_FOREIGN_FLOW_SYNC_HOUR`, `TOP_FOREIGN_FLOW_SYNC_MINUTE`).
-//! Sync tanggal kemarin; lewati bila kemarin Sabtu/Minggu atau hari libur nasional.
+//! Sync `TOP_FOREIGN_FLOW_SYNC_LOOKBACK_DAYS` (default 7) hari ke belakang s/d kemarin;
+//! lewati Sabtu/Minggu/hari libur per tanggal.
 
 use std::sync::Arc;
 
@@ -9,6 +10,7 @@ use scylla::client::session::Session;
 
 const DEFAULT_SYNC_HOUR: u32 = 4;
 const DEFAULT_SYNC_MINUTE: u32 = 0;
+const DEFAULT_SYNC_LOOKBACK_DAYS: u64 = 7;
 
 fn sync_hour_from_env() -> u32 {
     std::env::var("TOP_FOREIGN_FLOW_SYNC_HOUR")
@@ -24,6 +26,14 @@ fn sync_minute_from_env() -> u32 {
         .and_then(|v| v.parse().ok())
         .unwrap_or(DEFAULT_SYNC_MINUTE)
         .min(59)
+}
+
+fn sync_lookback_days_from_env() -> u64 {
+    std::env::var("TOP_FOREIGN_FLOW_SYNC_LOOKBACK_DAYS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_SYNC_LOOKBACK_DAYS)
+        .max(1)
 }
 
 fn local_at(date: NaiveDate, hour: u32, min: u32, sec: u32) -> DateTime<Local> {
@@ -76,43 +86,52 @@ async fn should_skip_yesterday(yesterday: NaiveDate) -> Option<&'static str> {
     None
 }
 
-async fn run_sync_yesterday(session: Arc<Session>) {
+async fn run_sync_lookback(session: Arc<Session>, lookback_days: u64) {
     let yesterday = Local::now().date_naive() - Duration::days(1);
+    eprintln!(
+        "GetTopForeignFlowByTanggal scheduler: sync {lookback_days} hari s/d {}",
+        yesterday.format("%Y-%m-%d")
+    );
 
-    if let Some(reason) = should_skip_yesterday(yesterday).await {
-        eprintln!(
-            "GetTopForeignFlowByTanggal scheduler: lewati {} ({reason})",
-            yesterday.format("%Y-%m-%d")
-        );
-        return;
-    }
+    for offset in (0..lookback_days).rev() {
+        let trade_date = yesterday - Duration::days(offset as i64);
 
-    match crate::sync::sync_trade_date(session, yesterday).await {
-        Ok(outcome) => {
-            let source = if outcome.cached {
-                "cache Scylla"
-            } else {
-                "fetch Invezgo"
-            };
+        if let Some(reason) = should_skip_yesterday(trade_date).await {
             eprintln!(
-                "GetTopForeignFlowByTanggal scheduler: {} {source}, {} baris (upsert {})",
-                yesterday.format("%Y-%m-%d"),
-                outcome.rows.len(),
-                outcome.saved
+                "GetTopForeignFlowByTanggal scheduler: lewati {} ({reason})",
+                trade_date.format("%Y-%m-%d")
             );
+            continue;
         }
-        Err(e) => eprintln!(
-            "GetTopForeignFlowByTanggal scheduler gagal {}: {e}",
-            yesterday.format("%Y-%m-%d")
-        ),
+
+        match crate::sync::sync_trade_date(session.clone(), trade_date).await {
+            Ok(outcome) => {
+                let source = if outcome.cached {
+                    "cache Scylla"
+                } else {
+                    "fetch Invezgo"
+                };
+                eprintln!(
+                    "GetTopForeignFlowByTanggal scheduler: {} {source}, {} baris (upsert {})",
+                    trade_date.format("%Y-%m-%d"),
+                    outcome.rows.len(),
+                    outcome.saved
+                );
+            }
+            Err(e) => eprintln!(
+                "GetTopForeignFlowByTanggal scheduler gagal {}: {e}",
+                trade_date.format("%Y-%m-%d")
+            ),
+        }
     }
 }
 
-/// Loop background: sync top foreign flow tanggal kemarin setiap hari jam 04:00 lokal.
+/// Loop background: sync lookback hari s/d kemarin setiap hari jam 04:00 lokal.
 pub fn spawn_daily_top_foreign_flow_sync(session: Arc<Session>) {
     tokio::spawn(async move {
         let hour = sync_hour_from_env();
         let min = sync_minute_from_env();
+        let lookback = sync_lookback_days_from_env();
         let mut last_run_date: Option<NaiveDate> = None;
 
         loop {
@@ -122,19 +141,19 @@ pub fn spawn_daily_top_foreign_flow_sync(session: Arc<Session>) {
                 eprintln!(
                     "GetTopForeignFlowByTanggal scheduler: catch-up (terlewat {hour:02}:{min:02} hari ini)"
                 );
-                run_sync_yesterday(session.clone()).await;
+                run_sync_lookback(session.clone(), lookback).await;
             }
 
             let now = Local::now();
             let target = next_sync_at(now, hour, min);
             let wait_secs = (target - now).num_seconds().max(1) as u64;
             eprintln!(
-                "GetTopForeignFlowByTanggal scheduler: sync berikutnya {} (tunggu {wait_secs}s)",
+                "GetTopForeignFlowByTanggal scheduler: sync berikutnya {} (lookback {lookback} hari, tunggu {wait_secs}s)",
                 target.format("%Y-%m-%d %H:%M:%S")
             );
             tokio::time::sleep(tokio::time::Duration::from_secs(wait_secs)).await;
 
-            run_sync_yesterday(session.clone()).await;
+            run_sync_lookback(session.clone(), lookback).await;
             last_run_date = Some(Local::now().date_naive());
         }
     });
