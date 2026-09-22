@@ -53,9 +53,9 @@ fn parse_f64_optional(label: &str, code: &str, raw: &str) -> Result<Option<f64>,
         .map_err(|_| format!("{label} invalid untuk code={code}: {raw}"))
 }
 
-/// `value` / `volume` disimpan = nilai API × (`calculated_value` / 100).
+/// Magnitude `value` / `volume` = |nilai API| × |`calculated_value` / 100| (selalu ≥ 0; arah lewat `accum_or_dist`).
 fn scale_by_calculated_pct(label: &str, code: &str, raw: i64, calculated_value: f64) -> Result<i64, String> {
-    let scaled = (raw as f64) * (calculated_value / 100.0);
+    let scaled = (raw as f64).abs() * (calculated_value / 100.0).abs();
     let rounded = scaled.round();
     if !rounded.is_finite() {
         return Err(format!("{label} invalid setelah skala code={code}: {scaled}"));

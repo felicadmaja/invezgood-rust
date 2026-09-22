@@ -41,8 +41,8 @@ message TopForeignFlowRow {
   string name = 3;
   int32 price = 4;
   double change = 5;
-  int64 value = 6;
-  int64 volume = 7;
-  string accum_or_dist = 8;
-  double calculated_value = 9; // skor/ratio dari Invezgo (field calculated_value)
+  int64 value = 6; // magnitude ≥ 0; arah tampilan dari accum_or_dist
+  int64 volume = 7; // magnitude ≥ 0; arah tampilan dari accum_or_dist
+  string accum_or_dist = 8; // "accum" | "dist"
+  double calculated_value = 9; // skor/ratio dari Invezgo (bisa negatif)
 }
