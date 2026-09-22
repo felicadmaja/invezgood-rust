@@ -4,16 +4,16 @@ use scylla::client::session::Session;
 use crate::model::{TopForeignFlowPkRow, TopForeignFlowRow, KEYSPACE, MV_BY_CODE, MV_BY_TAHUN_BULAN_TANGGAL, TABLE};
 
 const UPSERT: &str = "INSERT INTO invezgood.top_foreign_flow \
-    (tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist) \
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    (tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist, calculated_value) \
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 const DELETE_BY_DATE: &str =
     "DELETE FROM invezgood.top_foreign_flow WHERE tahun_bulan_tanggal = ?";
 
-const FIND_BY_DATE: &str = "SELECT tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist \
+const FIND_BY_DATE: &str = "SELECT tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist, calculated_value \
     FROM invezgood.top_foreign_flow WHERE tahun_bulan_tanggal = ?";
 
-const FIND_BY_PK: &str = "SELECT tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist \
+const FIND_BY_PK: &str = "SELECT tahun_bulan_tanggal, value, code, name, price, change, volume, accum_or_dist, calculated_value \
     FROM invezgood.top_foreign_flow WHERE tahun_bulan_tanggal = ? AND value = ? AND code = ?";
 
 pub async fn exists_by_date_mv(
@@ -75,6 +75,7 @@ pub async fn upsert(session: &Session, row: &TopForeignFlowRow) -> Result<(), St
                 row.change,
                 row.volume,
                 row.accum_or_dist.as_deref(),
+                row.calculated_value,
             ),
         )
         .await

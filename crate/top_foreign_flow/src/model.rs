@@ -32,4 +32,6 @@ pub struct TopForeignFlowRow {
     pub volume: Option<i64>,
     #[scylla(default_when_null)]
     pub accum_or_dist: Option<String>,
+    #[scylla(default_when_null)]
+    pub calculated_value: Option<f64>,
 }

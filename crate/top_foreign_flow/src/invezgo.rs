@@ -17,6 +17,8 @@ struct ApiTopForeignItem {
     change: f64,
     value: String,
     volume: String,
+    #[serde(default)]
+    calculated_value: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +42,28 @@ fn parse_i64_field(label: &str, code: &str, raw: &str) -> Result<i64, String> {
     raw.parse::<i64>().map_err(|_| {
         format!("{label} invalid untuk code={code}: {raw} (harus angka bulat)")
     })
+}
+
+fn parse_f64_optional(label: &str, code: &str, raw: &str) -> Result<Option<f64>, String> {
+    if raw.trim().is_empty() {
+        return Ok(None);
+    }
+    raw.parse::<f64>()
+        .map(Some)
+        .map_err(|_| format!("{label} invalid untuk code={code}: {raw}"))
+}
+
+/// `value` / `volume` disimpan = nilai API × (`calculated_value` / 100).
+fn scale_by_calculated_pct(label: &str, code: &str, raw: i64, calculated_value: f64) -> Result<i64, String> {
+    let scaled = (raw as f64) * (calculated_value / 100.0);
+    let rounded = scaled.round();
+    if !rounded.is_finite() {
+        return Err(format!("{label} invalid setelah skala code={code}: {scaled}"));
+    }
+    if rounded < i64::MIN as f64 || rounded > i64::MAX as f64 {
+        return Err(format!("{label} overflow setelah skala code={code}: {scaled}"));
+    }
+    Ok(rounded as i64)
 }
 
 pub fn parse_trade_date(tahun_bulan_tanggal: &str) -> Result<chrono::NaiveDate, String> {
@@ -70,8 +94,20 @@ fn api_item_to_row(
     accum_or_dist: &str,
     item: ApiTopForeignItem,
 ) -> Result<TopForeignFlowRow, String> {
-    let value = parse_i64_field("value", &item.code, &item.value)?;
-    let volume = parse_i64_field("volume", &item.code, &item.volume)?;
+    let raw_value = parse_i64_field("value", &item.code, &item.value)?;
+    let raw_volume = parse_i64_field("volume", &item.code, &item.volume)?;
+    let calculated_value = match item.calculated_value.as_deref() {
+        Some(raw) => parse_f64_optional("calculated_value", &item.code, raw)?
+            .ok_or_else(|| format!("calculated_value wajib untuk code={}", item.code))?,
+        None => {
+            return Err(format!(
+                "calculated_value wajib untuk skala value/volume code={}",
+                item.code
+            ));
+        }
+    };
+    let value = scale_by_calculated_pct("value", &item.code, raw_value, calculated_value)?;
+    let volume = scale_by_calculated_pct("volume", &item.code, raw_volume, calculated_value)?;
     Ok(TopForeignFlowRow {
         tahun_bulan_tanggal: trade_date,
         value,
@@ -81,6 +117,7 @@ fn api_item_to_row(
         change: Some(item.change),
         volume: Some(volume),
         accum_or_dist: Some(accum_or_dist.to_string()),
+        calculated_value: Some(calculated_value),
     })
 }
 

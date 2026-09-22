@@ -55,6 +55,7 @@ impl TopForeignFlowService {
             value: row.value,
             volume: row.volume.unwrap_or_default(),
             accum_or_dist: row.accum_or_dist.unwrap_or_default(),
+            calculated_value: row.calculated_value.unwrap_or_default(),
         }
     }
 

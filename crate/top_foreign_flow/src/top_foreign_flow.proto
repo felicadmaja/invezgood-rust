@@ -4,7 +4,7 @@ package top_foreign_flow;
 
 service TopForeignFlow {
   // Baca MV top_foreign_flow_by_tahun_bulan_tanggal dulu; bila ≥1 baris → skip Invezgo, baca tabel dasar.
-  // Bila MV kosong → GET api.invezgo.com/analysis/top/foreign?date=...&filter_column=value, upsert, baca Scylla.
+  // Bila MV kosong → GET Invezgo top/foreign, upsert: value & volume = API × (calculated_value/100), baca Scylla.
   // Bearer login wajib. tahun_bulan_tanggal wajib ≥1 tanggal (YYYY-MM-DD), masing-masing bukan hari ini, bukan Sabtu/Minggu.
   // Stream: 1 pesan per tanggal (items = baris tanggal itu); error tanggal → stream Err(Status) lalu stop.
   // Scheduler background (main): setiap 04:00 lokal sync tanggal kemarin via sync_trade_date; lewati Sab/Ming/hari libur.
@@ -44,4 +44,5 @@ message TopForeignFlowRow {
   int64 value = 6;
   int64 volume = 7;
   string accum_or_dist = 8;
+  double calculated_value = 9; // skor/ratio dari Invezgo (field calculated_value)
 }

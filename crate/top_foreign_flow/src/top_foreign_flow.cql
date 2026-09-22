@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS invezgood.top_foreign_flow (
     value               bigint,
     volume              bigint,
     accum_or_dist       text,
+    calculated_value    double,
     PRIMARY KEY (tahun_bulan_tanggal, value, code)
 ) WITH CLUSTERING ORDER BY (value DESC, code ASC);
 
@@ -47,6 +48,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.top_foreign_flow_by_code AS
 -- | change              | regular         | double |
 -- | volume              | regular         | bigint |
 -- | accum_or_dist       | regular         | text   |
+-- | calculated_value    | regular         | double |
 --
 -- MV top_foreign_flow_by_tahun_bulan_tanggal:
 -- PK (tahun_bulan_tanggal, value DESC, code ASC) — SELECT PK only
