@@ -38,11 +38,17 @@ impl TopForeignFlowService {
             .map_err(|_| Status::unauthenticated("login diperlukan"))
     }
 
-    fn log_rpc_debug(rpc_name: &str, user_name: &str, started: std::time::Instant) {
-        eprintln!(
-            "{rpc_name} {user_name} {}ms",
-            started.elapsed().as_millis()
-        );
+    fn log_rpc_debug(
+        rpc_name: &str,
+        user_name: &str,
+        started: std::time::Instant,
+        extra: Option<&str>,
+    ) {
+        let elapsed = started.elapsed().as_millis();
+        match extra.filter(|s| !s.is_empty()) {
+            Some(suffix) => eprintln!("{rpc_name} {user_name} {elapsed}ms - {suffix}"),
+            None => eprintln!("{rpc_name} {user_name} {elapsed}ms"),
+        }
     }
 
     fn db_row_to_proto(row: DbTopForeignFlowRow) -> TopForeignFlowRow {
@@ -82,7 +88,12 @@ impl TopForeignFlow for TopForeignFlowService {
         let inner = request.into_inner();
 
         if inner.tahun_bulan_tanggal.is_empty() {
-            Self::log_rpc_debug("GetTopForeignFlowByTanggal", &user_name, started);
+            Self::log_rpc_debug(
+                "GetTopForeignFlowByTanggal",
+                &user_name,
+                started,
+                Some("tanggal=(kosong)"),
+            );
             return Err(Status::invalid_argument(
                 "tahun_bulan_tanggal wajib diisi (≥1 tanggal YYYY-MM-DD)",
             ));
@@ -91,6 +102,7 @@ impl TopForeignFlow for TopForeignFlowService {
         let (tx, rx) = tokio::sync::mpsc::channel(8);
         let session = self.session.clone();
         let dates = inner.tahun_bulan_tanggal;
+        let dates_for_log = dates.join(",");
         let user_name_bg = user_name.clone();
 
         tokio::spawn(async move {
@@ -114,6 +126,9 @@ impl TopForeignFlow for TopForeignFlowService {
                 {
                     Ok(o) => o,
                     Err(e) => {
+                        eprintln!(
+                            "GetTopForeignFlowByTanggal {user_name_bg} gagal date={trade_date}: {e}"
+                        );
                         let _ = send_or_break(&tx, Err(Self::map_sync_error(e))).await;
                         aborted = true;
                         break;
@@ -159,7 +174,12 @@ impl TopForeignFlow for TopForeignFlowService {
                 eprintln!("GetTopForeignFlowByTanggal {user_name_bg} stream selesai");
             }
             drop(tx);
-            Self::log_rpc_debug("GetTopForeignFlowByTanggal", &user_name_bg, started);
+            Self::log_rpc_debug(
+                "GetTopForeignFlowByTanggal",
+                &user_name_bg,
+                started,
+                Some(&format!("tanggal={dates_for_log}")),
+            );
         });
 
         Ok(Response::new(
@@ -193,7 +213,7 @@ impl TopForeignFlow for TopForeignFlowService {
         }
         .await;
 
-        Self::log_rpc_debug("GetTopForeignFlowByCode", &user_name, started);
+        Self::log_rpc_debug("GetTopForeignFlowByCode", &user_name, started, None);
         result
     }
 }

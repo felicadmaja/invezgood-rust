@@ -15,10 +15,38 @@ struct ApiTopForeignItem {
     name: String,
     price: i32,
     change: f64,
+    #[serde(deserialize_with = "deserialize_string_field")]
     value: String,
+    #[serde(deserialize_with = "deserialize_string_field")]
     volume: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_string_field")]
     calculated_value: Option<String>,
+}
+
+fn deserialize_string_field<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::String(s) => s,
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    })
+}
+
+fn deserialize_optional_string_field<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::Null => None,
+        serde_json::Value::String(s) => Some(s),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        other => Some(other.to_string()),
+    })
 }
 
 #[derive(Debug, Deserialize)]
