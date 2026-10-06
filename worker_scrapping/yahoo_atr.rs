@@ -385,10 +385,7 @@ fn today_and_prev_candles(candles: &[Candle]) -> Option<(&Candle, &Candle)> {
         }
         return Some((&candles[today_idx], &candles[today_idx - 1]));
     }
-    if candles.len() < 2 {
-        return None;
-    }
-    Some((candles.last()?, &candles[candles.len() - 2]))
+    None
 }
 
 /// Untuk setiap emiten: GET Yahoo chart (jeda `JEDA_MS_ANTAR_EMITEN`), kembalikan yang memenuhi ambang `.env`.

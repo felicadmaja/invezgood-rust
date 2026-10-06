@@ -3,7 +3,7 @@ syntax = "proto3";
 package portofolio;
 
 service Portofolio {
-  // Memerlukan user login (admin). Kirim metadata: authorization: Bearer <token>.
+  // Auth: Bearer login; role admin atau Viewer (permission_denied selain itu).
 
   // Baca semua baris invezgood.portofolio via token-ring scan.
   rpc GetAllPortofolioFromScylla(GetAllPortofolioFromScyllaRequest)
@@ -13,7 +13,7 @@ service Portofolio {
   rpc GetPortofolioFromScyllaByEmitenName(GetPortofolioFromScyllaByEmitenNameRequest)
       returns (GetPortofolioFromScyllaByEmitenNameResponse);
 
-  // Invoke RPC langsung (admin): tanpa batas hari/jam; rate limit global 1× / 1 menit.
+  // Invoke RPC langsung (admin atau Viewer): tanpa batas hari/jam; rate limit global 1× / 1 menit.
   // Auto dari IsStockbitReady poller: Senin–Kamis 09:00–12:00 & 13:30–16:00;
   // Jumat 09:00–11:30 & 14:00–16:00 bila Stockbit ready
   // (poller selalu jalan tanpa perlu subscriber). Scrape holdings + equity Stockbit

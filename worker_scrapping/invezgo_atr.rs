@@ -21,6 +21,8 @@ struct ApiChartBar {
 struct ApiIntradayData {
     open: f64,
     close: f64,
+    #[serde(default)]
+    prev: f64,
 }
 
 fn spike_at_now() -> String {
@@ -50,7 +52,7 @@ fn spike_from_change(
 fn bar_date(raw: &str) -> Option<NaiveDate> {
     let trimmed = raw.trim();
     if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(trimmed) {
-        return Some(dt.date_naive());
+        return Some(dt.with_timezone(&Local).date_naive());
     }
     trimmed
         .split('T')
@@ -66,17 +68,15 @@ fn today_and_prev_bars(bars: &[ApiChartBar]) -> Option<(&ApiChartBar, &ApiChartB
         }
         return Some((&bars[today_idx], &bars[today_idx - 1]));
     }
-    if bars.len() < 2 {
-        return None;
-    }
-    Some((bars.last()?, &bars[bars.len() - 2]))
+    // Bar daily hari ini belum ada (umum 09:00–09:05) — jangan pakai 2 bar terakhir (false positive).
+    None
 }
 
 async fn invezgo_get(url: &str) -> Result<String, String> {
     invezgo_http::get(url).await
 }
 
-async fn fetch_intraday_open_close(code: &str) -> Result<(f64, f64), String> {
+async fn fetch_intraday_snapshot(code: &str) -> Result<(f64, f64, f64), String> {
     let url = format!("{INVEZGO_INTRADAY_DATA_URL}/{code}?market=RG");
     let body = invezgo_get(&url).await?;
     let parsed: ApiIntradayData = serde_json::from_str(&body)
@@ -86,7 +86,23 @@ async fn fetch_intraday_open_close(code: &str) -> Result<(f64, f64), String> {
     if open == 0.0 {
         open = close;
     }
-    Ok((open, close))
+    Ok((open, close, parsed.prev))
+}
+
+async fn opening_spike_from_intraday(code: &str) -> Option<((&'static str, f64), String)> {
+    let (open, close, prev) = fetch_intraday_snapshot(code).await.ok()?;
+    if prev <= 0.0 {
+        return None;
+    }
+    let (up_pct, down_pct, _) = active_spike_thresholds();
+    spike_from_change(prev, close, up_pct, down_pct).map(|hit| {
+        (
+            hit,
+            format!(
+                "close intraday={close:.2} vs close kemarin={prev:.2} (open={open:.2}, bar daily belum ada)"
+            ),
+        )
+    })
 }
 
 async fn fetch_chart_bars(code: &str, lookback_days: i64) -> Result<Vec<ApiChartBar>, String> {
@@ -130,28 +146,29 @@ pub async fn find_spike_emitens(emitens: &[String]) -> Vec<SpikeEmiten> {
         let detected = if opening {
             match fetch_chart_bars(&code, lookback_days).await {
                 Ok(bars) => {
-                    let Some((today, prev)) = today_and_prev_bars(&bars) else {
-                        continue;
-                    };
-                    let (up_pct, down_pct, _) = active_spike_thresholds();
-                    spike_from_change(prev.close, today.close, up_pct, down_pct).map(|hit| {
-                        (
-                            hit,
-                            format!(
-                                "close hari ini={:.2} vs close candle sebelumnya={:.2}",
-                                today.close, prev.close
-                            ),
-                        )
-                    })
+                    if let Some((today, prev)) = today_and_prev_bars(&bars) {
+                        let (up_pct, down_pct, _) = active_spike_thresholds();
+                        spike_from_change(prev.close, today.close, up_pct, down_pct).map(|hit| {
+                            (
+                                hit,
+                                format!(
+                                    "close hari ini={:.2} vs close candle sebelumnya={:.2}",
+                                    today.close, prev.close
+                                ),
+                            )
+                        })
+                    } else {
+                        opening_spike_from_intraday(&code).await
+                    }
                 }
                 Err(e) => {
-                    eprintln!("Invezgo spike {code}: {e}");
-                    None
+                    eprintln!("Invezgo spike {code}: chart {e}");
+                    opening_spike_from_intraday(&code).await
                 }
             }
         } else {
-            match fetch_intraday_open_close(&code).await {
-                Ok((open, close)) => {
+            match fetch_intraday_snapshot(&code).await {
+                Ok((open, close, _prev)) => {
                     let (up_pct, down_pct, _) = active_spike_thresholds();
                     spike_from_change(open, close, up_pct, down_pct).map(|hit| {
                         (hit, format!("open={open:.2} close={close:.2}"))

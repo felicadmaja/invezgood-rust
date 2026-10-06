@@ -61,15 +61,23 @@ impl PortofolioService {
         }
     }
 
-    async fn require_admin<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
+    fn can_read_portofolio(role: &str) -> bool {
+        let role = role.trim();
+        role.eq_ignore_ascii_case("admin") || role.eq_ignore_ascii_case("viewer")
+    }
+
+    async fn require_portofolio_reader<T>(
+        &self,
+        request: &Request<T>,
+    ) -> Result<AuthSession, Status> {
         let token = extract_bearer_token(request)?;
         let auth = validate_session(&self.auth_sessions, &token)
             .await
             .map_err(|_| Status::unauthenticated("login diperlukan"))?;
-        if auth.role.trim().eq_ignore_ascii_case("admin") {
+        if Self::can_read_portofolio(&auth.role) {
             Ok(auth)
         } else {
-            Err(Status::permission_denied("Harus admin !"))
+            Err(Status::permission_denied("Harus admin atau Viewer"))
         }
     }
 
@@ -129,7 +137,7 @@ impl Portofolio for PortofolioService {
         request: Request<GetAllPortofolioFromScyllaRequest>,
     ) -> Result<Response<GetAllPortofolioFromScyllaResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_admin(&request).await?;
+        let auth = self.require_portofolio_reader(&request).await?;
         let user_name = auth.nama;
 
         let result: Result<Response<GetAllPortofolioFromScyllaResponse>, Status> = async {
@@ -153,7 +161,7 @@ impl Portofolio for PortofolioService {
         request: Request<GetPortofolioFromScyllaByEmitenNameRequest>,
     ) -> Result<Response<GetPortofolioFromScyllaByEmitenNameResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_admin(&request).await?;
+        let auth = self.require_portofolio_reader(&request).await?;
         let user_name = auth.nama;
         let raw_emiten = request.into_inner().emiten_name;
         let emiten_log = raw_emiten.trim().to_ascii_uppercase();
@@ -182,7 +190,7 @@ impl Portofolio for PortofolioService {
         request: Request<GetAllPortofolioFromStockbitRequest>,
     ) -> Result<Response<GetAllPortofolioFromStockbitResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_admin(&request).await?;
+        let auth = self.require_portofolio_reader(&request).await?;
         let user_name = auth.nama;
         let _ = request.into_inner();
 
