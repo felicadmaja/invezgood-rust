@@ -20,6 +20,8 @@ use crate::pb::{
     GetAllPendingOrderByTahunBulanFromScyllaResponse,
     GetAllPendingOrderFromStockbitRequest, GetAllPendingOrderFromStockbitResponse,
     GetPendingOrderFromScyllaByEmitenNameRequest, GetPendingOrderFromScyllaByEmitenNameResponse,
+    GetPendingOrderFromScyllaByEmitenNameStatusRequest,
+    GetPendingOrderFromScyllaByEmitenNameStatusResponse,
     PendingOrderRow,
 };
 
@@ -102,6 +104,14 @@ impl PendingOrderService {
             )));
         }
         Ok(name)
+    }
+
+    fn normalize_status(raw: &str) -> Result<String, Status> {
+        let status = raw.trim().to_ascii_uppercase();
+        if status.is_empty() {
+            return Err(Status::invalid_argument("status wajib diisi"));
+        }
+        Ok(status)
     }
 
     fn parse_tahun_bulan_tanggal(raw: &str) -> Result<chrono::NaiveDate, Status> {
@@ -241,6 +251,41 @@ impl PendingOrder for PendingOrderService {
             .await;
 
         Self::log_rpc_debug("GetPendingOrderFromScyllaByEmitenName", &user_name, started);
+        result
+    }
+
+    async fn get_pending_order_from_scylla_by_emiten_name_status(
+        &self,
+        request: Request<GetPendingOrderFromScyllaByEmitenNameStatusRequest>,
+    ) -> Result<Response<GetPendingOrderFromScyllaByEmitenNameStatusResponse>, Status> {
+        let started = std::time::Instant::now();
+        let auth = self.require_admin(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<GetPendingOrderFromScyllaByEmitenNameStatusResponse>, Status> =
+            async {
+                let req = request.into_inner();
+                let emiten_name = Self::normalize_emiten_name(&req.emiten_name)?;
+                let status = Self::normalize_status(&req.status)?;
+                let key = crate::model::emiten_name_status(&emiten_name, &status);
+                let rows = crate::repository::find_by_emiten_name_status(
+                    self.session.as_ref(),
+                    &key,
+                )
+                .await
+                .map_err(Status::internal)?;
+
+                Ok(Response::new(GetPendingOrderFromScyllaByEmitenNameStatusResponse {
+                    rows: rows.into_iter().map(Self::row_to_proto).collect(),
+                }))
+            }
+            .await;
+
+        Self::log_rpc_debug(
+            "GetPendingOrderFromScyllaByEmitenNameStatus",
+            &user_name,
+            started,
+        );
         result
     }
 

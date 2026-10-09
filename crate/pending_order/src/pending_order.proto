@@ -19,6 +19,12 @@ service PendingOrder {
   rpc GetPendingOrderFromScyllaByEmitenName(GetPendingOrderFromScyllaByEmitenNameRequest)
       returns (GetPendingOrderFromScyllaByEmitenNameResponse);
 
+  // Baca pending order per emiten + status via MV pending_order_by_emiten_name_status.
+  // Request: emiten_name (4 huruf), status (contoh OPEN, MATCH). Key MV = emiten_name + '_' + status.
+  // Response: rows PendingOrderRow; read-only Scylla; internal bila query gagal.
+  rpc GetPendingOrderFromScyllaByEmitenNameStatus(GetPendingOrderFromScyllaByEmitenNameStatusRequest)
+      returns (GetPendingOrderFromScyllaByEmitenNameStatusResponse);
+
   // Invoke RPC langsung (admin): tanpa batas hari/jam; rate limit global 1× / 3 menit
   // → success=false + message rate limit (bukan gRPC error).
   // Auto dari IsStockbitReady poller: Senin–Kamis 09:00–12:00 & 13:30–16:00;
@@ -60,6 +66,15 @@ message GetPendingOrderFromScyllaByEmitenNameRequest {
 }
 
 message GetPendingOrderFromScyllaByEmitenNameResponse {
+  repeated PendingOrderRow rows = 1;
+}
+
+message GetPendingOrderFromScyllaByEmitenNameStatusRequest {
+  string emiten_name = 1;
+  string status = 2;
+}
+
+message GetPendingOrderFromScyllaByEmitenNameStatusResponse {
   repeated PendingOrderRow rows = 1;
 }
 
