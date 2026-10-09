@@ -3,12 +3,14 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 
 use scylla::client::session::Session;
 use stockbit_browser::{
     acquire_browser_session, launch_page, open_stream_or_login, BrowserLockClass,
 };
-use tokio::sync::{Mutex, watch};
+use tokio::sync::{Mutex, oneshot, watch};
+use tokio::time::sleep;
 
 static INFLIGHT_PORTO_ALL: OnceLock<
     Mutex<Option<watch::Receiver<Option<Result<(usize, Vec<String>), String>>>>>,
@@ -16,10 +18,6 @@ static INFLIGHT_PORTO_ALL: OnceLock<
 
 static INFLIGHT_PENDING_ORDER: OnceLock<
     Mutex<Option<watch::Receiver<Option<Result<usize, String>>>>>,
-> = OnceLock::new();
-
-static INFLIGHT_BUY_LIMIT: OnceLock<
-    Mutex<Option<watch::Receiver<Option<Result<(), String>>>>>,
 > = OnceLock::new();
 
 static INFLIGHT_EMITEN_TRENDING: OnceLock<
@@ -38,10 +36,6 @@ fn inflight_porto_all(
 fn inflight_pending_order(
 ) -> &'static Mutex<Option<watch::Receiver<Option<Result<usize, String>>>>> {
     INFLIGHT_PENDING_ORDER.get_or_init(|| Mutex::new(None))
-}
-
-fn inflight_buy_limit() -> &'static Mutex<Option<watch::Receiver<Option<Result<(), String>>>>> {
-    INFLIGHT_BUY_LIMIT.get_or_init(|| Mutex::new(None))
 }
 
 fn inflight_emiten_trending(
@@ -206,6 +200,64 @@ async fn run_pending_order_all_scrape(
     result
 }
 
+const BUY_LIMIT_JOB_COOLDOWN: Duration = Duration::from_secs(1);
+
+struct BuyLimitJob {
+    emiten_name: String,
+    price: i32,
+    lot: i32,
+    expiry_dom_value: String,
+    reply: oneshot::Sender<Result<(), String>>,
+}
+
+static BUY_LIMIT_JOB_TX: OnceLock<tokio::sync::mpsc::UnboundedSender<BuyLimitJob>> =
+    OnceLock::new();
+static LAST_BUY_LIMIT_JOB_START: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+
+fn buy_limit_job_tx() -> &'static tokio::sync::mpsc::UnboundedSender<BuyLimitJob> {
+    BUY_LIMIT_JOB_TX.get_or_init(|| {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<BuyLimitJob>();
+        tokio::spawn(async move {
+            while let Some(job) = rx.recv().await {
+                let queue_left = rx.len();
+                if queue_left > 0 {
+                    eprintln!(
+                        "CreateBuyLimitOrder antrian: proses {} ({} menunggu)",
+                        job.emiten_name, queue_left
+                    );
+                }
+                {
+                    let mut last = LAST_BUY_LIMIT_JOB_START
+                        .get_or_init(|| Mutex::new(None))
+                        .lock()
+                        .await;
+                    if let Some(at) = *last {
+                        let elapsed = at.elapsed();
+                        if elapsed < BUY_LIMIT_JOB_COOLDOWN {
+                            let wait = BUY_LIMIT_JOB_COOLDOWN - elapsed;
+                            eprintln!(
+                                "CreateBuyLimitOrder: jeda rate limit {}ms sebelum eksekusi",
+                                wait.as_millis()
+                            );
+                            sleep(wait).await;
+                        }
+                    }
+                    *last = Some(Instant::now());
+                }
+                let result = run_create_buy_limit_order(
+                    job.emiten_name,
+                    job.price,
+                    job.lot,
+                    job.expiry_dom_value,
+                )
+                .await;
+                let _ = job.reply.send(result);
+            }
+        });
+        tx
+    })
+}
+
 pub async fn create_buy_limit_order(
     emiten_name: String,
     price: i32,
@@ -213,23 +265,21 @@ pub async fn create_buy_limit_order(
     expiry_dom_value: String,
 ) -> Result<(), String> {
     ensure_market_open().await?;
-    let rx = {
-        let mut slot = inflight_buy_limit().lock().await;
-        if let Some(existing) = slot.as_ref() {
-            existing.clone()
-        } else {
-            let (tx, rx) = watch::channel::<Option<Result<(), String>>>(None);
-            *slot = Some(rx.clone());
-            tokio::spawn(async move {
-                let result =
-                    run_create_buy_limit_order(emiten_name, price, lot, expiry_dom_value).await;
-                let _ = tx.send(Some(result));
-                *inflight_buy_limit().lock().await = None;
-            });
-            rx
-        }
+    let (reply_tx, reply_rx) = oneshot::channel();
+    let job = BuyLimitJob {
+        emiten_name: emiten_name.clone(),
+        price,
+        lot,
+        expiry_dom_value,
+        reply: reply_tx,
     };
-    wait_watch(rx, "on-demand buy_limit").await?
+    buy_limit_job_tx()
+        .send(job)
+        .map_err(|_| "CreateBuyLimitOrder: antrian worker tidak tersedia".to_string())?;
+    eprintln!("CreateBuyLimitOrder: masuk antrian {emiten_name} price={price} lot={lot}");
+    reply_rx
+        .await
+        .map_err(|_| "CreateBuyLimitOrder: worker ditutup sebelum selesai".to_string())?
 }
 
 async fn run_create_buy_limit_order(

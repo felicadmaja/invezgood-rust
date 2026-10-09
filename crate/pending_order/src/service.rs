@@ -24,17 +24,11 @@ use crate::pb::{
 };
 
 const PENDING_ORDER_SCRAPE_COOLDOWN: Duration = Duration::from_secs(3 * 60);
-const BUY_LIMIT_COOLDOWN: Duration = Duration::from_secs(30);
 
 static LAST_PENDING_ORDER_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
-static LAST_BUY_LIMIT: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
 fn pending_order_scrape_gate() -> &'static Mutex<Option<Instant>> {
     LAST_PENDING_ORDER_SCRAPE.get_or_init(|| Mutex::new(None))
-}
-
-fn buy_limit_gate() -> &'static Mutex<Option<Instant>> {
-    LAST_BUY_LIMIT.get_or_init(|| Mutex::new(None))
 }
 
 /// `Ok(())` bila slot tersedia; `Err(message)` bila rate limit.
@@ -51,21 +45,6 @@ async fn try_acquire_pending_order_scrape_slot(user_name: &str) -> Result<(), St
                 "GetAllPendingOrderFromStockbit {user_name} rate-limit ditolak: sisa {remaining_secs}s"
             );
             return Err(message);
-        }
-    }
-    *last = Some(Instant::now());
-    Ok(())
-}
-
-async fn acquire_buy_limit_slot() -> Result<(), Status> {
-    let mut last = buy_limit_gate().lock().await;
-    if let Some(at) = *last {
-        let elapsed = at.elapsed();
-        if elapsed < BUY_LIMIT_COOLDOWN {
-            let remaining_secs = (BUY_LIMIT_COOLDOWN - elapsed).as_secs().max(1);
-            return Err(Status::failed_precondition(format!(
-                "Rate limit: maksimal 1× / 30 detik untuk semua user. Tunggu {remaining_secs} detik lagi"
-            )));
         }
     }
     *last = Some(Instant::now());
@@ -104,7 +83,7 @@ impl PendingOrderService {
         if auth.role.trim().eq_ignore_ascii_case("admin") {
             Ok(auth)
         } else {
-            Err(Status::permission_denied("Harus admin !"))
+            Err(Status::permission_denied("hanya role admin"))
         }
     }
 
@@ -316,7 +295,13 @@ impl PendingOrder for PendingOrderService {
         request: Request<CreateBuyLimitOrderRequest>,
     ) -> Result<Response<CreateBuyLimitOrderResponse>, Status> {
         let started = std::time::Instant::now();
-        let auth = self.require_admin(&request).await?;
+        let auth = match self.require_admin(&request).await {
+            Ok(a) => a,
+            Err(status) => {
+                eprintln!("CreateBuyLimitOrder ditolak: bukan admin");
+                return Err(status);
+            }
+        };
         let user_name = auth.nama;
         let req = request.into_inner();
 
@@ -343,8 +328,6 @@ impl PendingOrder for PendingOrderService {
         let expiry =
             ExpiryPendingOrder::try_from(req.expiry).unwrap_or(ExpiryPendingOrder::Unspecified);
         let expiry_dom = expiry_dom_value(expiry)?;
-
-        acquire_buy_limit_slot().await?;
 
         let result: Result<Response<CreateBuyLimitOrderResponse>, Status> = async {
             match on_demand::create_buy_limit_order(

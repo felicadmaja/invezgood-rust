@@ -30,7 +30,8 @@ service PendingOrder {
       returns (GetAllPendingOrderFromStockbitResponse);
 
   // Buat order limit buy via DOM scrape Stockbit (stockbit.com/securities/order) + Chrome.
-  // Bearer login wajib; hanya role admin (permission_denied selain admin). Rate limit global 1× / 30 detik.
+  // Auth Bearer wajib; hanya role admin (Viewer/dll. → permission_denied, bukan enqueue).
+  // Antrian FIFO bila job sebelumnya belum selesai; jeda min 1 detik antar eksekusi Chrome.
   // Request: emiten_name, buylimit_price (< current_price), lot, expiry GFD/GTC. Env STOCKBIT_*.
   rpc CreateBuyLimitOrder(CreateBuyLimitOrderRequest)
       returns (CreateBuyLimitOrderResponse);
