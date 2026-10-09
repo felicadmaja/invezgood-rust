@@ -9,7 +9,11 @@ mod model;
 mod repository;
 mod service;
 
-pub use model::{PendingOrderRow, KEYSPACE, MV_BY_EMITEN, MV_BY_TAHUN_BULAN, TABLE, tahun_bulan_from_date};
+pub use model::{
+    emiten_name_status, PendingOrderRow, KEYSPACE, MV_BY_EMITEN, MV_BY_EMITEN_NAME_STATUS,
+    MV_BY_TAHUN_BULAN, TABLE, tahun_bulan_from_date,
+};
+pub use repository::find_by_emiten_name_status;
 
 pub use pb::pending_order_server::{PendingOrder, PendingOrderServer};
 pub use service::PendingOrderService;

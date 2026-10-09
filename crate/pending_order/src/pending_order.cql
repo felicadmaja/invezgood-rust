@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS invezgood.pending_order (
     tahun_bulan_tanggal date,
     tahun_bulan         text,
     emiten_name         text,
+    emiten_name_status  text,
     status              text,
     message             text,
     side                text,
@@ -31,6 +32,15 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_emiten_name AS
       AND order_id IS NOT NULL
       AND tahun_bulan_tanggal IS NOT NULL
     PRIMARY KEY (emiten_name, tahun_bulan_tanggal, order_id)
+    WITH CLUSTERING ORDER BY (tahun_bulan_tanggal DESC, order_id ASC);
+
+-- PK emiten_name_status = emiten_name + '_' + status (contoh ANTM_OPEN).
+CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_emiten_name_status AS
+    SELECT * FROM invezgood.pending_order
+    WHERE emiten_name_status IS NOT NULL
+      AND order_id IS NOT NULL
+      AND tahun_bulan_tanggal IS NOT NULL
+    PRIMARY KEY (emiten_name_status, tahun_bulan_tanggal, order_id)
     WITH CLUSTERING ORDER BY (tahun_bulan_tanggal DESC, order_id ASC);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_status AS
@@ -63,6 +73,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_tahun_bulan AS
 -- | tahun_bulan_tanggal | clustering DESC | date (tanggal invoke scrape/API, waktu lokal) |
 -- | tahun_bulan         | regular         | text (YYYY-MM dari tahun_bulan_tanggal) |
 -- | emiten_name         | regular         | text      |
+-- | emiten_name_status  | regular         | text (emiten_name + '_' + status) |
 -- | status              | regular         | text      |
 -- | message             | regular         | text      |
 -- | side                | regular         | text      |
@@ -79,6 +90,16 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS invezgood.pending_order_by_tahun_bulan AS
 -- MV pending_order_by_tahun_bulan:
 -- PK (tahun_bulan, tahun_bulan_tanggal DESC, order_id ASC)
 -- Query: WHERE tahun_bulan = 'YYYY-MM'
+--
+-- MV pending_order_by_emiten_name_status:
+-- PK (emiten_name_status, tahun_bulan_tanggal DESC, order_id ASC)
+-- Query: WHERE emiten_name_status = 'ANTM_OPEN'
+--
+-- Migrasi emiten_name_status (jalan sekali bila tabel sudah ada):
+-- ALTER TABLE invezgood.pending_order ADD emiten_name_status text;
+-- UPDATE invezgood.pending_order SET emiten_name_status = emiten_name + '_' + status
+--   WHERE order_id = ? AND tahun_bulan_tanggal = ?;  -- ulangi / batch backfill
+-- CREATE MATERIALIZED VIEW pending_order_by_emiten_name_status ... (lihat di atas).
 --
 -- Migrasi (jalan sekali bila tabel sudah ada tanpa tahun_bulan):
 -- ALTER TABLE invezgood.pending_order ADD tahun_bulan text;

@@ -8,6 +8,16 @@ pub const TABLE: &str = "pending_order";
 pub const MV_BY_EMITEN: &str = "pending_order_by_emiten_name";
 pub const MV_BY_TAHUN_BULAN_TANGGAL: &str = "pending_order_by_tahun_bulan_tanggal";
 pub const MV_BY_TAHUN_BULAN: &str = "pending_order_by_tahun_bulan";
+pub const MV_BY_EMITEN_NAME_STATUS: &str = "pending_order_by_emiten_name_status";
+
+/// Gabungan query MV `pending_order_by_emiten_name_status`, mis. `ANTM_OPEN`.
+pub fn emiten_name_status(emiten_name: &str, status: &str) -> String {
+    format!(
+        "{}_{}",
+        emiten_name.trim().to_ascii_uppercase(),
+        status.trim()
+    )
+}
 
 /// `YYYY-MM` dari tanggal order.
 pub fn tahun_bulan_from_date(date: NaiveDate) -> String {
@@ -26,6 +36,8 @@ pub struct PendingOrderRow {
     pub tahun_bulan: String,
     #[scylla(default_when_null)]
     pub emiten_name: String,
+    #[scylla(default_when_null)]
+    pub emiten_name_status: String,
     #[scylla(default_when_null)]
     pub status: String,
     #[scylla(default_when_null)]

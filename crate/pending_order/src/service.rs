@@ -137,6 +137,7 @@ impl PendingOrderService {
         PendingOrderRow {
             order_id: row.order_id,
             emiten_name: row.emiten_name,
+            emiten_name_status: row.emiten_name_status,
             status: row.status,
             message: row.message,
             side: row.side,

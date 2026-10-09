@@ -6,6 +6,7 @@
 //! Mapping JSON → kolom (lihat `pending_order.cql` / `contoh_data.json`):
 //! - `order_id` ← `order_id`
 //! - `emiten_name` ← `symbol`
+//! - `emiten_name_status` ← `{emiten_name}_{status}` (MV pending_order_by_emiten_name_status)
 //! - `status` ← `status_text`
 //! - `message` ← `message`
 //! - `side` ← `side`
@@ -23,6 +24,7 @@
 use chrono::{DateTime, Local, NaiveDate, Utc};
 use chromiumoxide::page::Page;
 use scylla::client::session::Session;
+use scylla::SerializeRow;
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,6 +36,27 @@ use crate::rate_limit_delay::RateLimitInfo;
 const ORDER_LIST_API_URL: &str = "https://carina.stockbit.com/order/v2/list";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+#[derive(SerializeRow)]
+struct PendingOrderUpsertValues {
+    order_id: String,
+    tahun_bulan_tanggal: NaiveDate,
+    tahun_bulan: String,
+    emiten_name: String,
+    emiten_name_status: String,
+    status: String,
+    message: String,
+    side: String,
+    time_open: DateTime<Utc>,
+    lot_open: f64,
+    lot_done: f64,
+    price_order: f64,
+    amount_open: f64,
+    amount_match: f64,
+    amount_match_total: f64,
+    is_gtc: bool,
+    updated_at: DateTime<Utc>,
+}
 
 #[derive(Debug, Clone)]
 struct PendingOrderRow {
@@ -192,10 +215,10 @@ async fn upsert_pending_orders(
     let insert = session
         .prepare(format!(
             "INSERT INTO {keyspace}.pending_order (\
-                order_id, tahun_bulan_tanggal, tahun_bulan, emiten_name, status, message, side, time_open, \
-                lot_open, lot_done, price_order, amount_open, amount_match, \
+                order_id, tahun_bulan_tanggal, tahun_bulan, emiten_name, emiten_name_status, status, \
+                message, side, time_open, lot_open, lot_done, price_order, amount_open, amount_match, \
                 amount_match_total, is_gtc, updated_at\
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ))
         .await?;
 
@@ -207,29 +230,26 @@ async fn upsert_pending_orders(
     );
     for row in rows {
         let tahun_bulan = row.tahun_bulan_tanggal.format("%Y-%m").to_string();
-        session
-            .execute_unpaged(
-                &insert,
-                (
-                    row.order_id.as_str(),
-                    row.tahun_bulan_tanggal,
-                    tahun_bulan.as_str(),
-                    row.emiten_name.as_str(),
-                    row.status.as_str(),
-                    row.message.as_str(),
-                    row.side.as_str(),
-                    row.time_open,
-                    row.lot_open,
-                    row.lot_done,
-                    row.price_order,
-                    row.amount_open,
-                    row.amount_match,
-                    row.amount_match_total,
-                    row.is_gtc,
-                    updated_at,
-                ),
-            )
-            .await?;
+        let values = PendingOrderUpsertValues {
+            order_id: row.order_id.clone(),
+            tahun_bulan_tanggal: row.tahun_bulan_tanggal,
+            tahun_bulan,
+            emiten_name: row.emiten_name.clone(),
+            emiten_name_status: format!("{}_{}", row.emiten_name, row.status),
+            status: row.status.clone(),
+            message: row.message.clone(),
+            side: row.side.clone(),
+            time_open: row.time_open,
+            lot_open: row.lot_open,
+            lot_done: row.lot_done,
+            price_order: row.price_order,
+            amount_open: row.amount_open,
+            amount_match: row.amount_match,
+            amount_match_total: row.amount_match_total,
+            is_gtc: row.is_gtc,
+            updated_at,
+        };
+        session.execute_unpaged(&insert, values).await?;
         n += 1;
     }
     Ok(n)

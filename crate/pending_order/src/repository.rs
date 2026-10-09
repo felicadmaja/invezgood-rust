@@ -1,14 +1,17 @@
 use futures::stream::{self, StreamExt, TryStreamExt};
 use scylla::client::session::Session;
 
-use crate::model::{PendingOrderRow, KEYSPACE, MV_BY_EMITEN, MV_BY_TAHUN_BULAN, MV_BY_TAHUN_BULAN_TANGGAL, TABLE};
+use crate::model::{
+    PendingOrderRow, KEYSPACE, MV_BY_EMITEN, MV_BY_EMITEN_NAME_STATUS, MV_BY_TAHUN_BULAN,
+    MV_BY_TAHUN_BULAN_TANGGAL, TABLE,
+};
 
 const TOKEN_SEGMENTS: usize = 16;
 const SCAN_CONCURRENCY: usize = 8;
 
-const COLUMNS: &str = "order_id, tahun_bulan_tanggal, tahun_bulan, emiten_name, status, message, side, \
-    time_open, lot_open, lot_done, price_order, amount_open, amount_match, amount_match_total, \
-    is_gtc, updated_at";
+const COLUMNS: &str = "order_id, tahun_bulan_tanggal, tahun_bulan, emiten_name, emiten_name_status, \
+    status, message, side, time_open, lot_open, lot_done, price_order, amount_open, amount_match, \
+    amount_match_total, is_gtc, updated_at";
 
 pub async fn find_all(session: &Session) -> Result<Vec<PendingOrderRow>, String> {
     let table = format!("{KEYSPACE}.{TABLE}");
@@ -68,6 +71,44 @@ pub async fn find_by_emiten_name(
         .try_next()
         .await
         .map_err(|e| format!("find_by_emiten_name row {KEYSPACE}.{MV_BY_EMITEN}: {e}"))?
+    {
+        out.push(row);
+    }
+    Ok(out)
+}
+
+pub async fn find_by_emiten_name_status(
+    session: &Session,
+    emiten_name_status: &str,
+) -> Result<Vec<PendingOrderRow>, String> {
+    let q = format!(
+        "SELECT {COLUMNS} FROM {KEYSPACE}.{MV_BY_EMITEN_NAME_STATUS} WHERE emiten_name_status = ?"
+    );
+
+    let mut rows = session
+        .query_iter(q.as_str(), (emiten_name_status,))
+        .await
+        .map_err(|e| {
+            format!(
+                "find_by_emiten_name_status {KEYSPACE}.{MV_BY_EMITEN_NAME_STATUS} key={emiten_name_status}: {e}"
+            )
+        })?
+        .rows_stream::<PendingOrderRow>()
+        .map_err(|e| {
+            format!(
+                "find_by_emiten_name_status stream {KEYSPACE}.{MV_BY_EMITEN_NAME_STATUS}: {e}"
+            )
+        })?;
+
+    let mut out = Vec::new();
+    while let Some(row) = rows
+        .try_next()
+        .await
+        .map_err(|e| {
+            format!(
+                "find_by_emiten_name_status row {KEYSPACE}.{MV_BY_EMITEN_NAME_STATUS}: {e}"
+            )
+        })?
     {
         out.push(row);
     }

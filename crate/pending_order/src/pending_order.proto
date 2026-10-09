@@ -95,6 +95,8 @@ message PendingOrderRow {
   string tahun_bulan_tanggal = 15;
   // YYYY-MM dari tahun_bulan_tanggal.
   string tahun_bulan = 16;
+  // emiten_name + '_' + status; index MV pending_order_by_emiten_name_status.
+  string emiten_name_status = 17;
 }
 
 message GetAllPendingOrderFromScyllaResponse {
