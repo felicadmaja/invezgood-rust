@@ -12,7 +12,7 @@
 //! `STOCKBIT_BEARER_CACHE_SECS` (default 300 — cache JWT antar scrape),
 //! `STOCKBIT_BROWSER_DATA_DIR`, `BEI_BROWSER_DATA_DIR` / `IDX_BROWSER_DATA_DIR` (Chrome idx.co.id),
 //! `CHROME_VIEWPORT_WIDTH` / `CHROME_VIEWPORT_HEIGHT` (default 1920×1028),
-//! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 540–600 —
+//! `STOCKBIT_READY_POLL_MIN_SECS` / `STOCKBIT_READY_POLL_MAX_SECS` (default 1800–3600 —
 //! interval poller readiness setelah cek pertama Senin–Jumat 09:00:00–09:00:59),
 //! `REDIS_URL` (state readiness).
 //!
@@ -169,8 +169,8 @@ impl BrowserSession {
 }
 
 /// Interval default antar pengecekan web Stockbit (detik).
-pub const READY_POLL_MIN_SECS: u64 = 9 * 60;
-pub const READY_POLL_MAX_SECS: u64 = 10 * 60;
+pub const READY_POLL_MIN_SECS: u64 = 30 * 60;
+pub const READY_POLL_MAX_SECS: u64 = 60 * 60;
 
 /// Jeda acak antar retry login bila sesi habis / login gagal (detik).
 pub const LOGIN_RETRY_MIN_SECS: u64 = 10;
@@ -298,7 +298,7 @@ fn sleep_secs_until(target: DateTime<Local>, now: DateTime<Local>) -> u64 {
     (target - now).num_seconds().max(0) as u64
 }
 
-/// Cek pertama hari kerja di 09:00:00–09:00:59; seterusnya interval 9–10 menit
+/// Cek pertama hari kerja di 09:00:00–09:00:59; seterusnya interval 30–60 menit
 /// sampai melewati jendela 09:00 hari kerja berikutnya.
 async fn wait_before_next_poll(last_first_check_date: &mut Option<NaiveDate>) {
     let now = Local::now();
@@ -357,7 +357,7 @@ async fn wait_before_next_poll(last_first_check_date: &mut Option<NaiveDate>) {
 }
 
 /// Poller tunggal per proses: cek pertama Senin–Jumat 09:00:00–09:00:59 waktu server,
-/// seterusnya 9–10 menit, sejak `ensure_loop_running` / start server
+/// seterusnya 30–60 menit, sejak `ensure_loop_running` / start server
 /// (tidak tergantung subscriber `IsStockbitReady`).
 /// Banyak subscriber tidak menambah frekuensi. Status terakhir di Redis (`stockbit:readiness`);
 /// stream hanya baca cache poller/Redis.

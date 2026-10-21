@@ -403,7 +403,7 @@ impl User for UserService {
             loop {
                 let update = readiness.latest().await.unwrap_or_else(|| ReadinessUpdate {
                     ready: false,
-                    message: "Menunggu pengecekan berkala ke stockbit.com (interval 9–10 menit)"
+                    message: "Menunggu pengecekan berkala ke stockbit.com (interval 30–60 menit)"
                         .to_string(),
                     poll_seq: 0,
                     portofolio: Vec::new(),

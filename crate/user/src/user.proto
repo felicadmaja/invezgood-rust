@@ -29,7 +29,8 @@ service User {
 
   // Status login Chrome scraper Stockbit (state di Redis stockbit:readiness).
   // Poller global selalu jalan sejak server start (tanpa perlu subscriber stream).
-  // Cek pertama: Senin–Jumat 09:00:00–09:00:59 waktu server; seterusnya interval 9–10 menit.
+  // Cek pertama: Senin–Jumat 09:00:00–09:00:59 waktu server; seterusnya interval 30–60 menit
+  // (STOCKBIT_READY_POLL_MIN_SECS / STOCKBIT_READY_POLL_MAX_SECS, .env).
   // Banyak subscriber stream tidak menambah frekuensi poll.
   // Setelah tiap tick (bila ready + jam operasional Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00), Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur 
   // poller auto-invoke alur scrape berikut (serial Chrome, satu browser):
