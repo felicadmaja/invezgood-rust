@@ -172,6 +172,30 @@ pub fn extract_bearer_token<T>(request: &tonic::Request<T>) -> Result<String, to
     Ok(token.to_string())
 }
 
+/// Bearer valid + sesi aktif di `SessionStore` (UNAUTHENTICATED bila gagal).
+pub async fn require_auth_session<T>(
+    store: &SessionStore,
+    request: &tonic::Request<T>,
+) -> Result<AuthSession, tonic::Status> {
+    let token = extract_bearer_token(request)?;
+    validate_session(store, &token)
+        .await
+        .map_err(|_| tonic::Status::unauthenticated("login diperlukan"))
+}
+
+/// `require_auth_session` + role `admin` (case-insensitive); selain admin → PERMISSION_DENIED.
+pub async fn require_admin_session<T>(
+    store: &SessionStore,
+    request: &tonic::Request<T>,
+) -> Result<AuthSession, tonic::Status> {
+    let auth = require_auth_session(store, request).await?;
+    if auth.role.trim().eq_ignore_ascii_case("admin") {
+        Ok(auth)
+    } else {
+        Err(tonic::Status::permission_denied("hanya role admin"))
+    }
+}
+
 /// Batasi RPC scrape Stockbit ke Senin–Jumat, jam 08:45–12:15 dan 13:25–16:15 (server lokal).
 pub fn require_stockbit_scrape_hours() -> Result<(), tonic::Status> {
     let now = Local::now();

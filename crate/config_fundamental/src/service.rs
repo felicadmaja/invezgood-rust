@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use scylla::client::session::Session;
 use tonic::{Request, Response, Status};
-use user::{extract_bearer_token, validate_session, AuthSession, SessionStore};
+use user::{require_admin_session, require_auth_session, SessionStore};
 
 use crate::model::ConfigFundamentalRow as DbConfigFundamentalRow;
 use crate::pb::config_fundamental_server::ConfigFundamental;
@@ -23,22 +23,6 @@ impl ConfigFundamentalService {
         Self {
             session,
             auth_sessions,
-        }
-    }
-
-    async fn require_auth<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
-        let token = extract_bearer_token(request)?;
-        validate_session(&self.auth_sessions, &token)
-            .await
-            .map_err(|_| Status::unauthenticated("login diperlukan"))
-    }
-
-    async fn require_admin<T>(&self, request: &Request<T>) -> Result<AuthSession, Status> {
-        let auth = self.require_auth(request).await?;
-        if auth.role.trim().eq_ignore_ascii_case("admin") {
-            Ok(auth)
-        } else {
-            Err(Status::permission_denied("hanya role admin"))
         }
     }
 
@@ -71,7 +55,7 @@ impl ConfigFundamental for ConfigFundamentalService {
         let started = std::time::Instant::now();
         let rpc_name = "GetAllConfigFundamental";
 
-        let user_name = match self.require_auth(&request).await {
+        let user_name = match require_auth_session(&self.auth_sessions, &request).await {
             Ok(auth) => auth.nama,
             Err(e) => {
                 eprintln!("{rpc_name} anonymous {}ms", started.elapsed().as_millis());
@@ -102,7 +86,7 @@ impl ConfigFundamental for ConfigFundamentalService {
         let started = std::time::Instant::now();
         let rpc_name = "UpdateConfigFundamental";
 
-        let user_name = match self.require_admin(&request).await {
+        let user_name = match require_admin_session(&self.auth_sessions, &request).await {
             Ok(auth) => auth.nama,
             Err(e) => {
                 eprintln!("{rpc_name} anonymous {}ms", started.elapsed().as_millis());
@@ -160,7 +144,7 @@ impl ConfigFundamental for ConfigFundamentalService {
         let started = std::time::Instant::now();
         let rpc_name = "InsertConfigFundamental";
 
-        let user_name = match self.require_admin(&request).await {
+        let user_name = match require_admin_session(&self.auth_sessions, &request).await {
             Ok(auth) => auth.nama,
             Err(e) => {
                 eprintln!("{rpc_name} anonymous {}ms", started.elapsed().as_millis());
@@ -218,7 +202,7 @@ impl ConfigFundamental for ConfigFundamentalService {
         let started = std::time::Instant::now();
         let rpc_name = "DeleteConfigFundamental";
 
-        let user_name = match self.require_admin(&request).await {
+        let user_name = match require_admin_session(&self.auth_sessions, &request).await {
             Ok(auth) => auth.nama,
             Err(e) => {
                 eprintln!("{rpc_name} anonymous {}ms", started.elapsed().as_millis());
