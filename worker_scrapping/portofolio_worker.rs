@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use stockbit_browser::{
     clear_stockbit_trading_client_state, dismiss_profile_avatar_modal_if_present,
-    evaluate_resilient, goto_stockbit, has_session_expired_modal, is_login_url,
+    evaluate_resilient, goto_stockbit, has_app_error, has_session_expired_modal, is_login_url,
     is_start_trading_nav_visible, is_stream_spa_loading, open_stream_or_login,
     relogin_if_session_expired, save_debug_screenshot, wait_for_stream_interactive_ready,
     STOCKBIT_STREAM_URL,
@@ -229,8 +229,9 @@ async fn wait_for_pin_modal(page: &Page, timeout: Duration) -> Result<(), Box<dy
     let started = Instant::now();
     let mut last_shot_secs: u64 = 0;
     loop {
-        // Popup "Sesi Kamu Sudah Habis" bisa muncul walau URL masih /stream.
-        if has_session_expired_modal(page).await {
+        // Popup "Sesi Kamu Sudah Habis" atau SPA crash ("Application error", mis. login di
+        // device lain) bisa muncul walau URL masih /stream → perlu login ulang.
+        if has_session_expired_modal(page).await || has_app_error(page).await {
             let _ = save_debug_screenshot(page, "05_session_expired_while_waiting_pin").await;
             log_pin_modal_probe(page, "session_expired").await;
             return Err(ERR_SESSION_EXPIRED.into());

@@ -38,6 +38,7 @@ use chromiumoxide::cdp::browser_protocol::emulation::{
     SetTouchEmulationEnabledParams,
 };
 use chromiumoxide::handler::viewport::Viewport;
+use chromiumoxide::cdp::browser_protocol::network::ClearBrowserCookiesParams;
 use chromiumoxide::cdp::browser_protocol::page::CaptureScreenshotFormat;
 use chromiumoxide::page::{Page, ScreenshotParams};
 use futures::StreamExt;
@@ -1101,6 +1102,46 @@ async fn type_naturally(
     Ok(())
 }
 
+/// `true` bila SPA Stockbit crash ("Application error: a client-side exception has occurred").
+/// Terjadi mis. saat sesi device ini di-invalidasi karena login di device lain.
+pub async fn has_app_error(page: &Page) -> bool {
+    page.evaluate(
+        r#"(() => {
+            const t = (document.body && document.body.innerText || '').toLowerCase();
+            return t.includes('application error')
+                || t.includes('client-side exception');
+        })()"#,
+    )
+    .await
+    .ok()
+    .and_then(|v| v.into_value::<bool>().ok())
+    .unwrap_or(false)
+}
+
+/// Hapus seluruh cookie (termasuk auth httpOnly, via CDP) + localStorage/sessionStorage,
+/// supaya Stockbit memperlakukan sesi sebagai logout dan `/login` menampilkan form login.
+async fn clear_stockbit_session_cookies(page: &Page) -> Result<(), StockbitError> {
+    if let Err(e) = page.execute(ClearBrowserCookiesParams::default()).await {
+        eprintln!("Peringatan: gagal clear cookies via CDP: {e}");
+    }
+    let _ = evaluate_resilient(
+        page,
+        r#"(() => { try { localStorage.clear(); } catch (e) {} try { sessionStorage.clear(); } catch (e) {} return 0; })()"#,
+    )
+    .await;
+    invalidate_bearer_cache().await;
+    Ok(())
+}
+
+/// Paksa ke `https://stockbit.com/login` dengan bersih (clear cookie + reload) lalu tunggu
+/// form login. Dipakai saat SPA crash / nyangkut karena sesi lama invalid.
+async fn force_fresh_login_page(page: &Page) -> Result<(), StockbitError> {
+    clear_stockbit_session_cookies(page).await?;
+    goto_stockbit(page, STOCKBIT_LOGIN_URL).await?;
+    let _ = page.reload().await;
+    wait_for_login_form(page, Duration::from_secs(25)).await
+}
+
 async fn has_login_form(page: &Page) -> bool {
     page.evaluate(
         r#"(() => {
@@ -1544,7 +1585,7 @@ async fn wait_for_stream_redirect_or_login_form(page: &Page, timeout: Duration) 
 /// - modal "Sesi Kamu Sudah Habis", atau
 /// - form login (`#username` / `data-cy=login-form`) muncul.
 async fn needs_relogin(page: &Page) -> bool {
-    if has_session_expired_modal(page).await {
+    if has_session_expired_modal(page).await || has_app_error(page).await {
         return true;
     }
     let url = page.url().await.ok().flatten().unwrap_or_default();
@@ -1613,7 +1654,20 @@ async fn login_and_return_to_stream(
         }
     }
 
-    wait_for_login_form(page, Duration::from_secs(15)).await?;
+    // Form login belum muncul. Bila SPA crash ("Application error") atau nyangkut karena
+    // cookie sesi lama invalid (login di device lain), bersihkan cookie + reload /login.
+    if !has_login_form(page).await {
+        if has_app_error(page).await {
+            println!(
+                "Stockbit SPA error (client-side exception) — kemungkinan login di device lain. \
+                 Bersihkan cookie & login ulang ke /login..."
+            );
+        } else {
+            println!("Form login belum muncul — bersihkan cookie & reload /login...");
+        }
+        force_fresh_login_page(page).await?;
+    }
+
     perform_login(page, email, password).await?;
     goto_stockbit_expect(page, STOCKBIT_STREAM_URL, Some("/stream")).await?;
     wait_for_stream_interactive_ready(page, Duration::from_secs(90)).await?;
