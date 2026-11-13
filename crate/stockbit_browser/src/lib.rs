@@ -1593,6 +1593,8 @@ async fn login_and_return_to_stream_with_retry_unlocked(
 const BEARER_PROBE_URL: &str = "https://exodus.stockbit.com/order-trade/market-mover?\
 mover_type=MOVER_TYPE_TOP_GAINER&filter_stocks=FILTER_STOCKS_TYPE_MAIN_BOARD";
 
+const KEYSTATS_RATIO_PROBE_YEAR_LIMIT: u32 = 1;
+
 pub(crate) fn ensure_auth_capture_js() -> &'static str {
     r#"(() => {
         try {
@@ -1664,6 +1666,22 @@ pub(crate) async fn bearer_http_client() -> Result<reqwest::Client, StockbitErro
 
 type BearerCandidate = (String, String, String);
 
+async fn probe_keystats_ratio_ok(http: &reqwest::Client, token: &str, code: &str) -> bool {
+    let url = format!(
+        "https://exodus.stockbit.com/keystats/ratio/v1/{code}?year_limit={KEYSTATS_RATIO_PROBE_YEAR_LIMIT}"
+    );
+    http.get(url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/json")
+        .header("Origin", "https://stockbit.com")
+        .header("Referer", "https://stockbit.com/")
+        .header("x-platform", "web")
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
+}
+
 async fn probe_fundachart_token_ok(http: &reqwest::Client, token: &str, code: &str) -> bool {
     let url = format!("https://exodus.api.stockbit.com/fundachart/token?symbol={code}");
     http.get(url)
@@ -1683,6 +1701,29 @@ async fn pick_probe_valid_bearer(
     candidates: &[BearerCandidate],
     fundachart_symbol: Option<&str>,
 ) -> Result<String, StockbitError> {
+    let ordered = order_bearer_candidates(candidates);
+    let http = bearer_http_client().await?;
+    for (_source, token, _iss) in &ordered {
+        match probe_bearer_ok(&http, token).await {
+            Ok(status) if (200..300).contains(&status) => return Ok(token.clone()),
+            _ => {}
+        }
+        if let Some(sym) = fundachart_symbol {
+            if probe_fundachart_token_ok(&http, token, sym).await {
+                println!("Bearer OK via probe fundachart/token {sym} (len={}).", token.len());
+                return Ok(token.clone());
+            }
+        }
+    }
+
+    Err(
+        "Tidak ada Bearer yang lolos probe market-mover. \
+         Sesi web mungkin habis — login ulang di Chrome worker."
+            .into(),
+    )
+}
+
+fn order_bearer_candidates(candidates: &[BearerCandidate]) -> Vec<BearerCandidate> {
     let mut ordered: Vec<BearerCandidate> = Vec::new();
     for h in candidates {
         let source = h.0.clone();
@@ -1708,26 +1749,30 @@ async fn pick_probe_valid_bearer(
             ordered.push((source, token, iss));
         }
     }
-
     let mut seen_tok = std::collections::HashSet::new();
     ordered.retain(|(_, tok, _)| seen_tok.insert(tok.clone()));
+    ordered
+}
 
+/// Probe keystats/ratio + fundachart/token saja (tanpa market-mover) — dipakai fundachart PBV.
+async fn pick_probe_valid_bearer_keystats(
+    candidates: &[BearerCandidate],
+    code: &str,
+) -> Result<String, StockbitError> {
+    let ordered = order_bearer_candidates(candidates);
     let http = bearer_http_client().await?;
     for (_source, token, _iss) in &ordered {
-        match probe_bearer_ok(&http, token).await {
-            Ok(status) if (200..300).contains(&status) => return Ok(token.clone()),
-            _ => {}
+        if probe_keystats_ratio_ok(&http, token, code).await {
+            println!("Bearer OK via probe keystats/ratio {code} (len={}).", token.len());
+            return Ok(token.clone());
         }
-        if let Some(sym) = fundachart_symbol {
-            if probe_fundachart_token_ok(&http, token, sym).await {
-                println!("Bearer OK via probe fundachart/token {sym} (len={}).", token.len());
-                return Ok(token.clone());
-            }
+        if probe_fundachart_token_ok(&http, token, code).await {
+            println!("Bearer OK via probe fundachart/token {code} (len={}).", token.len());
+            return Ok(token.clone());
         }
     }
-
     Err(
-        "Tidak ada Bearer yang lolos probe market-mover. \
+        "Tidak ada Bearer yang lolos probe keystats/ratio. \
          Sesi web mungkin habis — login ulang di Chrome worker."
             .into(),
     )
@@ -1879,6 +1924,27 @@ async fn try_cached_bearer() -> Option<String> {
     }
 }
 
+/// Cache Bearer TTL — validasi `keystats/ratio` (bukan market-mover); shared dengan keystats scrape.
+async fn try_cached_bearer_keystats(code: &str) -> Option<String> {
+    let token = {
+        let cache = bearer_cache().lock().await;
+        let entry = cache.as_ref()?;
+        if entry.cached_at.elapsed() >= Duration::from_secs(bearer_cache_ttl_secs()) {
+            return None;
+        }
+        entry.token.clone()
+    };
+    let http = bearer_http_client().await.ok()?;
+    if probe_keystats_ratio_ok(&http, &token, code).await {
+        return Some(token);
+    }
+    if probe_fundachart_token_ok(&http, &token, code).await {
+        return Some(token);
+    }
+    invalidate_bearer_cache().await;
+    None
+}
+
 /// Bearer untuk HTTP API tanpa caller menyediakan `Page`.
 /// Cache hit → tanpa Chrome. Miss → lock interactive + login bila perlu + extract.
 pub async fn ensure_stockbit_bearer() -> Result<String, StockbitError> {
@@ -1902,6 +1968,84 @@ pub async fn ensure_stockbit_bearer() -> Result<String, StockbitError> {
     open_stream_or_login(&page, email.trim(), password.trim()).await?;
     let token = extract_stockbit_bearer(&page).await?;
     browser.close().await;
+    Ok(token)
+}
+
+/// Bearer fundachart: cache keystats probe → Chrome extract tanpa probe market-mover.
+pub async fn ensure_stockbit_bearer_for_fundachart(code: &str) -> Result<String, StockbitError> {
+    let code = code.trim().to_ascii_uppercase();
+    if let Some(token) = try_cached_bearer_keystats(&code).await {
+        println!(
+            "Bearer cache hit keystats probe fundachart {code} (len={}).",
+            token.len()
+        );
+        return Ok(token);
+    }
+
+    let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
+    let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
+    if email.trim().is_empty() || password.is_empty() {
+        return Err(
+            "STOCKBIT_EMAIL / STOCKBIT_PASSWORD wajib untuk ambil Bearer Stockbit".into(),
+        );
+    }
+
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive)
+        .await
+        .map_err(|e| -> StockbitError { e.into() })?;
+    let (browser, page) = launch_page().await?;
+    open_stream_or_login(&page, email.trim(), password.trim()).await?;
+    let token = extract_stockbit_bearer_keystats_path(&page, &code).await?;
+    browser.close().await;
+    Ok(token)
+}
+
+async fn extract_stockbit_bearer_keystats_path(
+    page: &Page,
+    code: &str,
+) -> Result<String, StockbitError> {
+    if let Some(token) = try_cached_bearer_keystats(code).await {
+        println!("Bearer cache hit keystats path {code} (len={}).", token.len());
+        return Ok(token);
+    }
+
+    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+
+    println!("Bearer keystats path: scan halaman saat ini...");
+    if let Ok(candidates) = scan_bearer_candidates(page).await {
+        if let Ok(token) = pick_probe_valid_bearer_keystats(&candidates, code).await {
+            println!("Bearer OK keystats path dari halaman (len={}).", token.len());
+            store_bearer_cache(token.clone()).await;
+            return Ok(token);
+        }
+    }
+
+    println!("Bearer keystats path: warm-up navigasi keystats {code}...");
+    let _ = page
+        .evaluate(r#"(() => { window.__sbCapturedBearer = ''; return 0; })()"#)
+        .await;
+    goto_stockbit(
+        page,
+        &format!("https://stockbit.com/symbol/{code}/keystats"),
+    )
+    .await?;
+    let _ = page.evaluate(ensure_auth_capture_js()).await?;
+    for _ in 0..25 {
+        sleep(Duration::from_millis(400)).await;
+        let n = page
+            .evaluate(r#"(() => (window.__sbCapturedBearer || '').length)()"#)
+            .await?
+            .into_value::<u64>()
+            .unwrap_or(0);
+        if n > 0 {
+            break;
+        }
+    }
+
+    let candidates = scan_bearer_candidates(page).await?;
+    let token = pick_probe_valid_bearer_keystats(&candidates, code).await?;
+    println!("Bearer OK keystats path warm-up {code} (len={}).", token.len());
+    store_bearer_cache(token.clone()).await;
     Ok(token)
 }
 

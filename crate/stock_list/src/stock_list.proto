@@ -125,15 +125,12 @@ service StockList {
   rpc UpdateCatatanBidangUsaha(UpdateCatatanBidangUsahaRequest)
       returns (UpdateCatatanBidangUsahaResponse);
 
-  // PBV band Stockbit (fundachart) → persisten di Scylla `invezgood.stock_list`: kolom `pbv_band` (UDT frozen
-  // pbv_band_data) + `pbv_band_updated_at`. Setiap scrape Stockbit sukses di-upsert ke DB.
-  // Invoke RPC: baca Scylla dulu — jika `pbv_band_updated_at` masih hari kalender lokal (WIB) yang sama,
-  // response dari DB tanpa panggil Stockbit/Chrome lagi; hanya beda hari (atau belum pernah ada data)
-  // yang invoke ulang API fundachart (exodus.api.stockbit.com) lalu simpan ke Scylla.
-  // Auth: Bearer invezgood; code 4 huruf; Chrome + readiness bila scrape. success=false + message bila gagal scrape.
-  // Debug log: GetStockPBVBand {user} {ms}ms - {code}
+  // PBV band Stockbit: Chrome DOM `terminal.stockbit.com/main` (login dulu) → Search Symbol + emiten,
+  // Analysis → 5 Years; tangkap JSON XHR fundachart (`chart_entry` PBV band). Upsert Scylla `pbv_band` + `pbv_band_updated_at`.
+  // Invoke: cache harian WIB dari Scylla; beda hari / belum ada → scrape ulang. Bearer invezgood; code 4 huruf; readiness bila scrape.
+  // success=false + message bila DOM/XHR gagal. Debug log: GetStockPBVBand {user} {ms}ms - {code}
   rpc GetStockPBVBand(GetStockPbvBandRequest) returns (GetStockPbvBandResponse);
-}
+} 
 
 message GetAllStocksRequest {}
 
