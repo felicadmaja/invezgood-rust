@@ -17,8 +17,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use stockbit_browser::{
     clear_stockbit_trading_client_state, evaluate_resilient, goto_stockbit,
-    refresh_stockbit_web_session_for_scrape,
+    open_stream_or_login, STOCKBIT_STREAM_URL,
 };
+
+const STOCKBIT_TERMINAL_URL: &str = "https://terminal.stockbit.com/";
 use tokio::time::sleep;
 
 use crate::portofolio_equity_worker;
@@ -306,24 +308,44 @@ fn stockbit_credentials() -> Result<(String, String), Box<dyn std::error::Error>
     Ok((email, password))
 }
 
-async fn goto_portfolio_for_trading(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    goto_stockbit(page, STOCKBIT_PORTFOLIO_URL)
+async fn goto_stream_for_trading(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    goto_stockbit(page, STOCKBIT_STREAM_URL)
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     sleep(Duration::from_millis(1500)).await;
     Ok(())
 }
 
+async fn nudge_trading_pin_after_click(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    sleep(Duration::from_secs(2)).await;
+    let url = page.url().await?.unwrap_or_default();
+    if url.contains("terminal.stockbit.com") {
+        return Ok(());
+    }
+    goto_stockbit(page, STOCKBIT_TERMINAL_URL)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    sleep(Duration::from_millis(1200)).await;
+    if !is_start_trading_visible(page).await? {
+        goto_stockbit(page, STOCKBIT_STREAM_URL)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+        sleep(Duration::from_millis(800)).await;
+    }
+    Ok(())
+}
+
 /// Masuk mode trading: klik START TRADING + PIN bila perlu; lewati bila tombol sudah hilang.
 /// Returns `true` jika PIN baru saja diinput; `false` jika sudah mode trading.
 pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
-    goto_portfolio_for_trading(page).await?;
+    // Modal PIN biasanya muncul dari navbar /stream, bukan halaman securities saja.
+    goto_stream_for_trading(page).await?;
 
     if !is_start_trading_visible(page).await? {
         clear_stockbit_trading_client_state(page)
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-        goto_portfolio_for_trading(page).await?;
+        goto_stream_for_trading(page).await?;
         if !is_start_trading_visible(page).await? {
             println!("START TRADING tidak terlihat — sudah mode trading, lewati PIN.");
             return Ok(false);
@@ -335,6 +357,7 @@ pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::er
     for attempt in 1..=2u8 {
         println!("Portofolio: klik START TRADING...");
         click_start_trading(page).await?;
+        nudge_trading_pin_after_click(page).await?;
 
         if wait_for_pin_modal(page, Duration::from_secs(30)).await.is_ok() {
             type_pin_natural(page, &pin).await?;
@@ -345,19 +368,19 @@ pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::er
 
         if attempt == 1 {
             eprintln!(
-                "Timeout / gagal modal Input Trading PIN — logout/login ulang Stockbit lalu coba START TRADING lagi..."
+                "Timeout / gagal modal Input Trading PIN — buka ulang /stream lalu coba START TRADING lagi..."
             );
             let (email, password) = stockbit_credentials()?;
-            refresh_stockbit_web_session_for_scrape(page, &email, &password)
+            open_stream_or_login(page, &email, &password)
                 .await
                 .map_err(|err| -> Box<dyn std::error::Error> { err.to_string().into() })?;
             clear_stockbit_trading_client_state(page)
                 .await
                 .map_err(|err| -> Box<dyn std::error::Error> { err.to_string().into() })?;
-            goto_portfolio_for_trading(page).await?;
+            goto_stream_for_trading(page).await?;
             if !is_start_trading_visible(page).await? {
                 return Err(
-                    "Tombol START TRADING tidak muncul setelah refresh sesi — cek login Stockbit"
+                    "Tombol START TRADING tidak muncul setelah buka ulang /stream — cek login Stockbit"
                         .into(),
                 );
             }

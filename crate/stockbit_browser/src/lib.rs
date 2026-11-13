@@ -85,8 +85,13 @@ pub enum BrowserLockClass {
     Background,
 }
 
-/// Timeout tunggu lock untuk RPC interactive (hindari hang "server tidak merespons").
-const INTERACTIVE_LOCK_TIMEOUT: Duration = Duration::from_secs(45);
+fn interactive_lock_timeout() -> Duration {
+    let secs: u64 = std::env::var("STOCKBIT_INTERACTIVE_LOCK_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(180);
+    Duration::from_secs(secs.clamp(45, 600))
+}
 /// Timeout singkat untuk background; gagal → skip auto-scrape / poller step.
 const BACKGROUND_LOCK_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -130,7 +135,7 @@ pub async fn acquire_browser_session(
     match class {
         BrowserLockClass::Interactive => {
             let _waiter = InteractiveWaitGuard::enter();
-            match timeout(INTERACTIVE_LOCK_TIMEOUT, browser_session_lock().lock()).await {
+            match timeout(interactive_lock_timeout(), browser_session_lock().lock()).await {
                 Ok(guard) => Ok(guard),
                 Err(_) => Err(
                     "Chrome sibuk dipakai poller/scrape background. Coba lagi sebentar \
@@ -839,6 +844,56 @@ pub async fn shutdown_shared_browser() -> Result<(), StockbitError> {
     Ok(())
 }
 
+fn clear_browser_profile_login_files(data_dir: &Path) -> Result<(), StockbitError> {
+    let default = data_dir.join("Default");
+    if !default.is_dir() {
+        return Ok(());
+    }
+    let paths: Vec<PathBuf> = vec![
+        default.join("Cookies"),
+        default.join("Cookies-journal"),
+        default.join("Local Storage"),
+        default.join("Session Storage"),
+        default.join("IndexedDB"),
+        default.join("Web Data"),
+        default.join("Web Data-journal"),
+        default.join("Login Data"),
+        default.join("Login Data-journal"),
+        default.join("Network Persistent State"),
+        default.join("TransportSecurity"),
+        default.join("Secure Preferences"),
+    ];
+    for p in paths {
+        if p.is_dir() {
+            if let Err(e) = std::fs::remove_dir_all(&p) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    eprintln!("Chrome profile: gagal hapus {} ({e})", p.display());
+                }
+            }
+        } else if p.exists() {
+            if let Err(e) = std::fs::remove_file(&p) {
+                eprintln!("Chrome profile: gagal hapus {} ({e})", p.display());
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Tutup Chrome persistent, hapus cookie & storage profil → scrape berikutnya wajib login ulang.
+pub async fn reset_stockbit_chrome_login_profile() -> Result<(), StockbitError> {
+    shutdown_shared_browser().await?;
+    invalidate_bearer_cache().await;
+    let data_dir = browser_data_dir();
+    terminate_stale_chrome_processes(&data_dir);
+    clear_stale_chrome_locks(&data_dir);
+    clear_browser_profile_login_files(&data_dir)?;
+    println!(
+        "Chrome Stockbit: sesi login dihapus (profil: {})",
+        data_dir.display()
+    );
+    Ok(())
+}
+
 pub async fn goto_stockbit(page: &Page, url: &str) -> Result<(), StockbitError> {
     goto_stockbit_expect(page, url, None).await
 }
@@ -1079,6 +1134,14 @@ async fn wait_for_2fa_phone_approval(
     let mut last_url = String::new();
 
     loop {
+        if browser_interactive_waiters() > 0 {
+            return Err(
+                "2FA ditunda: ada RPC client menunggu Chrome. Approve 2FA di HP lalu panggil \
+                 scrape lagi, atau selesaikan RPC interactive lebih dulu."
+                    .into(),
+            );
+        }
+
         if has_profile_avatar_modal(page).await {
             dismiss_profile_avatar_modal(page).await?;
             let final_url = page.url().await?.unwrap_or_default();
