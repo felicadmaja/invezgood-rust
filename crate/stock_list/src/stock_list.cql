@@ -53,6 +53,29 @@
 -- | notation                              | regular        | frozen<list<frozen<notation_entry>>>    |
 -- | index_family                          | regular        | list<text> (IDX30, LQ45, IDX80, ...)    |
 -- | catatan_bidang_usaha                  | regular        | text                                    |
+-- | pbv_band                              | regular        | frozen<pbv_band_data>                   |
+-- | pbv_band_updated_at                   | regular        | timestamp                               |
+--
+-- UDT Stockbit fundachart PBV band (GetStockPbvBandResponse.data):
+--   fundachart_series_value: yaxis_id list<double>, xaxis_id list<bigint> (unix detik)
+--   fundachart_chart_entry: title text, value frozen<fundachart_series_value>, color text,
+--     date bigint, item_id int, timeframe text, suffix text
+--   pbv_band_data: interval int, api_message text,
+--     chart_entry frozen<list<frozen<fundachart_chart_entry>>>
+-- Migrasi pbv_band (jalan sekali, 2026-11-13):
+-- CREATE TYPE IF NOT EXISTS invezgood.fundachart_series_value (
+--     yaxis_id list<double>, xaxis_id list<bigint>
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.fundachart_chart_entry (
+--     title text, value frozen<fundachart_series_value>, color text, date bigint,
+--     item_id int, timeframe text, suffix text
+-- );
+-- CREATE TYPE IF NOT EXISTS invezgood.pbv_band_data (
+--     interval int, api_message text,
+--     chart_entry frozen<list<frozen<fundachart_chart_entry>>>
+-- );
+-- ALTER TABLE invezgood.stock_list ADD pbv_band frozen<pbv_band_data>;
+-- ALTER TABLE invezgood.stock_list ADD pbv_band_updated_at timestamp;
 --
 -- Migrasi valuation_assesment + catatan_bidang_usaha (2026-08-29):
 -- ALTER TABLE invezgood.stock_list ADD valuation_assesment tinyint;

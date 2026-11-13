@@ -375,6 +375,14 @@ impl StockListService {
             index_family: row.index_family.clone().unwrap_or_default(),
             valuation_assesment: Self::valuation_db_to_proto(row.valuation_assesment),
             catatan_bidang_usaha: row.catatan_bidang_usaha.clone().unwrap_or_default(),
+            pbv_band: row
+                .pbv_band
+                .as_ref()
+                .map(crate::stockbit_fundachart::fundachart_data_from_db),
+            pbv_band_updated_at: row
+                .pbv_band_updated_at
+                .map(|t| t.timestamp())
+                .unwrap_or(0),
         }
     }
 
@@ -1975,7 +1983,12 @@ impl StockList for StockListService {
                 ));
             }
 
-            match crate::stockbit_fundachart::fetch_stock_pbv_band(&code).await {
+            match crate::stockbit_fundachart::get_or_fetch_and_save_stock_pbv_band(
+                Arc::clone(&self.session),
+                &code,
+            )
+            .await
+            {
                 Ok(resp) => Ok(Response::new(resp)),
                 Err(e) => Ok(Response::new(GetStockPbvBandResponse {
                     success: false,

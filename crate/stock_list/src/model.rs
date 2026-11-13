@@ -219,6 +219,38 @@ pub struct CorporateActionDb {
     pub data: Option<Vec<CorporateActionEntryDb>>,
 }
 
+/// UDT `fundachart_series_value` — satu series PBV (yaxis PBV, xaxis waktu unix).
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct FundachartSeriesValueDb {
+    #[scylla(default_when_null)]
+    pub yaxis_id: Option<Vec<f64>>,
+    #[scylla(default_when_null)]
+    pub xaxis_id: Option<Vec<i64>>,
+}
+
+/// UDT `fundachart_chart_entry` — satu garis/band pada chart fundachart.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct FundachartChartEntryDb {
+    pub title: String,
+    #[scylla(default_when_null)]
+    pub value: Option<FundachartSeriesValueDb>,
+    pub color: String,
+    pub date: i64,
+    pub item_id: i32,
+    pub timeframe: String,
+    pub suffix: String,
+}
+
+/// UDT `pbv_band_data` — snapshot fundachart PBV band Stockbit (kolom `pbv_band`).
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct PbvBandDataDb {
+    pub interval: i32,
+    #[scylla(default_when_null)]
+    pub api_message: Option<String>,
+    #[scylla(default_when_null)]
+    pub chart_entry: Option<Vec<FundachartChartEntryDb>>,
+}
+
 /// UDT `wyckoff_chart` — data chart Wyckoff per saham.
 #[derive(Debug, Clone, SerializeValue, DeserializeValue)]
 pub struct WyckoffChartDb {
@@ -917,6 +949,16 @@ pub struct StockbitProfileByCodeRow {
     pub stockbit_profile_updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+/// Subset kolom untuk `GetStockPBVBand` (cache harian `pbv_band`).
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct PbvBandByCodeRow {
+    pub code: String,
+    #[scylla(default_when_null)]
+    pub pbv_band: Option<PbvBandDataDb>,
+    #[scylla(default_when_null)]
+    pub pbv_band_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 /// Subset kolom Stockbit keystats untuk `GetKeyStatsFromStockbit`.
 #[derive(Debug, Clone, DeserializeRow)]
 pub struct KeyStatsFromStockbitRow {
@@ -1011,6 +1053,10 @@ pub struct StockListRow {
     pub index_family: Option<Vec<String>>,
     #[scylla(default_when_null)]
     pub catatan_bidang_usaha: Option<String>,
+    #[scylla(default_when_null)]
+    pub pbv_band: Option<PbvBandDataDb>,
+    #[scylla(default_when_null)]
+    pub pbv_band_updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Subset kolom untuk `GetWyckoffChartByCode`.

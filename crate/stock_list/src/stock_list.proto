@@ -126,10 +126,10 @@ service StockList {
       returns (UpdateCatatanBidangUsahaResponse);
 
   // GET fundachart PBV band Stockbit terminal: exodus.api.stockbit.com/fundachart/data?token=…
-  // Wajib Redis stockbit:readiness ready=true (sesi Chrome login OK) + STOCKBIT_EMAIL/PASSWORD.
-  // Chrome headless: Bearer dari /stream, token fundachart via fetch terminal; respons chart_entry (PBV + deviasi).
-  // Bearer invezgood wajib; request code 4 huruf. success=false + message bila scrape/API gagal (bukan gRPC error).
-  // Debug log: GetStockPBVBand {user} {ms}ms - {code}
+  // Cache Scylla `pbv_band` + `pbv_band_updated_at`: bila scrape terakhir masih hari kalender lokal (WIB) yang sama,
+  // balas dari DB tanpa GET Stockbit; beda hari → scrape ulang lalu upsert UDT frozen pbv_band_data.
+  // Wajib Redis stockbit:readiness ready=true + Chrome sesi login; Bearer invezgood; code 4 huruf.
+  // success=false + message bila scrape/API gagal (bukan gRPC error). Debug log: GetStockPBVBand {user} {ms}ms - {code}
   rpc GetStockPBVBand(GetStockPbvBandRequest) returns (GetStockPbvBandResponse);
 }
 
@@ -616,6 +616,8 @@ message StockByCodeResponse {
   repeated string index_family = 24;
   ValuationAssesment valuation_assesment = 25;
   string catatan_bidang_usaha = 26;
+  FundachartData pbv_band = 27;
+  int64 pbv_band_updated_at = 28; // unix detik UTC, 0 bila belum ada
 }
 
 message NotationEntry {
