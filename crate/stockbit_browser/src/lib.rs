@@ -1370,15 +1370,35 @@ pub async fn has_session_expired_modal(page: &Page) -> bool {
 }
 
 fn js_element_visible() -> String {
+    // `visible(el)` = elemen benar-benar ter-render di viewport, bukan hanya ada di DOM:
+    // - checkVisibility (ikut cek display/visibility/opacity ancestor, bila didukung Chrome)
+    // - punya offsetParent (ancestor tidak display:none), kecuali position fixed
+    // - bounding box > 8px dan berada di dalam viewport
+    // - titik tengahnya tidak tertutup overlay/loader (elementFromPoint = el / turunannya)
     format!(
         r#"const visible = (el) => {{
             if (!el) return false;
+            try {{
+                if (typeof el.checkVisibility === 'function'
+                    && !el.checkVisibility({{opacityProperty: true, visibilityProperty: true, contentVisibilityAuto: true}})) {{
+                    return false;
+                }}
+            }} catch (e) {{}}
             const s = window.getComputedStyle(el);
             if (s.display === 'none' || s.visibility === 'hidden' || Number(s.opacity) < 0.05) {{
                 return false;
             }}
+            if (el.offsetParent === null && s.position !== 'fixed') return false;
             const r = el.getBoundingClientRect();
-            return r.width > 8 && r.height > 8;
+            if (r.width <= 8 || r.height <= 8) return false;
+            const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+            const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+            if (r.bottom <= 0 || r.right <= 0 || r.top >= vh || r.left >= vw) return false;
+            const cx = Math.min(Math.max(r.left + r.width / 2, 1), Math.max(vw - 1, 1));
+            const cy = Math.min(Math.max(r.top + r.height / 2, 1), Math.max(vh - 1, 1));
+            const top = document.elementFromPoint(cx, cy);
+            if (top && !el.contains(top) && !top.contains(el)) return false;
+            return true;
         }};"#
     )
 }
@@ -1386,24 +1406,33 @@ fn js_element_visible() -> String {
 /// Layar /stream masih loading (tiga titik / konten hampir kosong).
 pub async fn is_stream_spa_loading(page: &Page) -> Result<bool, StockbitError> {
     let loading = page
-        .evaluate(
-            r#"(() => {
+        .evaluate(format!(
+            r#"(() => {{
+                {vis_helper}
                 const text = (document.body && document.body.innerText || '')
                     .replace(/\s+/g, ' ')
                     .trim();
                 const spins = Array.from(
                     document.querySelectorAll('.ant-spin-spinning, .ant-spin.ant-spin-spinning')
                 );
-                for (const spin of spins) {
+                for (const spin of spins) {{
                     const r = spin.getBoundingClientRect();
                     if (r.width > 2 && r.height > 2) return true;
-                }
-                if (text === '...' || (text.length < 80 && !/masuk|login/i.test(text))) {
+                }}
+                if (text === '...' || (text.length < 80 && !/masuk|login/i.test(text))) {{
                     return true;
-                }
+                }}
+                // App shell belum ter-paint (layar putih + loader 3 titik): navbar belum
+                // benar-benar terlihat walau mungkin sudah ada di DOM.
+                const nav = document.querySelector('[data-cy="top-navbar"]');
+                const start = document.querySelector('[data-cy="top-navbar-button-start-trading"]');
+                if (!visible(nav) && !visible(start)) {{
+                    return true;
+                }}
                 return false;
-            })()"#,
-        )
+            }})()"#,
+            vis_helper = js_element_visible()
+        ))
         .await?
         .into_value::<bool>()
         .unwrap_or(true);
@@ -1455,9 +1484,8 @@ pub async fn is_stream_session_ready(page: &Page) -> Result<bool, StockbitError>
                 if (text.length < 120) return false;
                 const nav = document.querySelector('[data-cy="top-navbar"]');
                 const start = document.querySelector('[data-cy="top-navbar-button-start-trading"]');
-                if (visible(nav) || visible(start)) return true;
-                if (document.querySelector('[data-cy*="stream"]') && text.length > 280) return true;
-                return text.length > 500;
+                // Harus benar-benar ter-render (tidak tertutup loader/overlay), bukan hanya ada di DOM.
+                return visible(nav) || visible(start);
             }})()"#,
             vis_helper = js_element_visible()
         ))
