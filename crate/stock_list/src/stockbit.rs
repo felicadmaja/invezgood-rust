@@ -5,7 +5,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use scylla::client::session::Session;
 use serde::Deserialize;
-use stockbit_browser::ensure_stockbit_bearer;
+use stockbit_browser::ensure_keystats_bearer_and_data;
 
 use crate::model::{
     ClosureFinItemsResultsStockbitDb, KeyStatsFromStockbitDb, KeyStatsFromStockbitRow,
@@ -17,7 +17,7 @@ use crate::model::{
 
 const KEYSTATS_RATIO_URL: &str = "https://exodus.stockbit.com/keystats/ratio/v1";
 const KEYSTATS_YEAR_LIMIT: u32 = 10;
-const STOCKBIT_KEYSTATS_MAX_AGE_SECS: i64 = 4 * 60 * 60;
+const STOCKBIT_KEYSTATS_MAX_AGE_SECS: i64 = 24 * 60 * 60;
 
 #[derive(Debug, Deserialize)]
 struct ApiResponse {
@@ -184,7 +184,7 @@ fn is_updated_at_stale(updated_at: Option<DateTime<Utc>>) -> bool {
         > STOCKBIT_KEYSTATS_MAX_AGE_SECS
 }
 
-/// Perlu GET Stockbit API bila salah satu kolom null/[] atau *_updated_at >4 jam.
+/// Perlu GET Stockbit API bila salah satu kolom null/[] atau *_updated_at >24 jam.
 pub fn needs_stockbit_keystats_refresh(row: &KeyStatsFromStockbitRow) -> bool {
     is_closure_empty(&row.closure_fin_items_results_stockbit)
         || is_updated_at_stale(row.closure_fin_items_results_stockbit_updated_at)
@@ -334,9 +334,18 @@ fn parse_response(body: &str, code: &str) -> Result<KeyStatsFromStockbitDb, Stri
 
 pub async fn fetch_keystats_ratio(code: &str) -> Result<KeyStatsFromStockbitDb, String> {
     let code = code.trim().to_ascii_uppercase();
-    let bearer = ensure_stockbit_bearer()
+
+    // Warm-up pakai code yang diminta (bukan BBCA) + sekalian tangkap data XHR dari halaman.
+    let (captured, bearer) = ensure_keystats_bearer_and_data(&code)
         .await
         .map_err(|e| format!("Stockbit bearer gagal: {e}"))?;
+
+    // Bila data sudah tertangkap saat warm-up & bisa diparse → pakai langsung (tidak GET ulang).
+    if let Some(body) = captured.as_deref() {
+        if let Ok(parsed) = parse_response(body, &code) {
+            return Ok(parsed);
+        }
+    }
 
     let url = format!("{KEYSTATS_RATIO_URL}/{code}?year_limit={KEYSTATS_YEAR_LIMIT}");
     let http = reqwest::Client::new();

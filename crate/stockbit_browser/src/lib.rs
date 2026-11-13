@@ -821,6 +821,41 @@ async fn launch_fresh_browser() -> Result<(Browser, Page), StockbitError> {
                 };
             } catch (_) {}
         })();
+        // Tangkap responseText keystats/ratio agar bisa dipakai tanpa GET ulang (warm-up sekaligus data).
+        (function () {
+            try {
+                if (window.__sbKsCaptureInstalled) return;
+                window.__sbKsCaptureInstalled = true;
+                window.__sbKeystatsJson = window.__sbKeystatsJson || '';
+                const hit = (u) => u && String(u).indexOf('keystats/ratio') !== -1;
+                const keep = (t) => {
+                    if (t && typeof t === 'string' && t.indexOf('"data"') !== -1) {
+                        window.__sbKeystatsJson = t;
+                    }
+                };
+                const ofetchKs = window.fetch;
+                window.fetch = function (input, init) {
+                    const url = typeof input === 'string' ? input : (input && input.url) || '';
+                    const p = ofetchKs.apply(this, arguments);
+                    if (hit(url)) {
+                        try { p.then((res) => { try { res.clone().text().then(keep); } catch (_) {} }); } catch (_) {}
+                    }
+                    return p;
+                };
+                const oOpenKs = XMLHttpRequest.prototype.open;
+                XMLHttpRequest.prototype.open = function () {
+                    this.__sbKsUrl = arguments[1];
+                    return oOpenKs.apply(this, arguments);
+                };
+                const oSendKs = XMLHttpRequest.prototype.send;
+                XMLHttpRequest.prototype.send = function () {
+                    this.addEventListener('load', function () {
+                        try { if (hit(this.__sbKsUrl) && this.responseText) keep(this.responseText); } catch (_) {}
+                    });
+                    return oSendKs.apply(this, arguments);
+                };
+            } catch (_) {}
+        })();
     "#,
     )
     .await?;
@@ -2777,6 +2812,86 @@ pub async fn ensure_stockbit_bearer_for_fundachart(code: &str) -> Result<String,
     let token = extract_stockbit_bearer_keystats_path(&page, &code).await?;
     browser.close().await;
     Ok(token)
+}
+
+/// Warm-up keystats memakai `code` yang diminta (bukan BBCA) **sekaligus menangkap** JSON XHR
+/// `keystats/ratio` dari halaman — supaya tidak perlu GET ulang (tidak 2× kerja).
+///
+/// Return `(Some(json), bearer)` bila data tertangkap dari halaman; `(None, bearer)` bila bearer
+/// sudah tercache (caller lakukan GET biasa) atau capture gagal (caller fallback GET).
+pub async fn ensure_keystats_bearer_and_data(
+    code: &str,
+) -> Result<(Option<String>, String), StockbitError> {
+    let code = code.trim().to_ascii_uppercase();
+
+    // Cache hit → tanpa Chrome; caller GET biasa pakai token (murah, year_limit pasti benar).
+    if let Some(token) = try_cached_bearer_keystats(&code).await {
+        println!("Bearer cache hit keystats {code} (len={}).", token.len());
+        return Ok((None, token));
+    }
+
+    let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
+    let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
+    if email.trim().is_empty() || password.is_empty() {
+        return Err(
+            "STOCKBIT_EMAIL / STOCKBIT_PASSWORD wajib untuk ambil Bearer Stockbit".into(),
+        );
+    }
+
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive)
+        .await
+        .map_err(|e| -> StockbitError { e.into() })?;
+    let (browser, page) = launch_page().await?;
+    open_stream_or_login(&page, email.trim(), password.trim()).await?;
+
+    // Reset buffer bearer + data sebelum navigasi ke halaman keystats code yang diminta.
+    let _ = page
+        .evaluate(r#"(() => { window.__sbCapturedBearer=''; window.__sbKeystatsJson=''; return 0; })()"#)
+        .await;
+
+    println!("Bearer+data keystats: warm-up navigasi {code} (sekalian tangkap data)...");
+    goto_stockbit(&page, &format!("https://stockbit.com/symbol/{code}/keystats")).await?;
+    let _ = page.evaluate(ensure_auth_capture_js()).await;
+
+    // Poll bearer + data XHR keystats (maks ~16 detik).
+    let mut captured = String::new();
+    for _ in 0..40 {
+        sleep(Duration::from_millis(400)).await;
+        let bearer_len = page
+            .evaluate(r#"(() => (window.__sbCapturedBearer || '').length)()"#)
+            .await
+            .ok()
+            .and_then(|v| v.into_value::<u64>().ok())
+            .unwrap_or(0);
+        if captured.is_empty() {
+            captured = page
+                .evaluate(r#"(() => window.__sbKeystatsJson || '')()"#)
+                .await
+                .ok()
+                .and_then(|v| v.into_value::<String>().ok())
+                .unwrap_or_default();
+        }
+        if bearer_len > 0 && !captured.is_empty() {
+            break;
+        }
+    }
+
+    let candidates = scan_bearer_candidates(&page).await?;
+    let token = pick_probe_valid_bearer_keystats(&candidates, &code).await?;
+    store_bearer_cache(token.clone()).await;
+    browser.close().await;
+
+    let data = if captured.is_empty() {
+        println!("Keystats {code}: data XHR tak tertangkap dari warm-up — caller fallback GET.");
+        None
+    } else {
+        println!(
+            "Keystats {code}: data XHR tertangkap dari warm-up (len={}), hemat 1 GET.",
+            captured.len()
+        );
+        Some(captured)
+    };
+    Ok((data, token))
 }
 
 async fn extract_stockbit_bearer_keystats_path(

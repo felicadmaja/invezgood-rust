@@ -2142,81 +2142,68 @@ impl StockList for StockListService {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         tokio::spawn(async move {
-            let stream_result: Result<Vec<KeyStatsFromStockbitResponse>, Status> =
-                match tokio::select! {
-                    biased;
-                    () = tx.closed() => None,
-                    result = async {
-                        let mut row = crate::repository::get_keystats_from_stockbit_by_code(
-                            session.as_ref(),
-                            &code,
-                        )
-                        .await
-                        .map_err(Status::internal)?
-                        .ok_or_else(|| {
-                            Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                        })?;
+            let stream_result: Result<Vec<KeyStatsFromStockbitResponse>, Status> = async {
+                let row = crate::repository::get_keystats_from_stockbit_by_code(
+                    session.as_ref(),
+                    &code,
+                )
+                .await
+                .map_err(Status::internal)?
+                .ok_or_else(|| {
+                    Status::not_found(format!("stock_list code={code} tidak ditemukan"))
+                })?;
 
-                        let chunks = if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
-                            match try_acquire_stockbit_api_get_slot(
-                                "GetKeyStatsFromStockbit",
-                                &user_name_spawn,
-                            )
-                            .await
-                            {
-                                StockbitApiGetSlot::Acquired => {
-                                    eprintln!(
-                                        "GetKeyStatsFromStockbit {user_name_spawn} GET Stockbit API keystats/ratio/v1/{code}"
-                                    );
+                // Selalu balas data Scylla saat ini (cepat). Bila perlu refresh, jalankan fetch
+                // Stockbit di BACKGROUND agar response tidak terblok puluhan detik (Chrome warm-up),
+                // sehingga client tidak timeout. Data fresh akan muncul pada invoke berikutnya.
+                if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
+                    match try_acquire_stockbit_api_get_slot(
+                        "GetKeyStatsFromStockbit",
+                        &user_name_spawn,
+                    )
+                    .await
+                    {
+                        StockbitApiGetSlot::Acquired => {
+                            let bg_session = Arc::clone(&session);
+                            let bg_code = code.clone();
+                            let bg_user = user_name_spawn.clone();
+                            tokio::spawn(async move {
+                                eprintln!(
+                                    "GetKeyStatsFromStockbit {bg_user} GET Stockbit API keystats/ratio/v1/{bg_code} (refresh background)"
+                                );
+                                if let Err(e) =
                                     crate::stockbit::fetch_and_save_keystats_from_stockbit(
-                                        Arc::clone(&session),
-                                        &code,
+                                        bg_session, &bg_code,
                                     )
                                     .await
-                                    .map_err(Status::internal)?;
-                                    row = crate::repository::get_keystats_from_stockbit_by_code(
-                                        session.as_ref(),
-                                        &code,
-                                    )
-                                    .await
-                                    .map_err(Status::internal)?
-                                    .ok_or_else(|| {
-                                        Status::not_found(format!(
-                                            "stock_list code={code} tidak ditemukan"
-                                        ))
-                                    })?;
-                                    Self::keystats_from_stockbit_row_stream(
-                                        row,
-                                        "Key stats Stockbit di-upsert ke stock_list",
-                                    )
+                                {
+                                    eprintln!(
+                                        "GetKeyStatsFromStockbit {bg_user} refresh background {bg_code} gagal: {e}"
+                                    );
                                 }
-                                StockbitApiGetSlot::RateLimited { remaining_secs } => {
-                                    Self::keystats_from_stockbit_row_stream(
-                                        row,
-                                        &format!(
-                                            "Key stats Stockbit dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
-                                        ),
-                                    )
-                                }
-                            }
-                        } else {
-                            Self::keystats_from_stockbit_row_stream(row, "Key stats Stockbit dari Scylla")
-                        };
-
-                        Ok(chunks)
-                    } => Some(result),
-                } {
-                    None => {
-                        Self::log_rpc_debug_code(
-                            "GetKeyStatsFromStockbit",
-                            &user_name_spawn,
-                            &code,
-                            started,
-                        );
-                        return;
+                            });
+                            Ok(Self::keystats_from_stockbit_row_stream(
+                                row,
+                                "Key stats Stockbit dari Scylla (refresh Stockbit berjalan di background)",
+                            ))
+                        }
+                        StockbitApiGetSlot::RateLimited { remaining_secs } => {
+                            Ok(Self::keystats_from_stockbit_row_stream(
+                                row,
+                                &format!(
+                                    "Key stats Stockbit dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
+                                ),
+                            ))
+                        }
                     }
-                    Some(result) => result,
-                };
+                } else {
+                    Ok(Self::keystats_from_stockbit_row_stream(
+                        row,
+                        "Key stats Stockbit dari Scylla",
+                    ))
+                }
+            }
+            .await;
 
             match stream_result {
                 Ok(chunks) => {
