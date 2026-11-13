@@ -973,18 +973,24 @@ fn error_screenshot_dir() -> PathBuf {
 }
 
 /// Simpan screenshot PNG debug ke `worker_scrapping/screenshots/`; path dicetak ke stderr.
+/// Nama file = `{label}.png` (label sudah diberi prefiks urutan `01_`, `02_`, ... oleh pemanggil).
 pub async fn save_debug_screenshot(page: &Page, label: &str) -> Option<PathBuf> {
-    save_error_screenshot(page, label).await
+    save_screenshot_to(page, &format!("{label}.png"), label).await
 }
 
-/// Simpan screenshot debug saat error; path dicetak ke stderr.
+/// Simpan screenshot debug saat error; path dicetak ke stderr. Nama file diberi prefiks
+/// `stockbit_error_` agar mudah dibedakan dari screenshot proses yang berurutan (`01_...`).
 pub async fn save_error_screenshot(page: &Page, label: &str) -> Option<PathBuf> {
+    save_screenshot_to(page, &format!("stockbit_error_{label}.png"), label).await
+}
+
+async fn save_screenshot_to(page: &Page, file_name: &str, label: &str) -> Option<PathBuf> {
     let dir = error_screenshot_dir();
     if let Err(e) = tokio::fs::create_dir_all(&dir).await {
-        eprintln!("Peringatan: gagal buat folder screenshot error: {e}");
+        eprintln!("Peringatan: gagal buat folder screenshot: {e}");
         return None;
     }
-    let path = dir.join(format!("stockbit_error_{label}.png"));
+    let path = dir.join(file_name);
     match page
         .save_screenshot(
             ScreenshotParams::builder()
@@ -995,11 +1001,11 @@ pub async fn save_error_screenshot(page: &Page, label: &str) -> Option<PathBuf> 
         .await
     {
         Ok(_) => {
-            eprintln!("Screenshot error [{label}]: {}", path.display());
+            eprintln!("Screenshot [{label}]: {}", path.display());
             Some(path)
         }
         Err(e) => {
-            eprintln!("Peringatan: gagal simpan screenshot error [{label}]: {e}");
+            eprintln!("Peringatan: gagal simpan screenshot [{label}]: {e}");
             None
         }
     }
@@ -1112,7 +1118,7 @@ async fn has_login_form(page: &Page) -> bool {
     .unwrap_or(false)
 }
 
-async fn has_profile_avatar_modal(page: &Page) -> bool {
+pub async fn has_profile_avatar_modal(page: &Page) -> bool {
     page.evaluate(
         r#"(() => {
             const body = (document.body && document.body.innerText) || '';
@@ -1123,6 +1129,14 @@ async fn has_profile_avatar_modal(page: &Page) -> bool {
     .ok()
     .and_then(|v| v.into_value::<bool>().ok())
     .unwrap_or(false)
+}
+
+/// Tutup modal "New! Profile Avatar" (klik Skip) bila ada; aman dipanggil berulang.
+pub async fn dismiss_profile_avatar_modal_if_present(page: &Page) -> Result<bool, StockbitError> {
+    if has_profile_avatar_modal(page).await {
+        return dismiss_profile_avatar_modal(page).await;
+    }
+    Ok(false)
 }
 
 async fn wait_for_2fa_phone_approval(
@@ -1221,6 +1235,88 @@ async fn perform_login(page: &Page, email: &str, password: &str) -> Result<(), S
     }
 
     Ok(())
+}
+
+/// Debug bertahap: /login → isi email+password → submit → tunggu /stream interaktif.
+/// Simpan screenshot di tiap langkah (worker_scrapping/screenshots/).
+/// Mengembalikan daftar (label, path) screenshot terurut.
+pub async fn debug_login_flow_with_screenshots(
+    page: &Page,
+    email: &str,
+    password: &str,
+) -> Result<Vec<(String, String)>, StockbitError> {
+    let mut shots: Vec<(String, String)> = Vec::new();
+    let mut snap = |label: &str| label.to_string();
+
+    goto_stockbit(page, STOCKBIT_LOGIN_URL).await?;
+    wait_for_login_form(page, Duration::from_secs(30)).await?;
+    sleep(Duration::from_millis(600)).await;
+    if let Some(p) = save_debug_screenshot(page, "01_login_page").await {
+        shots.push((snap("01_login_page"), p.display().to_string()));
+    }
+
+    type_naturally(page, "#username", email, "email/username", (0, 0)).await?;
+    sleep(Duration::from_millis(300)).await;
+    type_naturally(page, "#password", password, "password", (0, 0)).await?;
+    sleep(Duration::from_millis(400)).await;
+    if let Some(p) = save_debug_screenshot(page, "02_filled").await {
+        shots.push((snap("02_filled"), p.display().to_string()));
+    }
+
+    if let Ok(btn) = page.find_element("#email-login-button").await {
+        btn.click().await?;
+    } else {
+        return Err("Tombol Login (#email-login-button) tidak ditemukan".into());
+    }
+    sleep(Duration::from_secs(3)).await;
+    if let Some(p) = save_debug_screenshot(page, "03_after_submit").await {
+        shots.push((snap("03_after_submit"), p.display().to_string()));
+    }
+
+    let after_url = page.url().await?.unwrap_or_default();
+    let timeout_secs: u64 = std::env::var("STOCKBIT_2FA_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(300);
+    if is_2fa_pending_url(&after_url) {
+        println!("Debug login: menunggu 2FA approve di HP ({timeout_secs}s)...");
+        if let Some(p) = save_debug_screenshot(page, "04_2fa_pending").await {
+            shots.push((snap("04_2fa_pending"), p.display().to_string()));
+        }
+        wait_for_2fa_phone_approval(page, Duration::from_secs(timeout_secs)).await?;
+    }
+
+    if has_profile_avatar_modal(page).await {
+        dismiss_profile_avatar_modal(page).await?;
+    }
+
+    goto_stockbit(page, STOCKBIT_STREAM_URL).await?;
+    wait_for_stream_interactive_ready(page, Duration::from_secs(120)).await?;
+    sleep(Duration::from_millis(800)).await;
+    if let Some(p) = save_debug_screenshot(page, "05_stream_ready").await {
+        shots.push((snap("05_stream_ready"), p.display().to_string()));
+    }
+
+    // Tunggu tombol START TRADING benar-benar terlihat.
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_secs(30) {
+        if is_start_trading_nav_visible(page).await? {
+            break;
+        }
+        sleep(Duration::from_millis(400)).await;
+    }
+    let visible = is_start_trading_nav_visible(page).await?;
+    let label = if visible {
+        "06_start_trading_visible"
+    } else {
+        "06_start_trading_missing"
+    };
+    if let Some(p) = save_debug_screenshot(page, label).await {
+        shots.push((snap(label), p.display().to_string()));
+    }
+    println!("Debug login: START TRADING visible = {visible}");
+
+    Ok(shots)
 }
 
 pub async fn dismiss_profile_avatar_modal(page: &Page) -> Result<bool, StockbitError> {

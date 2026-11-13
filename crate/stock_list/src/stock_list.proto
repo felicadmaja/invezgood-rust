@@ -124,6 +124,9 @@ service StockList {
   // Bearer login wajib; hanya role admin. Request: code + catatan_bidang_usaha. success=false + message bila code tidak ada atau DB gagal.
   rpc UpdateCatatanBidangUsaha(UpdateCatatanBidangUsahaRequest)
       returns (UpdateCatatanBidangUsahaResponse);
+
+
+      // https://terminal.stockbit.com/main?layout=watchlist&tabName=SBMA&symbol=SBMA
 } 
 
 message GetAllStocksRequest {}

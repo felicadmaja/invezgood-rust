@@ -21,7 +21,7 @@ async fn main() -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     sleep(Duration::from_secs(3)).await;
-    let path = save_debug_screenshot(&page, "stockbit_login_page_initial")
+    let path = save_debug_screenshot(&page, "01_login_page")
         .await
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| "(gagal simpan)".into());

@@ -23,14 +23,14 @@ async fn main() -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     sleep(Duration::from_secs(2)).await;
-    let _ = save_debug_screenshot(&page, "debug_01_stream_ready").await;
+    let _ = save_debug_screenshot(&page, "01_stream_ready").await;
 
     println!("=== ensure_trading_session → worker_scrapping/screenshots/ ===");
     match portofolio_worker::ensure_trading_session(&page).await {
         Ok(pin_entered) => println!("ensure_trading_session OK pin_entered={pin_entered}"),
         Err(e) => eprintln!("ensure_trading_session ERR: {e}"),
     }
-    let _ = save_debug_screenshot(&page, "debug_99_final").await;
+    let _ = save_debug_screenshot(&page, "99_final").await;
     browser.close().await;
     Ok(())
 }

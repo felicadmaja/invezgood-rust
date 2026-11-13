@@ -16,9 +16,10 @@ use serde_json::Value;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use stockbit_browser::{
-    clear_stockbit_trading_client_state, evaluate_resilient, goto_stockbit, is_login_url,
-    is_start_trading_nav_visible, is_stream_spa_loading, open_stream_or_login,
-    save_debug_screenshot, wait_for_stream_interactive_ready, STOCKBIT_STREAM_URL,
+    clear_stockbit_trading_client_state, dismiss_profile_avatar_modal_if_present,
+    evaluate_resilient, goto_stockbit, is_login_url, is_start_trading_nav_visible,
+    is_stream_spa_loading, open_stream_or_login, save_debug_screenshot,
+    wait_for_stream_interactive_ready, STOCKBIT_STREAM_URL,
 };
 
 const ERR_REDIRECT_LOGIN: &str = "START_TRADING_REDIRECT_LOGIN";
@@ -111,10 +112,10 @@ async fn wait_for_start_trading_visible_with_screenshot(
             .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?
         {
             if !captured_visible {
-                let shot_label = format!("portfolio_start_trading_visible_{label}");
+                let shot_label = format!("03_start_trading_visible_{label}");
                 let _ = save_debug_screenshot(page, &shot_label).await;
                 println!(
-                    "START TRADING terlihat — screenshot: worker_scrapping/screenshots/stockbit_error_{shot_label}.png"
+                    "START TRADING terlihat — screenshot: worker_scrapping/screenshots/{shot_label}.png"
                 );
                 captured_visible = true;
             }
@@ -122,7 +123,7 @@ async fn wait_for_start_trading_visible_with_screenshot(
         }
         sleep(Duration::from_millis(350)).await;
     }
-    let _ = save_debug_screenshot(page, &format!("portfolio_start_trading_missing_{label}")).await;
+    let _ = save_debug_screenshot(page, &format!("03_start_trading_missing_{label}")).await;
     Err("Timeout menunggu tombol START TRADING (setelah /stream load)".into())
 }
 
@@ -232,7 +233,7 @@ async fn wait_for_pin_modal(page: &Page, timeout: Duration) -> Result<(), Box<dy
     loop {
         let url = page.url().await?.unwrap_or_default();
         if is_login_url(&url) {
-            let _ = save_debug_screenshot(page, "portfolio_redirect_login_while_waiting_pin").await;
+            let _ = save_debug_screenshot(page, "05_redirect_login_while_waiting_pin").await;
             log_pin_modal_probe(page, "redirect_login").await;
             return Err(ERR_REDIRECT_LOGIN.into());
         }
@@ -256,14 +257,14 @@ async fn wait_for_pin_modal(page: &Page, timeout: Duration) -> Result<(), Box<dy
             return Ok(());
         }
         if started.elapsed() >= timeout {
-            let _ = save_debug_screenshot(page, "portfolio_pin_modal_timeout").await;
+            let _ = save_debug_screenshot(page, "05_pin_modal_timeout").await;
             log_pin_modal_probe(page, "pin_modal_timeout").await;
             return Err("Timeout menunggu modal Input Trading PIN".into());
         }
         let sec = started.elapsed().as_secs();
         if sec >= 3 && sec != last_shot_secs && sec % 5 == 0 {
             last_shot_secs = sec;
-            let _ = save_debug_screenshot(page, &format!("portfolio_pin_wait_{sec}s")).await;
+            let _ = save_debug_screenshot(page, &format!("05_pin_wait_{sec}s")).await;
             log_pin_modal_probe(page, &format!("wait_{sec}s")).await;
         }
         sleep(Duration::from_millis(300)).await;
@@ -282,11 +283,14 @@ async fn type_pin_natural(page: &Page, pin: &str) -> Result<(), Box<dyn std::err
                     'input.sc-916940df-2.gSpCVo, input.sc-916940df-2, input[pattern="\\d*"][type="text"]'
                 );
                 if (!input) return false;
+                // React controlled input: pakai native setter agar state React ikut terupdate.
+                const setter = Object.getOwnPropertyDescriptor(
+                    window.HTMLInputElement.prototype, 'value'
+                ).set;
                 input.focus();
                 input.click();
-                input.value = '';
+                setter.call(input, '');
                 input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                input.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 return true;
             }})()"#
         ))
@@ -311,9 +315,12 @@ async fn type_pin_natural(page: &Page, pin: &str) -> Result<(), Box<dyn std::err
                         'input.sc-916940df-2.gSpCVo, input.sc-916940df-2, input[pattern="\\d*"][type="text"]'
                     );
                     if (!input) return false;
-                    input.value = (input.value || '') + {ch_js};
+                    // Native setter + input event supaya React controlled input mendaftarkan nilai.
+                    const setter = Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype, 'value'
+                    ).set;
+                    setter.call(input, (input.value || '') + {ch_js});
                     input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                    input.dispatchEvent(new Event('change', {{ bubbles: true }}));
                     return true;
                 }})()"#
             ))
@@ -324,6 +331,8 @@ async fn type_pin_natural(page: &Page, pin: &str) -> Result<(), Box<dyn std::err
             return Err("Gagal mengetik karakter PIN".into());
         }
     }
+    // Beri waktu React memvalidasi & meng-enable tombol Submit.
+    sleep(Duration::from_millis(400)).await;
     Ok(())
 }
 
@@ -346,12 +355,10 @@ async fn click_pin_submit(page: &Page) -> Result<(), Box<dyn std::error::Error>>
                     }}
                     if (!submit) return false;
                     const pinLen = input ? (input.value || '').length : 0;
-                    if (submit.disabled && pinLen > 0) {{
-                        submit.disabled = false;
-                        submit.removeAttribute('disabled');
-                        submit.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                    }}
+                    // Jangan paksa-enable: klik hanya saat React sudah meng-enable (PIN valid),
+                    // supaya submit tidak terkirim dengan PIN kosong.
                     if (submit.disabled) return false;
+                    if (pinLen === 0) return false;
                     submit.click();
                     return true;
                 }})()"#
@@ -472,6 +479,20 @@ async fn goto_stream_for_trading(page: &Page) -> Result<(), Box<dyn std::error::
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     sleep(Duration::from_millis(1500)).await;
+    dismiss_avatar_modal(page).await?;
+    Ok(())
+}
+
+/// Tutup popup "New! Profile Avatar" (klik Skip) bila menutupi feed /stream.
+async fn dismiss_avatar_modal(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    match dismiss_profile_avatar_modal_if_present(page).await {
+        Ok(true) => {
+            println!("Portofolio: popup 'New! Profile Avatar' di-Skip.");
+            sleep(Duration::from_millis(500)).await;
+        }
+        Ok(false) => {}
+        Err(e) => eprintln!("Portofolio: gagal menutup popup avatar: {e}"),
+    }
     Ok(())
 }
 
@@ -503,7 +524,7 @@ async fn log_pin_modal_probe(page: &Page, label: &str) {
 
 async fn after_start_trading_click(page: &Page, step: &str) -> Result<(), Box<dyn std::error::Error>> {
     sleep(Duration::from_millis(600)).await;
-    let _ = save_debug_screenshot(page, &format!("portfolio_{step}_after_start_trading")).await;
+    let _ = save_debug_screenshot(page, &format!("04_after_start_trading_{step}")).await;
     log_pin_modal_probe(page, step).await;
     Ok(())
 }
@@ -527,7 +548,7 @@ pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::er
         }
     }
     if is_start_trading_visible(page).await? {
-        let _ = save_debug_screenshot(page, "portfolio_start_trading_visible_initial").await;
+        let _ = save_debug_screenshot(page, "02_start_trading_visible_initial").await;
         println!("START TRADING terlihat — screenshot disimpan.");
     }
 
@@ -542,6 +563,8 @@ pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::er
             &format!("attempt{attempt}"),
         )
         .await?;
+        // Pastikan popup "New! Profile Avatar" tidak menutupi tombol START TRADING.
+        dismiss_avatar_modal(page).await?;
         println!("Portofolio: klik START TRADING...");
         click_start_trading(page).await?;
         after_start_trading_click(page, &format!("attempt{attempt}")).await?;
@@ -569,7 +592,7 @@ pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::er
         }
         if pin_ready {
             let _ =
-                save_debug_screenshot(page, &format!("portfolio_attempt{attempt}_pin_modal"))
+                save_debug_screenshot(page, &format!("05_pin_modal_attempt{attempt}"))
                     .await;
             type_pin_natural(page, &pin).await?;
             click_pin_submit(page).await?;
@@ -597,7 +620,7 @@ pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::er
                         .into(),
                 );
             }
-            let _ = save_debug_screenshot(page, "portfolio_start_trading_visible_after_relogin")
+            let _ = save_debug_screenshot(page, "02_start_trading_visible_after_relogin")
                 .await;
             continue;
         }
