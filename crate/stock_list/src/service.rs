@@ -83,33 +83,39 @@ use crate::pb::{
 const INVEZGO_FINANCIAL_MAX_AGE_SECS: i64 = 24 * 60 * 60;
 const INVEZGO_CORPORATE_ACTION_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
 const SHARE_HOLDER_DATA_MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
-const STOCKBIT_API_GET_COOLDOWN: Duration = Duration::from_secs(5);
+// Rate limit GET Stockbit API: maksimal 2 request per jendela 1 detik (2×/1 detik).
+const STOCKBIT_API_GET_WINDOW: Duration = Duration::from_secs(1);
+const STOCKBIT_API_GET_MAX_IN_WINDOW: usize = 2;
 
 enum StockbitApiGetSlot {
     Acquired,
     RateLimited { remaining_secs: u64 },
 }
 
-static LAST_STOCKBIT_API_GET: OnceLock<Mutex<Option<std::time::Instant>>> = OnceLock::new();
+static LAST_STOCKBIT_API_GET: OnceLock<Mutex<Vec<std::time::Instant>>> = OnceLock::new();
 
-fn stockbit_api_get_gate() -> &'static Mutex<Option<std::time::Instant>> {
-    LAST_STOCKBIT_API_GET.get_or_init(|| Mutex::new(None))
+fn stockbit_api_get_gate() -> &'static Mutex<Vec<std::time::Instant>> {
+    LAST_STOCKBIT_API_GET.get_or_init(|| Mutex::new(Vec::new()))
 }
 
-/// Rate limit hanya untuk GET Stockbit API (bukan RPC). `Acquired` = boleh GET; `RateLimited` = skip GET, RPC tetap jalan.
+/// Rate limit hanya untuk GET Stockbit API (bukan RPC): 2× per 1 detik (sliding window).
+/// `Acquired` = boleh GET; `RateLimited` = skip GET, RPC tetap jalan.
 async fn try_acquire_stockbit_api_get_slot(caller: &str, user_name: &str) -> StockbitApiGetSlot {
-    let mut last = stockbit_api_get_gate().lock().await;
-    if let Some(at) = *last {
-        let elapsed = at.elapsed();
-        if elapsed < STOCKBIT_API_GET_COOLDOWN {
-            let remaining_secs = (STOCKBIT_API_GET_COOLDOWN - elapsed).as_secs().max(1);
-            eprintln!(
-                "{caller} {user_name} rate-limit GET Stockbit API: skip, sisa {remaining_secs}s"
-            );
-            return StockbitApiGetSlot::RateLimited { remaining_secs };
-        }
+    let now = std::time::Instant::now();
+    let mut hits = stockbit_api_get_gate().lock().await;
+    // Buang timestamp di luar jendela 1 detik.
+    hits.retain(|t| now.duration_since(*t) < STOCKBIT_API_GET_WINDOW);
+    if hits.len() >= STOCKBIT_API_GET_MAX_IN_WINDOW {
+        let oldest = hits.iter().min().copied().unwrap_or(now);
+        let remaining_secs = (STOCKBIT_API_GET_WINDOW - now.duration_since(oldest))
+            .as_secs()
+            .max(1);
+        eprintln!(
+            "{caller} {user_name} rate-limit GET Stockbit API: skip, sisa {remaining_secs}s"
+        );
+        return StockbitApiGetSlot::RateLimited { remaining_secs };
     }
-    *last = Some(std::time::Instant::now());
+    hits.push(now);
     StockbitApiGetSlot::Acquired
 }
 

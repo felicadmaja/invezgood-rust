@@ -245,6 +245,17 @@ async fn type_symbol_and_submit(page: &Page, code: &str) -> Result<(), StockbitE
     Ok(())
 }
 
+/// Kosongkan buffer capture (PE/PBV/last) tanpa melepas interceptor — dipakai sebelum klik
+/// "5 Years" supaya poll hanya menangkap respons timeframe 5 tahun (bukan default 3 tahun).
+fn reset_captured_json_js() -> &'static str {
+    r#"(() => {
+        window.__sbFundachartPE = '';
+        window.__sbFundachartPBV = '';
+        window.__sbFundachartJson = '';
+        return 1;
+    })()"#
+}
+
 /// Jenis fundachart band yang di-scrape dari tab Analysis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FundachartKind {
@@ -331,9 +342,11 @@ async fn scrape_fundachart_via_terminal_dom(
     println!("fundachart {code}: tab Analysis terbuka (5 Years tersedia)");
     sleep(Duration::from_secs(1)).await;
 
+    // Reset capture: buang respons timeframe default (3 thn) agar poll hanya menangkap respons 5 thn.
+    let _ = evaluate_resilient(page, reset_captured_json_js()).await;
     let n = click_all_buttons_by_text_retry(page, "5 Years", 15).await;
     println!(
-        "fundachart {code}: klik 5 Years (x{n}) — pantau XHR fundachart ({})",
+        "fundachart {code}: klik 5 Years (x{n}) — pantau XHR fundachart 5 tahun ({})",
         kind.label()
     );
 
@@ -433,8 +446,10 @@ pub async fn fetch_fundachart_both_json(code: &str) -> Result<(String, String), 
     println!("fundachart {code}: tab Analysis terbuka (5 Years tersedia)");
     sleep(Duration::from_secs(1)).await;
 
+    // Reset capture: buang respons timeframe default (3 thn) agar poll hanya menangkap respons 5 thn.
+    let _ = evaluate_resilient(&page, reset_captured_json_js()).await;
     let n = click_all_buttons_by_text_retry(&page, "5 Years", 15).await;
-    println!("fundachart {code}: klik 5 Years (x{n}) — pantau XHR PE + PBV");
+    println!("fundachart {code}: klik 5 Years (x{n}) — pantau XHR PE + PBV (5 tahun)");
 
     // Poll kedua seri; PE & PBV di-route oleh install_fundachart_capture_js().
     let pe = poll_captured_json(&page, FundachartKind::PeBand, 80).await;
