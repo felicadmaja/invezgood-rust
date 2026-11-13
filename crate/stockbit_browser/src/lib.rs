@@ -2842,56 +2842,85 @@ pub async fn ensure_keystats_bearer_and_data(
         .await
         .map_err(|e| -> StockbitError { e.into() })?;
     let (browser, page) = launch_page().await?;
-    open_stream_or_login(&page, email.trim(), password.trim()).await?;
 
-    // Reset buffer bearer + data sebelum navigasi ke halaman keystats code yang diminta.
+    let keystats_url = format!("https://stockbit.com/symbol/{code}/keystats");
+
+    // FAST PATH: buka LANGSUNG halaman keystats (persis seperti user buka URL di Chrome yang sudah
+    // login) — data XHR keystats/ratio biasanya muncul instan. Hindari navigasi /stream & probe
+    // bearer yang mahal. Hanya bila belum login (redirect /login / form login) kita login lalu ulang.
     let _ = page
         .evaluate(r#"(() => { window.__sbCapturedBearer=''; window.__sbKeystatsJson=''; return 0; })()"#)
         .await;
-
-    println!("Bearer+data keystats: warm-up navigasi {code} (sekalian tangkap data)...");
-    goto_stockbit(&page, &format!("https://stockbit.com/symbol/{code}/keystats")).await?;
+    println!("Keystats {code}: buka langsung halaman keystats (fast path)...");
+    goto_stockbit(&page, &keystats_url).await?;
     let _ = page.evaluate(ensure_auth_capture_js()).await;
 
-    // Poll bearer + data XHR keystats (maks ~16 detik).
-    let mut captured = String::new();
-    for _ in 0..40 {
-        sleep(Duration::from_millis(400)).await;
-        let bearer_len = page
-            .evaluate(r#"(() => (window.__sbCapturedBearer || '').length)()"#)
-            .await
-            .ok()
-            .and_then(|v| v.into_value::<u64>().ok())
-            .unwrap_or(0);
-        if captured.is_empty() {
-            captured = page
-                .evaluate(r#"(() => window.__sbKeystatsJson || '')()"#)
-                .await
-                .ok()
-                .and_then(|v| v.into_value::<String>().ok())
-                .unwrap_or_default();
-        }
-        if bearer_len > 0 && !captured.is_empty() {
-            break;
+    // Poll cepat data XHR (~8 detik). Break segera setelah data ada (tidak menunggu bearer).
+    let mut captured = poll_keystats_data(&page, 20).await;
+
+    if captured.is_empty() {
+        let need_login = {
+            let url = page.url().await.ok().flatten().unwrap_or_default();
+            is_login_url(&url) || has_login_form(&page).await
+        };
+        if need_login {
+            println!("Keystats {code}: belum login — login lalu buka ulang halaman keystats...");
+            open_stream_or_login(&page, email.trim(), password.trim()).await?;
+            let _ = page
+                .evaluate(r#"(() => { window.__sbCapturedBearer=''; window.__sbKeystatsJson=''; return 0; })()"#)
+                .await;
+            goto_stockbit(&page, &keystats_url).await?;
+            let _ = page.evaluate(ensure_auth_capture_js()).await;
+            captured = poll_keystats_data(&page, 40).await;
         }
     }
 
+    // DATA tertangkap → kembalikan langsung TANPA scan+probe bearer (hemat waktu besar). Bearer
+    // mentah sudah ikut tertangkap pada navigasi yang sama (tanpa probe) → simpan opportunistik
+    // (try_cached_bearer_keystats akan probe sebelum dipakai di panggilan berikutnya).
+    if !captured.is_empty() {
+        let raw_bearer = page
+            .evaluate(r#"(() => window.__sbCapturedBearer || '')()"#)
+            .await
+            .ok()
+            .and_then(|v| v.into_value::<String>().ok())
+            .unwrap_or_default();
+        if !raw_bearer.is_empty() {
+            store_bearer_cache(raw_bearer.clone()).await;
+        }
+        browser.close().await;
+        println!(
+            "Keystats {code}: data XHR tertangkap (len={}), skip probe bearer.",
+            captured.len()
+        );
+        return Ok((Some(captured), raw_bearer));
+    }
+
+    // Tidak dapat data dari halaman → fallback: scan + probe bearer untuk GET HTTP biasa.
+    println!("Keystats {code}: data XHR tak tertangkap — fallback scan+probe bearer untuk GET.");
     let candidates = scan_bearer_candidates(&page).await?;
     let token = pick_probe_valid_bearer_keystats(&candidates, &code).await?;
     store_bearer_cache(token.clone()).await;
     browser.close().await;
+    Ok((None, token))
+}
 
-    let data = if captured.is_empty() {
-        println!("Keystats {code}: data XHR tak tertangkap dari warm-up — caller fallback GET.");
-        None
-    } else {
-        println!(
-            "Keystats {code}: data XHR tertangkap dari warm-up (len={}), hemat 1 GET.",
-            captured.len()
-        );
-        Some(captured)
-    };
-    Ok((data, token))
+/// Poll `window.__sbKeystatsJson` sampai berisi (interval 400ms × `attempts`). Return string kosong
+/// bila tidak muncul. Dipakai agar hot path keystats break segera setelah data XHR tertangkap.
+async fn poll_keystats_data(page: &Page, attempts: usize) -> String {
+    for _ in 0..attempts {
+        sleep(Duration::from_millis(400)).await;
+        let captured = page
+            .evaluate(r#"(() => window.__sbKeystatsJson || '')()"#)
+            .await
+            .ok()
+            .and_then(|v| v.into_value::<String>().ok())
+            .unwrap_or_default();
+        if !captured.is_empty() {
+            return captured;
+        }
+    }
+    String::new()
 }
 
 async fn extract_stockbit_bearer_keystats_path(
