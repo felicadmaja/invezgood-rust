@@ -17,12 +17,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use stockbit_browser::{
     clear_stockbit_trading_client_state, dismiss_profile_avatar_modal_if_present,
-    evaluate_resilient, goto_stockbit, is_login_url, is_start_trading_nav_visible,
-    is_stream_spa_loading, open_stream_or_login, save_debug_screenshot,
-    wait_for_stream_interactive_ready, STOCKBIT_STREAM_URL,
+    evaluate_resilient, goto_stockbit, has_session_expired_modal, is_login_url,
+    is_start_trading_nav_visible, is_stream_spa_loading, open_stream_or_login,
+    relogin_if_session_expired, save_debug_screenshot, wait_for_stream_interactive_ready,
+    STOCKBIT_STREAM_URL,
 };
 
 const ERR_REDIRECT_LOGIN: &str = "START_TRADING_REDIRECT_LOGIN";
+const ERR_SESSION_EXPIRED: &str = "STOCKBIT_SESSION_EXPIRED";
 
 use tokio::time::sleep;
 
@@ -98,7 +100,6 @@ async fn wait_for_start_trading_visible_with_screenshot(
     label: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let started = Instant::now();
-    let mut captured_visible = false;
     while started.elapsed() < timeout {
         if is_stream_spa_loading(page)
             .await
@@ -111,14 +112,11 @@ async fn wait_for_start_trading_visible_with_screenshot(
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?
         {
-            if !captured_visible {
-                let shot_label = format!("03_start_trading_visible_{label}");
-                let _ = save_debug_screenshot(page, &shot_label).await;
-                println!(
-                    "START TRADING terlihat — screenshot: worker_scrapping/screenshots/{shot_label}.png"
-                );
-                captured_visible = true;
-            }
+            let shot_label = format!("03_start_trading_visible_{label}");
+            let _ = save_debug_screenshot(page, &shot_label).await;
+            println!(
+                "START TRADING terlihat — screenshot: worker_scrapping/screenshots/{shot_label}.png"
+            );
             return Ok(());
         }
         sleep(Duration::from_millis(350)).await;
@@ -231,6 +229,12 @@ async fn wait_for_pin_modal(page: &Page, timeout: Duration) -> Result<(), Box<dy
     let started = Instant::now();
     let mut last_shot_secs: u64 = 0;
     loop {
+        // Popup "Sesi Kamu Sudah Habis" bisa muncul walau URL masih /stream.
+        if has_session_expired_modal(page).await {
+            let _ = save_debug_screenshot(page, "05_session_expired_while_waiting_pin").await;
+            log_pin_modal_probe(page, "session_expired").await;
+            return Err(ERR_SESSION_EXPIRED.into());
+        }
         let url = page.url().await?.unwrap_or_default();
         if is_login_url(&url) {
             let _ = save_debug_screenshot(page, "05_redirect_login_while_waiting_pin").await;
@@ -479,6 +483,13 @@ async fn goto_stream_for_trading(page: &Page) -> Result<(), Box<dyn std::error::
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
     sleep(Duration::from_millis(1500)).await;
+    // Bila sesi sudah habis saat buka /stream: klik 'Kembali ke Halaman Utama' lalu login ulang.
+    if has_session_expired_modal(page).await {
+        let (email, password) = stockbit_credentials()?;
+        relogin_if_session_expired(page, &email, &password)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    }
     dismiss_avatar_modal(page).await?;
     Ok(())
 }
@@ -570,16 +581,20 @@ pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::er
         after_start_trading_click(page, &format!("attempt{attempt}")).await?;
 
         let mut pin_ready = false;
-        let mut redirect_login = false;
+        let mut needs_relogin = false;
         match wait_for_pin_modal(page, Duration::from_secs(30)).await {
             Ok(()) => pin_ready = true,
-            Err(e) => redirect_login = e.to_string() == ERR_REDIRECT_LOGIN,
+            Err(e) => {
+                let msg = e.to_string();
+                needs_relogin = msg == ERR_REDIRECT_LOGIN || msg == ERR_SESSION_EXPIRED;
+            }
         }
-        if redirect_login {
+        if needs_relogin {
             eprintln!(
-                "START TRADING mengalihkan ke /login — login ulang Stockbit lalu coba lagi..."
+                "Sesi Stockbit berakhir (redirect /login atau popup 'Sesi Kamu Sudah Habis') — login ulang lalu coba lagi..."
             );
             let (email, password) = stockbit_credentials()?;
+            // open_stream_or_login menangani klik 'Kembali ke Halaman Utama' + login ulang.
             open_stream_or_login(page, &email, &password)
                 .await
                 .map_err(|err| -> Box<dyn std::error::Error> { err.to_string().into() })?;

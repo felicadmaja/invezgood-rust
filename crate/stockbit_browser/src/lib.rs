@@ -1246,7 +1246,7 @@ pub async fn debug_login_flow_with_screenshots(
     password: &str,
 ) -> Result<Vec<(String, String)>, StockbitError> {
     let mut shots: Vec<(String, String)> = Vec::new();
-    let mut snap = |label: &str| label.to_string();
+    let snap = |label: &str| label.to_string();
 
     goto_stockbit(page, STOCKBIT_LOGIN_URL).await?;
     wait_for_login_form(page, Duration::from_secs(30)).await?;
@@ -1355,7 +1355,8 @@ pub async fn dismiss_profile_avatar_modal(page: &Page) -> Result<bool, StockbitE
     Ok(false)
 }
 
-async fn has_session_expired_modal(page: &Page) -> bool {
+/// `true` bila popup "Sesi Kamu Sudah Habis" sedang tampil.
+pub async fn has_session_expired_modal(page: &Page) -> bool {
     page.evaluate(
         r#"(() => {
             const body = (document.body && document.body.innerText) || '';
@@ -1368,7 +1369,7 @@ async fn has_session_expired_modal(page: &Page) -> bool {
     .unwrap_or(false)
 }
 
-fn js_element_visible(el: &str) -> String {
+fn js_element_visible() -> String {
     format!(
         r#"const visible = (el) => {{
             if (!el) return false;
@@ -1424,7 +1425,7 @@ pub async fn is_start_trading_nav_visible(page: &Page) -> Result<bool, StockbitE
                         && (t === 'START TRADING' || t.includes('START TRADING'));
                 }});
             }})()"#,
-            vis_helper = js_element_visible("")
+            vis_helper = js_element_visible()
         ))
         .await?
         .into_value::<bool>()
@@ -1458,7 +1459,7 @@ pub async fn is_stream_session_ready(page: &Page) -> Result<bool, StockbitError>
                 if (document.querySelector('[data-cy*="stream"]') && text.length > 280) return true;
                 return text.length > 500;
             }})()"#,
-            vis_helper = js_element_visible("")
+            vis_helper = js_element_visible()
         ))
         .await?
         .into_value::<bool>()
@@ -1525,6 +1526,23 @@ async fn needs_relogin(page: &Page) -> bool {
     // Form login di `/stream` tanpa modal biasanya bukan halaman login — skip.
     // Setelah klik CTA sesi habis, form login bisa muncul di path mana pun.
     has_login_form(page).await && !is_stream_url(&url)
+}
+
+/// Bila popup "Sesi Kamu Sudah Habis" muncul: klik "Kembali ke Halaman Utama" lalu login ulang
+/// hingga `/stream` interaktif. Return `true` bila penanganan dijalankan, `false` bila tak ada popup.
+pub async fn relogin_if_session_expired(
+    page: &Page,
+    email: &str,
+    password: &str,
+) -> Result<bool, StockbitError> {
+    if !has_session_expired_modal(page).await {
+        return Ok(false);
+    }
+    println!("Popup 'Sesi Kamu Sudah Habis' terdeteksi — klik 'Kembali ke Halaman Utama' lalu login ulang...");
+    let _ = save_error_screenshot(page, "session_expired_modal").await;
+    invalidate_bearer_cache().await;
+    login_and_return_to_stream(page, email, password).await?;
+    Ok(true)
 }
 
 async fn login_and_return_to_stream(
