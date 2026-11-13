@@ -10,6 +10,7 @@ use crate::{
     BrowserLockClass, StockbitError,
 };
 
+#[allow(dead_code)]
 const TERMINAL_MAIN_URL: &str = "https://terminal.stockbit.com/main?";
 
 fn install_fundachart_capture_js() -> String {
@@ -85,6 +86,7 @@ async fn wait_document_ready(page: &Page, timeout_secs: u64) -> Result<(), Stock
     Err("timeout menunggu halaman terminal load".into())
 }
 
+#[allow(dead_code)]
 async fn click_by_visible_text(page: &Page, tags: &[&str], text: &str) -> Result<(), StockbitError> {
     let tags_js = tags
         .iter()
@@ -126,6 +128,87 @@ async fn click_by_visible_text(page: &Page, tags: &[&str], text: &str) -> Result
     }
 }
 
+/// URL terminal langsung ke symbol (tanpa perlu ketik Search Symbol).
+fn terminal_symbol_url(code: &str) -> String {
+    format!("https://terminal.stockbit.com/main?layout=watchlist&tabName={code}&symbol={code}")
+}
+
+/// Klik teks dengan retry (SPA butuh waktu mount tab Analysis / tombol chart).
+#[allow(dead_code)]
+async fn click_by_visible_text_retry(
+    page: &Page,
+    tags: &[&str],
+    text: &str,
+    attempts: u32,
+) -> Result<(), StockbitError> {
+    let mut last = StockbitError::from(format!("elemen teks '{text}' tidak ditemukan"));
+    for _ in 0..attempts {
+        match click_by_visible_text(page, tags, text).await {
+            Ok(()) => return Ok(()),
+            Err(e) => last = e,
+        }
+        sleep(Duration::from_millis(800)).await;
+    }
+    Err(last)
+}
+
+/// Klik tab Analysis (target class spesifik `.css-1ll1mc4`/`e2ln8a0`, full pointer events),
+/// retry sampai tombol "5 Years" muncul (panel chart terbuka).
+async fn click_analysis_tab(page: &Page, attempts: u32) -> Result<(), StockbitError> {
+    let click_js = r#"(() => {
+        const vis = (el) => {
+            const r = el.getBoundingClientRect();
+            const s = getComputedStyle(el);
+            return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+        };
+        const fire = (el) => {
+            for (const t of ['pointerdown','mousedown','pointerup','mouseup','click']) {
+                el.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
+            }
+        };
+        const sels = ['.css-1ll1mc4','[class*="e2ln8a0"]','[role="tab"]','button','a','span','div'];
+        for (const sel of sels) {
+            for (const el of document.querySelectorAll(sel)) {
+                if (vis(el) && (el.textContent || '').trim() === 'Analysis') { fire(el); return true; }
+            }
+        }
+        return false;
+    })()"#;
+    let has_5y_js = r#"(() => {
+        for (const el of document.querySelectorAll('button, [role="button"]')) {
+            if ((el.textContent || '').trim() === '5 Years') return true;
+        }
+        return false;
+    })()"#;
+    for _ in 0..attempts {
+        let _ = evaluate_resilient(page, click_js).await;
+        sleep(Duration::from_millis(900)).await;
+        let has = evaluate_resilient(page, has_5y_js)
+            .await
+            .ok()
+            .and_then(|v| v.into_value::<bool>().ok())
+            .unwrap_or(false);
+        if has {
+            return Ok(());
+        }
+    }
+    Err("tab Analysis: tombol '5 Years' tidak muncul setelah klik".into())
+}
+
+/// Klik semua tombol dengan retry sampai minimal satu ter-klik (return total terakhir).
+async fn click_all_buttons_by_text_retry(page: &Page, text: &str, attempts: u32) -> u32 {
+    let mut total = 0;
+    for _ in 0..attempts {
+        total = click_all_buttons_by_text(page, text).await.unwrap_or(0);
+        if total > 0 {
+            break;
+        }
+        sleep(Duration::from_millis(800)).await;
+    }
+    total
+}
+
+#[allow(dead_code)]
 async fn type_symbol_and_submit(page: &Page, code: &str) -> Result<(), StockbitError> {
     let selector = r#"input[placeholder="Search Symbol"]"#;
     let element = page
@@ -197,9 +280,14 @@ async fn click_all_buttons_by_text(page: &Page, text: &str) -> Result<u32, Stock
                 const s = getComputedStyle(el);
                 return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
             }};
+            const fire = (el) => {{
+                for (const t of ['pointerdown','mousedown','pointerup','mouseup','click']) {{
+                    el.dispatchEvent(new MouseEvent(t, {{ bubbles: true, cancelable: true, view: window }}));
+                }}
+            }};
             let n = 0;
             for (const el of document.querySelectorAll('button, [role="button"]')) {{
-                if (vis(el) && (el.textContent || '').trim() === want) {{ el.click(); n++; }}
+                if (vis(el) && (el.textContent || '').trim() === want) {{ fire(el); n++; }}
             }}
             return n;
         }})()"#
@@ -232,18 +320,18 @@ async fn scrape_fundachart_via_terminal_dom(
     code: &str,
     kind: FundachartKind,
 ) -> Result<String, StockbitError> {
-    goto_stockbit(page, TERMINAL_MAIN_URL).await?;
+    goto_stockbit(page, &terminal_symbol_url(code)).await?;
     wait_document_ready(page, 60).await?;
+    sleep(Duration::from_secs(3)).await; // beri waktu SPA mount tab/chart
+    // Install interceptor SETELAH dokumen terminal load (navigasi me-reset window & fetch/XHR).
+    let _ = evaluate_resilient(page, install_fundachart_capture_js()).await;
+    println!("fundachart {code}: terminal symbol URL load + interceptor terpasang");
 
-    type_symbol_and_submit(page, code).await?;
-    println!("fundachart {code}: Search Symbol → Enter");
-    wait_document_ready(page, 45).await?;
+    click_analysis_tab(page, 20).await?;
+    println!("fundachart {code}: tab Analysis terbuka (5 Years tersedia)");
+    sleep(Duration::from_secs(1)).await;
 
-    click_by_visible_text(page, &["div", "button", "span"], "Analysis").await?;
-    println!("fundachart {code}: klik Analysis");
-    wait_document_ready(page, 45).await?;
-
-    let n = click_all_buttons_by_text(page, "5 Years").await.unwrap_or(0);
+    let n = click_all_buttons_by_text_retry(page, "5 Years", 15).await;
     println!(
         "fundachart {code}: klik 5 Years (x{n}) — pantau XHR fundachart ({})",
         kind.label()
@@ -302,7 +390,6 @@ pub async fn fetch_fundachart_json(
     let (browser, page) = launch_page().await?;
     open_stream_or_login(&page, email.trim(), password.trim()).await?;
 
-    let _ = evaluate_resilient(&page, install_fundachart_capture_js()).await;
     let body = scrape_fundachart_via_terminal_dom(&page, &code, kind).await?;
     browser.close().await;
     Ok(body)
@@ -335,20 +422,18 @@ pub async fn fetch_fundachart_both_json(code: &str) -> Result<(String, String), 
     let (browser, page) = launch_page().await?;
     open_stream_or_login(&page, email.trim(), password.trim()).await?;
 
-    let _ = evaluate_resilient(&page, install_fundachart_capture_js()).await;
-
-    goto_stockbit(&page, TERMINAL_MAIN_URL).await?;
+    goto_stockbit(&page, &terminal_symbol_url(&code)).await?;
     wait_document_ready(&page, 60).await?;
+    sleep(Duration::from_secs(3)).await; // beri waktu SPA mount tab/chart
+    // Install interceptor SETELAH dokumen terminal load (navigasi me-reset window & fetch/XHR).
+    let _ = evaluate_resilient(&page, install_fundachart_capture_js()).await;
+    println!("fundachart {code}: terminal symbol URL load + interceptor terpasang");
 
-    type_symbol_and_submit(&page, &code).await?;
-    println!("fundachart {code}: Search Symbol → Enter");
-    wait_document_ready(&page, 45).await?;
+    click_analysis_tab(&page, 20).await?;
+    println!("fundachart {code}: tab Analysis terbuka (5 Years tersedia)");
+    sleep(Duration::from_secs(1)).await;
 
-    click_by_visible_text(&page, &["div", "button", "span"], "Analysis").await?;
-    println!("fundachart {code}: klik Analysis");
-    wait_document_ready(&page, 45).await?;
-
-    let n = click_all_buttons_by_text(&page, "5 Years").await.unwrap_or(0);
+    let n = click_all_buttons_by_text_retry(&page, "5 Years", 15).await;
     println!("fundachart {code}: klik 5 Years (x{n}) — pantau XHR PE + PBV");
 
     // Poll kedua seri; PE & PBV di-route oleh install_fundachart_capture_js().
