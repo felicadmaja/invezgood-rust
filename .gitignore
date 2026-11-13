@@ -3,7 +3,7 @@
 # Runtime hook counters/logs saja — rules & hooks .cursor/ tetap di-track git
 .cursor/auto-git-counter
 .cursor/auto-build-counter
-.env
+# .env — di-track (permintaan tim); rahasia: pastikan repo private
 logs/
 worker_scrapping/browser_data/
 crate/xlbr_laporan_keuangan/browser_data/
