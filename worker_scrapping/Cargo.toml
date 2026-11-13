@@ -18,6 +18,14 @@ path = "bin/stockbit_login_page_screenshot.rs"
 name = "stockbit_login_flow_debug"
 path = "bin/stockbit_login_flow_debug.rs"
 
+[[bin]]
+name = "stockbit_login_otp_debug"
+path = "bin/stockbit_login_otp_debug.rs"
+
+[[bin]]
+name = "stockbit_session_verify"
+path = "bin/stockbit_session_verify.rs"
+
 [dependencies]
 stockbit_browser = { path = "../crate/stockbit_browser" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

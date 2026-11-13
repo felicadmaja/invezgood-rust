@@ -717,6 +717,17 @@ async fn eval_bool(page: &Page, js: &str) -> bool {
     }
 }
 
+async fn eval_string(page: &Page, js: &str) -> String {
+    match tokio::time::timeout(Duration::from_secs(8), page.evaluate(js)).await {
+        Ok(Ok(v)) => v.into_value::<String>().unwrap_or_default(),
+        Ok(Err(_)) => String::new(),
+        Err(_) => {
+            eprintln!("Chrome evaluate(string): timeout 8s (halaman mungkin hung)");
+            String::new()
+        }
+    }
+}
+
 fn is_stale_execution_context(err: &str) -> bool {
     err.contains("Cannot find context")
         || err.contains("-32000")
@@ -1386,6 +1397,258 @@ pub async fn debug_login_flow_with_screenshots(
     Ok(shots)
 }
 
+/// `true` bila popup verifikasi kode OTP email sedang tampil.
+async fn has_email_otp_prompt(page: &Page) -> bool {
+    eval_bool(
+        page,
+        r#"(() => {
+            const body = ((document.body && document.body.innerText) || '').toLowerCase();
+            const kw = ['kode verifikasi','verification code','kode otp','masukkan kode',
+                'enter the code','enter code','kode yang','dikirim ke','sent to your email',
+                'kode keamanan','one-time','one time code'];
+            if (kw.some((k) => body.includes(k))) return true;
+            const vis = (el) => {
+                const r = el.getBoundingClientRect();
+                const s = getComputedStyle(el);
+                return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+            };
+            const inputs = Array.from(document.querySelectorAll('input')).filter(vis)
+                .filter((i) => !['password','email','hidden','checkbox','radio','submit','button'].includes((i.type||'').toLowerCase()))
+                .filter((i) => (i.id||'') !== 'username' && (i.id||'') !== 'password');
+            const otpish = inputs.filter((i) => {
+                const ml = i.getAttribute('maxlength');
+                const im = (i.inputMode || '').toLowerCase();
+                const ac = (i.getAttribute('autocomplete') || '').toLowerCase();
+                return ml === '1' || ml === '4' || ml === '6' || im === 'numeric' || ac.includes('one-time-code');
+            });
+            return otpish.length > 0;
+        })()"#,
+    )
+    .await
+}
+
+/// JS dump DOM popup OTP (inputs + buttons + body) untuk referensi debug.
+const OTP_DUMP_JS: &str = r#"(() => {
+    const vis = (el) => {
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+    };
+    const inputs = Array.from(document.querySelectorAll('input')).filter(vis).map((i) => ({
+        type: i.type, id: i.id, name: i.name, ml: i.getAttribute('maxlength'),
+        im: i.inputMode, ac: i.getAttribute('autocomplete'), ph: i.placeholder, cls: (i.className||'').slice(0,60)
+    }));
+    const buttons = Array.from(document.querySelectorAll('button,[role="button"]')).filter(vis).map((b) => ({
+        txt: ((b.innerText||b.textContent||'')).trim().slice(0,30), disabled: b.disabled
+    }));
+    const bodyText = ((document.body && document.body.innerText) || '').trim().slice(0,400);
+    return JSON.stringify({ inputs, buttons, bodyText });
+})()"#;
+
+/// JS klik tombol verifikasi/konfirmasi di popup OTP.
+const OTP_SUBMIT_JS: &str = r#"(() => {
+    const texts = ['verify','verifikasi','konfirmasi','confirm','submit','lanjut','continue','kirim','masuk','ok'];
+    const vis = (el) => {
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+    };
+    const btns = Array.from(document.querySelectorAll('button,[role="button"],a')).filter(vis);
+    const t = btns.find((b) => {
+        const x = ((b.innerText || b.textContent || '')).trim().toLowerCase();
+        return texts.some((w) => x === w || x.includes(w));
+    });
+    if (t && !t.disabled) { t.click(); return 'clicked:' + ((t.innerText||'').trim()); }
+    return 'no-button';
+})()"#;
+
+/// Bangun JS untuk mengisi kode OTP (mendukung 1 input atau N kotak 1-char) dengan native setter React.
+fn otp_fill_js(code: &str) -> String {
+    format!(
+        r#"(() => {{
+            const code = {code:?};
+            const vis = (el) => {{
+                const r = el.getBoundingClientRect();
+                const s = getComputedStyle(el);
+                return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+            }};
+            const setVal = (el, v) => {{
+                const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+                const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+                setter.call(el, v);
+                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }};
+            let inputs = Array.from(document.querySelectorAll('input')).filter(vis)
+                .filter((i) => !['password','email','hidden','checkbox','radio','submit','button'].includes((i.type||'').toLowerCase()))
+                .filter((i) => (i.id||'') !== 'username' && (i.id||'') !== 'password');
+            const singleChar = inputs.length >= code.length
+                && inputs.slice(0, code.length).every((i) => i.getAttribute('maxlength') === '1');
+            if (singleChar) {{
+                for (let k = 0; k < code.length; k++) {{
+                    const el = inputs[k];
+                    el.focus();
+                    setVal(el, code[k]);
+                    el.dispatchEvent(new KeyboardEvent('keydown', {{ bubbles: true, key: code[k] }}));
+                    el.dispatchEvent(new KeyboardEvent('keyup', {{ bubbles: true, key: code[k] }}));
+                }}
+                return 'multi:' + inputs.length;
+            }}
+            if (inputs.length >= 1) {{
+                const el = inputs[0];
+                el.focus();
+                setVal(el, code);
+                el.dispatchEvent(new KeyboardEvent('keyup', {{ bubbles: true }}));
+                return 'single:' + inputs.length;
+            }}
+            return 'no-input';
+        }})()"#
+    )
+}
+
+/// Tunggu kode OTP ditulis user ke `path` (polling). Kode = karakter alfanumerik di file, min 4.
+async fn wait_for_otp_code_file(path: &str, timeout: Duration) -> Result<String, StockbitError> {
+    let started = Instant::now();
+    while started.elapsed() < timeout {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            let code: String = content
+                .trim()
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric())
+                .collect();
+            if code.len() >= 4 {
+                return Ok(code);
+            }
+        }
+        sleep(Duration::from_millis(500)).await;
+    }
+    Err(format!(
+        "Timeout menunggu kode OTP di file {path} setelah {}s",
+        timeout.as_secs()
+    )
+    .into())
+}
+
+/// Login debug dengan verifikasi OTP email: /login → isi email+password → submit → bila muncul
+/// popup kode OTP email, tahan sesi lalu tunggu kode dari file `otp_file` (user menulis kode ke
+/// file), ketik kode, submit, lalu tunggu /stream interaktif. Return daftar (label, path) screenshot.
+pub async fn debug_login_with_email_otp(
+    page: &Page,
+    email: &str,
+    password: &str,
+    otp_file: &str,
+    otp_wait: Duration,
+) -> Result<Vec<(String, String)>, StockbitError> {
+    let mut shots: Vec<(String, String)> = Vec::new();
+
+    goto_stockbit(page, STOCKBIT_LOGIN_URL).await?;
+    wait_for_login_form(page, Duration::from_secs(30)).await?;
+    sleep(Duration::from_millis(600)).await;
+    if let Some(p) = save_debug_screenshot(page, "01_login_page").await {
+        shots.push(("01_login_page".to_string(), p.display().to_string()));
+    }
+
+    type_naturally(page, "#username", email, "email/username", (0, 0)).await?;
+    sleep(Duration::from_millis(300)).await;
+    type_naturally(page, "#password", password, "password", (0, 0)).await?;
+    sleep(Duration::from_millis(400)).await;
+    if let Some(p) = save_debug_screenshot(page, "02_filled").await {
+        shots.push(("02_filled".to_string(), p.display().to_string()));
+    }
+
+    if let Ok(btn) = page.find_element("#email-login-button").await {
+        btn.click().await?;
+    } else {
+        return Err("Tombol Login (#email-login-button) tidak ditemukan".into());
+    }
+
+    // Diagnostik tepat setelah submit: screenshot + URL + cuplikan body.
+    sleep(Duration::from_secs(3)).await;
+    if let Some(p) = save_debug_screenshot(page, "03_after_submit").await {
+        shots.push(("03_after_submit".to_string(), p.display().to_string()));
+    }
+    {
+        let url = page.url().await?.unwrap_or_default();
+        let body = eval_string(
+            page,
+            r#"(() => ((document.body && document.body.innerText) || '').trim().slice(0, 300))()"#,
+        )
+        .await;
+        eprintln!("POST-SUBMIT diag: url={url} app_error={} body={body:?}", has_app_error(page).await);
+    }
+
+    // URL challenge perangkat baru (mis. https://stockbit.com/new-device) — halaman OTP.
+    let challenge_url = page.url().await?.unwrap_or_default();
+
+    // Tunggu popup OTP email muncul (atau /stream langsung siap). Halaman /new-device kadang crash
+    // ("Application error") di render pertama headless → reload URL challenge yang sama beberapa kali.
+    let started = Instant::now();
+    let mut otp_seen = false;
+    let mut reloads: u32 = 0;
+    const MAX_OTP_RELOADS: u32 = 4;
+    while started.elapsed() < Duration::from_secs(70) {
+        if has_email_otp_prompt(page).await {
+            otp_seen = true;
+            break;
+        }
+        if is_stream_session_ready(page).await.unwrap_or(false) {
+            break;
+        }
+        if reloads < MAX_OTP_RELOADS && has_app_error(page).await {
+            reloads += 1;
+            let cur = page.url().await?.unwrap_or_default();
+            let target = if cur.contains("new-device") || cur.is_empty() {
+                challenge_url.clone()
+            } else {
+                cur
+            };
+            eprintln!("App error di halaman OTP — reload {target} ({reloads}/{MAX_OTP_RELOADS})...");
+            let _ = goto_stockbit(page, &target).await;
+            sleep(Duration::from_secs(2)).await;
+        }
+        sleep(Duration::from_millis(500)).await;
+    }
+
+    if otp_seen {
+        let dump = eval_string(page, OTP_DUMP_JS).await;
+        eprintln!("OTP popup DOM: {dump}");
+        if let Some(p) = save_debug_screenshot(page, "04_otp_prompt").await {
+            shots.push(("04_otp_prompt".to_string(), p.display().to_string()));
+        }
+        let _ = std::fs::remove_file(otp_file);
+        println!(
+            "Popup OTP email terdeteksi. Menunggu kode di file: {otp_file} (timeout {}s)...",
+            otp_wait.as_secs()
+        );
+        let code = wait_for_otp_code_file(otp_file, otp_wait).await?;
+        println!("Kode OTP diterima ({} digit) — mengetik...", code.len());
+
+        let fill = eval_string(page, &otp_fill_js(&code)).await;
+        eprintln!("OTP fill result: {fill}");
+        sleep(Duration::from_millis(600)).await;
+        let click = eval_string(page, OTP_SUBMIT_JS).await;
+        eprintln!("OTP submit result: {click}");
+        sleep(Duration::from_secs(2)).await;
+        if let Some(p) = save_debug_screenshot(page, "05_after_otp").await {
+            shots.push(("05_after_otp".to_string(), p.display().to_string()));
+        }
+    } else {
+        println!("Popup OTP tidak terdeteksi dalam 70s — lanjut cek /stream.");
+    }
+
+    if has_profile_avatar_modal(page).await {
+        dismiss_profile_avatar_modal(page).await?;
+    }
+    goto_stockbit(page, STOCKBIT_STREAM_URL).await?;
+    wait_for_stream_interactive_ready(page, Duration::from_secs(120)).await?;
+    sleep(Duration::from_millis(800)).await;
+    if let Some(p) = save_debug_screenshot(page, "06_stream_ready").await {
+        shots.push(("06_stream_ready".to_string(), p.display().to_string()));
+    }
+
+    Ok(shots)
+}
+
 pub async fn dismiss_profile_avatar_modal(page: &Page) -> Result<bool, StockbitError> {
     for _ in 1..=8 {
         let clicked = page
@@ -1469,6 +1732,25 @@ fn js_element_visible() -> String {
 }
 
 /// Layar /stream masih loading (tiga titik / konten hampir kosong).
+/// Blok JS (butuh `visible` dari `js_element_visible()` sudah terdefinisi) yang menyetel
+/// `const appShell` = app shell /stream versi login sudah ter-render. Sinyal:
+/// - navbar/START TRADING terlihat (UI lama), atau
+/// - teks khas authenticated ("Switch to Web Terminal"/"Berlangganan Pro"), atau
+/// - ada link sidebar ke rute authenticated (watchlist/screener/orderbook/…).
+fn js_stream_app_shell_block() -> &'static str {
+    r#"const navEl = document.querySelector('[data-cy="top-navbar"]');
+                const startEl = document.querySelector('[data-cy="top-navbar-button-start-trading"]');
+                const shellBodyText = (document.body && document.body.innerText) || '';
+                const authText = shellBodyText.includes('Switch to Web Terminal')
+                    || shellBodyText.includes('Berlangganan Pro');
+                const sidebarLink = Array.from(document.querySelectorAll('a[href]')).some((a) => {
+                    const h = a.getAttribute('href') || '';
+                    return /\/(watchlist|screener|orderbook|insider|fundachart|chartbit)/i.test(h) && visible(a);
+                });
+                const appShell = visible(navEl) || visible(startEl) || sidebarLink
+                    || (authText && shellBodyText.replace(/\s+/g, ' ').trim().length > 300);"#
+}
+
 pub async fn is_stream_spa_loading(page: &Page) -> Result<bool, StockbitError> {
     let js = format!(
             r#"(() => {{
@@ -1486,16 +1768,16 @@ pub async fn is_stream_spa_loading(page: &Page) -> Result<bool, StockbitError> {
                 if (text === '...' || (text.length < 80 && !/masuk|login/i.test(text))) {{
                     return true;
                 }}
-                // App shell belum ter-paint (layar putih + loader 3 titik): navbar belum
+                // App shell belum ter-paint (layar putih + loader 3 titik): shell login belum
                 // benar-benar terlihat walau mungkin sudah ada di DOM.
-                const nav = document.querySelector('[data-cy="top-navbar"]');
-                const start = document.querySelector('[data-cy="top-navbar-button-start-trading"]');
-                if (!visible(nav) && !visible(start)) {{
+                {app_shell}
+                if (!appShell) {{
                     return true;
                 }}
                 return false;
             }})()"#,
-            vis_helper = js_element_visible()
+            vis_helper = js_element_visible(),
+            app_shell = js_stream_app_shell_block()
         );
     Ok(eval_bool(page, &js).await)
 }
@@ -1538,12 +1820,12 @@ pub async fn is_stream_session_ready(page: &Page) -> Result<bool, StockbitError>
                     .replace(/\s+/g, ' ')
                     .trim();
                 if (text.length < 120) return false;
-                const nav = document.querySelector('[data-cy="top-navbar"]');
-                const start = document.querySelector('[data-cy="top-navbar-button-start-trading"]');
                 // Harus benar-benar ter-render (tidak tertutup loader/overlay), bukan hanya ada di DOM.
-                return visible(nav) || visible(start);
+                {app_shell}
+                return appShell;
             }})()"#,
-            vis_helper = js_element_visible()
+            vis_helper = js_element_visible(),
+            app_shell = js_stream_app_shell_block()
         );
     let ready = tokio::time::timeout(Duration::from_secs(8), page.evaluate(js))
         .await
@@ -1568,16 +1850,42 @@ pub async fn wait_for_stream_interactive_ready(
     timeout: Duration,
 ) -> Result<(), StockbitError> {
     let started = Instant::now();
+    let mut app_error_reloads: u32 = 0;
+    const MAX_APP_ERROR_RELOADS: u32 = 3;
     while started.elapsed() < timeout {
         if is_stream_session_ready(page).await? {
             println!("Stockbit /stream interaktif siap (feed/navbar loaded).");
             return Ok(());
         }
+        // SPA Stockbit kadang crash ("Application error: a client-side exception") tepat setelah
+        // login walau sesi (cookie auth) sudah ter-set. Reload /stream via goto (ada nav-timeout,
+        // bukan page.reload() yang bisa hang) untuk memaksa SPA hydrate ulang.
+        if app_error_reloads < MAX_APP_ERROR_RELOADS && has_app_error(page).await {
+            app_error_reloads += 1;
+            println!(
+                "App error terdeteksi saat tunggu /stream — reload /stream ({app_error_reloads}/{MAX_APP_ERROR_RELOADS})..."
+            );
+            let _ = goto_stockbit(page, STOCKBIT_STREAM_URL).await;
+            sleep(Duration::from_secs(2)).await;
+            continue;
+        }
         sleep(Duration::from_millis(400)).await;
     }
     let _ = save_error_screenshot(page, "stream_not_interactive_ready").await;
+    let url = page.url().await.ok().flatten().unwrap_or_default();
+    let on_login = is_login_url(&url);
+    let login_form = has_login_form(page).await;
+    let app_err = has_app_error(page).await;
+    let body_snippet = eval_string(
+        page,
+        r#"(() => ((document.body && document.body.innerText) || '').trim().slice(0, 200))()"#,
+    )
+    .await;
+    eprintln!(
+        "wait_for_stream_interactive_ready TIMEOUT diag: url={url} on_login={on_login} login_form={login_form} app_error={app_err} body_snippet={body_snippet:?}"
+    );
     Err(format!(
-        "Timeout menunggu /stream interaktif setelah {} detik (masih loading atau belum login)",
+        "Timeout menunggu /stream interaktif setelah {} detik (url={url}, login_form={login_form}, app_error={app_err})",
         timeout.as_secs()
     )
     .into())
