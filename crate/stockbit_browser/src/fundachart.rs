@@ -7,10 +7,31 @@ use serde::Deserialize;
 use tokio::time::sleep;
 
 use crate::{
-    acquire_browser_session, evaluate_resilient, extract_stockbit_bearer_for_symbol, goto_stockbit,
-    invalidate_bearer_cache, launch_page, open_stream_or_login, bearer_http_client,
-    BrowserLockClass, StockbitError,
+    acquire_browser_session, bearer_http_client, ensure_stockbit_bearer, evaluate_resilient,
+    extract_stockbit_bearer_for_symbol, goto_stockbit, invalidate_bearer_cache, launch_page,
+    open_stream_or_login, BrowserLockClass, StockbitError,
 };
+
+async fn fundachart_http_fetch(
+    code: &str,
+    bearer: &str,
+    cookie: &str,
+) -> Result<String, StockbitError> {
+    let client = bearer_http_client().await?;
+    let headers = desktop_headers(bearer, cookie);
+    let token = resolve_fundachart_token(&client, code, &headers)
+        .await
+        .map_err(|e| -> StockbitError { e.into() })?;
+    fetch_fundachart_data(&client, &token, &headers)
+        .await
+        .map_err(|e| -> StockbitError { e.into() })
+}
+
+async fn fundachart_bearer_fallback_via_keystats_path(code: &str) -> Result<String, StockbitError> {
+    eprintln!("fundachart {code}: fallback ensure_stockbit_bearer (path keystats/ratio)");
+    let bearer = ensure_stockbit_bearer().await?;
+    fundachart_http_fetch(code, &bearer, "").await
+}
 
 const TERMINAL_ORIGIN: &str = "https://terminal.stockbit.com";
 const FUNDACHART_DATA_HOST: &str = "https://exodus.api.stockbit.com/fundachart/data";
@@ -288,19 +309,18 @@ pub async fn fetch_fundachart_pbv_json(code: &str) -> Result<String, StockbitErr
                 browser.close().await;
                 return Ok(body);
             }
-            extract_stockbit_bearer_for_symbol(&page, &code).await?
+            match extract_stockbit_bearer_for_symbol(&page, &code).await {
+                Ok(t) => t,
+                Err(_) => {
+                    browser.close().await;
+                    drop(_browser_guard);
+                    return fundachart_bearer_fallback_via_keystats_path(&code).await;
+                }
+            }
         }
     };
 
-    let client = bearer_http_client().await?;
-    let headers = desktop_headers(&bearer, &cookie);
-
-    let result = async {
-        let token = resolve_fundachart_token(&client, &code, &headers).await?;
-        fetch_fundachart_data(&client, &token, &headers).await
-    }
-    .await;
-
     browser.close().await;
-    result.map_err(|e| -> StockbitError { e.into() })
+    drop(_browser_guard);
+    fundachart_http_fetch(&code, &bearer, &cookie).await
 }
