@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
+#[allow(unused_imports)] // InvezgoSpikeSnapshot dipakai handler spike Invezgo yang dinonaktifkan sementara
 use worker_scrapping::invezgo_spike_poller::{InvezgoSpikePoller, InvezgoSpikeSnapshot};
 use worker_scrapping::yahoo_spike_poller::{YahooSpikePoller, YahooSpikeSnapshot};
 
@@ -60,6 +61,7 @@ pub struct UserService {
     auth_sessions: SessionStore,
     readiness: Arc<ReadinessPoller>,
     yahoo_spike: Arc<YahooSpikePoller>,
+    #[allow(dead_code)] // dipakai handler GetPriceSpikeFromInvezGo yang dinonaktifkan sementara
     invezgo_spike: Arc<InvezgoSpikePoller>,
 }
 
@@ -611,81 +613,23 @@ impl User for UserService {
         };
         let _ = request.into_inner();
 
-        let poller = Arc::clone(&self.invezgo_spike);
-        let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(8);
-
-        eprintln!("\x1b[32m{rpc_name} {user_name}: client connect — stream dibuka\x1b[0m");
+        // RPC dinonaktifkan sementara: kirim satu response kosong lalu tutup stream.
+        // Tidak mengaktifkan poller Invezgo spike.
         eprintln!(
-            "{rpc_name} {user_name} {}ms",
-            started.elapsed().as_millis()
+            "\x1b[32m{rpc_name} {user_name}: RPC dinonaktifkan sementara (response kosong)\x1b[0m"
         );
+        eprintln!("{rpc_name} {user_name} {}ms", started.elapsed().as_millis());
 
-        let user_name = user_name.clone();
-        tokio::spawn(async move {
-            poller.register_subscriber();
-            let mut last: Option<InvezgoSpikeSnapshot> = None;
-            let mut ticks_since_send: u64 = 0;
-
-            loop {
-                let snap = poller.latest();
-                let changed = last.as_ref() != Some(&snap);
-                let first = last.is_none();
-                let heartbeat = ticks_since_send >= READY_STREAM_HEARTBEAT_TICKS;
-
-                if first || changed || heartbeat {
-                    let cached = worker_scrapping::invezgo_spike_cache::today_details().await;
-                    if first || changed {
-                        eprintln!(
-                            "{rpc_name} {user_name}: push success={} msg={:?} data={:?}",
-                            snap.success, snap.message, cached
-                        );
-                    }
-                    let data = cached
-                        .iter()
-                        .map(|s| PriceSpikeRow {
-                            emiten_name: s.emiten_name.clone(),
-                            jenis_spike: s.jenis_spike.clone(),
-                            value_spike_percentage: s.value_spike_percentage,
-                            spike_at: s.spike_at.clone(),
-                        })
-                        .collect();
-                    let ok = send_or_break(
-                        &tx,
-                        Ok(PriceSpikeResponse {
-                            success: snap.success,
-                            message: snap.message.clone(),
-                            data,
-                            is_need_login: false,
-                        }),
-                    )
-                    .await;
-                    if !ok {
-                        eprintln!(
-                            "\x1b[31m{rpc_name} {user_name}: client disconnect — stream ditutup\x1b[0m"
-                        );
-                        break;
-                    }
-                    last = Some(snap);
-                    ticks_since_send = 0;
-                } else {
-                    ticks_since_send += 1;
-                }
-
-                if !sleep_unless_disconnected(
-                    &tx,
-                    Duration::from_secs(READY_STREAM_CHECK_SECS),
-                )
-                .await
-                {
-                    eprintln!(
-                        "\x1b[31m{rpc_name} {user_name}: client disconnect — stream ditutup\x1b[0m"
-                    );
-                    break;
-                }
-            }
-            poller.unregister_subscriber();
-        });
-
+        let (tx, rx) = mpsc::channel::<Result<PriceSpikeResponse, Status>>(1);
+        let _ = tx
+            .send(Ok(PriceSpikeResponse {
+                success: true,
+                message: "GetPriceSpikeFromInvezGo: RPC dinonaktifkan sementara (response kosong)"
+                    .to_string(),
+                data: vec![],
+                is_need_login: false,
+            }))
+            .await;
         Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 

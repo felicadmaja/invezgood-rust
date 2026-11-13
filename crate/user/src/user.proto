@@ -64,19 +64,11 @@ service User {
   // Subscribe: push saat data berubah + heartbeat ~30s. Banyak subscriber tidak menambah frekuensi poll.
   rpc GetPriceSpikeFromYahooFinance(GetPriceSpikeFromYahooFinanceRequest) returns (stream PriceSpikeResponse);
 
-  // Stream spike Invezgo. Poller hanya jalan bila ≥1 client subscribe (0 subscriber → idle).
-  // Cek pertama tiap hari Senin–Jumat 09:00:00–09:00:59 waktu server;
-  // seterusnya interval INTERVAL_INVEZGO_SPIKE_POLL_SECS (.env, detik; default 120) di jam kerja
-  // Senin–Kamis 09:00–12:00 & 13:30–16:00; Jumat 09:00–11:30 & 14:00–16:00.
-  // Sabtu/Minggu dan tanggal yang ada di Scylla invezgood.hari_libur selalu libur — poller TIDAK dijalankan.
-  // 09:00–09:05: GET analysis/chart/stock/{code}?from=&to= (7 hari) — spike = (close hari ini - close candle sebelumnya) / close candle sebelumnya * 100; ambang OPENING_UP_SPIKE_PERCENTAGE / OPENING_DOWN_SPIKE_PERCENTAGE (.env).
-  // Di luar itu: GET analysis/intraday-data/{code}?market=RG — spike = (close - open) / open * 100; ambang UP_SPIKE_PERCENTAGE / DOWN_SPIKE_PERCENTAGE (.env); open=0 → close.
-  // Emiten: DISTINCT emiten_name dari invezgood.portofolio (holdings portofolio);
-  // Redis terpisah per mode (TTL s/d 23:59:59 lokal):
-  //   opening 09:00–09:05 — `invezgood:invezgo:spike_opening_today:{date}` + `spike_opening_reported:{date}`;
-  //   intraday di luar jam itu — `invezgood:invezgo:spike_intraday_today:{date}` + `spike_intraday_reported:{date}`.
-  // Stream ke client: merge kedua JSON; skip GET Invezgo hanya cache mode yang sedang aktif.
-  // Wajib Bearer login; tanpa auth / session invalid: push 1x is_need_login=true lalu UNAUTHENTICATED (tidak subscribe poller Invezgo).
+  // DINONAKTIFKAN SEMENTARA: handler tidak mengaktifkan poller Invezgo spike; untuk client yang
+  // terautentikasi hanya push 1x response kosong (success=true, data kosong) lalu tutup stream.
+  // Auth tetap diperiksa: tanpa auth / session invalid → push 1x is_need_login=true lalu UNAUTHENTICATED.
+  // (Perilaku asli: stream spike Invezgo berbasis poller — cek Senin–Jumat 09:00 lalu interval
+  //  INTERVAL_INVEZGO_SPIKE_POLL_SECS; emiten dari invezgood.portofolio; cache Redis per mode.)
   rpc GetPriceSpikeFromInvezGo(GetPriceSpikeFromInvezGoRequest) returns (stream PriceSpikeResponse);
 
 

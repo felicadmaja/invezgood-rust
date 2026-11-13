@@ -6,13 +6,17 @@ use crate::model::{
     MV_BY_TAHUN_BULAN_TANGGAL, TABLE,
 };
 
+// Dipakai find_all (scrape pending_order dinonaktifkan sementara).
+#[allow(dead_code)]
 const TOKEN_SEGMENTS: usize = 16;
+#[allow(dead_code)]
 const SCAN_CONCURRENCY: usize = 8;
 
 const COLUMNS: &str = "order_id, tahun_bulan_tanggal, tahun_bulan, emiten_name, emiten_name_status, \
     status, message, side, time_open, lot_open, lot_done, price_order, amount_open, amount_match, \
     amount_match_total, is_gtc, updated_at";
 
+#[allow(dead_code)]
 pub async fn find_all(session: &Session) -> Result<Vec<PendingOrderRow>, String> {
     let table = format!("{KEYSPACE}.{TABLE}");
     let scan_q = format!(
@@ -181,6 +185,7 @@ pub async fn find_by_tahun_bulan(
     Ok(out)
 }
 
+#[allow(dead_code)]
 fn token_segment_start(seg: usize, num_seg: usize) -> i64 {
     if seg == 0 {
         i64::MIN
@@ -190,6 +195,7 @@ fn token_segment_start(seg: usize, num_seg: usize) -> i64 {
     }
 }
 
+#[allow(dead_code)]
 fn token_segment_end(seg: usize, num_seg: usize) -> i64 {
     if seg + 1 == num_seg {
         i64::MAX

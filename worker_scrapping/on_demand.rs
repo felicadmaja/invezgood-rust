@@ -607,19 +607,16 @@ pub async fn run_poller_stockbit_scrapes(
     }
 
     println!(
-        "Poller scrapes: serial Chrome GetAllPortofolioFromStockbit → GetLatestEmitenTrendingFromStockbit → GetAllPendingOrderFromStockbit"
+        "Poller scrapes: GetLatestEmitenTrendingFromStockbit (portofolio & pending_order dinonaktifkan — butuh START TRADING/PIN)"
     );
 
-    match run_portofolio_all_scrape(
-        Arc::clone(&session),
-        BrowserLockClass::Background,
-        false,
-    )
-    .await
-    {
-        Ok((n, _)) => println!("Poller GetAllPortofolioFromStockbit OK: {n} holdings"),
-        Err(e) => eprintln!("Poller GetAllPortofolioFromStockbit skip/fail: {e}"),
-    }
+    // Portofolio & pending_order dinonaktifkan sementara: keduanya butuh START TRADING + Trading
+    // PIN, sedangkan login kini cukup email+password (akun tanpa PIN). Data portofolio tidak
+    // diperlukan lagi. Aktifkan kembali dengan mengembalikan blok di bawah.
+    // match run_portofolio_all_scrape(Arc::clone(&session), BrowserLockClass::Background, false).await {
+    //     Ok((n, _)) => println!("Poller GetAllPortofolioFromStockbit OK: {n} holdings"),
+    //     Err(e) => eprintln!("Poller GetAllPortofolioFromStockbit skip/fail: {e}"),
+    // }
 
     match run_emiten_trending_movers_scrape(session.clone(), BrowserLockClass::Background).await {
         Ok((gainer, loser)) => println!(
@@ -628,10 +625,10 @@ pub async fn run_poller_stockbit_scrapes(
         Err(e) => eprintln!("Poller GetLatestEmitenTrendingFromStockbit skip/fail: {e}"),
     }
 
-    match run_pending_order_all_scrape(session, BrowserLockClass::Background).await {
-        Ok(n) => println!("Poller GetAllPendingOrderFromStockbit OK: {n} baris"),
-        Err(e) => eprintln!("Poller GetAllPendingOrderFromStockbit skip/fail: {e}"),
-    }
+    // match run_pending_order_all_scrape(session, BrowserLockClass::Background).await {
+    //     Ok(n) => println!("Poller GetAllPendingOrderFromStockbit OK: {n} baris"),
+    //     Err(e) => eprintln!("Poller GetAllPendingOrderFromStockbit skip/fail: {e}"),
+    // }
 
     None
 }

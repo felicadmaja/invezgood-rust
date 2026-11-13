@@ -9,6 +9,7 @@ use user::{
     extract_bearer_token, validate_session, AuthSession,
     SessionStore,
 };
+#[allow(unused_imports)] // dipakai scrape yang dinonaktifkan sementara
 use worker_scrapping::on_demand;
 
 use crate::model::PendingOrderRow as DbPendingOrderRow;
@@ -25,15 +26,20 @@ use crate::pb::{
     PendingOrderRow,
 };
 
+// Item berikut dipakai oleh scrape pending_order yang dinonaktifkan sementara.
+#[allow(dead_code)]
 const PENDING_ORDER_SCRAPE_COOLDOWN: Duration = Duration::from_secs(3 * 60);
 
+#[allow(dead_code)]
 static LAST_PENDING_ORDER_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
+#[allow(dead_code)]
 fn pending_order_scrape_gate() -> &'static Mutex<Option<Instant>> {
     LAST_PENDING_ORDER_SCRAPE.get_or_init(|| Mutex::new(None))
 }
 
 /// `Ok(())` bila slot tersedia; `Err(message)` bila rate limit.
+#[allow(dead_code)]
 async fn try_acquire_pending_order_scrape_slot(user_name: &str) -> Result<(), String> {
     let mut last = pending_order_scrape_gate().lock().await;
     if let Some(at) = *last {
@@ -53,6 +59,7 @@ async fn try_acquire_pending_order_scrape_slot(user_name: &str) -> Result<(), St
     Ok(())
 }
 
+#[allow(dead_code)]
 fn expiry_dom_value(expiry: ExpiryPendingOrder) -> Result<&'static str, Status> {
     match expiry {
         ExpiryPendingOrder::Gfd => Ok("0"),
@@ -297,40 +304,49 @@ impl PendingOrder for PendingOrderService {
         let auth = self.require_admin(&request).await?;
         let user_name = auth.nama;
 
-        let result: Result<Response<GetAllPendingOrderFromStockbitResponse>, Status> = async {
-            let _inner = request.into_inner();
-            if let Err(message) = try_acquire_pending_order_scrape_slot(&user_name).await {
-                return Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
-                    success: false,
-                    message,
-                    rows: vec![],
-                }));
-            }
+        let _ = request.into_inner();
 
-            match on_demand::scrape_pending_order_all(Arc::clone(&self.session)).await {
-                Ok(n) => {
-                    let rows = crate::repository::find_all(self.session.as_ref())
-                        .await
-                        .map_err(Status::internal)?;
-                    let proto_rows: Vec<PendingOrderRow> =
-                        rows.into_iter().map(Self::row_to_proto).collect();
-                    Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
-                        success: true,
-                        message: format!(
-                            "pending_order: scrape selesai, {n} baris di-upsert (baca {} baris)",
-                            proto_rows.len()
-                        ),
-                        rows: proto_rows,
-                    }))
-                }
-                Err(e) => Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
-                    success: false,
-                    message: format!("scrape pending_order gagal: {e}"),
-                    rows: vec![],
-                })),
-            }
-        }
-        .await;
+        // RPC dinonaktifkan sementara: tidak scrape Stockbit, langsung balas response kosong.
+        let result: Result<Response<GetAllPendingOrderFromStockbitResponse>, Status> =
+            Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
+                success: true,
+                message: "pending_order: RPC dinonaktifkan sementara (response kosong)".to_string(),
+                rows: vec![],
+            }));
+
+        // --- Logika scrape (dinonaktifkan sementara) ---
+        // let result: Result<Response<GetAllPendingOrderFromStockbitResponse>, Status> = async {
+        //     if let Err(message) = try_acquire_pending_order_scrape_slot(&user_name).await {
+        //         return Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
+        //             success: false,
+        //             message,
+        //             rows: vec![],
+        //         }));
+        //     }
+        //     match on_demand::scrape_pending_order_all(Arc::clone(&self.session)).await {
+        //         Ok(n) => {
+        //             let rows = crate::repository::find_all(self.session.as_ref())
+        //                 .await
+        //                 .map_err(Status::internal)?;
+        //             let proto_rows: Vec<PendingOrderRow> =
+        //                 rows.into_iter().map(Self::row_to_proto).collect();
+        //             Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
+        //                 success: true,
+        //                 message: format!(
+        //                     "pending_order: scrape selesai, {n} baris di-upsert (baca {} baris)",
+        //                     proto_rows.len()
+        //                 ),
+        //                 rows: proto_rows,
+        //             }))
+        //         }
+        //         Err(e) => Ok(Response::new(GetAllPendingOrderFromStockbitResponse {
+        //             success: false,
+        //             message: format!("scrape pending_order gagal: {e}"),
+        //             rows: vec![],
+        //         })),
+        //     }
+        // }
+        // .await;
 
         Self::log_rpc_debug("GetAllPendingOrderFromStockbit", &user_name, started);
         result
@@ -349,59 +365,61 @@ impl PendingOrder for PendingOrderService {
             }
         };
         let user_name = auth.nama;
-        let req = request.into_inner();
+        let _ = request.into_inner();
 
-        let emiten_name = Self::normalize_emiten_name(&req.emiten_name)?;
-        if req.current_price <= 0 {
-            return Err(Status::invalid_argument(
-                "current_price harus integer positif (> 0)",
-            ));
-        }
-        if req.buylimit_price <= 0 {
-            return Err(Status::invalid_argument(
-                "buylimit_price harus integer positif (> 0)",
-            ));
-        }
-        if req.buylimit_price >= req.current_price {
-            return Err(Status::invalid_argument(format!(
-                "buylimit_price ({}) harus lebih kecil dari current_price ({})",
-                req.buylimit_price, req.current_price
-            )));
-        }
-        if req.lot <= 0 {
-            return Err(Status::invalid_argument("lot harus integer positif (> 0)"));
-        }
-        let expiry =
-            ExpiryPendingOrder::try_from(req.expiry).unwrap_or(ExpiryPendingOrder::Unspecified);
-        let expiry_dom = expiry_dom_value(expiry)?;
+        // RPC dinonaktifkan sementara: tidak membuat order via Chrome, langsung balas kosong.
+        let result: Result<Response<CreateBuyLimitOrderResponse>, Status> =
+            Ok(Response::new(CreateBuyLimitOrderResponse {
+                success: true,
+                message: "CreateBuyLimitOrder: RPC dinonaktifkan sementara (response kosong)"
+                    .to_string(),
+            }));
 
-        let result: Result<Response<CreateBuyLimitOrderResponse>, Status> = async {
-            match on_demand::create_buy_limit_order(
-                emiten_name.clone(),
-                req.buylimit_price,
-                req.lot,
-                expiry_dom.to_string(),
-            )
-            .await
-            {
-                Ok(()) => Ok(Response::new(CreateBuyLimitOrderResponse {
-                    success: true,
-                    message: "Order limit buy berhasil dibuat".to_string(),
-                })),
-                Err(e) => {
-                    let message = if e.starts_with("Balance kurang") {
-                        e
-                    } else {
-                        "Order limit buy gagal dibuat".to_string()
-                    };
-                    Ok(Response::new(CreateBuyLimitOrderResponse {
-                        success: false,
-                        message,
-                    }))
-                }
-            }
-        }
-        .await;
+        // --- Logika pembuatan order (dinonaktifkan sementara) ---
+        // let req = request.into_inner();
+        // let emiten_name = Self::normalize_emiten_name(&req.emiten_name)?;
+        // if req.current_price <= 0 {
+        //     return Err(Status::invalid_argument("current_price harus integer positif (> 0)"));
+        // }
+        // if req.buylimit_price <= 0 {
+        //     return Err(Status::invalid_argument("buylimit_price harus integer positif (> 0)"));
+        // }
+        // if req.buylimit_price >= req.current_price {
+        //     return Err(Status::invalid_argument(format!(
+        //         "buylimit_price ({}) harus lebih kecil dari current_price ({})",
+        //         req.buylimit_price, req.current_price
+        //     )));
+        // }
+        // if req.lot <= 0 {
+        //     return Err(Status::invalid_argument("lot harus integer positif (> 0)"));
+        // }
+        // let expiry =
+        //     ExpiryPendingOrder::try_from(req.expiry).unwrap_or(ExpiryPendingOrder::Unspecified);
+        // let expiry_dom = expiry_dom_value(expiry)?;
+        // let result: Result<Response<CreateBuyLimitOrderResponse>, Status> = async {
+        //     match on_demand::create_buy_limit_order(
+        //         emiten_name.clone(),
+        //         req.buylimit_price,
+        //         req.lot,
+        //         expiry_dom.to_string(),
+        //     )
+        //     .await
+        //     {
+        //         Ok(()) => Ok(Response::new(CreateBuyLimitOrderResponse {
+        //             success: true,
+        //             message: "Order limit buy berhasil dibuat".to_string(),
+        //         })),
+        //         Err(e) => {
+        //             let message = if e.starts_with("Balance kurang") {
+        //                 e
+        //             } else {
+        //                 "Order limit buy gagal dibuat".to_string()
+        //             };
+        //             Ok(Response::new(CreateBuyLimitOrderResponse { success: false, message }))
+        //         }
+        //     }
+        // }
+        // .await;
 
         Self::log_rpc_debug("CreateBuyLimitOrder", &user_name, started);
         result

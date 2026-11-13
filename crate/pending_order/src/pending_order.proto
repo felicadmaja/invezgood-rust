@@ -25,20 +25,19 @@ service PendingOrder {
   rpc GetPendingOrderFromScyllaByEmitenNameStatus(GetPendingOrderFromScyllaByEmitenNameStatusRequest)
       returns (GetPendingOrderFromScyllaByEmitenNameStatusResponse);
 
-  // Invoke RPC langsung (admin): tanpa batas hari/jam; rate limit global 1× / 3 menit
-  // → success=false + message rate limit (bukan gRPC error).
-  // Auto dari IsStockbitReady poller: Senin–Kamis 09:00–12:00 & 13:30–16:00;
-  // Jumat 09:00–11:30 & 14:00–16:00 bila Stockbit ready
-  // (poller selalu jalan tanpa perlu subscriber). Scrape order Stockbit
-  // (carina.stockbit.com/order/v2/list) via Chrome → upsert invezgood.pending_order.
-  // tahun_bulan_tanggal = tanggal invoke scrape (bukan tanggal time_open order).
+  // DINONAKTIFKAN SEMENTARA: handler tidak scrape Stockbit, langsung balas response kosong
+  // (success=true, rows kosong). Tidak ada akses Chrome/Scylla. Auth admin tetap diperiksa.
+  // (Perilaku asli: scrape order Stockbit carina.stockbit.com/order/v2/list via Chrome →
+  //  upsert invezgood.pending_order; invoke langsung tanpa batas hari/jam, rate limit 1×/3mnt;
+  //  juga dipicu IsStockbitReady poller.)
   rpc GetAllPendingOrderFromStockbit(GetAllPendingOrderFromStockbitRequest)
       returns (GetAllPendingOrderFromStockbitResponse);
 
-  // Buat order limit buy via DOM scrape Stockbit (stockbit.com/securities/order) + Chrome.
-  // Auth Bearer wajib; hanya role admin (Viewer/dll. → permission_denied, bukan enqueue).
-  // Antrian FIFO bila job sebelumnya belum selesai; jeda min 1 detik antar eksekusi Chrome.
-  // Request: emiten_name, buylimit_price (< current_price), lot, expiry GFD/GTC. Env STOCKBIT_*.
+  // DINONAKTIFKAN SEMENTARA: handler tidak membuat order via Chrome, langsung balas response
+  // kosong (success=true). Auth admin tetap diperiksa.
+  // (Perilaku asli: buat order limit buy via DOM scrape Stockbit stockbit.com/securities/order
+  //  + Chrome; admin-only; antrian FIFO; request emiten_name, buylimit_price < current_price,
+  //  lot, expiry GFD/GTC; env STOCKBIT_*.)
   rpc CreateBuyLimitOrder(CreateBuyLimitOrderRequest)
       returns (CreateBuyLimitOrderResponse);
 }
