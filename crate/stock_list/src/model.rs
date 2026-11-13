@@ -241,7 +241,7 @@ pub struct FundachartChartEntryDb {
     pub suffix: String,
 }
 
-/// UDT `pbv_band_data` — snapshot fundachart PBV band Stockbit (kolom `pbv_band`).
+/// UDT `pbv_band_data` — satu snapshot fundachart band Stockbit (dipakai untuk PE & PBV).
 #[derive(Debug, Clone, SerializeValue, DeserializeValue)]
 pub struct PbvBandDataDb {
     pub interval: i32,
@@ -249,6 +249,16 @@ pub struct PbvBandDataDb {
     pub api_message: Option<String>,
     #[scylla(default_when_null)]
     pub chart_entry: Option<Vec<FundachartChartEntryDb>>,
+}
+
+/// UDT `pbv_per_band_data` — gabungan PE band + PBV band (kolom `pbv_per_band`),
+/// output dari RPC `GetPBVPERBandByCode`.
+#[derive(Debug, Clone, SerializeValue, DeserializeValue)]
+pub struct PbvPerBandDataDb {
+    #[scylla(default_when_null)]
+    pub per_band: Option<PbvBandDataDb>,
+    #[scylla(default_when_null)]
+    pub pbv_band: Option<PbvBandDataDb>,
 }
 
 /// UDT `wyckoff_chart` — data chart Wyckoff per saham.
@@ -1044,9 +1054,9 @@ pub struct StockListRow {
     #[scylla(default_when_null)]
     pub catatan_bidang_usaha: Option<String>,
     #[scylla(default_when_null)]
-    pub pbv_band: Option<PbvBandDataDb>,
+    pub pbv_per_band: Option<PbvPerBandDataDb>,
     #[scylla(default_when_null)]
-    pub pbv_band_updated_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub pbv_per_band_updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Subset kolom untuk `GetWyckoffChartByCode`.
@@ -1055,6 +1065,15 @@ pub struct WyckoffChartByCodeRow {
     pub code: String,
     #[scylla(default_when_null)]
     pub wyckoff_chart: Option<WyckoffChartDb>,
+}
+
+/// Subset kolom untuk cache `GetPBVPERBandByCode` (cek stempel + data tersimpan).
+#[derive(Debug, Clone, DeserializeRow)]
+pub struct PbvPerBandByCodeRow {
+    #[scylla(default_when_null)]
+    pub pbv_per_band: Option<PbvPerBandDataDb>,
+    #[scylla(default_when_null)]
+    pub pbv_per_band_updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Subset kolom untuk `GetHorizontalLineByCode`.

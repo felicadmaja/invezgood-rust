@@ -17,13 +17,24 @@ fn install_fundachart_capture_js() -> String {
         if (window.__sbFundachartCaptureInstalled) return 0;
         window.__sbFundachartCaptureInstalled = true;
         window.__sbFundachartJson = window.__sbFundachartJson || '';
+        window.__sbFundachartPE = window.__sbFundachartPE || '';
+        window.__sbFundachartPBV = window.__sbFundachartPBV || '';
         const remember = (text) => {
             if (!text || typeof text !== 'string') return;
             if (
-                text.includes('"chart_entry"')
-                || text.includes('Fundamental chart data retrieved')
+                !text.includes('"chart_entry"')
+                && !text.includes('Fundamental chart data retrieved')
             ) {
-                window.__sbFundachartJson = text;
+                return;
+            }
+            window.__sbFundachartJson = text;
+            // Routing PE vs PBV berdasar judul seri di payload.
+            if (text.includes('PE Ratio') || text.includes('PE Standard Deviation')) {
+                window.__sbFundachartPE = text;
+            } else if (
+                text.includes('Price to Book') || text.includes('PBV Standard Deviation')
+            ) {
+                window.__sbFundachartPBV = text;
             }
         };
         const urlHit = (u) =>
@@ -151,9 +162,59 @@ async fn type_symbol_and_submit(page: &Page, code: &str) -> Result<(), StockbitE
     Ok(())
 }
 
-async fn poll_captured_json(page: &Page, attempts: u32) -> Option<String> {
+/// Jenis fundachart band yang di-scrape dari tab Analysis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FundachartKind {
+    PeBand,
+    PbvBand,
+}
+
+impl FundachartKind {
+    fn window_var(self) -> &'static str {
+        match self {
+            FundachartKind::PeBand => "window.__sbFundachartPE",
+            FundachartKind::PbvBand => "window.__sbFundachartPBV",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            FundachartKind::PeBand => "PE band",
+            FundachartKind::PbvBand => "PBV band",
+        }
+    }
+}
+
+/// Klik SEMUA elemen `button` dengan teks persis `text` (tab Analysis punya 2 tombol "5 Years":
+/// PE Band & PBV Band). Return jumlah yang diklik.
+async fn click_all_buttons_by_text(page: &Page, text: &str) -> Result<u32, StockbitError> {
+    let text_js = serde_json::to_string(text).unwrap_or_else(|_| "\"\"".into());
+    let script = format!(
+        r#"(() => {{
+            const want = {text_js};
+            const vis = (el) => {{
+                const r = el.getBoundingClientRect();
+                const s = getComputedStyle(el);
+                return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
+            }};
+            let n = 0;
+            for (const el of document.querySelectorAll('button, [role="button"]')) {{
+                if (vis(el) && (el.textContent || '').trim() === want) {{ el.click(); n++; }}
+            }}
+            return n;
+        }})()"#
+    );
+    let n = evaluate_resilient(page, script)
+        .await?
+        .into_value::<i64>()
+        .unwrap_or(0);
+    Ok(n as u32)
+}
+
+async fn poll_captured_json(page: &Page, kind: FundachartKind, attempts: u32) -> Option<String> {
+    let js = format!("(() => {} || '')()", kind.window_var());
     for _ in 0..attempts {
-        let raw = evaluate_resilient(page, r#"(() => window.__sbFundachartJson || '')()"#)
+        let raw = evaluate_resilient(page, &js)
             .await
             .ok()
             .and_then(|v| v.into_value::<String>().ok())
@@ -166,7 +227,11 @@ async fn poll_captured_json(page: &Page, attempts: u32) -> Option<String> {
     None
 }
 
-async fn scrape_pbv_via_terminal_dom(page: &Page, code: &str) -> Result<String, StockbitError> {
+async fn scrape_fundachart_via_terminal_dom(
+    page: &Page,
+    code: &str,
+    kind: FundachartKind,
+) -> Result<String, StockbitError> {
     goto_stockbit(page, TERMINAL_MAIN_URL).await?;
     wait_document_ready(page, 60).await?;
 
@@ -178,12 +243,16 @@ async fn scrape_pbv_via_terminal_dom(page: &Page, code: &str) -> Result<String, 
     println!("fundachart {code}: klik Analysis");
     wait_document_ready(page, 45).await?;
 
-    click_by_visible_text(page, &["button"], "5 Years").await?;
-    println!("fundachart {code}: klik 5 Years — pantau XHR fundachart");
+    let n = click_all_buttons_by_text(page, "5 Years").await.unwrap_or(0);
+    println!(
+        "fundachart {code}: klik 5 Years (x{n}) — pantau XHR fundachart ({})",
+        kind.label()
+    );
 
-    poll_captured_json(page, 80).await.ok_or_else(|| {
+    poll_captured_json(page, kind, 80).await.ok_or_else(|| {
         StockbitError::from(format!(
-            "fundachart {code}: tidak ada respons XHR chart_entry setelah 5 Years"
+            "fundachart {code}: tidak ada respons XHR {} setelah 5 Years",
+            kind.label()
         ))
     })
 }
@@ -208,8 +277,12 @@ pub async fn require_stockbit_ready_for_scrape() -> Result<(), StockbitError> {
     }
 }
 
-/// JSON mentah respons fundachart (XHR) untuk emiten `code` — scrape DOM terminal.
-pub async fn fetch_fundachart_pbv_json(code: &str) -> Result<String, StockbitError> {
+/// JSON mentah respons fundachart (XHR) untuk emiten `code` + jenis band (PE / PBV) — scrape DOM
+/// terminal.stockbit.com (login Chrome, klik Analysis → 5 Years, intercept XHR fundachart/data).
+pub async fn fetch_fundachart_json(
+    code: &str,
+    kind: FundachartKind,
+) -> Result<String, StockbitError> {
     require_stockbit_ready_for_scrape().await?;
 
     let code = code.trim().to_ascii_uppercase();
@@ -230,7 +303,66 @@ pub async fn fetch_fundachart_pbv_json(code: &str) -> Result<String, StockbitErr
     open_stream_or_login(&page, email.trim(), password.trim()).await?;
 
     let _ = evaluate_resilient(&page, install_fundachart_capture_js()).await;
-    let body = scrape_pbv_via_terminal_dom(&page, &code).await?;
+    let body = scrape_fundachart_via_terminal_dom(&page, &code, kind).await?;
     browser.close().await;
     Ok(body)
+}
+
+/// JSON mentah respons fundachart PBV band (XHR) untuk emiten `code` — scrape DOM terminal.
+pub async fn fetch_fundachart_pbv_json(code: &str) -> Result<String, StockbitError> {
+    fetch_fundachart_json(code, FundachartKind::PbvBand).await
+}
+
+/// Scrape SEKALI kunjungan terminal.stockbit.com → tangkap PE band & PBV band sekaligus
+/// (tab Analysis punya kedua chart; klik semua tombol "5 Years"). Return (json_pe, json_pbv).
+pub async fn fetch_fundachart_both_json(code: &str) -> Result<(String, String), StockbitError> {
+    require_stockbit_ready_for_scrape().await?;
+
+    let code = code.trim().to_ascii_uppercase();
+    if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Err(format!("code tidak valid ({code})").into());
+    }
+
+    let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
+    let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
+    if email.trim().is_empty() || password.is_empty() {
+        return Err("STOCKBIT_EMAIL / STOCKBIT_PASSWORD wajib".into());
+    }
+
+    let _browser_guard = acquire_browser_session(BrowserLockClass::Interactive)
+        .await
+        .map_err(|e| -> StockbitError { e.into() })?;
+    let (browser, page) = launch_page().await?;
+    open_stream_or_login(&page, email.trim(), password.trim()).await?;
+
+    let _ = evaluate_resilient(&page, install_fundachart_capture_js()).await;
+
+    goto_stockbit(&page, TERMINAL_MAIN_URL).await?;
+    wait_document_ready(&page, 60).await?;
+
+    type_symbol_and_submit(&page, &code).await?;
+    println!("fundachart {code}: Search Symbol → Enter");
+    wait_document_ready(&page, 45).await?;
+
+    click_by_visible_text(&page, &["div", "button", "span"], "Analysis").await?;
+    println!("fundachart {code}: klik Analysis");
+    wait_document_ready(&page, 45).await?;
+
+    let n = click_all_buttons_by_text(&page, "5 Years").await.unwrap_or(0);
+    println!("fundachart {code}: klik 5 Years (x{n}) — pantau XHR PE + PBV");
+
+    // Poll kedua seri; PE & PBV di-route oleh install_fundachart_capture_js().
+    let pe = poll_captured_json(&page, FundachartKind::PeBand, 80).await;
+    let pbv = poll_captured_json(&page, FundachartKind::PbvBand, 20).await;
+    browser.close().await;
+
+    match (pe, pbv) {
+        (Some(pe), Some(pbv)) => Ok((pe, pbv)),
+        (pe, pbv) => Err(format!(
+            "fundachart {code}: XHR tidak lengkap (PE={}, PBV={})",
+            pe.is_some(),
+            pbv.is_some()
+        )
+        .into()),
+    }
 }

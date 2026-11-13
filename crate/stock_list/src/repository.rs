@@ -18,7 +18,7 @@ const ROW_SELECT: &str = "code, name, sector, sub_sector, logo, keystats, keysta
     cash_flow, cash_flow_updated_at, share_holder_5, share_holder_5_updated_at, \
     share_holder_1, share_holder_1_updated_at, share_holder_composition, share_holder_composition_updated_at, \
     company_information, company_information_updated_at, corporate_action, corporate_action_updated_at, \
-    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff, fundamental_assesment, valuation_assesment, notation, index_family, catatan_bidang_usaha, pbv_band, pbv_band_updated_at";
+    catatan_owner, catatan_pribadi, is_plan_to_trade, is_konglomerasi, wyckoff_chart, horizontal_line, takeprofit_wyckoff, fundamental_assesment, valuation_assesment, notation, index_family, catatan_bidang_usaha, pbv_per_band, pbv_per_band_updated_at";
 
 const UPSERT: &str =
     "INSERT INTO invezgood.stock_list (code, name, sector, logo) VALUES (?, ?, ?, ?)";
@@ -27,6 +27,9 @@ const SELECT_BY_CODE: &str = "SELECT ROW_SELECT FROM invezgood.stock_list WHERE 
 
 const SELECT_WYCKOFF_CHART_BY_CODE: &str =
     "SELECT code, wyckoff_chart FROM invezgood.stock_list WHERE code = ?";
+
+const SELECT_PBV_PER_BAND_BY_CODE: &str =
+    "SELECT pbv_per_band, pbv_per_band_updated_at FROM invezgood.stock_list WHERE code = ?";
 
 const SELECT_HORIZONTAL_LINE_BY_CODE: &str =
     "SELECT code, horizontal_line FROM invezgood.stock_list WHERE code = ?";
@@ -106,6 +109,9 @@ const UPDATE_CATATAN_OWNER: &str =
 
 const UPDATE_CATATAN_BIDANG_USAHA: &str =
     "UPDATE invezgood.stock_list SET catatan_bidang_usaha = ? WHERE code = ?";
+
+const UPSERT_PBV_PER_BAND: &str =
+    "UPDATE invezgood.stock_list SET pbv_per_band = ?, pbv_per_band_updated_at = ? WHERE code = ?";
 
 const UPDATE_CATATAN_PRIBADI: &str =
     "UPDATE invezgood.stock_list SET catatan_pribadi = ? WHERE code = ?";
@@ -201,6 +207,23 @@ pub async fn get_wyckoff_chart_by_code(
     rows.try_next()
         .await
         .map_err(|e| format!("select wyckoff_chart row {KEYSPACE}.{TABLE} code={code}: {e}"))
+}
+
+/// Baca snapshot pbv_per_band + stempel waktu (untuk cache GetPBVPERBandByCode).
+pub async fn get_pbv_per_band_by_code(
+    session: &Session,
+    code: &str,
+) -> Result<Option<crate::model::PbvPerBandByCodeRow>, String> {
+    let mut rows = session
+        .query_iter(SELECT_PBV_PER_BAND_BY_CODE, (code,))
+        .await
+        .map_err(|e| format!("select pbv_per_band {KEYSPACE}.{TABLE} code={code}: {e}"))?
+        .rows_stream::<crate::model::PbvPerBandByCodeRow>()
+        .map_err(|e| format!("select pbv_per_band stream {KEYSPACE}.{TABLE} code={code}: {e}"))?;
+
+    rows.try_next()
+        .await
+        .map_err(|e| format!("select pbv_per_band row {KEYSPACE}.{TABLE} code={code}: {e}"))
 }
 
 pub async fn get_horizontal_line_by_code(
@@ -585,6 +608,20 @@ pub async fn update_catatan_bidang_usaha(
         .map_err(|e| {
             format!("update catatan_bidang_usaha {KEYSPACE}.{TABLE} code={code}: {e}")
         })?;
+    Ok(())
+}
+
+/// Simpan snapshot PE+PBV band ke kolom `pbv_per_band` + stempel `pbv_per_band_updated_at`.
+pub async fn upsert_pbv_per_band(
+    session: &Session,
+    code: &str,
+    data: &crate::model::PbvPerBandDataDb,
+    updated_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), String> {
+    session
+        .query_unpaged(UPSERT_PBV_PER_BAND, (data, updated_at, code))
+        .await
+        .map_err(|e| format!("upsert pbv_per_band {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 

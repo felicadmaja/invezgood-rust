@@ -125,8 +125,14 @@ service StockList {
   rpc UpdateCatatanBidangUsaha(UpdateCatatanBidangUsahaRequest)
       returns (UpdateCatatanBidangUsahaResponse);
 
-
-      // https://terminal.stockbit.com/main?layout=watchlist&tabName=SBMA&symbol=SBMA
+  // PBV & PE Band 5 tahun sekaligus: SEKALI scrape terminal.stockbit.com (login Chrome,
+  // tab Analysis → klik semua "5 Years"), intercept XHR GET exodus.api.stockbit.com/fundachart/data
+  // → PE band (seri "Current PE Ratio (TTM)" + ±1/±2/Mean PE Standard Deviation) dan
+  // PBV band (seri "Current Price to Book Value" + ±1/±2/Mean PBV Standard Deviation).
+  // Bearer login wajib; butuh Stockbit ready (readiness poller). Request: code wajib 4 huruf.
+  // Response: per_band + pbv_band (FundachartData: interval + chart_entry).
+  // success=false + message bila scrape gagal / code invalid.
+  rpc GetPBVPERBandByCode(GetPBVPERBandByCodeRequest) returns (GetPBVPERBandByCodeResponse);
 } 
 
 message GetAllStocksRequest {}
@@ -612,8 +618,9 @@ message StockByCodeResponse {
   repeated string index_family = 24;
   ValuationAssesment valuation_assesment = 25;
   string catatan_bidang_usaha = 26;
-  FundachartData pbv_band = 27;
-  int64 pbv_band_updated_at = 28; // unix detik UTC, 0 bila belum ada
+  FundachartData per_band = 27; // PE band (kolom pbv_per_band.per_band)
+  int64 pbv_per_band_updated_at = 28; // unix detik UTC, 0 bila belum ada
+  FundachartData pbv_band = 29; // PBV band (kolom pbv_per_band.pbv_band)
 }
 
 message NotationEntry {
@@ -1041,4 +1048,16 @@ message FundachartChartEntry {
 message FundachartData {
   int32 interval = 1;
   repeated FundachartChartEntry chart_entry = 2;
+}
+
+message GetPBVPERBandByCodeRequest {
+  string code = 1; // wajib, 4 huruf
+}
+
+message GetPBVPERBandByCodeResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  FundachartData per_band = 4; // seri Current PE Ratio (TTM) + garis standar deviasi
+  FundachartData pbv_band = 5; // seri Current Price to Book Value + garis standar deviasi
 }

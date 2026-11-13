@@ -44,6 +44,7 @@ use crate::pb::{
     GetStockByRepeatedCodeRequest, GetStockByRepeatedCodeResponse,
     GetStockByRepeatedCodeStreamPart, GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
     GetWyckoffChartByCodeResponse,
+    GetPbvperBandByCodeRequest, GetPbvperBandByCodeResponse,
     FundachartChartEntry, FundachartData, FundachartSeriesValue,
     KeystatsData, KeystatsResponse, KeyStatsColumn, KeyStatsFromStockbitResponse,
     KeyStatsFromStockbitStreamPart, KeyStatsRowItem, KeyStatsValue, ShareHolder1Data, ShareHolder1Entry,
@@ -375,11 +376,47 @@ impl StockListService {
             index_family: row.index_family.clone().unwrap_or_default(),
             valuation_assesment: Self::valuation_db_to_proto(row.valuation_assesment),
             catatan_bidang_usaha: row.catatan_bidang_usaha.clone().unwrap_or_default(),
-            pbv_band: row.pbv_band.as_ref().map(Self::fundachart_data_from_db),
-            pbv_band_updated_at: row
-                .pbv_band_updated_at
+            per_band: row
+                .pbv_per_band
+                .as_ref()
+                .and_then(|d| d.per_band.as_ref())
+                .map(Self::fundachart_data_from_db),
+            pbv_band: row
+                .pbv_per_band
+                .as_ref()
+                .and_then(|d| d.pbv_band.as_ref())
+                .map(Self::fundachart_data_from_db),
+            pbv_per_band_updated_at: row
+                .pbv_per_band_updated_at
                 .map(|t| t.timestamp())
                 .unwrap_or(0),
+        }
+    }
+
+    /// Konversi proto `FundachartData` → UDT `PbvBandDataDb` (untuk disimpan ke Scylla).
+    fn fundachart_db_from_proto(data: &FundachartData) -> crate::model::PbvBandDataDb {
+        crate::model::PbvBandDataDb {
+            interval: data.interval,
+            api_message: None,
+            chart_entry: Some(
+                data.chart_entry
+                    .iter()
+                    .map(|e| crate::model::FundachartChartEntryDb {
+                        title: e.title.clone(),
+                        value: e.value.as_ref().map(|v| {
+                            crate::model::FundachartSeriesValueDb {
+                                yaxis_id: Some(v.yaxis_id.clone()),
+                                xaxis_id: Some(v.xaxis_id.clone()),
+                            }
+                        }),
+                        color: e.color.clone(),
+                        date: e.date,
+                        item_id: e.item_id,
+                        timeframe: e.timeframe.clone(),
+                        suffix: e.suffix.clone(),
+                    })
+                    .collect(),
+            ),
         }
     }
 
@@ -3311,4 +3348,161 @@ impl StockList for StockListService {
         );
         result
     }
+
+    // PBV & PE Band 5 tahun sekaligus: SEKALI scrape terminal.stockbit.com (login Chrome) →
+    // XHR fundachart/data PE ("Current PE Ratio (TTM)") + PBV ("Current Price to Book Value").
+    // Bearer login + Stockbit ready. Response: per_band + pbv_band (FundachartData).
+    async fn get_pbvper_band_by_code(
+        &self,
+        request: Request<GetPbvperBandByCodeRequest>,
+    ) -> Result<Response<GetPbvperBandByCodeResponse>, Status> {
+        let started = std::time::Instant::now();
+        let rpc_name = "GetPBVPERBandByCode";
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+        let code = request.into_inner().code.trim().to_ascii_uppercase();
+
+        let result = async {
+            if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+                return Err(Status::invalid_argument(format!(
+                    "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
+                )));
+            }
+
+            // Cache: bila pbv_per_band_updated_at ada & tanggalnya = hari ini (UTC), pakai data Scylla
+            // tanpa scrape. Scrape hanya bila updated_at == null atau tanggal berbeda.
+            let cached = crate::repository::get_pbv_per_band_by_code(self.session.as_ref(), &code)
+                .await
+                .map_err(Status::internal)?;
+            if let Some(row) = cached.as_ref() {
+                if let (Some(updated_at), Some(data)) =
+                    (row.pbv_per_band_updated_at, row.pbv_per_band.as_ref())
+                {
+                    if updated_at.date_naive() == chrono::Utc::now().date_naive() {
+                        let per_band = data.per_band.as_ref().map(Self::fundachart_data_from_db);
+                        let pbv_band = data.pbv_band.as_ref().map(Self::fundachart_data_from_db);
+                        let message = format!(
+                            "fundachart {code}: dari cache Scylla (updated_at {}), tanpa scrape",
+                            updated_at.format("%Y-%m-%d %H:%M:%SZ")
+                        );
+                        return Ok(Response::new(GetPbvperBandByCodeResponse {
+                            success: true,
+                            message,
+                            code: code.clone(),
+                            per_band,
+                            pbv_band,
+                        }));
+                    }
+                }
+            }
+
+            let (raw_pe, raw_pbv) = stockbit_browser::fetch_fundachart_both_json(&code)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+
+            let per_band = parse_fundachart_json(&raw_pe).map_err(Status::internal)?;
+            let pbv_band = parse_fundachart_json(&raw_pbv).map_err(Status::internal)?;
+
+            // Simpan snapshot ke Scylla (kolom pbv_per_band) + stempel waktu insert/update.
+            let db_data = crate::model::PbvPerBandDataDb {
+                per_band: Some(Self::fundachart_db_from_proto(&per_band)),
+                pbv_band: Some(Self::fundachart_db_from_proto(&pbv_band)),
+            };
+            crate::repository::upsert_pbv_per_band(
+                self.session.as_ref(),
+                &code,
+                &db_data,
+                chrono::Utc::now(),
+            )
+            .await
+            .map_err(Status::internal)?;
+
+            let message = format!(
+                "fundachart {code}: PER {} entry, PBV {} entry (disimpan ke pbv_per_band)",
+                per_band.chart_entry.len(),
+                pbv_band.chart_entry.len()
+            );
+
+            Ok(Response::new(GetPbvperBandByCodeResponse {
+                success: true,
+                message,
+                code: code.clone(),
+                per_band: Some(per_band),
+                pbv_band: Some(pbv_band),
+            }))
+        }
+        .await;
+
+        Self::log_rpc_debug_code(rpc_name, &user_name, &code, started);
+        result
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct FundachartApiResp {
+    #[serde(default)]
+    data: Option<FundachartApiData>,
+}
+
+#[derive(serde::Deserialize)]
+struct FundachartApiData {
+    #[serde(default)]
+    interval: i32,
+    #[serde(default)]
+    chart_entry: Vec<FundachartApiEntry>,
+}
+
+#[derive(serde::Deserialize)]
+struct FundachartApiEntry {
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    value: Option<FundachartApiValue>,
+    #[serde(default)]
+    color: String,
+    #[serde(default)]
+    date: i64,
+    #[serde(default)]
+    item_id: i32,
+    #[serde(default)]
+    timeframe: String,
+    #[serde(default)]
+    suffix: String,
+}
+
+#[derive(serde::Deserialize, Default)]
+struct FundachartApiValue {
+    #[serde(default)]
+    yaxis_id: Vec<f64>,
+    #[serde(default)]
+    xaxis_id: Vec<i64>,
+}
+
+/// Parse JSON XHR fundachart/data → proto `FundachartData`.
+fn parse_fundachart_json(raw: &str) -> Result<FundachartData, String> {
+    let resp: FundachartApiResp = serde_json::from_str(raw)
+        .map_err(|e| format!("parse JSON fundachart gagal: {e}"))?;
+    let data = resp
+        .data
+        .ok_or_else(|| "JSON fundachart tanpa field data".to_string())?;
+    let chart_entry = data
+        .chart_entry
+        .into_iter()
+        .map(|e| FundachartChartEntry {
+            title: e.title,
+            value: e.value.map(|v| FundachartSeriesValue {
+                yaxis_id: v.yaxis_id,
+                xaxis_id: v.xaxis_id,
+            }),
+            color: e.color,
+            date: e.date,
+            item_id: e.item_id,
+            timeframe: e.timeframe,
+            suffix: e.suffix,
+        })
+        .collect();
+    Ok(FundachartData {
+        interval: data.interval,
+        chart_entry,
+    })
 }

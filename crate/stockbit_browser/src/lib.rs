@@ -23,7 +23,8 @@ mod idx_browser;
 mod redis_readiness;
 
 pub use fundachart::{
-    fetch_fundachart_pbv_json, require_stockbit_ready, require_stockbit_ready_for_scrape,
+    fetch_fundachart_both_json, fetch_fundachart_json, fetch_fundachart_pbv_json,
+    require_stockbit_ready, require_stockbit_ready_for_scrape, FundachartKind,
 };
 
 pub use idx_browser::{

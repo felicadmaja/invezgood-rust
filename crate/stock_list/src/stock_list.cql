@@ -53,15 +53,18 @@
 -- | notation                              | regular        | frozen<list<frozen<notation_entry>>>    |
 -- | index_family                          | regular        | list<text> (IDX30, LQ45, IDX80, ...)    |
 -- | catatan_bidang_usaha                  | regular        | text                                    |
--- | pbv_band                              | regular        | frozen<pbv_band_data>                   |
--- | pbv_band_updated_at                   | regular        | timestamp                               |
+-- | pbv_per_band                          | regular        | frozen<pbv_per_band_data>               |
+-- | pbv_per_band_updated_at               | regular        | timestamp                               |
+
+
 --
--- UDT Stockbit fundachart PBV band (GetStockPbvBandResponse.data):
+-- UDT Stockbit fundachart band (output RPC GetPBVPERBandByCode):
 --   fundachart_series_value: yaxis_id list<double>, xaxis_id list<bigint> (unix detik)
 --   fundachart_chart_entry: title text, value frozen<fundachart_series_value>, color text,
 --     date bigint, item_id int, timeframe text, suffix text
 --   pbv_band_data: interval int, api_message text,
---     chart_entry frozen<list<frozen<fundachart_chart_entry>>>
+--     chart_entry frozen<list<frozen<fundachart_chart_entry>>>  (1 band: PE atau PBV)
+--   pbv_per_band_data: per_band frozen<pbv_band_data>, pbv_band frozen<pbv_band_data>
 -- Migrasi pbv_band (jalan sekali, 2026-11-13):
 -- CREATE TYPE IF NOT EXISTS invezgood.fundachart_series_value (
 --     yaxis_id list<double>, xaxis_id list<bigint>
@@ -74,8 +77,16 @@
 --     interval int, api_message text,
 --     chart_entry frozen<list<frozen<fundachart_chart_entry>>>
 -- );
--- ALTER TABLE invezgood.stock_list ADD pbv_band frozen<pbv_band_data>;
--- ALTER TABLE invezgood.stock_list ADD pbv_band_updated_at timestamp;
+-- Migrasi rename pbv_band → pbv_per_band (gabung PE+PBV, jalan sekali 2026-11-13):
+-- CREATE TYPE IF NOT EXISTS invezgood.pbv_per_band_data (
+--     per_band frozen<pbv_band_data>, pbv_band frozen<pbv_band_data>
+-- );
+-- ALTER TABLE invezgood.stock_list ADD pbv_per_band frozen<pbv_per_band_data>;
+-- ALTER TABLE invezgood.stock_list ADD pbv_per_band_updated_at timestamp;
+-- DROP MATERIALIZED VIEW invezgood.stock_list_by_is_plan_to_trade; -- MV SELECT * blokir DROP kolom
+-- ALTER TABLE invezgood.stock_list DROP pbv_band;
+-- ALTER TABLE invezgood.stock_list DROP pbv_band_updated_at;
+-- CREATE MATERIALIZED VIEW ... stock_list_by_is_plan_to_trade (recreate, lihat bawah);
 --
 -- Migrasi valuation_assesment + catatan_bidang_usaha (2026-08-29):
 -- ALTER TABLE invezgood.stock_list ADD valuation_assesment tinyint;
