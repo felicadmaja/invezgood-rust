@@ -18,16 +18,22 @@ service StockList {
   rpc GetStockByRepeatedCode(GetStockByRepeatedCodeRequest)
       returns (stream GetStockByRepeatedCodeResponse);
 
-  // Stream: push KeyStatsFromStockbitResponse per bagian (stats, closure group, fin year group, dividend).
-  // GET Stockbit API bila kolom kosong atau *_updated_at >24 jam.
-  // Rate limit 2× / 1 detik untuk GET API saja (bukan RPC); slot shared dengan GetStockbitProfileByCode.
+  // Stream 2 gelombang: WAVE 1 kirim data Scylla saat ini (tanpa part Done) agar client langsung
+  // dapat data; bila perlu refresh & slot tersedia, GET Stockbit API keystats/ratio/v1, upsert ke
+  // Scylla, lalu WAVE 2 kirim data terbaru (+Done) di stream yang sama. Refresh HANYA bila belum
+  // pernah diambil (semua *_updated_at null) atau update terbaru >24 jam; bila masih <24 jam tidak
+  // scrape, cukup data Scylla (meski sebagian kolom kosong). Rate limit 2× / 1 detik untuk GET API
+  // saja (bukan RPC); slot shared dengan GetStockbitProfileByCode. Gagal fetch: kirim part Done
+  // berisi pesan error (client tetap pegang data WAVE 1).
   rpc GetKeyStatsFromStockbit(GetKeyStatsFromStockbitRequest)
       returns (stream KeyStatsFromStockbitResponse);
 
-  // Stream: push StockbitProfileResponse (meta + tiap item repeated) per code.
-  // GET Stockbit API bila stockbit_profile kosong atau stockbit_profile_updated_at ≥ 30 hari.
-  // Rate limit 2× / 1 detik untuk GET API saja (bukan RPC); slot shared dengan GetKeyStatsFromStockbit.
-  // Error: success=false + message berisi detail error (Meta lalu Done); stream tetap OK (bukan gRPC Status).
+  // Stream 2 gelombang: WAVE 1 kirim data Scylla saat ini (tanpa part Done); bila perlu refresh &
+  // slot tersedia, GET Stockbit API profile emitten/{code}/profile, upsert ke Scylla, lalu WAVE 2
+  // kirim data terbaru (+Done) di stream yang sama. Refresh bila stockbit_profile kosong atau
+  // stockbit_profile_updated_at ≥ 30 hari. Rate limit 2× / 1 detik untuk GET API saja (bukan RPC);
+  // slot shared dengan GetKeyStatsFromStockbit. Error: success=false + message detail (stream tetap
+  // OK, bukan gRPC Status).
   rpc GetStockbitProfileByCode(GetStockbitProfileByCodeRequest)
       returns (stream StockbitProfileResponse);
 

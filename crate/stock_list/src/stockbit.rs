@@ -143,37 +143,6 @@ struct ApiDividendYearValue {
     payment_date: String,
 }
 
-fn is_list_empty<T>(value: &Option<Vec<T>>) -> bool {
-    value.as_ref().map(|items| items.is_empty()).unwrap_or(true)
-}
-
-fn is_closure_empty(value: &ClosureFinItemsResultsStockbitDb) -> bool {
-    is_list_empty(value)
-}
-
-fn is_financial_year_parent_empty(value: &Option<StockbitFinancialYearParentDb>) -> bool {
-    match value {
-        None => true,
-        Some(parent) => {
-            is_list_empty(&parent.financial_year_groups)
-                && is_list_empty(&parent.financial_year_groups_usd)
-        }
-    }
-}
-
-fn is_stats_empty(value: &Option<StockbitStatsDb>) -> bool {
-    value.is_none()
-}
-
-fn is_dividend_group_empty(value: &Option<StockbitDividendGroupDb>) -> bool {
-    match value {
-        None => true,
-        Some(group) => {
-            is_list_empty(&group.fitem_id) && is_list_empty(&group.dividend_year_values)
-        }
-    }
-}
-
 fn is_updated_at_stale(updated_at: Option<DateTime<Utc>>) -> bool {
     let Some(updated_at) = updated_at else {
         return true;
@@ -184,16 +153,26 @@ fn is_updated_at_stale(updated_at: Option<DateTime<Utc>>) -> bool {
         > STOCKBIT_KEYSTATS_MAX_AGE_SECS
 }
 
-/// Perlu GET Stockbit API bila salah satu kolom null/[] atau *_updated_at >24 jam.
+/// Perlu GET Stockbit API bila data belum pernah diambil (semua *_updated_at null) atau update
+/// terbaru sudah >24 jam. Bila update terbaru masih <24 jam, TIDAK scrape — cukup data Scylla
+/// (meski sebagian kolom kosong, karena itu memang hasil scrape terakhir).
 pub fn needs_stockbit_keystats_refresh(row: &KeyStatsFromStockbitRow) -> bool {
-    is_closure_empty(&row.closure_fin_items_results_stockbit)
-        || is_updated_at_stale(row.closure_fin_items_results_stockbit_updated_at)
-        || is_financial_year_parent_empty(&row.financial_year_parent_stockbit)
-        || is_updated_at_stale(row.financial_year_parent_stockbit_updated_at)
-        || is_stats_empty(&row.stats_stockbit)
-        || is_updated_at_stale(row.stats_stockbit_updated_at)
-        || is_dividend_group_empty(&row.dividend_group_stockbit)
-        || is_updated_at_stale(row.dividend_group_stockbit_updated_at)
+    let latest_updated_at = [
+        row.closure_fin_items_results_stockbit_updated_at,
+        row.financial_year_parent_stockbit_updated_at,
+        row.stats_stockbit_updated_at,
+        row.dividend_group_stockbit_updated_at,
+    ]
+    .into_iter()
+    .flatten()
+    .max();
+
+    match latest_updated_at {
+        // Belum pernah diambil → perlu scrape.
+        None => true,
+        // Sudah pernah → scrape hanya bila >24 jam.
+        Some(ts) => is_updated_at_stale(Some(ts)),
+    }
 }
 
 fn map_closure_groups(groups: Vec<ApiClosureGroup>) -> ClosureFinItemsResultsStockbitDb {

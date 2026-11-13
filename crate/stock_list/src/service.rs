@@ -1115,6 +1115,23 @@ impl StockListService {
         row: KeyStatsFromStockbitRow,
         message: &str,
     ) -> Vec<KeyStatsFromStockbitResponse> {
+        let code = row.code.clone();
+        let mut chunks = Self::keystats_from_stockbit_row_body(row, message);
+        chunks.push(Self::keystats_from_stockbit_stream_chunk(
+            &code,
+            message,
+            KeyStatsFromStockbitStreamPart::Done,
+            KeyStatsFromStockbitResponse::default(),
+        ));
+        chunks
+    }
+
+    /// Sama seperti `keystats_from_stockbit_row_stream` tetapi TANPA part `Done` — dipakai untuk
+    /// wave pertama (data Scylla) agar stream tetap terbuka menunggu data terbaru dari Stockbit.
+    fn keystats_from_stockbit_row_body(
+        row: KeyStatsFromStockbitRow,
+        message: &str,
+    ) -> Vec<KeyStatsFromStockbitResponse> {
         let msg = message.to_string();
         let code = row.code.clone();
         let closure_updated_at = row
@@ -1206,13 +1223,6 @@ impl StockListService {
                 dividend_group_updated_at: dividend_updated_at,
                 ..Default::default()
             },
-        ));
-
-        chunks.push(Self::keystats_from_stockbit_stream_chunk(
-            &code,
-            &msg,
-            KeyStatsFromStockbitStreamPart::Done,
-            KeyStatsFromStockbitResponse::default(),
         ));
 
         chunks
@@ -1738,6 +1748,25 @@ impl StockListService {
         row: StockbitProfileByCodeRow,
         message: &str,
     ) -> Result<Vec<StockbitProfileResponse>, Status> {
+        let code = row.code.clone();
+        let updated_at = row.stockbit_profile_updated_at.unwrap_or_else(Utc::now);
+        let mut chunks = Self::stockbit_profile_row_body(row, message)?;
+        chunks.push(Self::stockbit_profile_stream_chunk(
+            &code,
+            message,
+            updated_at,
+            StockbitProfileStreamPart::Done,
+            StockbitProfileData::default(),
+        ));
+        Ok(chunks)
+    }
+
+    /// Sama seperti `stockbit_profile_row_stream` tetapi TANPA part `Done` — dipakai untuk wave
+    /// pertama (data Scylla) agar stream tetap terbuka menunggu data terbaru dari Stockbit.
+    fn stockbit_profile_row_body(
+        row: StockbitProfileByCodeRow,
+        message: &str,
+    ) -> Result<Vec<StockbitProfileResponse>, Status> {
         let profile = row.stockbit_profile.ok_or_else(|| {
             Status::internal(format!("stockbit_profile code={} kosong", row.code))
         })?;
@@ -1822,14 +1851,6 @@ impl StockListService {
                 },
             ));
         }
-
-        chunks.push(Self::stockbit_profile_stream_chunk(
-            &code,
-            &msg,
-            updated_at,
-            StockbitProfileStreamPart::Done,
-            StockbitProfileData::default(),
-        ));
 
         Ok(chunks)
     }
@@ -2142,79 +2163,138 @@ impl StockList for StockListService {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         tokio::spawn(async move {
-            let stream_result: Result<Vec<KeyStatsFromStockbitResponse>, Status> = async {
-                let row = crate::repository::get_keystats_from_stockbit_by_code(
-                    session.as_ref(),
-                    &code,
-                )
-                .await
-                .map_err(Status::internal)?
-                .ok_or_else(|| {
-                    Status::not_found(format!("stock_list code={code} tidak ditemukan"))
-                })?;
+            // Baca row Scylla saat ini.
+            let row = match crate::repository::get_keystats_from_stockbit_by_code(
+                session.as_ref(),
+                &code,
+            )
+            .await
+            {
+                Ok(Some(r)) => r,
+                Ok(None) => {
+                    let _ = send_or_break(
+                        &tx,
+                        Err(Status::not_found(format!(
+                            "stock_list code={code} tidak ditemukan"
+                        ))),
+                    )
+                    .await;
+                    Self::log_rpc_debug_code("GetKeyStatsFromStockbit", &user_name_spawn, &code, started);
+                    return;
+                }
+                Err(e) => {
+                    let _ = send_or_break(&tx, Err(Status::internal(e))).await;
+                    Self::log_rpc_debug_code("GetKeyStatsFromStockbit", &user_name_spawn, &code, started);
+                    return;
+                }
+            };
 
-                // Selalu balas data Scylla saat ini (cepat). Bila perlu refresh, jalankan fetch
-                // Stockbit di BACKGROUND agar response tidak terblok puluhan detik (Chrome warm-up),
-                // sehingga client tidak timeout. Data fresh akan muncul pada invoke berikutnya.
-                if crate::stockbit::needs_stockbit_keystats_refresh(&row) {
-                    match try_acquire_stockbit_api_get_slot(
-                        "GetKeyStatsFromStockbit",
-                        &user_name_spawn,
+            let needs_refresh = crate::stockbit::needs_stockbit_keystats_refresh(&row);
+            let slot = if needs_refresh {
+                Some(
+                    try_acquire_stockbit_api_get_slot("GetKeyStatsFromStockbit", &user_name_spawn)
+                        .await,
+                )
+            } else {
+                None
+            };
+
+            match slot {
+                // Perlu refresh & slot tersedia: WAVE 1 kirim data Scylla (tanpa Done), lalu fetch +
+                // save ke Scylla, lalu WAVE 2 kirim data terbaru (+Done) di stream yang sama.
+                Some(StockbitApiGetSlot::Acquired) => {
+                    let wave1 = Self::keystats_from_stockbit_row_body(
+                        row,
+                        "Key stats Stockbit dari Scylla (memuat data terbaru dari Stockbit...)",
+                    );
+                    for chunk in wave1 {
+                        if !send_or_break(&tx, Ok(chunk)).await {
+                            Self::log_rpc_debug_code("GetKeyStatsFromStockbit", &user_name_spawn, &code, started);
+                            return;
+                        }
+                    }
+
+                    eprintln!(
+                        "GetKeyStatsFromStockbit {user_name_spawn} GET Stockbit API keystats/ratio/v1/{code}"
+                    );
+                    match crate::stockbit::fetch_and_save_keystats_from_stockbit(
+                        Arc::clone(&session),
+                        &code,
                     )
                     .await
                     {
-                        StockbitApiGetSlot::Acquired => {
-                            let bg_session = Arc::clone(&session);
-                            let bg_code = code.clone();
-                            let bg_user = user_name_spawn.clone();
-                            tokio::spawn(async move {
-                                eprintln!(
-                                    "GetKeyStatsFromStockbit {bg_user} GET Stockbit API keystats/ratio/v1/{bg_code} (refresh background)"
-                                );
-                                if let Err(e) =
-                                    crate::stockbit::fetch_and_save_keystats_from_stockbit(
-                                        bg_session, &bg_code,
-                                    )
-                                    .await
-                                {
-                                    eprintln!(
-                                        "GetKeyStatsFromStockbit {bg_user} refresh background {bg_code} gagal: {e}"
-                                    );
+                        Ok(_) => {
+                            match crate::repository::get_keystats_from_stockbit_by_code(
+                                session.as_ref(),
+                                &code,
+                            )
+                            .await
+                            {
+                                Ok(Some(fresh)) => {
+                                    for chunk in Self::keystats_from_stockbit_row_stream(
+                                        fresh,
+                                        "Key stats Stockbit terbaru (di-upsert ke stock_list)",
+                                    ) {
+                                        if !send_or_break(&tx, Ok(chunk)).await {
+                                            break;
+                                        }
+                                    }
                                 }
-                            });
-                            Ok(Self::keystats_from_stockbit_row_stream(
-                                row,
-                                "Key stats Stockbit dari Scylla (refresh Stockbit berjalan di background)",
-                            ))
+                                _ => {
+                                    let _ = send_or_break(
+                                        &tx,
+                                        Ok(Self::keystats_from_stockbit_stream_chunk(
+                                            &code,
+                                            "selesai (data terbaru tersimpan)",
+                                            KeyStatsFromStockbitStreamPart::Done,
+                                            KeyStatsFromStockbitResponse::default(),
+                                        )),
+                                    )
+                                    .await;
+                                }
+                            }
                         }
-                        StockbitApiGetSlot::RateLimited { remaining_secs } => {
-                            Ok(Self::keystats_from_stockbit_row_stream(
-                                row,
-                                &format!(
-                                    "Key stats Stockbit dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
-                                ),
-                            ))
+                        Err(e) => {
+                            eprintln!(
+                                "GetKeyStatsFromStockbit {user_name_spawn} refresh {code} gagal: {e}"
+                            );
+                            let _ = send_or_break(
+                                &tx,
+                                Ok(Self::keystats_from_stockbit_stream_chunk(
+                                    &code,
+                                    &format!(
+                                        "Gagal ambil data terbaru dari Stockbit: {e}; menampilkan data Scylla"
+                                    ),
+                                    KeyStatsFromStockbitStreamPart::Done,
+                                    KeyStatsFromStockbitResponse::default(),
+                                )),
+                            )
+                            .await;
                         }
                     }
-                } else {
-                    Ok(Self::keystats_from_stockbit_row_stream(
-                        row,
-                        "Key stats Stockbit dari Scylla",
-                    ))
                 }
-            }
-            .await;
-
-            match stream_result {
-                Ok(chunks) => {
-                    for chunk in chunks {
+                // Rate limited: kirim data Scylla apa adanya (+Done).
+                Some(StockbitApiGetSlot::RateLimited { remaining_secs }) => {
+                    for chunk in Self::keystats_from_stockbit_row_stream(
+                        row,
+                        &format!(
+                            "Key stats Stockbit dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
+                        ),
+                    ) {
                         if !send_or_break(&tx, Ok(chunk)).await {
                             break;
                         }
                     }
                 }
-                Err(status) => {
-                    let _ = send_or_break(&tx, Err(status)).await;
+                // Tidak perlu refresh: kirim data Scylla apa adanya (+Done).
+                None => {
+                    for chunk in
+                        Self::keystats_from_stockbit_row_stream(row, "Key stats Stockbit dari Scylla")
+                    {
+                        if !send_or_break(&tx, Ok(chunk)).await {
+                            break;
+                        }
+                    }
                 }
             }
 
@@ -2246,117 +2326,232 @@ impl StockList for StockListService {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
 
         tokio::spawn(async move {
-            let load_outcome: Result<(String, Vec<StockbitProfileResponse>), String> = async {
-                if code.is_empty() {
-                    return Err("code wajib diisi".into());
-                }
-                if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
-                    return Err(format!(
-                        "code tidak valid ({code}); wajib tepat 4 huruf alphabet"
-                    ));
-                }
+            // Validasi code.
+            if code.is_empty()
+                || code.len() != 4
+                || !code.chars().all(|c| c.is_ascii_alphabetic())
+            {
+                let msg = format!("code tidak valid ({code}); wajib tepat 4 huruf alphabet");
+                eprintln!("GetStockbitProfileByCode {code} - {user_name_spawn} error: {msg}");
+                Self::stream_stockbit_profile_notice(&tx, &code, &msg).await;
+                Self::log_rpc_debug_code_path(
+                    "GetStockbitProfileByCode",
+                    &code,
+                    &user_name_spawn,
+                    "error",
+                    started,
+                );
+                return;
+            }
 
-                let mut row = crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
-                    .await
-                    .map_err(|e| format!("scylla query: {e}"))?
-                    .ok_or_else(|| format!("stock_list code={code} tidak ditemukan"))?;
-
-                if crate::stockbit_profile::needs_stockbit_profile_refresh(
-                    row.stockbit_profile.as_ref(),
-                    row.stockbit_profile_updated_at,
-                ) {
-                    match try_acquire_stockbit_api_get_slot(
+            // Baca row Scylla.
+            let row = match crate::repository::get_stockbit_profile_by_code(session.as_ref(), &code)
+                .await
+            {
+                Ok(Some(r)) => r,
+                Ok(None) => {
+                    let msg = format!("stock_list code={code} tidak ditemukan");
+                    Self::stream_stockbit_profile_notice(&tx, &code, &msg).await;
+                    Self::log_rpc_debug_code_path(
                         "GetStockbitProfileByCode",
+                        &code,
                         &user_name_spawn,
+                        "error",
+                        started,
+                    );
+                    return;
+                }
+                Err(e) => {
+                    let msg = format!("scylla query: {e}");
+                    Self::stream_stockbit_profile_notice(&tx, &code, &msg).await;
+                    Self::log_rpc_debug_code_path(
+                        "GetStockbitProfileByCode",
+                        &code,
+                        &user_name_spawn,
+                        "error",
+                        started,
+                    );
+                    return;
+                }
+            };
+
+            let needs_refresh = crate::stockbit_profile::needs_stockbit_profile_refresh(
+                row.stockbit_profile.as_ref(),
+                row.stockbit_profile_updated_at,
+            );
+            let slot = if needs_refresh {
+                Some(
+                    try_acquire_stockbit_api_get_slot("GetStockbitProfileByCode", &user_name_spawn)
+                        .await,
+                )
+            } else {
+                None
+            };
+
+            let debug_path: &str = match slot {
+                // Perlu refresh & slot tersedia: WAVE 1 data Scylla (tanpa Done), fetch + save,
+                // lalu WAVE 2 data terbaru (+Done) di stream yang sama.
+                Some(StockbitApiGetSlot::Acquired) => {
+                    let scylla_empty =
+                        Self::stockbit_profile_scylla_empty(row.stockbit_profile.as_ref());
+                    if scylla_empty {
+                        // Belum ada data: kirim Meta notice (tanpa Done) agar client tahu sedang memuat.
+                        let notice = Self::stockbit_profile_stream_chunk(
+                            &code,
+                            "Stockbit profile kosong di Scylla, memuat dari Stockbit...",
+                            Utc::now(),
+                            StockbitProfileStreamPart::Meta,
+                            StockbitProfileData::default(),
+                        );
+                        if !send_or_break(&tx, Ok(notice)).await {
+                            Self::log_rpc_debug_code_path(
+                                "GetStockbitProfileByCode",
+                                &code,
+                                &user_name_spawn,
+                                "client drop",
+                                started,
+                            );
+                            return;
+                        }
+                    } else if let Ok(wave1) = Self::stockbit_profile_row_body(
+                        row,
+                        "Stockbit profile dari Scylla (memuat data terbaru dari Stockbit...)",
+                    ) {
+                        for chunk in wave1 {
+                            if !send_or_break(&tx, Ok(chunk)).await {
+                                Self::log_rpc_debug_code_path(
+                                    "GetStockbitProfileByCode",
+                                    &code,
+                                    &user_name_spawn,
+                                    "client drop",
+                                    started,
+                                );
+                                return;
+                            }
+                        }
+                    }
+
+                    eprintln!(
+                        "\x1b[32mGetStockbitProfileByCode {code} GET Stockbit API Profile emitten/{code}/profile\x1b[0m"
+                    );
+                    match crate::stockbit_profile::fetch_and_save_stockbit_profile(
+                        Arc::clone(&session),
+                        &code,
                     )
                     .await
                     {
-                        StockbitApiGetSlot::Acquired => {
-                            eprintln!(
-                                "\x1b[32mGetStockbitProfileByCode {code} GET Stockbit API Profile emitten/{code}/profile\x1b[0m"
-                            );
-                            crate::stockbit_profile::fetch_and_save_stockbit_profile(
-                                Arc::clone(&session),
-                                &code,
-                            )
-                            .await
-                            .map_err(|e| e.to_string())?;
-                            row = crate::repository::get_stockbit_profile_by_code(
+                        Ok(_) => {
+                            match crate::repository::get_stockbit_profile_by_code(
                                 session.as_ref(),
                                 &code,
                             )
                             .await
-                            .map_err(|e| format!("scylla query: {e}"))?
-                            .ok_or_else(|| format!("stock_list code={code} tidak ditemukan"))?;
-                            let chunks = Self::stockbit_profile_row_stream(
-                                row,
-                                "Stockbit profile di-upsert ke stock_list",
-                            )
-                            .map_err(|s| s.message().to_string())?;
-                            Ok(("GET Stockbit API".to_string(), chunks))
-                        }
-                        StockbitApiGetSlot::RateLimited { remaining_secs } => {
-                            if Self::stockbit_profile_scylla_empty(row.stockbit_profile.as_ref()) {
-                                let chunks = Self::stockbit_profile_notice_stream(
-                                    &code,
-                                    &format!(
-                                        "Rate limit GET Stockbit API (tunggu {remaining_secs}s); data Scylla kosong"
-                                    ),
-                                );
-                                Ok((
-                                    format!("rate-limit skip API (Scylla kosong, tunggu {remaining_secs}s)"),
-                                    chunks,
-                                ))
-                            } else {
-                                let chunks = Self::stockbit_profile_row_stream(
-                                    row,
-                                    &format!(
-                                        "Stockbit profile dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
-                                    ),
-                                )
-                                .map_err(|s| s.message().to_string())?;
-                                Ok((
-                                    format!("rate-limit skip API (cache Scylla, tunggu {remaining_secs}s)"),
-                                    chunks,
-                                ))
+                            {
+                                Ok(Some(fresh)) => {
+                                    match Self::stockbit_profile_row_stream(
+                                        fresh,
+                                        "Stockbit profile terbaru (di-upsert ke stock_list)",
+                                    ) {
+                                        Ok(chunks) => {
+                                            for chunk in chunks {
+                                                if !send_or_break(&tx, Ok(chunk)).await {
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        Err(s) => {
+                                            Self::stream_stockbit_profile_notice(
+                                                &tx,
+                                                &code,
+                                                s.message(),
+                                            )
+                                            .await;
+                                        }
+                                    }
+                                    "GET Stockbit API (terbaru)"
+                                }
+                                _ => {
+                                    Self::stream_stockbit_profile_notice(
+                                        &tx,
+                                        &code,
+                                        "selesai (data terbaru tersimpan)",
+                                    )
+                                    .await;
+                                    "GET Stockbit API (terbaru, reread gagal)"
+                                }
                             }
                         }
-                    }
-                } else {
-                    let chunks = Self::stockbit_profile_row_stream(row, "Stockbit profile dari Scylla")
-                        .map_err(|s| s.message().to_string())?;
-                    Ok(("cache Scylla".to_string(), chunks))
-                }
-            }
-            .await;
-
-            let debug_path = load_outcome
-                .as_ref()
-                .map(|(path, _)| path.as_str())
-                .unwrap_or("error")
-                .to_string();
-
-            match load_outcome {
-                Ok((_, chunks)) => {
-                    for chunk in chunks {
-                        if !send_or_break(&tx, Ok(chunk)).await {
-                            break;
+                        Err(e) => {
+                            eprintln!("GetStockbitProfileByCode {code} refresh gagal: {e}");
+                            Self::stream_stockbit_profile_notice(
+                                &tx,
+                                &code,
+                                &format!("Gagal ambil data terbaru dari Stockbit: {e}"),
+                            )
+                            .await;
+                            "GET Stockbit API gagal"
                         }
                     }
                 }
-                Err(message) => {
-                    eprintln!(
-                        "GetStockbitProfileByCode {code} - {user_name_spawn} error: {message}"
-                    );
-                    Self::stream_stockbit_profile_notice(&tx, &code, &message).await;
+                // Rate limited: kirim data Scylla apa adanya (+Done) atau notice bila kosong.
+                Some(StockbitApiGetSlot::RateLimited { remaining_secs }) => {
+                    if Self::stockbit_profile_scylla_empty(row.stockbit_profile.as_ref()) {
+                        let chunks = Self::stockbit_profile_notice_stream(
+                            &code,
+                            &format!(
+                                "Rate limit GET Stockbit API (tunggu {remaining_secs}s); data Scylla kosong"
+                            ),
+                        );
+                        for chunk in chunks {
+                            if !send_or_break(&tx, Ok(chunk)).await {
+                                break;
+                            }
+                        }
+                        "rate-limit skip API (Scylla kosong)"
+                    } else {
+                        match Self::stockbit_profile_row_stream(
+                            row,
+                            &format!(
+                                "Stockbit profile dari Scylla (rate limit GET API, tunggu {remaining_secs}s)"
+                            ),
+                        ) {
+                            Ok(chunks) => {
+                                for chunk in chunks {
+                                    if !send_or_break(&tx, Ok(chunk)).await {
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(s) => {
+                                Self::stream_stockbit_profile_notice(&tx, &code, s.message()).await;
+                            }
+                        }
+                        "rate-limit skip API (cache Scylla)"
+                    }
                 }
-            }
+                // Tidak perlu refresh: kirim data Scylla apa adanya (+Done).
+                None => {
+                    match Self::stockbit_profile_row_stream(row, "Stockbit profile dari Scylla") {
+                        Ok(chunks) => {
+                            for chunk in chunks {
+                                if !send_or_break(&tx, Ok(chunk)).await {
+                                    break;
+                                }
+                            }
+                        }
+                        Err(s) => {
+                            Self::stream_stockbit_profile_notice(&tx, &code, s.message()).await;
+                        }
+                    }
+                    "cache Scylla"
+                }
+            };
 
             Self::log_rpc_debug_code_path(
                 "GetStockbitProfileByCode",
                 &code,
                 &user_name_spawn,
-                &debug_path,
+                debug_path,
                 started,
             );
         });
