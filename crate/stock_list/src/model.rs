@@ -949,16 +949,6 @@ pub struct StockbitProfileByCodeRow {
     pub stockbit_profile_updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-/// Subset kolom untuk `GetStockPBVBand` (cache harian `pbv_band`).
-#[derive(Debug, Clone, DeserializeRow)]
-pub struct PbvBandByCodeRow {
-    pub code: String,
-    #[scylla(default_when_null)]
-    pub pbv_band: Option<PbvBandDataDb>,
-    #[scylla(default_when_null)]
-    pub pbv_band_updated_at: Option<chrono::DateTime<chrono::Utc>>,
-}
-
 /// Subset kolom Stockbit keystats untuk `GetKeyStatsFromStockbit`.
 #[derive(Debug, Clone, DeserializeRow)]
 pub struct KeyStatsFromStockbitRow {

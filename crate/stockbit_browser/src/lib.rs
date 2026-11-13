@@ -2220,3 +2220,87 @@ pub async fn open_stream_or_login(
     }
     Ok(())
 }
+
+/// Hapus token trading di browser (paksa START TRADING + PIN ulang).
+pub async fn clear_stockbit_trading_client_state(page: &Page) -> Result<(), StockbitError> {
+    evaluate_resilient(
+        page,
+        r#"(() => {
+            try {
+                const keys = Object.keys(localStorage);
+                for (const k of keys) {
+                    const lk = k.toLowerCase();
+                    if (lk.includes('securit') || lk.includes('trading') || lk.includes('carina')) {
+                        localStorage.removeItem(k);
+                    }
+                }
+            } catch (_) {}
+            try {
+                const keys = Object.keys(sessionStorage);
+                for (const k of keys) {
+                    const lk = k.toLowerCase();
+                    if (lk.includes('securit') || lk.includes('trading') || lk.includes('carina')) {
+                        sessionStorage.removeItem(k);
+                    }
+                }
+            } catch (_) {}
+            try { window.__sbCapturedBearer = ''; } catch (_) {}
+            return 0;
+        })()"#,
+    )
+    .await?;
+    Ok(())
+}
+
+/// Validasi / login ulang sebelum scrape portofolio — tidak skip hanya karena Chrome reuse di /stream.
+pub async fn refresh_stockbit_web_session_for_scrape(
+    page: &Page,
+    email: &str,
+    password: &str,
+) -> Result<(), StockbitError> {
+    invalidate_bearer_cache().await;
+    clear_stockbit_trading_client_state(page).await?;
+
+    println!("Refresh sesi Stockbit (portfolio): cek via /login...");
+    goto_stockbit(page, STOCKBIT_LOGIN_URL).await?;
+    sleep(Duration::from_millis(1500)).await;
+
+    if has_profile_avatar_modal(page).await {
+        dismiss_profile_avatar_modal(page).await?;
+    }
+    let saw_session_expired = has_session_expired_modal(page).await;
+    if saw_session_expired {
+        println!(
+            "Modal 'Sesi Kamu Sudah Habis' — kembali ke halaman utama lalu login ulang..."
+        );
+        let _ = save_error_screenshot(page, "session_expired_modal_portfolio").await;
+        invalidate_bearer_cache().await;
+        // `login_and_return_to_stream` menangani modal sesi habis bila masih terbuka.
+        println!("Perlu login ulang (modal sesi habis)...");
+        login_and_return_to_stream(page, email, password).await?;
+    } else if needs_relogin(page).await {
+        println!("Refresh sesi: form /login — login ulang Stockbit...");
+        login_and_return_to_stream(page, email, password).await?;
+    } else {
+        println!("Refresh sesi: cookie web masih valid — pastikan /stream...");
+        goto_stockbit(page, STOCKBIT_STREAM_URL).await?;
+        wait_for_authenticated_stream(page, Duration::from_secs(15)).await?;
+        if needs_relogin(page).await {
+            println!("Refresh sesi: /stream butuh login ulang...");
+            login_and_return_to_stream(page, email, password).await?;
+        }
+    }
+
+    if has_profile_avatar_modal(page).await {
+        dismiss_profile_avatar_modal(page).await?;
+    }
+
+    let final_url = page.url().await?.unwrap_or_default();
+    if !is_stream_url(&final_url) && !final_url.contains("stockbit.com") {
+        return Err(format!(
+            "Gagal refresh sesi Stockbit (URL: {final_url})"
+        )
+        .into());
+    }
+    Ok(())
+}

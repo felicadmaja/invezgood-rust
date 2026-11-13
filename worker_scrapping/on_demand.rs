@@ -7,7 +7,8 @@ use std::time::{Duration, Instant};
 
 use scylla::client::session::Session;
 use stockbit_browser::{
-    acquire_browser_session, launch_page, open_stream_or_login, BrowserLockClass,
+    acquire_browser_session, clear_stockbit_trading_client_state, launch_page,
+    open_stream_or_login, refresh_stockbit_web_session_for_scrape, BrowserLockClass,
 };
 use tokio::sync::{Mutex, oneshot, watch};
 use tokio::time::sleep;
@@ -119,9 +120,12 @@ async fn run_portofolio_all_scrape(
         .map_err(|e| format!("launch Chrome: {e}"))?;
 
     let result = async {
-        open_stream_or_login(&page, email.trim(), password.trim())
+        refresh_stockbit_web_session_for_scrape(&page, email.trim(), password.trim())
             .await
-            .map_err(|e| format!("login Stockbit: {e}"))?;
+            .map_err(|e| format!("refresh sesi Stockbit: {e}"))?;
+        clear_stockbit_trading_client_state(&page)
+            .await
+            .map_err(|e| format!("clear trading state: {e}"))?;
 
         let (n, codes) = crate::portofolio_worker::scrape_and_insert_portofolio(
             &page,

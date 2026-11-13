@@ -14,7 +14,6 @@ mod redis_cache;
 mod repository;
 mod service;
 mod stockbit;
-mod stockbit_fundachart;
 pub mod stockbit_profile;
 mod stockbit_reports;
 

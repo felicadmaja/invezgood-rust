@@ -42,9 +42,9 @@ use crate::pb::{
     GetKeyStatsFromStockbitRequest, GetStockbitProfileByCodeRequest,
     GetStockbitReportsByCodeRequest, GetStockByCodeRequest,
     GetStockByRepeatedCodeRequest, GetStockByRepeatedCodeResponse,
-    GetStockPbvBandRequest, GetStockPbvBandResponse,
     GetStockByRepeatedCodeStreamPart, GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
     GetWyckoffChartByCodeResponse,
+    FundachartChartEntry, FundachartData, FundachartSeriesValue,
     KeystatsData, KeystatsResponse, KeyStatsColumn, KeyStatsFromStockbitResponse,
     KeyStatsFromStockbitStreamPart, KeyStatsRowItem, KeyStatsValue, ShareHolder1Data, ShareHolder1Entry,
     ShareHolder5Data,
@@ -375,14 +375,35 @@ impl StockListService {
             index_family: row.index_family.clone().unwrap_or_default(),
             valuation_assesment: Self::valuation_db_to_proto(row.valuation_assesment),
             catatan_bidang_usaha: row.catatan_bidang_usaha.clone().unwrap_or_default(),
-            pbv_band: row
-                .pbv_band
-                .as_ref()
-                .map(crate::stockbit_fundachart::fundachart_data_from_db),
+            pbv_band: row.pbv_band.as_ref().map(Self::fundachart_data_from_db),
             pbv_band_updated_at: row
                 .pbv_band_updated_at
                 .map(|t| t.timestamp())
                 .unwrap_or(0),
+        }
+    }
+
+    fn fundachart_data_from_db(db: &crate::model::PbvBandDataDb) -> FundachartData {
+        FundachartData {
+            interval: db.interval,
+            chart_entry: db
+                .chart_entry
+                .clone()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|e| FundachartChartEntry {
+                    title: e.title,
+                    value: e.value.map(|v| FundachartSeriesValue {
+                        yaxis_id: v.yaxis_id.unwrap_or_default(),
+                        xaxis_id: v.xaxis_id.unwrap_or_default(),
+                    }),
+                    color: e.color,
+                    date: e.date,
+                    item_id: e.item_id,
+                    timeframe: e.timeframe,
+                    suffix: e.suffix,
+                })
+                .collect(),
         }
     }
 
@@ -1963,44 +1984,6 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("GetStockByCode", &user_name, started);
-        result
-    }
-
-    async fn get_stock_pbv_band(
-        &self,
-        request: Request<GetStockPbvBandRequest>,
-    ) -> Result<Response<GetStockPbvBandResponse>, Status> {
-        let started = std::time::Instant::now();
-        let rpc_name = "GetStockPBVBand";
-        let auth = self.require_auth(&request).await?;
-        let user_name = auth.nama;
-
-        let result: Result<Response<GetStockPbvBandResponse>, Status> = async {
-            let code = request.into_inner().code.trim().to_ascii_uppercase();
-            if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
-                return Err(Status::invalid_argument(
-                    "code wajib tepat 4 huruf alphabet",
-                ));
-            }
-
-            match crate::stockbit_fundachart::get_or_fetch_and_save_stock_pbv_band(
-                Arc::clone(&self.session),
-                &code,
-            )
-            .await
-            {
-                Ok(resp) => Ok(Response::new(resp)),
-                Err(e) => Ok(Response::new(GetStockPbvBandResponse {
-                    success: false,
-                    message: e,
-                    code,
-                    ..Default::default()
-                })),
-            }
-        }
-        .await;
-
-        Self::log_rpc_debug(rpc_name, &user_name, started);
         result
     }
 

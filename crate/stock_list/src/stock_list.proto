@@ -124,12 +124,6 @@ service StockList {
   // Bearer login wajib; hanya role admin. Request: code + catatan_bidang_usaha. success=false + message bila code tidak ada atau DB gagal.
   rpc UpdateCatatanBidangUsaha(UpdateCatatanBidangUsahaRequest)
       returns (UpdateCatatanBidangUsahaResponse);
-
-  // PBV band Stockbit: Chrome DOM `terminal.stockbit.com/main` (login dulu) → Search Symbol + emiten,
-  // Analysis → 5 Years; tangkap JSON XHR fundachart (`chart_entry` PBV band). Upsert Scylla `pbv_band` + `pbv_band_updated_at`.
-  // Invoke: cache harian WIB dari Scylla; beda hari / belum ada → scrape ulang. Bearer invezgood; code 4 huruf; readiness bila scrape.
-  // success=false + message bila DOM/XHR gagal. Debug log: GetStockPBVBand {user} {ms}ms - {code}
-  rpc GetStockPBVBand(GetStockPbvBandRequest) returns (GetStockPbvBandResponse);
 } 
 
 message GetAllStocksRequest {}
@@ -1026,10 +1020,6 @@ enum GetAllStocksStreamPart {
   GET_ALL_STOCKS_STREAM_PART_DONE = 3;
 }
 
-message GetStockPbvBandRequest {
-  string code = 1; // wajib, 4 huruf
-}
-
 message FundachartSeriesValue {
   repeated double yaxis_id = 1;
   repeated int64 xaxis_id = 2;
@@ -1048,12 +1038,4 @@ message FundachartChartEntry {
 message FundachartData {
   int32 interval = 1;
   repeated FundachartChartEntry chart_entry = 2;
-}
-
-message GetStockPbvBandResponse {
-  bool success = 1;
-  string message = 2;
-  string code = 3;
-  string api_message = 4;
-  FundachartData data = 5;
 }

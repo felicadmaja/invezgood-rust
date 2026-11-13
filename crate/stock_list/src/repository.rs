@@ -10,7 +10,6 @@ use crate::model::{
     StockListBalanceStatementDb, StockListCashFlowDb, StockListIncomeStatementDb,
     StockListKeystatsDb, StockListKeystatsRow, StockListRow, StockListSummaryRow,
     HorizontalLineByCodeRow, WyckoffChartByCodeRow, TakeProfitWyckoffByCodeRow, WyckoffChartDb,
-    PbvBandByCodeRow, PbvBandDataDb,
     NotationDb, KEYSPACE, TABLE,
 };
 
@@ -47,9 +46,6 @@ const SELECT_STOCKBIT_REPORTS_BY_CODE: &str =
 
 const SELECT_STOCKBIT_PROFILE_BY_CODE: &str =
     "SELECT code, stockbit_profile, stockbit_profile_updated_at FROM invezgood.stock_list WHERE code = ?";
-
-const SELECT_PBV_BAND_BY_CODE: &str =
-    "SELECT code, pbv_band, pbv_band_updated_at FROM invezgood.stock_list WHERE code = ?";
 
 const UPDATE_KEYSTATS: &str =
     "UPDATE invezgood.stock_list SET keystats = ?, keystats_updated_at = ? WHERE code = ?";
@@ -128,9 +124,6 @@ const DELETE_TAKEPROFIT_WYCKOFF: &str =
 
 const UPDATE_SUB_SECTOR: &str =
     "UPDATE invezgood.stock_list SET sub_sector = ? WHERE code = ?";
-
-const UPDATE_PBV_BAND: &str =
-    "UPDATE invezgood.stock_list SET pbv_band = ?, pbv_band_updated_at = ? WHERE code = ?";
 
 const SELECT_CODE: &str = "SELECT code FROM invezgood.stock_list WHERE code = ?";
 
@@ -291,22 +284,6 @@ pub async fn update_stockbit_reports(
     Ok(())
 }
 
-pub async fn get_pbv_band_by_code(
-    session: &Session,
-    code: &str,
-) -> Result<Option<PbvBandByCodeRow>, String> {
-    let mut rows = session
-        .query_iter(SELECT_PBV_BAND_BY_CODE, (code,))
-        .await
-        .map_err(|e| format!("select pbv_band {KEYSPACE}.{TABLE} code={code}: {e}"))?
-        .rows_stream::<PbvBandByCodeRow>()
-        .map_err(|e| format!("select pbv_band stream {KEYSPACE}.{TABLE} code={code}: {e}"))?;
-
-    rows.try_next()
-        .await
-        .map_err(|e| format!("select pbv_band row {KEYSPACE}.{TABLE} code={code}: {e}"))
-}
-
 pub async fn get_stockbit_profile_by_code(
     session: &Session,
     code: &str,
@@ -333,22 +310,6 @@ pub async fn update_stockbit_profile(
         .query_unpaged(UPDATE_STOCKBIT_PROFILE, (profile, updated_at, code))
         .await
         .map_err(|e| format!("update stockbit profile {KEYSPACE}.{TABLE} code={code}: {e}"))?;
-    Ok(())
-}
-
-pub async fn update_pbv_band(
-    session: &Session,
-    code: &str,
-    pbv_band: PbvBandDataDb,
-    updated_at: chrono::DateTime<chrono::Utc>,
-) -> Result<(), String> {
-    if !code_exists(session, code).await? {
-        return Err(format!("stock_list code={code} tidak ditemukan"));
-    }
-    session
-        .query_unpaged(UPDATE_PBV_BAND, (pbv_band, updated_at, code))
-        .await
-        .map_err(|e| format!("update pbv_band {KEYSPACE}.{TABLE} code={code}: {e}"))?;
     Ok(())
 }
 

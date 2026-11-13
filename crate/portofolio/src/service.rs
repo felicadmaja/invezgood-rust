@@ -30,7 +30,7 @@ fn portfolio_scrape_gate() -> &'static Mutex<Option<Instant>> {
 }
 
 async fn acquire_portfolio_scrape_slot() -> Result<(), Status> {
-    let mut last = portfolio_scrape_gate().lock().await;
+    let last = portfolio_scrape_gate().lock().await;
     if let Some(at) = *last {
         let elapsed = at.elapsed();
         if elapsed < PORTFOLIO_SCRAPE_COOLDOWN {
@@ -40,8 +40,12 @@ async fn acquire_portfolio_scrape_slot() -> Result<(), Status> {
             )));
         }
     }
-    *last = Some(Instant::now());
     Ok(())
+}
+
+async fn mark_portfolio_scrape_completed() {
+    let mut last = portfolio_scrape_gate().lock().await;
+    *last = Some(Instant::now());
 }
 
 #[derive(Clone)]
@@ -199,6 +203,7 @@ impl Portofolio for PortofolioService {
 
             match on_demand::scrape_portofolio_all(Arc::clone(&self.session)).await {
                 Ok((n, _)) => {
+                    mark_portfolio_scrape_completed().await;
                     let rows = crate::repository::find_all(self.session.as_ref())
                         .await
                         .map_err(Status::internal)?;

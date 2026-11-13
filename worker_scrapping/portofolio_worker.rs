@@ -15,7 +15,10 @@ use scylla::client::session::Session;
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use stockbit_browser::{evaluate_resilient, goto_stockbit};
+use stockbit_browser::{
+    clear_stockbit_trading_client_state, evaluate_resilient, goto_stockbit,
+    refresh_stockbit_web_session_for_scrape,
+};
 use tokio::time::sleep;
 
 use crate::portofolio_equity_worker;
@@ -132,14 +135,22 @@ async fn wait_for_pin_modal(page: &Page, timeout: Duration) -> Result<(), Box<dy
         let ready = page
             .evaluate(
                 r#"(() => {
-                    const modal = document.querySelector('.ant-modal-body');
-                    if (!modal) return false;
-                    const text = (modal.innerText || '').toLowerCase();
-                    if (!text.includes('input trading pin') && !text.includes('trading pin')) {
-                        return false;
+                    const roots = [
+                        ...document.querySelectorAll('.ant-modal-body, .ant-modal-content, [role="dialog"]'),
+                    ];
+                    for (const modal of roots) {
+                        const text = (modal.innerText || modal.textContent || '').toLowerCase();
+                        if (!text.includes('input trading pin')
+                            && !text.includes('trading pin')
+                            && !text.includes('masukkan pin')) {
+                            continue;
+                        }
+                        const input = modal.querySelector(
+                            'input[pattern="\\d*"], input.sc-916940df-2, input[type="tel"], input[type="password"], input[type="text"]'
+                        );
+                        if (input) return true;
                     }
-                    const input = modal.querySelector('input[pattern="\\d*"], input.sc-916940df-2, input[type="text"]');
-                    return !!input;
+                    return false;
                 })()"#,
             )
             .await?
@@ -282,22 +293,81 @@ async fn wait_pin_modal_gone(page: &Page, timeout: Duration) -> Result<(), Box<d
     }
 }
 
+fn stockbit_credentials() -> Result<(String, String), Box<dyn std::error::Error>> {
+    let email = std::env::var("STOCKBIT_EMAIL")
+        .map_err(|_| "STOCKBIT_EMAIL wajib diisi untuk sesi trading Stockbit")?;
+    let password = std::env::var("STOCKBIT_PASSWORD")
+        .map_err(|_| "STOCKBIT_PASSWORD wajib diisi untuk sesi trading Stockbit")?;
+    let email = email.trim().to_string();
+    let password = password.trim().to_string();
+    if email.is_empty() || password.is_empty() {
+        return Err("STOCKBIT_EMAIL dan STOCKBIT_PASSWORD tidak boleh kosong".into());
+    }
+    Ok((email, password))
+}
+
+async fn goto_portfolio_for_trading(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    goto_stockbit(page, STOCKBIT_PORTFOLIO_URL)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+    sleep(Duration::from_millis(1500)).await;
+    Ok(())
+}
+
 /// Masuk mode trading: klik START TRADING + PIN bila perlu; lewati bila tombol sudah hilang.
 /// Returns `true` jika PIN baru saja diinput; `false` jika sudah mode trading.
 pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
+    goto_portfolio_for_trading(page).await?;
+
     if !is_start_trading_visible(page).await? {
-        println!("START TRADING tidak terlihat — sudah mode trading, lewati PIN.");
-        return Ok(false);
+        clear_stockbit_trading_client_state(page)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+        goto_portfolio_for_trading(page).await?;
+        if !is_start_trading_visible(page).await? {
+            println!("START TRADING tidak terlihat — sudah mode trading, lewati PIN.");
+            return Ok(false);
+        }
     }
 
-    println!("Portofolio: klik START TRADING...");
-    click_start_trading(page).await?;
     let pin = trading_pin()?;
-    wait_for_pin_modal(page, Duration::from_secs(30)).await?;
-    type_pin_natural(page, &pin).await?;
-    click_pin_submit(page).await?;
-    wait_pin_modal_gone(page, Duration::from_secs(45)).await?;
-    Ok(true)
+
+    for attempt in 1..=2u8 {
+        println!("Portofolio: klik START TRADING...");
+        click_start_trading(page).await?;
+
+        if wait_for_pin_modal(page, Duration::from_secs(30)).await.is_ok() {
+            type_pin_natural(page, &pin).await?;
+            click_pin_submit(page).await?;
+            wait_pin_modal_gone(page, Duration::from_secs(45)).await?;
+            return Ok(true);
+        }
+
+        if attempt == 1 {
+            eprintln!(
+                "Timeout / gagal modal Input Trading PIN — logout/login ulang Stockbit lalu coba START TRADING lagi..."
+            );
+            let (email, password) = stockbit_credentials()?;
+            refresh_stockbit_web_session_for_scrape(page, &email, &password)
+                .await
+                .map_err(|err| -> Box<dyn std::error::Error> { err.to_string().into() })?;
+            clear_stockbit_trading_client_state(page)
+                .await
+                .map_err(|err| -> Box<dyn std::error::Error> { err.to_string().into() })?;
+            goto_portfolio_for_trading(page).await?;
+            if !is_start_trading_visible(page).await? {
+                return Err(
+                    "Tombol START TRADING tidak muncul setelah refresh sesi — cek login Stockbit"
+                        .into(),
+                );
+            }
+            continue;
+        }
+
+        return Err("Timeout menunggu modal Input Trading PIN".into());
+    }
+
+    Err("Gagal aktivasi sesi trading Stockbit (PIN tidak muncul)".into())
 }
 
 fn ensure_auth_capture_js() -> &'static str {
