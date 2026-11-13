@@ -97,11 +97,16 @@ pub fn parse_fundachart_response(code: &str, raw_json: &str) -> Result<GetStockP
     })
 }
 
+fn scrape_failure_looks_transient(err: &str) -> bool {
+    err.contains("Stockbit readiness")
+        || err.contains("Stockbit belum ready")
+        || err.contains("browser skip")
+        || err.contains("menunggu Chrome")
+        || err.contains("Chrome sibuk")
+}
+
 pub async fn fetch_stock_pbv_band(code: &str) -> Result<GetStockPbvBandResponse, String> {
     let code = code.trim().to_ascii_uppercase();
-    stockbit_browser::require_stockbit_ready()
-        .await
-        .map_err(|e| format!("Stockbit readiness: {e}"))?;
     let raw = stockbit_browser::fetch_fundachart_pbv_json(&code)
         .await
         .map_err(|e| format!("GET fundachart {code}: {e}"))?;
@@ -199,12 +204,31 @@ pub async fn get_or_fetch_and_save_stock_pbv_band(
     code: &str,
 ) -> Result<GetStockPbvBandResponse, String> {
     let code = code.trim().to_ascii_uppercase();
-    if let Some(row) = crate::repository::get_pbv_band_by_code(session.as_ref(), &code).await? {
+    let row_opt = crate::repository::get_pbv_band_by_code(session.as_ref(), &code).await?;
+    if let Some(ref row) = row_opt {
         if pbv_band_scraped_today(row.pbv_band_updated_at) {
             if let Some(ref db) = row.pbv_band {
                 return Ok(response_from_pbv_band_db(&row.code, db));
             }
         }
     }
-    fetch_and_save_stock_pbv_band(session, &code).await
+
+    match fetch_and_save_stock_pbv_band(Arc::clone(&session), &code).await {
+        Ok(resp) => Ok(resp),
+        Err(e) => {
+            if scrape_failure_looks_transient(&e) {
+                if let Some(row) = row_opt {
+                    if let Some(ref db) = row.pbv_band {
+                        let mut resp = response_from_pbv_band_db(&row.code, db);
+                        resp.message = format!(
+                            "fundachart PBV band {} dari Scylla (cache lama; scrape gagal: {})",
+                            row.code, e
+                        );
+                        return Ok(resp);
+                    }
+                }
+            }
+            Err(e)
+        }
+    }
 }

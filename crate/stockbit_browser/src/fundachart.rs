@@ -7,8 +7,9 @@ use serde::Deserialize;
 use tokio::time::sleep;
 
 use crate::{
-    acquire_browser_session, evaluate_resilient, extract_stockbit_bearer, goto_stockbit,
-    launch_page, open_stream_or_login, bearer_http_client, BrowserLockClass, StockbitError,
+    acquire_browser_session, evaluate_resilient, extract_stockbit_bearer_for_symbol, goto_stockbit,
+    invalidate_bearer_cache, launch_page, open_stream_or_login, bearer_http_client,
+    BrowserLockClass, StockbitError,
 };
 
 const TERMINAL_ORIGIN: &str = "https://terminal.stockbit.com";
@@ -219,9 +220,20 @@ pub async fn require_stockbit_ready() -> Result<(), StockbitError> {
     }
 }
 
+/// Gate readiness untuk RPC scrape interaktif: kontensi lock poller tidak memblokir
+/// (`fetch` akan `acquire_browser_session(Interactive)` sendiri).
+pub async fn require_stockbit_ready_for_scrape() -> Result<(), StockbitError> {
+    match crate::redis_readiness::get().await {
+        Some(u) if u.ready => Ok(()),
+        Some(u) if crate::is_transient_chrome_lock_error(&u.message) => Ok(()),
+        Some(u) => Err(format!("Stockbit belum ready: {}", u.message).into()),
+        None => Err("Stockbit readiness tidak diketahui (Redis kosong atau down)".into()),
+    }
+}
+
 /// JSON mentah respons `fundachart/data` (PBV band) untuk emiten `code`.
 pub async fn fetch_fundachart_pbv_json(code: &str) -> Result<String, StockbitError> {
-    require_stockbit_ready().await?;
+    require_stockbit_ready_for_scrape().await?;
 
     let code = code.trim().to_ascii_uppercase();
     if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
@@ -242,19 +254,43 @@ pub async fn fetch_fundachart_pbv_json(code: &str) -> Result<String, StockbitErr
 
     let _ = evaluate_resilient(&page, install_fundachart_capture_js()).await;
     let _ = page.evaluate(crate::ensure_auth_capture_js()).await;
-    let bearer = extract_stockbit_bearer(&page).await?;
-    let cookie = cookie_header(&page).await;
 
     let symbol_path = format!("https://stockbit.com/symbol/{code}/keystats");
     goto_stockbit(&page, &symbol_path).await?;
     sleep(Duration::from_secs(2)).await;
     let _ = goto_stockbit(&page, TERMINAL_ORIGIN).await;
-    sleep(Duration::from_secs(3)).await;
+    sleep(Duration::from_secs(4)).await;
 
-    if let Some(body) = poll_captured_json(&page, 20).await {
+    if let Some(body) = poll_captured_json(&page, 40).await {
         browser.close().await;
         return Ok(body);
     }
+
+    let cookie = cookie_header(&page).await;
+    let bearer = match extract_stockbit_bearer_for_symbol(&page, &code).await {
+        Ok(token) => token,
+        Err(e) => {
+            let msg = e.to_string();
+            if !msg.contains("Bearer") && !msg.contains("market-mover") {
+                browser.close().await;
+                return Err(e);
+            }
+            eprintln!(
+                "fundachart {code}: Bearer gagal ({msg}) — invalidate cache + refresh sesi"
+            );
+            invalidate_bearer_cache().await;
+            open_stream_or_login(&page, email.trim(), password.trim()).await?;
+            goto_stockbit(&page, &symbol_path).await?;
+            sleep(Duration::from_secs(2)).await;
+            let _ = goto_stockbit(&page, TERMINAL_ORIGIN).await;
+            sleep(Duration::from_secs(4)).await;
+            if let Some(body) = poll_captured_json(&page, 40).await {
+                browser.close().await;
+                return Ok(body);
+            }
+            extract_stockbit_bearer_for_symbol(&page, &code).await?
+        }
+    };
 
     let client = bearer_http_client().await?;
     let headers = desktop_headers(&bearer, &cookie);

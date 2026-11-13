@@ -22,7 +22,9 @@ mod fundachart;
 mod idx_browser;
 mod redis_readiness;
 
-pub use fundachart::{fetch_fundachart_pbv_json, require_stockbit_ready};
+pub use fundachart::{
+    fetch_fundachart_pbv_json, require_stockbit_ready, require_stockbit_ready_for_scrape,
+};
 
 pub use idx_browser::{
     acquire_idx_browser_session, idx_browser_data_dir, launch_idx_page, reset_idx_browser_state,
@@ -115,6 +117,13 @@ impl Drop for InteractiveWaitGuard {
 /// Ambil exclusive Chrome session.
 /// - `Interactive`: prioritas, timeout 45s → error jelas (bukan hang client).
 /// - `Background`: skip segera bila user menunggu / lock tidak didapat cepat.
+/// Konflik lock poller vs RPC — bukan indikasi sesi Stockbit invalid.
+pub(crate) fn is_transient_chrome_lock_error(msg: &str) -> bool {
+    msg.contains("browser skip")
+        || msg.contains("menunggu Chrome")
+        || msg.contains("Chrome sibuk")
+}
+
 pub async fn acquire_browser_session(
     class: BrowserLockClass,
 ) -> Result<MutexGuard<'static, ()>, String> {
@@ -468,13 +477,20 @@ impl ReadinessPoller {
             match run_readiness_check(tx).await {
                 Ok(()) => {}
                 Err(e) => {
-                    self.publish(ReadinessUpdate {
-                        ready: false,
-                        message: format!("Error: {e}"),
-                        poll_seq: next_poll_seq(),
-                        portofolio: Vec::new(),
-                    })
-                    .await;
+                    let es = e.to_string();
+                    if !is_transient_chrome_lock_error(&es) {
+                        self.publish(ReadinessUpdate {
+                            ready: false,
+                            message: format!("Error: {e}"),
+                            poll_seq: next_poll_seq(),
+                            portofolio: Vec::new(),
+                        })
+                        .await;
+                    } else {
+                        println!(
+                            "Stockbit readiness: skip publish ready=false — kontensi lock sementara: {es}"
+                        );
+                    }
                 }
             }
             let _ = forward.await;
@@ -1401,20 +1417,39 @@ pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<()
     }
 
     if !decided {
-        // Satu kali cek final di bawah lock.
-        let _browser_guard = acquire_browser_session(BrowserLockClass::Background)
-            .await
-            .map_err(|e| -> StockbitError { e.into() })?;
-        let (browser, page) = launch_page().await?;
-        goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
-        sleep(Duration::from_secs(1)).await;
-        need_login = needs_relogin(&page).await;
-        if has_session_expired_modal(&page).await {
-            session_expired = true;
-            need_login = true;
+        // Satu kali cek final di bawah lock (tunggu bila RPC interactive pegang Chrome).
+        let deadline = Instant::now() + Duration::from_secs(120);
+        loop {
+            if browser_interactive_waiters() > 0 {
+                sleep(Duration::from_secs(2)).await;
+                if Instant::now() >= deadline {
+                    return Ok(());
+                }
+                continue;
+            }
+            match acquire_browser_session(BrowserLockClass::Background).await {
+                Ok(_browser_guard) => {
+                    let (browser, page) = launch_page().await?;
+                    goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
+                    sleep(Duration::from_secs(1)).await;
+                    need_login = needs_relogin(&page).await;
+                    if has_session_expired_modal(&page).await {
+                        session_expired = true;
+                        need_login = true;
+                    }
+                    browser.close().await;
+                    drop(_browser_guard);
+                    break;
+                }
+                Err(e) if is_transient_chrome_lock_error(&e) => {
+                    sleep(Duration::from_secs(2)).await;
+                    if Instant::now() >= deadline {
+                        return Ok(());
+                    }
+                }
+                Err(e) => return Err(e.into()),
+            }
         }
-        browser.close().await;
-        drop(_browser_guard);
     }
 
     if need_login {
@@ -1629,7 +1664,25 @@ pub(crate) async fn bearer_http_client() -> Result<reqwest::Client, StockbitErro
 
 type BearerCandidate = (String, String, String);
 
-async fn pick_probe_valid_bearer(candidates: &[BearerCandidate]) -> Result<String, StockbitError> {
+async fn probe_fundachart_token_ok(http: &reqwest::Client, token: &str, code: &str) -> bool {
+    let url = format!("https://exodus.api.stockbit.com/fundachart/token?symbol={code}");
+    http.get(url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/json, text/plain, */*")
+        .header("Origin", "https://terminal.stockbit.com")
+        .header("Referer", "https://terminal.stockbit.com/")
+        .header("x-platform", "desktop")
+        .header("x-appversion", "2.8.1")
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
+}
+
+async fn pick_probe_valid_bearer(
+    candidates: &[BearerCandidate],
+    fundachart_symbol: Option<&str>,
+) -> Result<String, StockbitError> {
     let mut ordered: Vec<BearerCandidate> = Vec::new();
     for h in candidates {
         let source = h.0.clone();
@@ -1664,6 +1717,12 @@ async fn pick_probe_valid_bearer(candidates: &[BearerCandidate]) -> Result<Strin
         match probe_bearer_ok(&http, token).await {
             Ok(status) if (200..300).contains(&status) => return Ok(token.clone()),
             _ => {}
+        }
+        if let Some(sym) = fundachart_symbol {
+            if probe_fundachart_token_ok(&http, token, sym).await {
+                println!("Bearer OK via probe fundachart/token {sym} (len={}).", token.len());
+                return Ok(token.clone());
+            }
         }
     }
 
@@ -1853,27 +1912,60 @@ pub async fn ensure_stockbit_bearer() -> Result<String, StockbitError> {
 /// lalu probe kandidat via HTTP dari Rust (bukan `fetch` di page — CORS status=0).
 /// Abaikan securities* / EIPO / refresh.
 pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitError> {
+    extract_stockbit_bearer_impl(page, None).await
+}
+
+/// Warm-up keystats pakai `code` emiten + probe alternatif `fundachart/token` (PBV band).
+pub async fn extract_stockbit_bearer_for_symbol(
+    page: &Page,
+    code: &str,
+) -> Result<String, StockbitError> {
+    let code = code.trim().to_ascii_uppercase();
+    extract_stockbit_bearer_impl(page, Some(code.as_str())).await
+}
+
+async fn extract_stockbit_bearer_impl(
+    page: &Page,
+    fundachart_symbol: Option<&str>,
+) -> Result<String, StockbitError> {
     if let Some(token) = try_cached_bearer().await {
-        println!("Bearer cache hit (len={}).", token.len());
-        return Ok(token);
+        if let Some(sym) = fundachart_symbol {
+            let http = bearer_http_client().await?;
+            if probe_fundachart_token_ok(&http, &token, sym).await {
+                println!("Bearer cache hit + fundachart/token OK (len={}).", token.len());
+                return Ok(token);
+            }
+            println!("Bearer cache miss fundachart/token {sym} — scan ulang halaman.");
+            invalidate_bearer_cache().await;
+        } else {
+            println!("Bearer cache hit (len={}).", token.len());
+            return Ok(token);
+        }
     }
 
     let _ = page.evaluate(ensure_auth_capture_js()).await?;
 
     println!("Bearer: scan halaman saat ini (tanpa navigasi keystats)...");
     if let Ok(candidates) = scan_bearer_candidates(page).await {
-        if let Ok(token) = pick_probe_valid_bearer(&candidates).await {
+        if let Ok(token) =
+            pick_probe_valid_bearer(&candidates, fundachart_symbol).await
+        {
             println!("Bearer OK dari halaman saat ini (len={}).", token.len());
             store_bearer_cache(token.clone()).await;
             return Ok(token);
         }
     }
 
-    println!("Bearer: warm-up navigasi keystats...");
+    let warm_code = fundachart_symbol.unwrap_or("BBCA");
+    println!("Bearer: warm-up navigasi keystats {warm_code}...");
     let _ = page
         .evaluate(r#"(() => { window.__sbCapturedBearer = ''; return 0; })()"#)
         .await;
-    goto_stockbit(page, "https://stockbit.com/symbol/BBCA/keystats").await?;
+    goto_stockbit(
+        page,
+        &format!("https://stockbit.com/symbol/{warm_code}/keystats"),
+    )
+    .await?;
     let _ = page.evaluate(ensure_auth_capture_js()).await?;
     for _ in 0..25 {
         sleep(Duration::from_millis(400)).await;
@@ -1888,7 +1980,7 @@ pub async fn extract_stockbit_bearer(page: &Page) -> Result<String, StockbitErro
     }
 
     let candidates = scan_bearer_candidates(page).await?;
-    let token = pick_probe_valid_bearer(&candidates).await?;
+    let token = pick_probe_valid_bearer(&candidates, fundachart_symbol).await?;
     println!("Bearer OK dari keystats (len={}).", token.len());
     store_bearer_cache(token.clone()).await;
     Ok(token)
