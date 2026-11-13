@@ -6,6 +6,10 @@ edition = "2021"
 [lib]
 path = "lib.rs"
 
+[[bin]]
+name = "portfolio_pin_debug"
+path = "bin/portfolio_pin_debug.rs"
+
 [dependencies]
 stockbit_browser = { path = "../crate/stockbit_browser" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

@@ -514,7 +514,7 @@ impl ReadinessPoller {
     }
 }
 
-fn is_login_url(url: &str) -> bool {
+pub fn is_login_url(url: &str) -> bool {
     url.contains("/login")
 }
 
@@ -969,12 +969,12 @@ fn url_looks_navigated(current: &str) -> bool {
 }
 
 fn error_screenshot_dir() -> PathBuf {
-    // Prefer folder worker screenshots (workspace), fallback ke crate ini.
-    let from_crate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../worker_scrapping/screenshots");
-    from_crate
-        .canonicalize()
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("screenshots"))
+    workspace_root().join("worker_scrapping").join("screenshots")
+}
+
+/// Simpan screenshot PNG debug ke `worker_scrapping/screenshots/`; path dicetak ke stderr.
+pub async fn save_debug_screenshot(page: &Page, label: &str) -> Option<PathBuf> {
+    save_error_screenshot(page, label).await
 }
 
 /// Simpan screenshot debug saat error; path dicetak ke stderr.

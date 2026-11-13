@@ -16,11 +16,12 @@ use serde_json::Value;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use stockbit_browser::{
-    clear_stockbit_trading_client_state, evaluate_resilient, goto_stockbit,
-    open_stream_or_login, STOCKBIT_STREAM_URL,
+    clear_stockbit_trading_client_state, evaluate_resilient, goto_stockbit, is_login_url,
+    open_stream_or_login, save_debug_screenshot, STOCKBIT_STREAM_URL,
 };
 
-const STOCKBIT_TERMINAL_URL: &str = "https://terminal.stockbit.com/";
+const ERR_REDIRECT_LOGIN: &str = "START_TRADING_REDIRECT_LOGIN";
+
 use tokio::time::sleep;
 
 use crate::portofolio_equity_worker;
@@ -79,6 +80,83 @@ fn resolve_portofolio_icon(
     icon_url.trim().to_string()
 }
 
+async fn is_stream_shell_loading(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
+    let loading = page
+        .evaluate(
+            r#"(() => {
+                const text = (document.body && document.body.innerText || '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                if (document.querySelector('[data-cy="top-navbar-button-start-trading"]')) {
+                    return false;
+                }
+                const spins = Array.from(
+                    document.querySelectorAll(
+                        '.ant-spin-spinning, .ant-spin.ant-spin-spinning, [class*="spinner"], [class*="Spinner"]'
+                    )
+                );
+                for (const spin of spins) {
+                    const r = spin.getBoundingClientRect();
+                    if (r.width > 2 && r.height > 2) return true;
+                }
+                if (text.length < 80) return true;
+                if (text === '...' || /^\u2022{2,}$/.test(text)) return true;
+                return false;
+            })()"#,
+        )
+        .await?
+        .into_value::<bool>()
+        .unwrap_or(true);
+    Ok(loading)
+}
+
+/// Tunggu SPA /stream selesai (bukan layar loading tiga titik saja).
+async fn wait_for_stream_ready_for_trading(
+    page: &Page,
+    timeout: Duration,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let started = Instant::now();
+    while started.elapsed() < timeout {
+        if !is_stream_shell_loading(page).await? {
+            println!("Portofolio: /stream siap (loading selesai).");
+            return Ok(());
+        }
+        sleep(Duration::from_millis(400)).await;
+    }
+    let _ = save_debug_screenshot(page, "portfolio_stream_loading_timeout").await;
+    Err("Timeout menunggu /stream selesai load (spinner / layar kosong)".into())
+}
+
+/// Tunggu tombol START TRADING muncul; simpan screenshot saat tombol terlihat.
+async fn wait_for_start_trading_visible_with_screenshot(
+    page: &Page,
+    timeout: Duration,
+    label: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let started = Instant::now();
+    let mut captured_visible = false;
+    while started.elapsed() < timeout {
+        if is_stream_shell_loading(page).await? {
+            sleep(Duration::from_millis(350)).await;
+            continue;
+        }
+        if is_start_trading_visible(page).await? {
+            if !captured_visible {
+                let shot_label = format!("portfolio_start_trading_visible_{label}");
+                let _ = save_debug_screenshot(page, &shot_label).await;
+                println!(
+                    "START TRADING terlihat — screenshot: worker_scrapping/screenshots/stockbit_error_{shot_label}.png"
+                );
+                captured_visible = true;
+            }
+            return Ok(());
+        }
+        sleep(Duration::from_millis(350)).await;
+    }
+    let _ = save_debug_screenshot(page, &format!("portfolio_start_trading_missing_{label}")).await;
+    Err("Timeout menunggu tombol START TRADING (setelah /stream load)".into())
+}
+
 async fn is_start_trading_visible(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
     let visible = page
         .evaluate(
@@ -103,6 +181,9 @@ async fn is_start_trading_visible(page: &Page) -> Result<bool, Box<dyn std::erro
 }
 
 async fn click_start_trading(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    if is_stream_shell_loading(page).await? {
+        wait_for_stream_ready_for_trading(page, Duration::from_secs(45)).await?;
+    }
     for attempt in 1..=20 {
         let clicked = page
             .evaluate(
@@ -131,30 +212,87 @@ async fn click_start_trading(page: &Page) -> Result<(), Box<dyn std::error::Erro
     Err("Tombol START TRADING tidak ditemukan".into())
 }
 
+/// Modal auth PIN Stockbit (UI baru: tab Web/Terminal + input `sc-916940df-2`).
+const FIND_PIN_AUTH_MODAL_JS: &str = r#"(() => {
+    const wrapVisible = (el) => {
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+            return false;
+        }
+        return true;
+    };
+    const wraps = Array.from(document.querySelectorAll('.ant-modal-wrap, .ant-modal-root'));
+    for (const wrap of wraps) {
+        if (!wrapVisible(wrap)) continue;
+        const modal = wrap.querySelector('.ant-modal-body') || wrap;
+        if (modal.querySelector('[data-cy="choose-platform-web"]')) continue;
+        if (modal.querySelector('[data-cy="auth-modal-platform-tabs"]')) return modal;
+        const text = (modal.innerText || modal.textContent || '').toLowerCase();
+        if (text.includes('input trading pin') && modal.querySelector('input[pattern="\\d*"]')) {
+            return modal;
+        }
+    }
+    const bodies = Array.from(document.querySelectorAll('.ant-modal-body'));
+    for (const modal of bodies) {
+        const root = modal.closest('.ant-modal-wrap, .ant-modal-root');
+        if (root && !wrapVisible(root)) continue;
+        if (modal.querySelector('[data-cy="choose-platform-web"]')) continue;
+        if (modal.querySelector('[data-cy="auth-modal-platform-tabs"]')) return modal;
+        const text = (modal.innerText || modal.textContent || '').toLowerCase();
+        if (text.includes('input trading pin') && modal.querySelector('input[pattern="\\d*"]')) {
+            return modal;
+        }
+    }
+    return null;
+})()"#;
+
+async fn ensure_stockbit_web_pin_tab(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
+    let switched = page
+        .evaluate(format!(
+            r#"(() => {{
+                const modal = {FIND_PIN_AUTH_MODAL_JS};
+                if (!modal) return false;
+                const tab = modal.querySelector('[data-cy="auth-modal-platform-tab-web"]');
+                if (!tab) return true;
+                if (tab.getAttribute('aria-selected') !== 'true') {{
+                    tab.click();
+                    return true;
+                }}
+                return true;
+            }})()"#
+        ))
+        .await?
+        .into_value::<bool>()
+        .unwrap_or(false);
+    if switched {
+        sleep(Duration::from_millis(400)).await;
+    }
+    Ok(())
+}
+
 async fn wait_for_pin_modal(page: &Page, timeout: Duration) -> Result<(), Box<dyn std::error::Error>> {
     let started = Instant::now();
+    let mut last_shot_secs: u64 = 0;
     loop {
+        let url = page.url().await?.unwrap_or_default();
+        if is_login_url(&url) {
+            let _ = save_debug_screenshot(page, "portfolio_redirect_login_while_waiting_pin").await;
+            log_pin_modal_probe(page, "redirect_login").await;
+            return Err(ERR_REDIRECT_LOGIN.into());
+        }
+
         let ready = page
-            .evaluate(
-                r#"(() => {
-                    const roots = [
-                        ...document.querySelectorAll('.ant-modal-body, .ant-modal-content, [role="dialog"]'),
-                    ];
-                    for (const modal of roots) {
-                        const text = (modal.innerText || modal.textContent || '').toLowerCase();
-                        if (!text.includes('input trading pin')
-                            && !text.includes('trading pin')
-                            && !text.includes('masukkan pin')) {
-                            continue;
-                        }
-                        const input = modal.querySelector(
-                            'input[pattern="\\d*"], input.sc-916940df-2, input[type="tel"], input[type="password"], input[type="text"]'
-                        );
-                        if (input) return true;
-                    }
-                    return false;
-                })()"#,
-            )
+            .evaluate(format!(
+                r#"(() => {{
+                    const modal = {FIND_PIN_AUTH_MODAL_JS};
+                    if (!modal) return false;
+                    const input = modal.querySelector(
+                        'input.sc-916940df-2.gSpCVo, input.sc-916940df-2, input[pattern="\\d*"][type="text"]'
+                    );
+                    return !!input;
+                }})()"#
+            ))
             .await?
             .into_value::<bool>()
             .unwrap_or(false);
@@ -163,100 +301,106 @@ async fn wait_for_pin_modal(page: &Page, timeout: Duration) -> Result<(), Box<dy
             return Ok(());
         }
         if started.elapsed() >= timeout {
+            let _ = save_debug_screenshot(page, "portfolio_pin_modal_timeout").await;
+            log_pin_modal_probe(page, "pin_modal_timeout").await;
             return Err("Timeout menunggu modal Input Trading PIN".into());
+        }
+        let sec = started.elapsed().as_secs();
+        if sec >= 3 && sec != last_shot_secs && sec % 5 == 0 {
+            last_shot_secs = sec;
+            let _ = save_debug_screenshot(page, &format!("portfolio_pin_wait_{sec}s")).await;
+            log_pin_modal_probe(page, &format!("wait_{sec}s")).await;
         }
         sleep(Duration::from_millis(300)).await;
     }
 }
 
 async fn type_pin_natural(page: &Page, pin: &str) -> Result<(), Box<dyn std::error::Error>> {
+    ensure_stockbit_web_pin_tab(page).await?;
+
     let focused = page
-        .evaluate(
-            r#"(() => {
-                const modal = document.querySelector('.ant-modal-body');
+        .evaluate(format!(
+            r#"(() => {{
+                const modal = {FIND_PIN_AUTH_MODAL_JS};
                 if (!modal) return false;
-                const input = modal.querySelector('input[pattern="\\d*"], input.sc-916940df-2, input[type="text"]');
+                const input = modal.querySelector(
+                    'input.sc-916940df-2.gSpCVo, input.sc-916940df-2, input[pattern="\\d*"][type="text"]'
+                );
                 if (!input) return false;
                 input.focus();
+                input.click();
                 input.value = '';
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
+                input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                input.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 return true;
-            })()"#,
-        )
+            }})()"#
+        ))
         .await?
         .into_value::<bool>()
         .unwrap_or(false);
     if !focused {
-        return Err("Input PIN tidak ditemukan".into());
+        return Err("Input PIN tidak ditemukan (modal auth Stockbit Web)".into());
     }
-
-    let selector = r#".ant-modal-body input[pattern="\d*"], .ant-modal-body input.sc-916940df-2"#;
-    let element = match page.find_element(selector).await {
-        Ok(el) => Some(el),
-        Err(_) => page
-            .find_element(r#".ant-modal-body input[type="text"]"#)
-            .await
-            .ok(),
-    };
 
     println!("Ketik Trading PIN secara natural (delay 50–300ms/karakter)...");
     for ch in pin.chars() {
         let delay = rand::thread_rng().gen_range(50u64..=300);
         sleep(Duration::from_millis(delay)).await;
-        if let Some(ref el) = element {
-            el.type_str(&ch.to_string()).await?;
-        } else {
-            let ch_js = serde_json::to_string(&ch.to_string()).unwrap_or_else(|_| "\"\"".into());
-            let ok = page
-                .evaluate(format!(
-                    r#"(() => {{
-                        const modal = document.querySelector('.ant-modal-body');
-                        if (!modal) return false;
-                        const input = modal.querySelector('input[pattern="\\d*"], input.sc-916940df-2, input[type="text"]');
-                        if (!input) return false;
-                        input.value = (input.value || '') + {ch_js};
-                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        return true;
-                    }})()"#
-                ))
-                .await?
-                .into_value::<bool>()
-                .unwrap_or(false);
-            if !ok {
-                return Err("Gagal mengetik karakter PIN".into());
-            }
+        let ch_js = serde_json::to_string(&ch.to_string()).unwrap_or_else(|_| "\"\"".into());
+        let ok = page
+            .evaluate(format!(
+                r#"(() => {{
+                    const modal = {FIND_PIN_AUTH_MODAL_JS};
+                    if (!modal) return false;
+                    const input = modal.querySelector(
+                        'input.sc-916940df-2.gSpCVo, input.sc-916940df-2, input[pattern="\\d*"][type="text"]'
+                    );
+                    if (!input) return false;
+                    input.value = (input.value || '') + {ch_js};
+                    input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    return true;
+                }})()"#
+            ))
+            .await?
+            .into_value::<bool>()
+            .unwrap_or(false);
+        if !ok {
+            return Err("Gagal mengetik karakter PIN".into());
         }
     }
     Ok(())
 }
 
 async fn click_pin_submit(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    for attempt in 1..=15 {
+    for attempt in 1..=25 {
         let clicked = page
-            .evaluate(
-                r#"(() => {
-                    const modal = document.querySelector('.ant-modal-body');
+            .evaluate(format!(
+                r#"(() => {{
+                    const modal = {FIND_PIN_AUTH_MODAL_JS};
                     if (!modal) return false;
-                    const buttons = Array.from(modal.querySelectorAll('button'));
-                    const submit = buttons.find((b) => {
-                        const t = (b.innerText || b.textContent || '').trim();
-                        return t === 'Submit' || t.includes('Submit');
-                    });
+                    const input = modal.querySelector(
+                        'input.sc-916940df-2.gSpCVo, input.sc-916940df-2, input[pattern="\\d*"][type="text"]'
+                    );
+                    let submit = modal.querySelector('button.sc-27259224-7.kQOrsn');
+                    if (!submit) {{
+                        submit = Array.from(modal.querySelectorAll('button')).find((b) => {{
+                            const t = (b.innerText || b.textContent || '').trim();
+                            return t === 'Submit';
+                        }});
+                    }}
                     if (!submit) return false;
-                    if (submit.disabled) {
-                        const input = modal.querySelector('input[pattern="\\d*"], input.sc-916940df-2, input[type="text"]');
-                        if (input && (input.value || '').length > 0) {
-                            submit.disabled = false;
-                            submit.removeAttribute('disabled');
-                        }
-                    }
+                    const pinLen = input ? (input.value || '').length : 0;
+                    if (submit.disabled && pinLen > 0) {{
+                        submit.disabled = false;
+                        submit.removeAttribute('disabled');
+                        submit.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    }}
                     if (submit.disabled) return false;
                     submit.click();
                     return true;
-                })()"#,
-            )
+                }})()"#
+            ))
             .await?
             .into_value::<bool>()
             .unwrap_or(false);
@@ -269,23 +413,83 @@ async fn click_pin_submit(page: &Page) -> Result<(), Box<dyn std::error::Error>>
     Err("Tombol Submit PIN tidak bisa diklik (masih disabled / tidak ada)".into())
 }
 
+/// UI baru: setelah PIN valid → modal "Choose Your Platform" → Go to Stockbit Web.
+async fn confirm_choose_platform_web(page: &Page, timeout: Duration) -> Result<(), Box<dyn std::error::Error>> {
+    let started = Instant::now();
+    loop {
+        let clicked = page
+            .evaluate(
+                r#"(() => {
+                    const bodies = Array.from(document.querySelectorAll('.ant-modal-body'));
+                    for (const modal of bodies) {
+                        const btn = modal.querySelector('[data-cy="choose-platform-web"]');
+                        if (btn) {
+                            btn.click();
+                            return 'clicked';
+                        }
+                        const text = (modal.innerText || '').toLowerCase();
+                        if (text.includes('choose your platform')) {
+                            const goWeb = modal.querySelector('button[data-cy="choose-platform-web"]');
+                            if (goWeb) {
+                                goWeb.click();
+                                return 'clicked';
+                            }
+                        }
+                    }
+                    return 'none';
+                })()"#,
+            )
+            .await?
+            .into_value::<String>()
+            .unwrap_or_else(|_| "none".into());
+
+        if clicked == "clicked" {
+            println!("Modal Choose Your Platform: klik Go to Stockbit Web.");
+            sleep(Duration::from_millis(800)).await;
+            return Ok(());
+        }
+
+        let pin_still = page
+            .evaluate(format!(
+                r#"(() => !!({FIND_PIN_AUTH_MODAL_JS}))()"#
+            ))
+            .await?
+            .into_value::<bool>()
+            .unwrap_or(false);
+
+        if !pin_still && started.elapsed() >= Duration::from_millis(1200) {
+            println!("Modal Choose Your Platform tidak muncul — lanjut (UI lama / sudah di web).");
+            return Ok(());
+        }
+
+        if started.elapsed() >= timeout {
+            return Err("Timeout menunggu modal Choose Your Platform".into());
+        }
+        sleep(Duration::from_millis(350)).await;
+    }
+}
+
 async fn wait_pin_modal_gone(page: &Page, timeout: Duration) -> Result<(), Box<dyn std::error::Error>> {
     let started = Instant::now();
     loop {
         let gone = page
-            .evaluate(
-                r#"(() => {
-                    const modal = document.querySelector('.ant-modal-body');
-                    if (!modal) return true;
-                    const text = (modal.innerText || '').toLowerCase();
-                    return !(text.includes('input trading pin') || text.includes('trading pin'));
-                })()"#,
-            )
+            .evaluate(format!(
+                r#"(() => {{
+                    if ({FIND_PIN_AUTH_MODAL_JS}) return false;
+                    const bodies = Array.from(document.querySelectorAll('.ant-modal-body'));
+                    for (const modal of bodies) {{
+                        if (modal.querySelector('[data-cy="choose-platform-web"]')) return false;
+                        const text = (modal.innerText || '').toLowerCase();
+                        if (text.includes('choose your platform')) return false;
+                    }}
+                    return true;
+                }})()"#
+            ))
             .await?
             .into_value::<bool>()
             .unwrap_or(false);
         if gone {
-            println!("Modal Trading PIN hilang.");
+            println!("Modal auth trading (PIN + platform) selesai.");
             return Ok(());
         }
         if started.elapsed() >= timeout {
@@ -316,22 +520,36 @@ async fn goto_stream_for_trading(page: &Page) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
-async fn nudge_trading_pin_after_click(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    sleep(Duration::from_secs(2)).await;
-    let url = page.url().await?.unwrap_or_default();
-    if url.contains("terminal.stockbit.com") {
-        return Ok(());
-    }
-    goto_stockbit(page, STOCKBIT_TERMINAL_URL)
+async fn log_pin_modal_probe(page: &Page, label: &str) {
+    let probe = page
+        .evaluate(format!(
+            r#"(() => {{
+                const modal = {FIND_PIN_AUTH_MODAL_JS};
+                const bodies = document.querySelectorAll('.ant-modal-body').length;
+                const wraps = document.querySelectorAll('.ant-modal-wrap').length;
+                const tabs = !!document.querySelector('[data-cy="auth-modal-platform-tabs"]');
+                const input = !!document.querySelector('input.sc-916940df-2');
+                return JSON.stringify({{
+                    url: location.href,
+                    modalBodies: bodies,
+                    modalWraps: wraps,
+                    authTabs: tabs,
+                    pinInputVisible: input,
+                    pinModalFound: !!modal,
+                }});
+            }})()"#
+        ))
         .await
-        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-    sleep(Duration::from_millis(1200)).await;
-    if !is_start_trading_visible(page).await? {
-        goto_stockbit(page, STOCKBIT_STREAM_URL)
-            .await
-            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-        sleep(Duration::from_millis(800)).await;
-    }
+        .ok()
+        .and_then(|v| v.into_value::<String>().ok())
+        .unwrap_or_else(|| "{}".into());
+    println!("Portofolio PIN probe [{label}]: {probe}");
+}
+
+async fn after_start_trading_click(page: &Page, step: &str) -> Result<(), Box<dyn std::error::Error>> {
+    sleep(Duration::from_millis(600)).await;
+    let _ = save_debug_screenshot(page, &format!("portfolio_{step}_after_start_trading")).await;
+    log_pin_modal_probe(page, step).await;
     Ok(())
 }
 
@@ -340,28 +558,67 @@ async fn nudge_trading_pin_after_click(page: &Page) -> Result<(), Box<dyn std::e
 pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
     // Modal PIN biasanya muncul dari navbar /stream, bukan halaman securities saja.
     goto_stream_for_trading(page).await?;
+    wait_for_stream_ready_for_trading(page, Duration::from_secs(60)).await?;
 
     if !is_start_trading_visible(page).await? {
         clear_stockbit_trading_client_state(page)
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
         goto_stream_for_trading(page).await?;
+        wait_for_stream_ready_for_trading(page, Duration::from_secs(60)).await?;
         if !is_start_trading_visible(page).await? {
             println!("START TRADING tidak terlihat — sudah mode trading, lewati PIN.");
             return Ok(false);
         }
+        let _ = save_debug_screenshot(page, "portfolio_start_trading_visible_initial").await;
+    } else {
+        let _ = save_debug_screenshot(page, "portfolio_start_trading_visible_initial").await;
+        println!("START TRADING terlihat — screenshot: portfolio_start_trading_visible_initial");
     }
 
     let pin = trading_pin()?;
 
     for attempt in 1..=2u8 {
+        println!("Portofolio: menunggu START TRADING siap klik...");
+        wait_for_stream_ready_for_trading(page, Duration::from_secs(45)).await?;
+        wait_for_start_trading_visible_with_screenshot(
+            page,
+            Duration::from_secs(45),
+            &format!("attempt{attempt}"),
+        )
+        .await?;
         println!("Portofolio: klik START TRADING...");
         click_start_trading(page).await?;
-        nudge_trading_pin_after_click(page).await?;
+        after_start_trading_click(page, &format!("attempt{attempt}")).await?;
 
-        if wait_for_pin_modal(page, Duration::from_secs(30)).await.is_ok() {
+        let mut pin_ready = false;
+        let mut redirect_login = false;
+        match wait_for_pin_modal(page, Duration::from_secs(30)).await {
+            Ok(()) => pin_ready = true,
+            Err(e) => redirect_login = e.to_string() == ERR_REDIRECT_LOGIN,
+        }
+        if redirect_login {
+            eprintln!(
+                "START TRADING mengalihkan ke /login — login ulang Stockbit lalu coba lagi..."
+            );
+            let (email, password) = stockbit_credentials()?;
+            open_stream_or_login(page, &email, &password)
+                .await
+                .map_err(|err| -> Box<dyn std::error::Error> { err.to_string().into() })?;
+            clear_stockbit_trading_client_state(page)
+                .await
+                .map_err(|err| -> Box<dyn std::error::Error> { err.to_string().into() })?;
+            goto_stream_for_trading(page).await?;
+            wait_for_stream_ready_for_trading(page, Duration::from_secs(60)).await?;
+            continue;
+        }
+        if pin_ready {
+            let _ =
+                save_debug_screenshot(page, &format!("portfolio_attempt{attempt}_pin_modal"))
+                    .await;
             type_pin_natural(page, &pin).await?;
             click_pin_submit(page).await?;
+            confirm_choose_platform_web(page, Duration::from_secs(30)).await?;
             wait_pin_modal_gone(page, Duration::from_secs(45)).await?;
             return Ok(true);
         }
@@ -378,12 +635,15 @@ pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::er
                 .await
                 .map_err(|err| -> Box<dyn std::error::Error> { err.to_string().into() })?;
             goto_stream_for_trading(page).await?;
+            wait_for_stream_ready_for_trading(page, Duration::from_secs(60)).await?;
             if !is_start_trading_visible(page).await? {
                 return Err(
                     "Tombol START TRADING tidak muncul setelah buka ulang /stream — cek login Stockbit"
                         .into(),
                 );
             }
+            let _ = save_debug_screenshot(page, "portfolio_start_trading_visible_after_relogin")
+                .await;
             continue;
         }
 
