@@ -1272,7 +1272,105 @@ async fn has_session_expired_modal(page: &Page) -> bool {
     .unwrap_or(false)
 }
 
-/// Sudah di `/stream` tanpa form login dan tanpa modal sesi habis → sesi aktif.
+fn js_element_visible(el: &str) -> String {
+    format!(
+        r#"const visible = (el) => {{
+            if (!el) return false;
+            const s = window.getComputedStyle(el);
+            if (s.display === 'none' || s.visibility === 'hidden' || Number(s.opacity) < 0.05) {{
+                return false;
+            }}
+            const r = el.getBoundingClientRect();
+            return r.width > 8 && r.height > 8;
+        }};"#
+    )
+}
+
+/// Layar /stream masih loading (tiga titik / konten hampir kosong).
+pub async fn is_stream_spa_loading(page: &Page) -> Result<bool, StockbitError> {
+    let loading = page
+        .evaluate(
+            r#"(() => {
+                const text = (document.body && document.body.innerText || '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                const spins = Array.from(
+                    document.querySelectorAll('.ant-spin-spinning, .ant-spin.ant-spin-spinning')
+                );
+                for (const spin of spins) {
+                    const r = spin.getBoundingClientRect();
+                    if (r.width > 2 && r.height > 2) return true;
+                }
+                if (text === '...' || (text.length < 80 && !/masuk|login/i.test(text))) {
+                    return true;
+                }
+                return false;
+            })()"#,
+        )
+        .await?
+        .into_value::<bool>()
+        .unwrap_or(true);
+    Ok(loading)
+}
+
+/// Tombol START TRADING benar-benar terlihat di viewport (bukan hanya ada di DOM).
+pub async fn is_start_trading_nav_visible(page: &Page) -> Result<bool, StockbitError> {
+    let vis = page
+        .evaluate(format!(
+            r#"(() => {{
+                {vis_helper}
+                const btn = document.querySelector('[data-cy="top-navbar-button-start-trading"]');
+                if (visible(btn)) return true;
+                const nodes = Array.from(document.querySelectorAll('button, a, p'));
+                return nodes.some((el) => {{
+                    const t = (el.innerText || el.textContent || '').trim();
+                    return visible(el)
+                        && (t === 'START TRADING' || t.includes('START TRADING'));
+                }});
+            }})()"#,
+            vis_helper = js_element_visible("")
+        ))
+        .await?
+        .into_value::<bool>()
+        .unwrap_or(false);
+    Ok(vis)
+}
+
+/// Feed /stream sudah interaktif (login selesai, bukan layar putih loading).
+pub async fn is_stream_session_ready(page: &Page) -> Result<bool, StockbitError> {
+    if has_login_form(page).await || has_session_expired_modal(page).await {
+        return Ok(false);
+    }
+    let url = page.url().await?.unwrap_or_default();
+    if !is_stream_url(&url) {
+        return Ok(false);
+    }
+    if is_stream_spa_loading(page).await? {
+        return Ok(false);
+    }
+    let ready = page
+        .evaluate(format!(
+            r#"(() => {{
+                {vis_helper}
+                const text = (document.body && document.body.innerText || '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                if (text.length < 120) return false;
+                const nav = document.querySelector('[data-cy="top-navbar"]');
+                const start = document.querySelector('[data-cy="top-navbar-button-start-trading"]');
+                if (visible(nav) || visible(start)) return true;
+                if (document.querySelector('[data-cy*="stream"]') && text.length > 280) return true;
+                return text.length > 500;
+            }})()"#,
+            vis_helper = js_element_visible("")
+        ))
+        .await?
+        .into_value::<bool>()
+        .unwrap_or(false);
+    Ok(ready)
+}
+
+/// Sudah di `/stream` tanpa form login (cepat; tidak menjamin SPA selesai load).
 async fn is_already_authenticated_on_stream(page: &Page) -> bool {
     let url = page.url().await.ok().flatten().unwrap_or_default();
     is_stream_url(&url)
@@ -1280,25 +1378,29 @@ async fn is_already_authenticated_on_stream(page: &Page) -> bool {
         && !has_session_expired_modal(page).await
 }
 
-async fn wait_for_authenticated_stream(page: &Page, timeout: Duration) -> Result<(), StockbitError> {
+/// Tunggu /stream benar-benar siap (setelah login), bukan hanya URL /stream.
+pub async fn wait_for_stream_interactive_ready(
+    page: &Page,
+    timeout: Duration,
+) -> Result<(), StockbitError> {
     let started = Instant::now();
     while started.elapsed() < timeout {
-        if is_already_authenticated_on_stream(page).await {
+        if is_stream_session_ready(page).await? {
+            println!("Stockbit /stream interaktif siap (feed/navbar loaded).");
             return Ok(());
         }
         sleep(Duration::from_millis(400)).await;
     }
-    let url = page.url().await.ok().flatten().unwrap_or_default();
-    let title = page.get_title().await.ok().flatten().unwrap_or_default();
-    let shot = save_error_screenshot(page, "stream_not_authenticated").await;
-    let shot_info = shot
-        .as_ref()
-        .map(|p| format!(" | screenshot: {}", p.display()))
-        .unwrap_or_default();
+    let _ = save_error_screenshot(page, "stream_not_interactive_ready").await;
     Err(format!(
-        "Timeout menunggu /stream siap (url={url:?} title={title:?}){shot_info}"
+        "Timeout menunggu /stream interaktif setelah {} detik (masih loading atau belum login)",
+        timeout.as_secs()
     )
     .into())
+}
+
+async fn wait_for_authenticated_stream(page: &Page, timeout: Duration) -> Result<(), StockbitError> {
+    wait_for_stream_interactive_ready(page, timeout).await
 }
 
 /// Poll setelah akses `/login`: keluar cepat bila redirect ke `/stream` atau form login muncul.
@@ -1349,13 +1451,12 @@ async fn login_and_return_to_stream(
         println!("Form login muncul — isi email/password...");
         perform_login(page, email, password).await?;
         goto_stockbit_expect(page, STOCKBIT_STREAM_URL, Some("/stream")).await?;
-        wait_for_authenticated_stream(page, Duration::from_secs(10)).await?;
+        wait_for_stream_interactive_ready(page, Duration::from_secs(90)).await?;
         return Ok(());
     }
 
-    // Sudah di /stream tanpa form login → jangan paksa ke /login.
-    if is_already_authenticated_on_stream(page).await {
-        println!("Sesi aktif di /stream — skip login.");
+    if is_stream_session_ready(page).await? {
+        println!("Sesi aktif di /stream (interaktif) — skip login.");
         return Ok(());
     }
 
@@ -1363,8 +1464,9 @@ async fn login_and_return_to_stream(
         // Jangan expect `/login` ketat: bila cookie masih valid, Stockbit redirect ke /stream.
         goto_stockbit(page, STOCKBIT_LOGIN_URL).await?;
         wait_for_stream_redirect_or_login_form(page, Duration::from_secs(10)).await;
-        if is_already_authenticated_on_stream(page).await {
-            println!("Akses /login di-redirect ke /stream — sesi masih aktif, skip login.");
+        if is_stream_session_ready(page).await? {
+            println!("Akses /login di-redirect ke /stream interaktif — skip login.");
+            wait_for_stream_interactive_ready(page, Duration::from_secs(90)).await?;
             return Ok(());
         }
     }
@@ -1372,7 +1474,7 @@ async fn login_and_return_to_stream(
     wait_for_login_form(page, Duration::from_secs(15)).await?;
     perform_login(page, email, password).await?;
     goto_stockbit_expect(page, STOCKBIT_STREAM_URL, Some("/stream")).await?;
-    wait_for_authenticated_stream(page, Duration::from_secs(10)).await?;
+    wait_for_stream_interactive_ready(page, Duration::from_secs(90)).await?;
     Ok(())
 }
 
@@ -2200,13 +2302,18 @@ pub async fn open_stream_or_login(
     password: &str,
 ) -> Result<(), StockbitError> {
     if is_already_authenticated_on_stream(page).await {
-        println!("Chrome reuse: sudah di /stream — skip navigasi + sleep 1s");
-        if !has_profile_avatar_modal(page).await {
-            println!("Sesi aktif di /stream — skip login, lanjut scrape.");
+        if is_stream_session_ready(page).await? {
+            println!("Chrome reuse: /stream interaktif siap — skip login.");
+            if has_profile_avatar_modal(page).await {
+                dismiss_profile_avatar_modal(page).await?;
+            }
             return Ok(());
         }
-        dismiss_profile_avatar_modal(page).await?;
-        println!("Sesi aktif di /stream — skip login, lanjut scrape.");
+        println!(
+            "Chrome reuse: di /stream tetapi masih loading/belum login — akan login ulang..."
+        );
+        login_and_return_to_stream(page, email, password).await?;
+        wait_for_stream_interactive_ready(page, Duration::from_secs(90)).await?;
         return Ok(());
     }
 
@@ -2236,8 +2343,7 @@ pub async fn open_stream_or_login(
             // Akses /stream di-redirect ke /login → perlu login ulang.
             break;
         }
-        if is_stream_url(&u) && !has_login_form(page).await {
-            // Tetap di /stream tanpa form login → sudah login.
+        if is_stream_session_ready(page).await.unwrap_or(false) {
             break;
         }
         sleep(Duration::from_millis(400)).await;
@@ -2250,29 +2356,24 @@ pub async fn open_stream_or_login(
     if saw_session_expired || needs_relogin(page).await {
         println!("Perlu login ulang (redirect /login atau sesi habis)...");
         login_and_return_to_stream(page, email, password).await?;
-    } else if is_already_authenticated_on_stream(page).await {
-        println!("Sesi aktif di /stream — skip login, lanjut scrape.");
-    } else {
-        // Belum jelas: coba /stream lagi.
-        goto_stockbit(page, STOCKBIT_STREAM_URL).await?;
-        wait_for_authenticated_stream(page, Duration::from_secs(10)).await?;
-        if needs_relogin(page).await {
-            println!("Perlu login ulang setelah re-cek /stream...");
+    } else if !is_stream_session_ready(page).await? {
+        let url = page.url().await?.unwrap_or_default();
+        if is_login_url(&url) || needs_relogin(page).await {
+            println!("Belum login — form /login, login ulang...");
             login_and_return_to_stream(page, email, password).await?;
-        } else if !is_already_authenticated_on_stream(page).await {
-            let url = page.url().await?.unwrap_or_default();
-            return Err(format!(
-                "Gagal memastikan sesi Stockbit (URL: {url})"
-            )
-            .into());
+        } else if is_stream_url(&url) {
+            println!("/stream belum interaktif — coba login via /login...");
+            login_and_return_to_stream(page, email, password).await?;
         } else {
-            println!("Sesi aktif di /stream — skip login, lanjut scrape.");
+            return Err(format!("Gagal memastikan sesi Stockbit (URL: {url})").into());
         }
     }
 
     if has_profile_avatar_modal(page).await {
         dismiss_profile_avatar_modal(page).await?;
     }
+
+    wait_for_stream_interactive_ready(page, Duration::from_secs(90)).await?;
 
     let final_url = page.url().await?.unwrap_or_default();
     if !is_stream_url(&final_url) {

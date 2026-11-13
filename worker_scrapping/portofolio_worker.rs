@@ -17,7 +17,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use stockbit_browser::{
     clear_stockbit_trading_client_state, evaluate_resilient, goto_stockbit, is_login_url,
-    open_stream_or_login, save_debug_screenshot, STOCKBIT_STREAM_URL,
+    is_start_trading_nav_visible, is_stream_spa_loading, open_stream_or_login,
+    save_debug_screenshot, wait_for_stream_interactive_ready, STOCKBIT_STREAM_URL,
 };
 
 const ERR_REDIRECT_LOGIN: &str = "START_TRADING_REDIRECT_LOGIN";
@@ -80,51 +81,13 @@ fn resolve_portofolio_icon(
     icon_url.trim().to_string()
 }
 
-async fn is_stream_shell_loading(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
-    let loading = page
-        .evaluate(
-            r#"(() => {
-                const text = (document.body && document.body.innerText || '')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                if (document.querySelector('[data-cy="top-navbar-button-start-trading"]')) {
-                    return false;
-                }
-                const spins = Array.from(
-                    document.querySelectorAll(
-                        '.ant-spin-spinning, .ant-spin.ant-spin-spinning, [class*="spinner"], [class*="Spinner"]'
-                    )
-                );
-                for (const spin of spins) {
-                    const r = spin.getBoundingClientRect();
-                    if (r.width > 2 && r.height > 2) return true;
-                }
-                if (text.length < 80) return true;
-                if (text === '...' || /^\u2022{2,}$/.test(text)) return true;
-                return false;
-            })()"#,
-        )
-        .await?
-        .into_value::<bool>()
-        .unwrap_or(true);
-    Ok(loading)
-}
-
-/// Tunggu SPA /stream selesai (bukan layar loading tiga titik saja).
 async fn wait_for_stream_ready_for_trading(
     page: &Page,
     timeout: Duration,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let started = Instant::now();
-    while started.elapsed() < timeout {
-        if !is_stream_shell_loading(page).await? {
-            println!("Portofolio: /stream siap (loading selesai).");
-            return Ok(());
-        }
-        sleep(Duration::from_millis(400)).await;
-    }
-    let _ = save_debug_screenshot(page, "portfolio_stream_loading_timeout").await;
-    Err("Timeout menunggu /stream selesai load (spinner / layar kosong)".into())
+    wait_for_stream_interactive_ready(page, timeout)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })
 }
 
 /// Tunggu tombol START TRADING muncul; simpan screenshot saat tombol terlihat.
@@ -136,11 +99,17 @@ async fn wait_for_start_trading_visible_with_screenshot(
     let started = Instant::now();
     let mut captured_visible = false;
     while started.elapsed() < timeout {
-        if is_stream_shell_loading(page).await? {
+        if is_stream_spa_loading(page)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?
+        {
             sleep(Duration::from_millis(350)).await;
             continue;
         }
-        if is_start_trading_visible(page).await? {
+        if is_start_trading_nav_visible(page)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?
+        {
             if !captured_visible {
                 let shot_label = format!("portfolio_start_trading_visible_{label}");
                 let _ = save_debug_screenshot(page, &shot_label).await;
@@ -158,31 +127,17 @@ async fn wait_for_start_trading_visible_with_screenshot(
 }
 
 async fn is_start_trading_visible(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
-    let visible = page
-        .evaluate(
-            r#"(() => {
-                const btn = document.querySelector('[data-cy="top-navbar-button-start-trading"]');
-                if (btn) {
-                    const style = window.getComputedStyle(btn);
-                    if (style.display === 'none' || style.visibility === 'hidden') return false;
-                    return true;
-                }
-                const nodes = Array.from(document.querySelectorAll('p, button, div, a'));
-                return nodes.some((el) => {
-                    const t = (el.innerText || el.textContent || '').trim();
-                    return t === 'START TRADING' || t.includes('START TRADING');
-                });
-            })()"#,
-        )
-        .await?
-        .into_value::<bool>()
-        .unwrap_or(false);
-    Ok(visible)
+    is_start_trading_nav_visible(page)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })
 }
 
 async fn click_start_trading(page: &Page) -> Result<(), Box<dyn std::error::Error>> {
-    if is_stream_shell_loading(page).await? {
-        wait_for_stream_ready_for_trading(page, Duration::from_secs(45)).await?;
+    if is_stream_spa_loading(page)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?
+    {
+        wait_for_stream_ready_for_trading(page, Duration::from_secs(90)).await?;
     }
     for attempt in 1..=20 {
         let clicked = page
@@ -558,22 +513,22 @@ async fn after_start_trading_click(page: &Page, step: &str) -> Result<(), Box<dy
 pub async fn ensure_trading_session(page: &Page) -> Result<bool, Box<dyn std::error::Error>> {
     // Modal PIN biasanya muncul dari navbar /stream, bukan halaman securities saja.
     goto_stream_for_trading(page).await?;
-    wait_for_stream_ready_for_trading(page, Duration::from_secs(60)).await?;
+    wait_for_stream_ready_for_trading(page, Duration::from_secs(90)).await?;
 
     if !is_start_trading_visible(page).await? {
         clear_stockbit_trading_client_state(page)
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
         goto_stream_for_trading(page).await?;
-        wait_for_stream_ready_for_trading(page, Duration::from_secs(60)).await?;
+        wait_for_stream_ready_for_trading(page, Duration::from_secs(90)).await?;
         if !is_start_trading_visible(page).await? {
             println!("START TRADING tidak terlihat — sudah mode trading, lewati PIN.");
             return Ok(false);
         }
+    }
+    if is_start_trading_visible(page).await? {
         let _ = save_debug_screenshot(page, "portfolio_start_trading_visible_initial").await;
-    } else {
-        let _ = save_debug_screenshot(page, "portfolio_start_trading_visible_initial").await;
-        println!("START TRADING terlihat — screenshot: portfolio_start_trading_visible_initial");
+        println!("START TRADING terlihat — screenshot disimpan.");
     }
 
     let pin = trading_pin()?;
