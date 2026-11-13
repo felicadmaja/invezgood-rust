@@ -124,6 +124,13 @@ service StockList {
   // Bearer login wajib; hanya role admin. Request: code + catatan_bidang_usaha. success=false + message bila code tidak ada atau DB gagal.
   rpc UpdateCatatanBidangUsaha(UpdateCatatanBidangUsahaRequest)
       returns (UpdateCatatanBidangUsahaResponse);
+
+  // GET fundachart PBV band Stockbit terminal: exodus.api.stockbit.com/fundachart/data?token=…
+  // Wajib Redis stockbit:readiness ready=true (sesi Chrome login OK) + STOCKBIT_EMAIL/PASSWORD.
+  // Chrome headless: Bearer dari /stream, token fundachart via fetch terminal; respons chart_entry (PBV + deviasi).
+  // Bearer invezgood wajib; request code 4 huruf. success=false + message bila scrape/API gagal (bukan gRPC error).
+  // Debug log: GetStockPBVBand {user} {ms}ms - {code}
+  rpc GetStockPBVBand(GetStockPbvBandRequest) returns (GetStockPbvBandResponse);
 }
 
 message GetAllStocksRequest {}
@@ -1016,4 +1023,36 @@ enum GetAllStocksStreamPart {
   GET_ALL_STOCKS_STREAM_PART_META = 1;
   GET_ALL_STOCKS_STREAM_PART_ITEM = 2;
   GET_ALL_STOCKS_STREAM_PART_DONE = 3;
+}
+
+message GetStockPbvBandRequest {
+  string code = 1; // wajib, 4 huruf
+}
+
+message FundachartSeriesValue {
+  repeated double yaxis_id = 1;
+  repeated int64 xaxis_id = 2;
+}
+
+message FundachartChartEntry {
+  string title = 1;
+  FundachartSeriesValue value = 2;
+  string color = 3;
+  int64 date = 4;
+  int32 item_id = 5;
+  string timeframe = 6;
+  string suffix = 7;
+}
+
+message FundachartData {
+  int32 interval = 1;
+  repeated FundachartChartEntry chart_entry = 2;
+}
+
+message GetStockPbvBandResponse {
+  bool success = 1;
+  string message = 2;
+  string code = 3;
+  string api_message = 4;
+  FundachartData data = 5;
 }

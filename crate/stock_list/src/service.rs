@@ -42,6 +42,7 @@ use crate::pb::{
     GetKeyStatsFromStockbitRequest, GetStockbitProfileByCodeRequest,
     GetStockbitReportsByCodeRequest, GetStockByCodeRequest,
     GetStockByRepeatedCodeRequest, GetStockByRepeatedCodeResponse,
+    GetStockPbvBandRequest, GetStockPbvBandResponse,
     GetStockByRepeatedCodeStreamPart, GetShareHolderAndCompanyInformationByCodeRequest, GetWyckoffChartByCodeRequest,
     GetWyckoffChartByCodeResponse,
     KeystatsData, KeystatsResponse, KeyStatsColumn, KeyStatsFromStockbitResponse,
@@ -1942,6 +1943,39 @@ impl StockList for StockListService {
         .await;
 
         Self::log_rpc_debug("GetStockByCode", &user_name, started);
+        result
+    }
+
+    async fn get_stock_pbv_band(
+        &self,
+        request: Request<GetStockPbvBandRequest>,
+    ) -> Result<Response<GetStockPbvBandResponse>, Status> {
+        let started = std::time::Instant::now();
+        let rpc_name = "GetStockPBVBand";
+        let auth = self.require_auth(&request).await?;
+        let user_name = auth.nama;
+
+        let result: Result<Response<GetStockPbvBandResponse>, Status> = async {
+            let code = request.into_inner().code.trim().to_ascii_uppercase();
+            if code.len() != 4 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+                return Err(Status::invalid_argument(
+                    "code wajib tepat 4 huruf alphabet",
+                ));
+            }
+
+            match crate::stockbit_fundachart::fetch_stock_pbv_band(&code).await {
+                Ok(resp) => Ok(Response::new(resp)),
+                Err(e) => Ok(Response::new(GetStockPbvBandResponse {
+                    success: false,
+                    message: e,
+                    code,
+                    ..Default::default()
+                })),
+            }
+        }
+        .await;
+
+        Self::log_rpc_debug(rpc_name, &user_name, started);
         result
     }
 

@@ -18,8 +18,11 @@
 //!
 //! Jika poller mendeteksi sesi habis: login ulang; bila gagal, retry dengan jeda acak 10–30 detik.
 
+mod fundachart;
 mod idx_browser;
 mod redis_readiness;
+
+pub use fundachart::{fetch_fundachart_pbv_json, require_stockbit_ready};
 
 pub use idx_browser::{
     acquire_idx_browser_session, idx_browser_data_dir, launch_idx_page, reset_idx_browser_state,
@@ -1555,7 +1558,7 @@ async fn login_and_return_to_stream_with_retry_unlocked(
 const BEARER_PROBE_URL: &str = "https://exodus.stockbit.com/order-trade/market-mover?\
 mover_type=MOVER_TYPE_TOP_GAINER&filter_stocks=FILTER_STOCKS_TYPE_MAIN_BOARD";
 
-fn ensure_auth_capture_js() -> &'static str {
+pub(crate) fn ensure_auth_capture_js() -> &'static str {
     r#"(() => {
         try {
             if (window.__sbCaptureAuthInstalled) {
@@ -1616,7 +1619,7 @@ async fn probe_bearer_ok(http: &reqwest::Client, token: &str) -> Result<u16, Str
     Ok(resp.status().as_u16())
 }
 
-async fn bearer_http_client() -> Result<reqwest::Client, StockbitError> {
+pub(crate) async fn bearer_http_client() -> Result<reqwest::Client, StockbitError> {
     reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(30))
