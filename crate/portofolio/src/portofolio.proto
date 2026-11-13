@@ -13,12 +13,11 @@ service Portofolio {
   rpc GetPortofolioFromScyllaByEmitenName(GetPortofolioFromScyllaByEmitenNameRequest)
       returns (GetPortofolioFromScyllaByEmitenNameResponse);
 
-  // Invoke RPC langsung (admin atau Viewer): tanpa batas hari/jam; rate limit global 1× / 1 menit.
-  // Auto dari IsStockbitReady poller: Senin–Kamis 09:00–12:00 & 13:30–16:00;
-  // Jumat 09:00–11:30 & 14:00–16:00 bila Stockbit ready
-  // (poller selalu jalan tanpa perlu subscriber). Scrape holdings + equity Stockbit
-  // (carina.stockbit.com/portfolio/v2/list) → setelah data siap: TRUNCATE portofolio lalu
-  // insert holdings + upsert portofolio_equity.
+  // DINONAKTIFKAN SEMENTARA: handler tidak melakukan scrape Stockbit, langsung balas response
+  // kosong (success=true, rows/equity_rows kosong). Tidak ada akses Chrome/Scylla.
+  // (Perilaku asli: scrape holdings + equity Stockbit carina.stockbit.com/portfolio/v2/list →
+  //  TRUNCATE portofolio lalu insert holdings + upsert portofolio_equity; invoke langsung
+  //  tanpa batas hari/jam, rate limit 1×/menit; juga dipicu IsStockbitReady poller.)
   rpc GetAllPortofolioFromStockbit(GetAllPortofolioFromStockbitRequest)
       returns (GetAllPortofolioFromStockbitResponse);
 }

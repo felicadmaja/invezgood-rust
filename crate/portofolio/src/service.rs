@@ -9,6 +9,7 @@ use user::{
     extract_bearer_token, validate_session, AuthSession,
     SessionStore,
 };
+#[allow(unused_imports)] // dipakai oleh scrape yang dinonaktifkan sementara (GetAllPortofolioFromStockbit)
 use worker_scrapping::on_demand;
 
 use crate::model::PortofolioRow as DbPortofolioRow;
@@ -21,14 +22,19 @@ use crate::pb::{
     PortofolioEquityRow, PortofolioRow,
 };
 
+// Item berikut dipakai oleh scrape GetAllPortofolioFromStockbit yang dinonaktifkan sementara.
+#[allow(dead_code)]
 const PORTFOLIO_SCRAPE_COOLDOWN: Duration = Duration::from_secs(60);
 
+#[allow(dead_code)]
 static LAST_PORTFOLIO_SCRAPE: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
+#[allow(dead_code)]
 fn portfolio_scrape_gate() -> &'static Mutex<Option<Instant>> {
     LAST_PORTFOLIO_SCRAPE.get_or_init(|| Mutex::new(None))
 }
 
+#[allow(dead_code)]
 async fn acquire_portfolio_scrape_slot() -> Result<(), Status> {
     let last = portfolio_scrape_gate().lock().await;
     if let Some(at) = *last {
@@ -43,6 +49,7 @@ async fn acquire_portfolio_scrape_slot() -> Result<(), Status> {
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn mark_portfolio_scrape_completed() {
     let mut last = portfolio_scrape_gate().lock().await;
     *last = Some(Instant::now());
@@ -52,6 +59,7 @@ async fn mark_portfolio_scrape_completed() {
 pub struct PortofolioService {
     session: Arc<Session>,
     auth_sessions: SessionStore,
+    #[allow(dead_code)] // dipakai load_equity_proto_rows (scrape dinonaktifkan sementara)
     equity_repo: PortofolioEquityRepository,
 }
 
@@ -118,6 +126,7 @@ impl PortofolioService {
         }
     }
 
+    #[allow(dead_code)] // dipakai scrape GetAllPortofolioFromStockbit yang dinonaktifkan sementara
     async fn load_equity_proto_rows(&self) -> Result<Vec<PortofolioEquityRow>, Status> {
         let rows = self
             .equity_repo
@@ -198,38 +207,48 @@ impl Portofolio for PortofolioService {
         let user_name = auth.nama;
         let _ = request.into_inner();
 
-        let result: Result<Response<GetAllPortofolioFromStockbitResponse>, Status> = async {
-            acquire_portfolio_scrape_slot().await?;
+        // RPC dinonaktifkan sementara: tidak melakukan scrape Stockbit, langsung balas response
+        // kosong. Aktifkan lagi dengan mengembalikan blok scrape di bawah.
+        let result: Result<Response<GetAllPortofolioFromStockbitResponse>, Status> =
+            Ok(Response::new(GetAllPortofolioFromStockbitResponse {
+                success: true,
+                message: "portofolio: RPC dinonaktifkan sementara (response kosong)".to_string(),
+                rows: vec![],
+                equity_rows: vec![],
+            }));
 
-            match on_demand::scrape_portofolio_all(Arc::clone(&self.session)).await {
-                Ok((n, _)) => {
-                    mark_portfolio_scrape_completed().await;
-                    let rows = crate::repository::find_all(self.session.as_ref())
-                        .await
-                        .map_err(Status::internal)?;
-                    let proto_rows: Vec<PortofolioRow> =
-                        rows.into_iter().map(Self::row_to_proto).collect();
-                    let equity_rows = self.load_equity_proto_rows().await?;
-                    Ok(Response::new(GetAllPortofolioFromStockbitResponse {
-                        success: true,
-                        message: format!(
-                            "portofolio: scrape selesai, {n} holdings di-upsert (baca {} holdings, {} equity)",
-                            proto_rows.len(),
-                            equity_rows.len()
-                        ),
-                        rows: proto_rows,
-                        equity_rows,
-                    }))
-                }
-                Err(e) => Ok(Response::new(GetAllPortofolioFromStockbitResponse {
-                    success: false,
-                    message: format!("scrape portofolio gagal: {e}"),
-                    rows: vec![],
-                    equity_rows: vec![],
-                })),
-            }
-        }
-        .await;
+        // --- Logika scrape (dinonaktifkan sementara) ---
+        // let result: Result<Response<GetAllPortofolioFromStockbitResponse>, Status> = async {
+        //     acquire_portfolio_scrape_slot().await?;
+        //     match on_demand::scrape_portofolio_all(Arc::clone(&self.session)).await {
+        //         Ok((n, _)) => {
+        //             mark_portfolio_scrape_completed().await;
+        //             let rows = crate::repository::find_all(self.session.as_ref())
+        //                 .await
+        //                 .map_err(Status::internal)?;
+        //             let proto_rows: Vec<PortofolioRow> =
+        //                 rows.into_iter().map(Self::row_to_proto).collect();
+        //             let equity_rows = self.load_equity_proto_rows().await?;
+        //             Ok(Response::new(GetAllPortofolioFromStockbitResponse {
+        //                 success: true,
+        //                 message: format!(
+        //                     "portofolio: scrape selesai, {n} holdings di-upsert (baca {} holdings, {} equity)",
+        //                     proto_rows.len(),
+        //                     equity_rows.len()
+        //                 ),
+        //                 rows: proto_rows,
+        //                 equity_rows,
+        //             }))
+        //         }
+        //         Err(e) => Ok(Response::new(GetAllPortofolioFromStockbitResponse {
+        //             success: false,
+        //             message: format!("scrape portofolio gagal: {e}"),
+        //             rows: vec![],
+        //             equity_rows: vec![],
+        //         })),
+        //     }
+        // }
+        // .await;
 
         Self::log_rpc_debug("GetAllPortofolioFromStockbit", &user_name, started);
         result

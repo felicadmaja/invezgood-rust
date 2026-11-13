@@ -703,6 +703,20 @@ async fn page_is_alive(page: &Page) -> bool {
     }
 }
 
+/// `page.evaluate` → bool dengan **timeout keras** supaya tidak pernah menggantung pada halaman
+/// SPA yang crash/hung (di mana `Runtime.evaluate` bisa tak pernah balik). `false` bila
+/// timeout/error.
+async fn eval_bool(page: &Page, js: &str) -> bool {
+    match tokio::time::timeout(Duration::from_secs(8), page.evaluate(js)).await {
+        Ok(Ok(v)) => v.into_value::<bool>().unwrap_or(false),
+        Ok(Err(_)) => false,
+        Err(_) => {
+            eprintln!("Chrome evaluate: timeout 8s (halaman mungkin hung) — anggap false");
+            false
+        }
+    }
+}
+
 fn is_stale_execution_context(err: &str) -> bool {
     err.contains("Cannot find context")
         || err.contains("-32000")
@@ -949,15 +963,22 @@ pub async fn goto_stockbit_expect(
 
 async fn force_location_assign(page: &Page, url: &str) -> Result<(), StockbitError> {
     let escaped = url.replace('\\', "\\\\").replace('"', "\\\"");
-    page.evaluate(format!(r#"window.location.assign("{escaped}")"#))
-        .await?;
+    // Timeout keras: pada halaman crash/hung, evaluate bisa tak pernah balik.
+    let _ = tokio::time::timeout(
+        Duration::from_secs(8),
+        page.evaluate(format!(r#"window.location.assign("{escaped}")"#)),
+    )
+    .await;
     Ok(())
 }
 
 async fn force_location_replace(page: &Page, url: &str) -> Result<(), StockbitError> {
     let escaped = url.replace('\\', "\\\\").replace('"', "\\\"");
-    page.evaluate(format!(r#"window.location.replace("{escaped}")"#))
-        .await?;
+    let _ = tokio::time::timeout(
+        Duration::from_secs(8),
+        page.evaluate(format!(r#"window.location.replace("{escaped}")"#)),
+    )
+    .await;
     Ok(())
 }
 
@@ -1105,7 +1126,8 @@ async fn type_naturally(
 /// `true` bila SPA Stockbit crash ("Application error: a client-side exception has occurred").
 /// Terjadi mis. saat sesi device ini di-invalidasi karena login di device lain.
 pub async fn has_app_error(page: &Page) -> bool {
-    page.evaluate(
+    eval_bool(
+        page,
         r#"(() => {
             const t = (document.body && document.body.innerText || '').toLowerCase();
             return t.includes('application error')
@@ -1113,20 +1135,26 @@ pub async fn has_app_error(page: &Page) -> bool {
         })()"#,
     )
     .await
-    .ok()
-    .and_then(|v| v.into_value::<bool>().ok())
-    .unwrap_or(false)
 }
 
 /// Hapus seluruh cookie (termasuk auth httpOnly, via CDP) + localStorage/sessionStorage,
 /// supaya Stockbit memperlakukan sesi sebagai logout dan `/login` menampilkan form login.
 async fn clear_stockbit_session_cookies(page: &Page) -> Result<(), StockbitError> {
-    if let Err(e) = page.execute(ClearBrowserCookiesParams::default()).await {
-        eprintln!("Peringatan: gagal clear cookies via CDP: {e}");
+    match tokio::time::timeout(
+        Duration::from_secs(8),
+        page.execute(ClearBrowserCookiesParams::default()),
+    )
+    .await
+    {
+        Ok(Ok(_)) => {}
+        Ok(Err(e)) => eprintln!("Peringatan: gagal clear cookies via CDP: {e}"),
+        Err(_) => eprintln!("Peringatan: clear cookies via CDP timeout 8s — lanjut"),
     }
-    let _ = evaluate_resilient(
-        page,
-        r#"(() => { try { localStorage.clear(); } catch (e) {} try { sessionStorage.clear(); } catch (e) {} return 0; })()"#,
+    let _ = tokio::time::timeout(
+        Duration::from_secs(6),
+        page.evaluate(
+            r#"(() => { try { localStorage.clear(); } catch (e) {} try { sessionStorage.clear(); } catch (e) {} return 0; })()"#,
+        ),
     )
     .await;
     invalidate_bearer_cache().await;
@@ -1137,13 +1165,16 @@ async fn clear_stockbit_session_cookies(page: &Page) -> Result<(), StockbitError
 /// form login. Dipakai saat SPA crash / nyangkut karena sesi lama invalid.
 async fn force_fresh_login_page(page: &Page) -> Result<(), StockbitError> {
     clear_stockbit_session_cookies(page).await?;
+    // Navigasi penuh ke /login (dokumen baru). Cookie sudah bersih → tidak redirect balik ke
+    // /stream yang crash. `goto_stockbit` sudah dibungkus timeout; jangan pakai `page.reload()`
+    // yang tanpa timeout dan bisa menggantung.
     goto_stockbit(page, STOCKBIT_LOGIN_URL).await?;
-    let _ = page.reload().await;
     wait_for_login_form(page, Duration::from_secs(25)).await
 }
 
 async fn has_login_form(page: &Page) -> bool {
-    page.evaluate(
+    eval_bool(
+        page,
         r#"(() => {
             return !!(
                 document.querySelector('#username')
@@ -1154,22 +1185,17 @@ async fn has_login_form(page: &Page) -> bool {
         })()"#,
     )
     .await
-    .ok()
-    .and_then(|v| v.into_value::<bool>().ok())
-    .unwrap_or(false)
 }
 
 pub async fn has_profile_avatar_modal(page: &Page) -> bool {
-    page.evaluate(
+    eval_bool(
+        page,
         r#"(() => {
             const body = (document.body && document.body.innerText) || '';
             return body.includes('New! Profile Avatar');
         })()"#,
     )
     .await
-    .ok()
-    .and_then(|v| v.into_value::<bool>().ok())
-    .unwrap_or(false)
 }
 
 /// Tutup modal "New! Profile Avatar" (klik Skip) bila ada; aman dipanggil berulang.
@@ -1398,16 +1424,14 @@ pub async fn dismiss_profile_avatar_modal(page: &Page) -> Result<bool, StockbitE
 
 /// `true` bila popup "Sesi Kamu Sudah Habis" sedang tampil.
 pub async fn has_session_expired_modal(page: &Page) -> bool {
-    page.evaluate(
+    eval_bool(
+        page,
         r#"(() => {
             const body = (document.body && document.body.innerText) || '';
             return body.includes('Sesi Kamu Sudah Habis');
         })()"#,
     )
     .await
-    .ok()
-    .and_then(|v| v.into_value::<bool>().ok())
-    .unwrap_or(false)
 }
 
 fn js_element_visible() -> String {
@@ -1446,8 +1470,7 @@ fn js_element_visible() -> String {
 
 /// Layar /stream masih loading (tiga titik / konten hampir kosong).
 pub async fn is_stream_spa_loading(page: &Page) -> Result<bool, StockbitError> {
-    let loading = page
-        .evaluate(format!(
+    let js = format!(
             r#"(() => {{
                 {vis_helper}
                 const text = (document.body && document.body.innerText || '')
@@ -1473,17 +1496,13 @@ pub async fn is_stream_spa_loading(page: &Page) -> Result<bool, StockbitError> {
                 return false;
             }})()"#,
             vis_helper = js_element_visible()
-        ))
-        .await?
-        .into_value::<bool>()
-        .unwrap_or(true);
-    Ok(loading)
+        );
+    Ok(eval_bool(page, &js).await)
 }
 
 /// Tombol START TRADING benar-benar terlihat di viewport (bukan hanya ada di DOM).
 pub async fn is_start_trading_nav_visible(page: &Page) -> Result<bool, StockbitError> {
-    let vis = page
-        .evaluate(format!(
+    let js = format!(
             r#"(() => {{
                 {vis_helper}
                 const btn = document.querySelector('[data-cy="top-navbar-button-start-trading"]');
@@ -1496,11 +1515,8 @@ pub async fn is_start_trading_nav_visible(page: &Page) -> Result<bool, StockbitE
                 }});
             }})()"#,
             vis_helper = js_element_visible()
-        ))
-        .await?
-        .into_value::<bool>()
-        .unwrap_or(false);
-    Ok(vis)
+        );
+    Ok(eval_bool(page, &js).await)
 }
 
 /// Feed /stream sudah interaktif (login selesai, bukan layar putih loading).
@@ -1515,8 +1531,7 @@ pub async fn is_stream_session_ready(page: &Page) -> Result<bool, StockbitError>
     if is_stream_spa_loading(page).await? {
         return Ok(false);
     }
-    let ready = page
-        .evaluate(format!(
+    let js = format!(
             r#"(() => {{
                 {vis_helper}
                 const text = (document.body && document.body.innerText || '')
@@ -1529,9 +1544,12 @@ pub async fn is_stream_session_ready(page: &Page) -> Result<bool, StockbitError>
                 return visible(nav) || visible(start);
             }})()"#,
             vis_helper = js_element_visible()
-        ))
-        .await?
-        .into_value::<bool>()
+        );
+    let ready = tokio::time::timeout(Duration::from_secs(8), page.evaluate(js))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .and_then(|v| v.into_value::<bool>().ok())
         .unwrap_or(false);
     Ok(ready)
 }
