@@ -2015,6 +2015,97 @@ async fn send_update(tx: &mpsc::Sender<ReadinessUpdate>, ready: bool, message: &
 ///
 /// Lock Chrome **tidak** dipegang saat sleep/poll idle — supaya RPC client tetap bisa
 /// invoke scrape/browser sementara poller menunggu.
+/// Interval keep-alive sesi Stockbit (detik, acak dalam rentang). Default 300–600 (5–10 menit).
+/// Override: `STOCKBIT_KEEPALIVE_MIN_SECS` / `STOCKBIT_KEEPALIVE_MAX_SECS`.
+fn stockbit_keep_alive_interval_secs() -> u64 {
+    let min = std::env::var("STOCKBIT_KEEPALIVE_MIN_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(300);
+    let max = std::env::var("STOCKBIT_KEEPALIVE_MAX_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(600);
+    let (min, max) = if min <= max { (min, max) } else { (max, min) };
+    if min >= max {
+        min.max(1)
+    } else {
+        rand::thread_rng().gen_range(min..=max)
+    }
+}
+
+/// Satu tick keep-alive: refresh `/stream` di bawah lock Background. Gentle — TIDAK menghapus
+/// cookie/device-trust. Bila sesi habis (form login / modal sesi habis / di `/login`) → login
+/// email+password (device sudah trusted → tanpa OTP). Return pesan status ringkas.
+async fn stockbit_keep_alive_tick(email: &str, password: &str) -> Result<String, StockbitError> {
+    let _guard = acquire_browser_session(BrowserLockClass::Background).await?;
+    let (browser, page) = launch_page().await?;
+    let result: Result<String, StockbitError> = async {
+        goto_stockbit(&page, STOCKBIT_STREAM_URL).await?;
+        sleep(Duration::from_millis(1500)).await;
+
+        if has_profile_avatar_modal(&page).await {
+            let _ = dismiss_profile_avatar_modal(&page).await;
+        }
+        if is_stream_session_ready(&page).await.unwrap_or(false) {
+            return Ok("sesi OK (refresh /stream)".to_string());
+        }
+
+        // App error / layar putih: reload /stream beberapa kali TANPA clear cookie.
+        let mut reloads = 0u32;
+        while reloads < 2 && has_app_error(&page).await {
+            reloads += 1;
+            let _ = goto_stockbit(&page, STOCKBIT_STREAM_URL).await;
+            sleep(Duration::from_secs(2)).await;
+        }
+        if is_stream_session_ready(&page).await.unwrap_or(false) {
+            return Ok(format!("sesi OK setelah reload x{reloads}"));
+        }
+
+        // Sesi habis → login ulang (device trusted → email+password, tanpa OTP).
+        let url = page.url().await?.unwrap_or_default();
+        if has_login_form(&page).await
+            || has_session_expired_modal(&page).await
+            || is_login_url(&url)
+        {
+            login_and_return_to_stream(&page, email, password).await?;
+            wait_for_stream_interactive_ready(&page, Duration::from_secs(90)).await?;
+            return Ok("login ulang (sesi habis) → /stream siap".to_string());
+        }
+
+        Ok(format!(
+            "sesi belum siap (reload x{reloads}, url={url}) — tunggu tick berikutnya"
+        ))
+    }
+    .await;
+    browser.close().await;
+    result
+}
+
+/// Loop keep-alive sesi Stockbit: tiap 5–10 menit (acak) refresh `/stream` agar sesi tidak
+/// idle-logout. Spawn sekali di app startup. Skip tick bila ada RPC client yang menunggu Chrome.
+pub async fn run_stockbit_session_keep_alive() {
+    let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
+    let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();
+    if email.trim().is_empty() || password.is_empty() {
+        println!("Stockbit keep-alive: STOCKBIT_EMAIL/PASSWORD kosong — keep-alive tidak dijalankan");
+        return;
+    }
+    println!("Stockbit keep-alive: dimulai (refresh /stream tiap 5–10 menit acak)");
+    sleep(Duration::from_secs(stockbit_keep_alive_interval_secs())).await;
+    loop {
+        if browser_interactive_waiters() > 0 {
+            sleep(Duration::from_secs(10)).await;
+            continue;
+        }
+        match stockbit_keep_alive_tick(email.trim(), password.trim()).await {
+            Ok(msg) => println!("Stockbit keep-alive: {msg}"),
+            Err(e) => eprintln!("Stockbit keep-alive gagal: {e}"),
+        }
+        sleep(Duration::from_secs(stockbit_keep_alive_interval_secs())).await;
+    }
+}
+
 pub async fn run_readiness_check(tx: mpsc::Sender<ReadinessUpdate>) -> Result<(), StockbitError> {
     let email = std::env::var("STOCKBIT_EMAIL").unwrap_or_default();
     let password = std::env::var("STOCKBIT_PASSWORD").unwrap_or_default();

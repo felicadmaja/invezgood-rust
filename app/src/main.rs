@@ -168,6 +168,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         readiness_poller.ensure_loop_running().await;
     }
 
+    // Keep-alive sesi Stockbit: refresh /stream tiap 5–10 menit acak agar tidak idle-logout.
+    tokio::spawn(async {
+        stockbit_browser::run_stockbit_session_keep_alive().await;
+    });
+
     let yahoo_spike = YahooSpikePoller::new();
     yahoo_spike
         .ensure_loop_running(session.clone())
