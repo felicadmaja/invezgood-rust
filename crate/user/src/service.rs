@@ -630,6 +630,11 @@ impl User for UserService {
                 is_need_login: false,
             }))
             .await;
+        // Tahan stream tetap terbuka (idle) sampai client disconnect supaya tidak ada
+        // reconnect storm dari client yang auto-reconnect saat stream ditutup.
+        tokio::spawn(async move {
+            tx.closed().await;
+        });
         Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 
