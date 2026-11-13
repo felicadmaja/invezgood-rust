@@ -315,6 +315,7 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         let token = extract_bearer_token(&request)?;
         let user_name = self.require_auth_token(&token).await?;
         let code = request.into_inner().code.trim().to_ascii_uppercase();
+        let code_log = code.clone();
 
         let result: Result<Response<GetXlbrChartByCodeResponse>, Status> = async {
             if code.is_empty() {
@@ -364,7 +365,7 @@ impl XlbrLaporanKeuangan for XlbrLaporanKeuanganService {
         .await;
 
         eprintln!(
-            "GetChartByCode {user_name} {}ms",
+            "GetChartByCode {user_name} {}ms - {code_log}",
             started.elapsed().as_millis()
         );
         result

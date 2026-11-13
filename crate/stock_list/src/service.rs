@@ -218,6 +218,18 @@ impl StockListService {
         );
     }
 
+    fn log_rpc_debug_code(
+        rpc_name: &str,
+        user_name: &str,
+        code: &str,
+        started: std::time::Instant,
+    ) {
+        eprintln!(
+            "{rpc_name} {user_name} {}ms - {code}",
+            started.elapsed().as_millis()
+        );
+    }
+
     fn log_rpc_debug_code_path(
         rpc_name: &str,
         code: &str,
@@ -2156,7 +2168,12 @@ impl StockList for StockListService {
                     } => Some(result),
                 } {
                     None => {
-                        Self::log_rpc_debug("GetKeyStatsFromStockbit", &user_name_spawn, started);
+                        Self::log_rpc_debug_code(
+                            "GetKeyStatsFromStockbit",
+                            &user_name_spawn,
+                            &code,
+                            started,
+                        );
                         return;
                     }
                     Some(result) => result,
@@ -2175,7 +2192,12 @@ impl StockList for StockListService {
                 }
             }
 
-            Self::log_rpc_debug("GetKeyStatsFromStockbit", &user_name_spawn, started);
+            Self::log_rpc_debug_code(
+                "GetKeyStatsFromStockbit",
+                &user_name_spawn,
+                &code,
+                started,
+            );
         });
 
         Ok(Response::new(
